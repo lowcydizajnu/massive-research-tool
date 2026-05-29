@@ -1,0 +1,188 @@
+/* =========================================================================
+   Massive Research Tool — design tokens
+   Source of truth: 03_design/design-system/tokens.md (brief v0.6)
+   Light values on :root; Dark values via [data-theme="dark"] selector.
+   Hover/active states use opacity overlays, never a third hue.
+   ========================================================================= */
+
+:root {
+  /* Surface neutrals — warm parchment ladder */
+  --color-surface-page: #F7F2E8;
+  --color-surface-canvas: #FFFFFF;
+  --color-surface-panel: #FCFAF3;
+  --color-surface-raised: #FFFFFF;
+  --color-surface-subtle: #F2EEE3;
+
+  /* Text */
+  --color-text-primary: #1A1F2C;
+  --color-text-secondary: #3F4654;
+  --color-text-muted: #6E7480;
+  --color-ink-deep: #0F2A47;
+
+  /* Primary — action color */
+  --color-primary: #1747C9;
+  --color-primary-subtle: #EAF0FD;
+  --color-primary-text-on-subtle: #0B2A7A;
+
+  /* Accent — energy */
+  --color-accent: #0EA5E9;
+  --color-accent-subtle: #E0F4FE;
+  --color-accent-text-on-subtle: #0E5879;
+
+  /* Success — true emerald */
+  --color-success: #22C55E;
+  --color-success-subtle: #E6F6DC;
+  --color-success-text-on-subtle: #14532D;
+
+  /* Warning — amber */
+  --color-warning: #F59E0B;
+  --color-warning-subtle: #FBEFCF;
+  --color-warning-text-on-subtle: #78350F;
+
+  /* Danger — true red */
+  --color-danger: #EF4444;
+  --color-danger-subtle: #FBE0DA;
+  --color-danger-text-on-subtle: #7F1D1D;
+
+  /* Info — uses accent */
+  --color-info: #0EA5E9;
+  --color-info-subtle: #DDEFFB;
+  --color-info-text-on-subtle: #0E5879;
+
+  /* Borders — three tiers, vertical use restricted */
+  --color-border-heavy: #1A1F2C;
+  --color-border-medium: #94A0B5;
+  --color-border-subtle: #E6DFD2;
+
+  /* Shadow elevation */
+  --shadow-sm: 0 1px 2px rgba(15, 42, 71, 0.04);
+  --shadow-md: 0 4px 16px rgba(15, 42, 71, 0.08);
+  --shadow-lg: 0 12px 32px rgba(15, 42, 71, 0.12);
+}
+
+[data-theme="dark"] {
+  /* Surface neutrals — warm-dark, not cool slate */
+  --color-surface-page: #161514;
+  --color-surface-canvas: #1F1D1B;
+  --color-surface-panel: #1B1A18;
+  --color-surface-raised: #272421;
+  --color-surface-subtle: #2A2724;
+
+  /* Text — warm off-white, not pure white */
+  --color-text-primary: #F5F1E8;
+  --color-text-secondary: #C9C5BE;
+  --color-text-muted: #8E8B86;
+  --color-ink-deep: #F5F1E8;
+
+  /* Primary — brightened for dark surfaces */
+  --color-primary: #3D78E8;
+  --color-primary-subtle: rgba(23, 71, 201, 0.25);
+  --color-primary-text-on-subtle: #A8C0F0;
+
+  /* Accent */
+  --color-accent: #38BDF8;
+  --color-accent-subtle: rgba(14, 165, 233, 0.22);
+  --color-accent-text-on-subtle: #92D5F0;
+
+  /* Success */
+  --color-success: #4ADE80;
+  --color-success-subtle: rgba(34, 197, 94, 0.18);
+  --color-success-text-on-subtle: #88E0A8;
+
+  /* Warning */
+  --color-warning: #FBBF24;
+  --color-warning-subtle: rgba(245, 158, 11, 0.22);
+  --color-warning-text-on-subtle: #FCD68A;
+
+  /* Danger */
+  --color-danger: #F87171;
+  --color-danger-subtle: rgba(239, 68, 68, 0.2);
+  --color-danger-text-on-subtle: #F5A0A0;
+
+  /* Info */
+  --color-info: #38BDF8;
+  --color-info-subtle: rgba(14, 165, 233, 0.22);
+  --color-info-text-on-subtle: #92D5F0;
+
+  /* Borders */
+  --color-border-heavy: #F5F1E8;
+  --color-border-medium: #5F5B55;
+  --color-border-subtle: #322E2A;
+
+  /* Shadow — heavier in dark mode */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6);
+}
+
+/* =========================================================================
+   Non-color tokens — identical in both modes
+   ========================================================================= */
+
+:root {
+  /* Typography family stacks */
+  --font-serif: var(--font-plex-serif), Georgia, "Times New Roman", serif;
+  --font-sans: var(--font-plex-sans), system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-plex-mono), "SF Mono", Menlo, monospace;
+
+  /* Type scale */
+  --text-display: 2rem;        /* 32px — Serif 500 */
+  --text-heading-1: 1.375rem;  /* 22px — Serif 500 */
+  --text-heading-2: 1.125rem;  /* 18px — Sans 500 */
+  --text-label: 0.6875rem;     /* 11px — Sans 500 uppercase */
+  --text-body: 0.9375rem;      /* 15px — Sans 400 */
+  --text-small: 0.8125rem;     /* 13px — Sans 400 */
+  --text-mono: 0.8125rem;      /* 13px — Mono 400 */
+
+  /* Spacing — 4px grid */
+  --space-0: 0;
+  --space-1: 0.25rem;   /* 4px */
+  --space-2: 0.5rem;    /* 8px */
+  --space-3: 0.75rem;   /* 12px */
+  --space-4: 1rem;      /* 16px */
+  --space-5: 1.25rem;   /* 20px */
+  --space-6: 1.5rem;    /* 24px */
+  --space-8: 2rem;      /* 32px */
+  --space-10: 2.5rem;   /* 40px */
+  --space-12: 3rem;     /* 48px */
+  --space-16: 4rem;     /* 64px */
+  --space-20: 5rem;     /* 80px */
+
+  /* Semantic spacing layers */
+  --spacing-compact: var(--space-2);
+  --spacing-cozy: var(--space-4);
+  --spacing-comfortable: var(--space-6);
+  --spacing-section: var(--space-12);
+  --spacing-page: var(--space-20);
+  --spacing-zone-gutter: var(--space-3);
+
+  /* Radii */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 12px;
+  --radius-full: 9999px;
+
+  /* Motion */
+  --motion-fast: 120ms;
+  --motion-base: 200ms;
+  --motion-slow: 320ms;
+  --ease-enter: cubic-bezier(0.2, 0, 0, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+
+  /* Focus ring */
+  --focus-ring-width: 2px;
+  --focus-ring-color: var(--color-primary);
+  --focus-ring-offset: 2px;
+}
+
+/* =========================================================================
+   Reduced motion override — non-negotiable per accessibility floor
+   ========================================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0ms;
+    --motion-base: 0ms;
+    --motion-slow: 0ms;
+  }
+}

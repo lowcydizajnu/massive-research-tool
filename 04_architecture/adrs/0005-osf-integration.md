@@ -1,0 +1,174 @@
+# ADR 0005 — Push-to-OSF integration with registry-agnostic adapter interface
+
+- **Status:** accepted
+- **Date:** 2026-05-28
+- **Deciders:** project owner (with Claude as collaborator)
+- **Tags:** integration, open-science, preregistration, OAuth, registry, data-model
+
+## Context
+
+The Open Science Framework (OSF) is the dominant open-science substrate in psychology. Per the literature insight (`01_research/insights/researcher-tooling-pain-points.md`) and the persona-segmentation insight (`01_research/insights/persona-segmentation-and-strategic-risks.md`), OSF integration is not a "would be nice" — it's a **credibility floor**. All four personas treat OSF presence as expected, even when their personal relationship to OSF differs (Maya/Hanna use it as an end-of-line drop, Marek uses it as a working surface, Sofia uses it with complicated feelings post-saga).
+
+The preregistration substrate we built in ADR-0002 (immutable `kind: preregistered` versions), ADR-0003 (asset freeze at preregistration), and ADR-0004 (amendments via `supersedes_version_id` + required `change_summary`) all imply OSF integration as the natural external manifestation: when we preregister internally, that record needs to land on OSF too, because OSF is where the academic community looks.
+
+This ADR specifies *how* OSF integration works and, importantly, designs the integration so that **AsPredicted, ClinicalTrials.gov, and future registries can plug in via the same interface** — OSF is V1, but the abstraction is "registry," not "OSF."
+
+## Options considered
+
+### Option A — Lightweight reference (URL-only)
+
+User preregisters on OSF via OSF's own UI. They paste the resulting URL into an `external_registration_url` field on the ExperimentVersion. No API interaction.
+
+- **Pros.** Trivially simple. No OAuth, no API surface, no maintenance burden.
+- **Cons.** Doesn't actually integrate. The persona-validated "credibility floor" isn't delivered by a hyperlink. Hanna's "copying my design from one box to another" pain survives unchanged. Fails to honor the architectural commitments already made to preregistration as a first-class concept. Wastes the asset-freeze infrastructure from ADR-0003.
+
+### Option B — Push-to-OSF on preregistration (chosen — sub-option B.3)
+
+User connects their OSF account once (OAuth). On creation of a `kind: preregistered` ExperimentVersion (or `kind: published`), the platform asynchronously pushes a copy to OSF as an OSF registration. OSF returns a DOI and a public URL; we store both. Amendments per ADR-0004 push as new OSF registrations referencing the prior DOI. Materials covered by ADR-0003's freeze pass are uploaded to OSF as part of the registration.
+
+Sub-options for *what* we push:
+
+- **B.1:** JSON snapshot only — lossless, machine-readable, but the OSF page is barely human-legible.
+- **B.2:** Rendered PDF + materials only — human-friendly OSF page, but lossy and not machine-reproducible.
+- **B.3 (chosen):** Both — JSON for machines, a rendered PDF for humans, and OSF's preregistration-template fields populated where they map cleanly. Best of both audiences.
+
+- **Pros.** Delivers the persona-validated credibility floor properly. Hanna's "design + prereg as one object" pain is solved. Amendments propagate via DOI references. ADR-0003's frozen assets get a destination. Integration matches what makes OSF central in the field today.
+- **Cons.** OAuth + API surface to maintain. OSF API changes are our problem. First-time-user friction (one-time OAuth dance). Need async push + retry logic so a researcher's preregistration moment is not blocked by OSF availability.
+
+### Option C — Bidirectional sync (push + pull + browse + fork-from-OSF)
+
+Everything in Option B, plus pull-from-OSF — users browse OSF projects from inside our tool, fork an OSF-hosted study into ours.
+
+- **Pros.** Biggest vision; uses the OSF back-catalogue as input material.
+- **Cons.** Substantially more engineering. OSF wasn't designed for this — most OSF projects are not runnable artifacts; reconstructing intent is exactly the eighteen-month problem Sofia describes. Major V1 scope creep. The data model already leaves room (per ADR-0001's plugin-ready module registry — a future "registry pull" adapter is layerable later).
+
+## Decision
+
+**We will adopt Option B, sub-option B.3: push-to-OSF on preregistration via an OAuth-authenticated, asynchronous, registry-agnostic adapter interface. JSON + rendered PDF + OSF template-field mapping pushed for every `kind: preregistered` or `kind: published` version. Pull-from-OSF and fork-from-OSF are deferred to a future ADR.**
+
+### The nine load-bearing principles
+
+1. **Push is per-user, not per-tenant.** OSF identities are personal. Each researcher OAuth-connects their own OSF account; pushes use that researcher's credentials. The researcher who created the version is the "author" of the OSF registration. Multi-author work uses OSF's own contributor-add flow after push.
+2. **Default-on, opt-out per registration.** When a researcher creates a `kind: preregistered` version, OSF push is the default. Opt-out is per-registration, not per-account — for cases like "I'm using AsPredicted for this one" or "I have a reason not to publicize this study yet." Default-virtue per the personas; deliberate exceptions allowed.
+3. **Push is asynchronous via Inngest** (per STACK.md). The researcher's "Preregister" click writes the immutable version locally and returns immediately. The OSF push is a background job that retries on failure. The researcher's preregistration moment is never blocked by OSF availability. The version's `registry_push_status` field reflects the job state.
+4. **Failed pushes flag the version honestly; they never block preregistration.** Same pattern as ADR-0003's freeze-failure handling. A version with `registry_push_status = 'failed'` after retries is still a valid local preregistration; the UI surfaces "OSF push failed: [reason]" with a manual retry option. The version is not silently downgraded.
+5. **What we push (B.3):** for every push, three artifacts:
+   - The full JSON snapshot of `definition_snapshot` + `module_version_locks` + `theme_snapshot` (machine-readable, lossless).
+   - A rendered PDF of the human-readable preregistration (filled-in template, list of stimuli, methodology, hypotheses).
+   - OSF's preregistration template fields populated where they map cleanly (research questions, hypotheses, sample plan, analysis plan, exclusion rules — from the `preregistration` block inside `definition_snapshot`).
+   - Plus: all materials covered by ADR-0003's freeze pass, uploaded as OSF files.
+6. **Amendments push as new OSF registrations** referencing the prior DOI. Per ADR-0004, an amendment is a new `kind: preregistered` version with `supersedes_version_id`; the OSF push for the amendment includes a "amends [prior DOI]" reference and a human-readable note linking to the prior OSF page. We do NOT modify the prior OSF registration (OSF registrations are themselves immutable).
+7. **Registry-agnostic adapter interface.** The push code lives behind a `RegistryAdapter` interface with methods like `connect(user)`, `push_registration(version, materials)`, `push_amendment(version, prior_doi)`, `withdraw(doi, reason)`. The OSF adapter implements this interface. AsPredicted, ClinicalTrials.gov, PsyArXiv, etc. would be future adapters with the same interface. ADR-0001's plugin-ready philosophy applied to registries.
+8. **OAuth tokens are stored encrypted, per-user, with refresh handled by the adapter.** Researchers can disconnect their OSF account at any time; future pushes from that user fail with `registry_push_status = 'no_credentials'` until reconnected. Disconnection does NOT retroactively delete pushed registrations (OSF owns them once pushed).
+9. **OSF rate limits are the adapter's problem, not the application's.** The adapter implements exponential backoff, queues pushes when rate-limited, and surfaces aggregate health via metrics. The application code never sees a 429.
+
+### Sketch of the data-model additions
+
+Extends ExperimentVersion and adds new entities (full entry in a future `04_architecture/data-model/02-registry-integration.md`):
+
+```
+experiment_version  (new fields, extends ADR-0001/0002/0004)
+  registry_push_status enum ('not_pushed' | 'pending' | 'pushed' | 'failed' | 'no_credentials' | 'opted_out')
+  registry_push_attempts int (default 0)
+  registry_push_last_error string (nullable)
+  -- existing fields from prior ADRs:
+  external_registration_url (nullable) -- the OSF URL after push
+  external_registration_doi (nullable) -- the OSF DOI after push
+
+registry  (NEW)
+  id, key ('osf' | 'aspredicted' | ...), name, oauth_config json, push_config json, created_at
+
+registry_connection  (NEW)
+  id, user_id FK, registry_id FK, access_token (encrypted), refresh_token (encrypted),
+  scopes string[], connected_at, last_refreshed_at, revoked_at (nullable)
+
+registry_push  (NEW — one row per push attempt, immutable audit trail)
+  id, experiment_version_id FK, registry_id FK, status enum,
+  request_payload json, response_payload json (nullable), error_text (nullable),
+  pushed_doi (nullable), pushed_url (nullable),
+  created_at, completed_at (nullable)
+```
+
+`registry_push` is append-only — every push attempt (including failures and retries) is logged. The version's `registry_push_status` is denormalized from the latest `registry_push` row for query speed.
+
+### Mapping our preregistration block to OSF template fields
+
+The preregistration content inside `definition_snapshot.preregistration` (specified at ADR-0004's discussion of typed-in fields) maps to OSF's standard preregistration template roughly as:
+
+| Our field | OSF template section |
+| --- | --- |
+| `hypotheses[]` | Hypotheses |
+| `sample_plan.target_n` + `sample_plan.justification` | Sampling Plan |
+| `sample_plan.recruitment_source` | Recruiting |
+| `sample_plan.inclusion_criteria` + `exclusion_criteria` | Inclusion / Exclusion |
+| `analysis_plan.tests[]` | Analysis Plan |
+| `analysis_plan.primary_outcomes[]` | Primary Outcomes |
+| `analysis_plan.exclusion_rules[]` | Analysis Plan / Data Exclusion |
+| `manipulation_check.description` | Manipulation Check |
+
+Fields we have that don't map to OSF cleanly are included in the JSON snapshot but not in the OSF template fields. Future OSF template revisions are an adapter-level concern.
+
+### Behavior on `kind: published` versions
+
+Same machinery, different metadata. A published version pushes a "publication" record (or a registration tagged as published — OSF supports both flows) and stores the DOI in `external_publication_url`. This is the natural pairing for journal-submitted work.
+
+## Consequences
+
+**What becomes easier:**
+
+- Preregistration is one click for the 90% of researchers who use OSF; the OSF page is populated with a properly rendered, machine + human readable record.
+- Amendments propagate without manual work — the OSF lineage matches our internal lineage.
+- Asset materials get an OSF home automatically (ADR-0003's freeze investment pays off).
+- Future registries (AsPredicted, ClinicalTrials.gov, PsyArXiv) plug in via the same adapter interface — adding one is a focused work item, not a rebuild.
+- The "Hanna pain" (copying my design from one box to another) is structurally solved for OSF-using researchers.
+
+**What becomes harder:**
+
+- OAuth flows + token management to maintain (encryption at rest, refresh, revocation, scope changes).
+- OSF API surface to track — breaking changes upstream become our problem.
+- PDF rendering pipeline to build and maintain. Worth the cost because the same renderer serves journal submission, citation export, and the local "view this preregistration" UI.
+- Background-job operational surface (Inngest dashboards, retry policies, error alerts).
+- Failure-mode UX is non-trivial: "your preregistration is local but the OSF push failed" needs to be communicated clearly without alarming researchers.
+
+**What we are now committed to:**
+
+- A `RegistryAdapter` interface that survives multiple registries.
+- Per-user OAuth, not per-tenant. Researchers own their OSF identity.
+- Async push with retries; preregistration moment never blocked.
+- Failed pushes are honest, not silent.
+- New ExperimentVersion fields + three new entities (Registry, RegistryConnection, RegistryPush).
+- Append-only `registry_push` audit trail.
+
+**What we are now precluded from:**
+
+- Tenant-level OSF accounts (researchers can't push under "their lab" — only under their personal OSF account).
+- Silent failures or quiet "we'll try later" without status surfacing.
+- Modifying prior OSF registrations on amendment (we always push new, reference old).
+- Synchronous OSF dependency in any user-facing flow.
+- OSF-specific logic outside the adapter (registry-agnostic interface is enforced as a code-review rule).
+
+## Revisit triggers
+
+Reopen this decision (probably as a superseding or extending ADR) if:
+
+- **Pull-from-OSF / fork-from-OSF becomes a real product need.** Promotes us toward Option C territory. Sketch: a new adapter method `import_registration(doi)` that produces a draft ExperimentVersion from an OSF registration. Hard problem because OSF registrations aren't generally runnable.
+- **A second registry adapter is needed (AsPredicted is the likely first).** Tests whether the abstraction held. If it didn't, we refactor and write a follow-up ADR.
+- **OSF's API evolves significantly** (new template structure, new auth model, new asset model). Adapter rewrite, not architecture revision.
+- **A regulatory body (e.g., for clinical trials)** requires registry behavior we can't ship via the same flow. New adapter with stricter semantics; possibly new ADR if the registration model needs to bifurcate.
+- **Per-tenant OSF accounts become a real ask.** Currently precluded; if institutional research-software contracts force the question, write a superseding ADR with an explicit tenancy model for registry connections.
+
+## References
+
+- ADR-0001 — modular composition + theme overlays — the snapshot structure that gets pushed.
+- ADR-0002 — forking model — `kind: preregistered` and `kind: published` are the trigger points for push.
+- ADR-0003 — asset storage — the freeze pass that produces the materials we upload to OSF.
+- ADR-0004 — preregistration amendments — `supersedes_version_id` drives the amendment-push behavior.
+- `02_product/product-brief.md` §2 (open-science workflow) and §8 (segment-dependent wedge value).
+- `01_research/insights/researcher-tooling-pain-points.md` — establishes OSF as a credibility floor in psychology.
+- `01_research/insights/persona-segmentation-and-strategic-risks.md` — confirms OSF expectation across all three synthetic-pilot personas.
+- `02_product/personas/*` — all four personas treat OSF as expected substrate.
+- `STACK.md` — Inngest as the background-job platform for async push.
+- Future: `04_architecture/data-model/02-registry-integration.md` — fleshes out Registry, RegistryConnection, RegistryPush entities.
+- Future: ADR for AsPredicted adapter (likely tests whether the abstraction held).
+- Future: ADR for pull-from-OSF / fork-from-OSF (Option C territory).
+- OSF API documentation (external): the surface this ADR's adapter targets.
