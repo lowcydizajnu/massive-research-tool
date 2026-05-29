@@ -1,0 +1,805 @@
+# Workspace artifact schema.
+#
+# This is the single source of truth for what kinds of artifacts exist,
+# what fields they have, what they reference, and where their instances live.
+#
+# When you change anything structural about a template (add a field, rename
+# a section), edit this file and re-run regenerate.py. Then run validate.py
+# to confirm existing instances still satisfy the schema.
+#
+# See README.md in this folder for the full workflow.
+
+version: 1
+description: "Massive Research Tool — workspace artifact schema"
+
+# ============================================================
+# ARTIFACT TYPES
+# ============================================================
+#
+# Per-type fields:
+#   name:             display name
+#   title_pattern:    rendered as the H1 of templates/instances
+#   template_file:    path to the .md template (null = no template)
+#   instance_folder:  where instances live (null = no fixed location)
+#   description:      short purpose
+#   fields:           list of front-matter fields (rendered as `- **Label:** value` bullets)
+#     - label:        exact text shown before the colon (load-bearing — the validator parses this)
+#       type:         reference | enum | text | date
+#       target:       (for type=reference) the artifact-type key this points to
+#       values:       (for type=enum) allowed values, in display order
+#       required:     true | false  (default false)
+#       multiple:     true | false  (default false; reference lists)
+#       placeholder:  what the template shows when empty
+#   sections:         list of H2 sections in the body
+#     - name:         section title (load-bearing — the validator parses this)
+#       description:  body text shown in the template under the heading
+
+artifact_types:
+
+  # ---------- Research ----------
+
+  literature-note:
+    name: "Literature note"
+    title_pattern: "Literature note — {citation}"
+    template_file: null
+    instance_folder: 01_research/literature
+    description: "Per-paper summary anchored to a citation"
+
+  protocol:
+    name: "Research protocol"
+    title_pattern: "Research protocol — {Paradigm or study name}"
+    template_file: 00_meta/templates/research-protocol-template.md
+    instance_folder: 01_research/protocols
+    description: "Experimental paradigm we adopt or adapt. Documents what we keep and what we change."
+    fields:
+      - label: "Paradigm"
+        type: text
+        required: true
+        placeholder: "Stroop, n-back, dot-probe, custom, …"
+      - label: "Source"
+        type: text
+        required: true
+        placeholder: "citation of the canonical paper, link to OSF if applicable"
+      - label: "Status"
+        type: enum
+        values: [draft, reviewed, implemented in app, superseded]
+        required: true
+      - label: "Adapted from"
+        type: reference
+        target: protocol
+        required: false
+        placeholder: "if this is a variation, link the original protocol"
+    sections:
+      - name: "Construct"
+        description: "What psychological construct does this protocol measure? Include the standard definition and the operational definition we are using."
+      - name: "Hypothesis or research question"
+        description: "If we are running this ourselves: the hypothesis, stated falsifiably. If we are providing it as a tool: the typical research question it serves."
+      - name: "Participants"
+        description: |
+          - **Inclusion criteria:** age range, language, prior task experience, etc.
+          - **Exclusion criteria:** …
+          - **Sample size and power:** target N with the power calculation that produced it.
+          - **Recruitment:** how participants are sourced. IRB or equivalent reference.
+      - name: "Materials"
+        description: |
+          - **Stimuli:** description, source, licensing.
+          - **Apparatus:** what device, what input modality, any timing requirements (e.g., monitor refresh rate matters for sub-100ms reaction times).
+          - **Instructions:** the verbatim text shown to participants. Translations if applicable.
+      - name: "Procedure"
+        description: |
+          Step-by-step. Each step names the duration, the participant action, and the recorded data.
+
+          1. Consent.
+          2. Demographics.
+          3. Practice block (n trials).
+          4. Test blocks (n × m trials).
+          5. Debrief.
+      - name: "Conditions and counterbalancing"
+        description: "How conditions are assigned, how order effects are controlled, what is randomized at what level."
+      - name: "Measures"
+        description: |
+          - **Primary outcome:** the variable that answers the research question.
+          - **Secondary outcomes:** other captured variables.
+          - **Exclusion-after-the-fact rules:** trials or participants discarded based on what criteria.
+      - name: "Analysis plan"
+        description: "The statistical approach, decided before data collection. If running our own study, preregister this."
+      - name: "Ethical considerations"
+        description: "Risks, mitigations, debriefing plan, data retention and deletion."
+      - name: "How this maps to the product"
+        description: "How this protocol becomes an experiment template in the app. Which node types it requires. Which features it depends on."
+      - name: "References"
+        description: "Full citations, links, related ADRs."
+
+  insight:
+    name: "Research insight"
+    title_pattern: "Insight — {Topic}"
+    template_file: 00_meta/templates/insight-template.md
+    instance_folder: 01_research/insights
+    description: "Synthesized research finding ready to inform product or design decisions"
+    intro: "An insight is a finding distilled from literature, interviews, or both — packaged so that designers and architects can act on it. Every insight must cite its evidence and state what it implies for the product."
+    fields:
+      - label: "Status"
+        type: enum
+        values: [draft, "in review", validated, superseded]
+        required: true
+      - label: "Evidence basis"
+        type: text
+        required: true
+        placeholder: "e.g. literature synthesis (N papers), 3 interviews, mixed"
+      - label: "Confidence"
+        type: enum
+        values: [low, medium, high]
+        required: true
+      - label: "Source materials"
+        type: text
+        required: false
+        placeholder: "Consensus search URLs, interview note files, etc."
+      - label: "Last updated"
+        type: date
+        required: false
+        placeholder: "YYYY-MM-DD"
+    sections:
+      - name: "Headline"
+        description: "One paragraph stating the insight in plain language. If a stakeholder reads only this, they should still come away with the right takeaway."
+      - name: "Evidence"
+        description: "The findings behind the insight, with inline citations. Both supporting and contradicting evidence — be honest about disagreement in the literature."
+      - name: "What this implies for the product"
+        description: "Concrete implications: which JTBDs gain priority, which ADRs are affected, which design decisions this should pressure-test."
+      - name: "What this insight does NOT tell us"
+        description: "The limits of the evidence. What questions remain open. What would lift confidence from medium to high."
+      - name: "Sources"
+        description: "Full bibliography with links. Group by relevance (core / supporting / peripheral) if there are more than ~8 entries."
+
+  research-decision:
+    name: "Research decision"
+    title_pattern: "Research decision — {topic}"
+    template_file: null
+    instance_folder: 01_research/decisions
+    description: "Research-informed call that shapes the product"
+
+  interview-guide:
+    name: "Interview guide"
+    title_pattern: "Interview guide — {Target audience}"
+    template_file: 00_meta/templates/interview-guide-template.md
+    instance_folder: 01_research/user-research
+    description: "Semi-structured guide for user research interviews — questions, sections, claims under test"
+    intro: "Designed to surface evidence without leading. Cover only what time allows; bolded sections are non-skippable. Don't pitch the product during the interview."
+    fields:
+      - label: "Target audience"
+        type: text
+        required: true
+        placeholder: "who you're interviewing — role + recruiting criteria"
+      - label: "Persona under test"
+        type: reference
+        target: persona
+        required: false
+        multiple: true
+        placeholder: "links to personas this guide is validating"
+      - label: "Duration"
+        type: text
+        required: true
+        placeholder: "~60 minutes"
+      - label: "Status"
+        type: enum
+        values: [draft, "in review", ready, archived]
+        required: true
+      - label: "Last updated"
+        type: date
+        required: false
+        placeholder: "YYYY-MM-DD"
+    sections:
+      - name: "Purpose"
+        description: "What this guide is for. What claims it's testing. What success looks like."
+      - name: "Sample and recruiting"
+        description: "Who to talk to, how many, recruiting criteria, recommended mix to test generalization."
+      - name: "Setup"
+        description: "Pre-interview logistics — consent, recording, brief, reassurance script."
+      - name: "Sections"
+        description: |
+          Numbered interview sections with target time and questions. Use ###-level headings for each section. Mark non-skippable sections in **bold**.
+
+          ### Section 1 — {name} ({n} min)
+
+          - Question
+          - Question
+      - name: "Quick claim check"
+        description: "Short statements in the persona's voice to read aloud — listen for resonance vs. polite agreement. Avoid leading."
+      - name: "Notes for the interviewer"
+        description: "Practical tips: follow-ups, what to avoid, how to capture findings afterward, who not to lead."
+      - name: "Where findings go"
+        description: "How raw notes become insights. Default: per-interview notes file alongside this guide; synthesis after all interviews promotes to `01_research/insights/`."
+
+  # ---------- Product ----------
+
+  persona:
+    name: "Persona"
+    title_pattern: "Persona — {Name and role}"
+    template_file: 00_meta/templates/persona-template.md
+    instance_folder: 02_product/personas
+    description: "User archetype anchored in real evidence — interviews, observation, or synthesized research"
+    intro: "A persona is a memorable, evidence-grounded archetype that exists to make user decisions concrete. If you cannot point at the evidence behind a claim, do not include the claim."
+    fields:
+      - label: "Status"
+        type: enum
+        values: [draft, "in review", validated, retired]
+        required: true
+      - label: "Evidence basis"
+        type: text
+        required: true
+        placeholder: "e.g. 3 interviews + observation, single observation, literature synthesis"
+      - label: "Last validated"
+        type: date
+        required: false
+        placeholder: "YYYY-MM-DD when last checked against real user data"
+      - label: "Related JTBDs"
+        type: reference
+        target: jtbd
+        required: false
+        multiple: true
+        placeholder: "links to jobs-to-be-done this persona pursues"
+      - label: "Grounding insights"
+        type: reference
+        target: insight
+        required: false
+        multiple: true
+        placeholder: "links to research insights that anchor this persona"
+    sections:
+      - name: "Snapshot"
+        description: "One paragraph elevator pitch — who they are, what they do, what they need from us."
+      - name: "Background and context"
+        description: "Role, environment, how they got here. Specific enough to feel like a person, not a category."
+      - name: "Goals"
+        description: |
+          What they're trying to accomplish at three levels:
+
+          - **Life / career:** the big arc.
+          - **Work / project:** what they're trying to ship this quarter.
+          - **Right now:** what they need to get done today using a tool like ours.
+      - name: "Frustrations"
+        description: "Concrete pain points in their current workflow. Each names the trigger, the cost, and (if known) the workaround they currently use."
+      - name: "Behaviors and habits"
+        description: "How they actually work — observable patterns, not aspirations. \"Checks email at 7am,\" not \"is organized.\""
+      - name: "Tools today"
+        description: "What they currently use to do the job we want to do better. Honest assessment of why those tools work or do not."
+      - name: "Quote"
+        description: "A short, real-feeling statement that captures their stance. Verbatim from interviews where possible; clearly paraphrased otherwise."
+      - name: "What this implies for the product"
+        description: "The bridge from persona to product decisions. Two to five bullets, each tied to a feature direction or a constraint."
+      - name: "Open questions / what to validate"
+        description: "Claims in this persona that need more evidence. What would we need to learn to upgrade Status from draft to validated?"
+
+  jtbd:
+    name: "Job-to-be-done"
+    title_pattern: "JTBD — {job}"
+    template_file: null
+    instance_folder: 02_product/jobs-to-be-done
+    description: "What a user hires the product to do, in what context, for what outcome"
+
+  user-flow:
+    name: "User flow"
+    title_pattern: "User flow — {Flow name}"
+    template_file: 00_meta/templates/user-flow-template.md
+    instance_folder: 02_product/user-flows
+    description: "The literal step sequence to accomplish a job"
+    fields:
+      - label: "Job-to-be-done"
+        type: reference
+        target: jtbd
+        required: true
+        placeholder: "link to JTBD doc"
+      - label: "Primary persona"
+        type: reference
+        target: persona
+        required: true
+        placeholder: "link to persona"
+      - label: "Secondary personas (if any)"
+        type: reference
+        target: persona
+        required: false
+        multiple: true
+        placeholder: "…"
+      - label: "Grounding insights"
+        type: reference
+        target: insight
+        required: false
+        multiple: true
+        placeholder: "links to entries in 01_research/insights/"
+      - label: "Status"
+        type: enum
+        values: [draft, reviewed, implemented, retired]
+        required: true
+    sections:
+      - name: "Goal"
+        description: "One sentence: what the user is trying to accomplish."
+      - name: "Preconditions"
+        description: "What must be true before the flow begins. (Signed in, has at least one project, etc.)"
+      - name: "Postconditions"
+        description: "What is true after the flow completes successfully."
+      - name: "Happy path"
+        description: |
+          1. Step one. (Trigger: …)
+          2. Step two.
+          3. Step three.
+          …
+
+          Each step names the system response and the next decision point.
+      - name: "Branches and decision points"
+        description: |
+          For each non-trivial branch:
+
+          - **Decision:** what the user (or system) is deciding.
+          - **Path A:** when chosen, the flow continues at step N.
+          - **Path B:** when chosen, the flow continues at step M.
+      - name: "Failure modes"
+        description: |
+          For each plausible failure:
+
+          - **Trigger:** what causes the failure.
+          - **System response:** what we show.
+          - **Recovery:** how the user gets back to a useful state.
+      - name: "Out of scope"
+        description: "What this flow deliberately does not cover, and which other flow does."
+      - name: "Open questions"
+        description: "Anything we are unsure about. Tag the person who should answer."
+      - name: "Diagram"
+        description: "Embed or link the flow diagram (Mermaid, Figma, or whiteboard export)."
+
+  user-journey:
+    name: "User journey"
+    title_pattern: "User journey — {Journey name}"
+    template_file: 00_meta/templates/user-journey-template.md
+    instance_folder: 02_product/user-journeys
+    description: "Emotional arc and touchpoints across a flow over time"
+    intro: "A user journey complements a user flow: the flow is *what* happens, the journey is *how it feels* and *when* over time."
+    fields:
+      - label: "Persona"
+        type: reference
+        target: persona
+        required: true
+        placeholder: "link to persona"
+      - label: "Related flow(s)"
+        type: reference
+        target: user-flow
+        required: true
+        multiple: true
+        placeholder: "links to user flows in 02_product/user-flows/"
+      - label: "Time horizon"
+        type: enum
+        values: [single session, days, weeks, months]
+        required: true
+      - label: "Status"
+        type: enum
+        values: [draft, reviewed, implemented, retired]
+        required: true
+    sections:
+      - name: "Trigger"
+        description: "What event in the user's life or work begins this journey."
+      - name: "Goal"
+        description: "What the user is trying to achieve over the whole journey, not just one session."
+      - name: "Stages"
+        description: |
+          For each stage of the journey:
+
+          ### Stage {n} — {name}
+
+          - **Touchpoints:** the screens, emails, notifications, or external channels involved.
+          - **Actions:** what the user does.
+          - **Thoughts:** what the user is thinking (verbatim quotes from research, where possible).
+          - **Emotions:** what the user is feeling. Be specific — "frustrated by ambiguous error message" is better than "frustrated."
+          - **Pain points:** what is failing or fragile.
+          - **Opportunities:** what we could do better.
+          - **Relevant insight:** link the research insight that informs how we should design this stage.
+      - name: "Moments of truth"
+        description: "The two or three points in the journey where the user's overall opinion of the product is decided. Design effort concentrates here."
+      - name: "Outcome"
+        description: "What the user leaves with — emotionally, practically, in terms of what they tell others."
+      - name: "Diagram"
+        description: "Embed or link the journey map (a timeline with emotion axis is the most common form)."
+
+  use-case:
+    name: "Use case"
+    title_pattern: "Use case — {name}"
+    template_file: null
+    instance_folder: 02_product/use-cases
+    description: "Explicit success and failure paths for a critical flow"
+
+  # ---------- Design ----------
+
+  inspiration:
+    name: "Inspiration board"
+    title_pattern: "Inspiration — {topic}"
+    template_file: null
+    instance_folder: 03_design/inspiration
+    description: "Annotated references — what works, what does not, what is relevant"
+
+  ia:
+    name: "Information architecture"
+    title_pattern: "IA — {area}"
+    template_file: null
+    instance_folder: 03_design/ia
+    description: "Sitemap, navigation, taxonomy"
+
+  wireframe-spec:
+    name: "Wireframe spec"
+    title_pattern: "Wireframe spec — {Screen or screen-family name}"
+    template_file: 00_meta/templates/wireframe-spec-template.md
+    instance_folder: 03_design/wireframes
+    description: "Low-fi screen spec — structural only"
+    fields:
+      - label: "Serves user flow"
+        type: reference
+        target: user-flow
+        required: true
+        placeholder: "link to flow"
+      - label: "IA placement"
+        type: reference
+        target: ia
+        required: true
+        placeholder: "link to IA entry"
+      - label: "Persona"
+        type: reference
+        target: persona
+        required: true
+        placeholder: "link to persona"
+      - label: "Status"
+        type: enum
+        values: [draft, reviewed, "ready for design-system pass", "ready for handoff"]
+        required: true
+    sections:
+      - name: "Purpose"
+        description: "One sentence: what this screen exists to do. If you cannot state it, the screen should not exist."
+      - name: "Layout"
+        description: "A description of the layout zones (header, sidebar, main, etc.) and what occupies each. A sketch (or link to one) belongs here."
+      - name: "Content inventory"
+        description: |
+          Every piece of content visible on the screen:
+
+          - **{Element name}** — purpose, source (static, from server, computed), max length or rough shape.
+
+          This list is what the design-system pass will turn into components.
+      - name: "States"
+        description: |
+          - **Default**
+          - **Loading**
+          - **Empty** — copy and CTA
+          - **Partial** (some data, some pending)
+          - **Error** — copy and recovery
+          - **Success / optimistic** (if applicable)
+
+          Describe each. Missing a state here means missing a state in the build.
+      - name: "Interactions"
+        description: |
+          For each interactive element:
+
+          - **{Element}** — affordance, action, system response, error path.
+      - name: "Edge cases"
+        description: |
+          - Very long content (titles, names, descriptions).
+          - Zero data, many data (lists of 0, 1, 10, 1000).
+          - Slow network.
+          - Offline.
+          - Permissions denied.
+      - name: "Accessibility notes"
+        description: "Specific concerns that go beyond the default rules: focus order, keyboard shortcuts, ARIA labels for non-text elements, motion-reduction considerations."
+      - name: "Open questions"
+        description: "Things to resolve before this becomes a high-fi mockup."
+
+  design-system-entry:
+    name: "Design system entry"
+    title_pattern: "Design system — {name}"
+    template_file: null
+    instance_folder: 03_design/design-system
+    description: "Token, primitive, composite, or pattern"
+
+  prototype:
+    name: "Prototype"
+    title_pattern: "Prototype — {name}"
+    template_file: null
+    instance_folder: 03_design/prototypes
+    description: "High-fidelity, interactive where useful"
+
+  handoff:
+    name: "Handoff spec"
+    title_pattern: "Handoff — {screen}"
+    template_file: null
+    instance_folder: 03_design/handoff
+    description: "Engineering-ready spec generated via design:design-handoff"
+
+  # ---------- Architecture ----------
+
+  adr:
+    name: "ADR"
+    title_pattern: "ADR {NNNN} — {Short title in imperative form}"
+    template_file: 00_meta/templates/ADR-template.md
+    instance_folder: 04_architecture/adrs
+    description: "Architecture Decision Record — captures why a non-obvious choice was made"
+    fields:
+      - label: "Status"
+        type: enum
+        values: [proposed, accepted, "superseded by NNNN", deprecated]
+        required: true
+      - label: "Date"
+        type: date
+        required: true
+        placeholder: "YYYY-MM-DD"
+      - label: "Deciders"
+        type: text
+        required: true
+        placeholder: "{names}"
+      - label: "Tags"
+        type: text
+        required: false
+        placeholder: "{area, e.g. data-model, auth, runtime}"
+    sections:
+      - name: "Context"
+        description: "What is forcing this decision? Include the constraints, the prior decisions in play (link the ADR numbers), and the user-visible or system-visible problem that triggered the work. Two or three short paragraphs is usually enough."
+      - name: "Options considered"
+        description: |
+          ### Option A — {name}
+
+          - Short description.
+          - **Pros:** …
+          - **Cons:** …
+
+          ### Option B — {name}
+
+          - Short description.
+          - **Pros:** …
+          - **Cons:** …
+
+          (Add as many as were genuinely on the table. Two is the minimum.)
+      - name: "Decision"
+        description: "A single, declarative sentence: \"We will use X.\" Followed by one paragraph of plain-language reasoning that someone unfamiliar with the area could follow."
+      - name: "Consequences"
+        description: |
+          - **What becomes easier.**
+          - **What becomes harder.**
+          - **What we are now committed to.**
+          - **What we are now precluded from.**
+      - name: "Revisit triggers"
+        description: "A short list of conditions under which we would reopen this decision. \"Our user count exceeds 10k organizations.\" \"Drizzle drops Postgres support.\" \"We add a non-web client.\""
+      - name: "References"
+        description: "- Links to relevant code, prior ADRs, external docs, spike branches."
+
+  diagram:
+    name: "Diagram"
+    title_pattern: "Diagram — {name}"
+    template_file: null
+    instance_folder: 04_architecture/diagrams
+    description: "System context, container, sequence, state-machine diagrams"
+
+  data-model-entry:
+    name: "Data model entry"
+    title_pattern: "Data model — {entity}"
+    template_file: null
+    instance_folder: 04_architecture/data-model
+    description: "Entity definition, relationships, invariants"
+
+  api-contract:
+    name: "API contract"
+    title_pattern: "API contract — {name}"
+    template_file: null
+    instance_folder: 04_architecture/api-contracts
+    description: "tRPC router, OpenAPI spec, or event schema"
+
+  # ---------- App-level specs ----------
+
+  feature-spec:
+    name: "Feature spec"
+    title_pattern: "Feature spec — {Feature name}"
+    template_file: 00_meta/templates/feature-spec-template.md
+    instance_folder: null  # lives next to the feature it specifies
+    description: "What a feature does, what it doesn't, how it will be verified"
+    fields:
+      - label: "Status"
+        type: enum
+        values: [proposed, accepted, building, shipped, retired]
+        required: true
+      - label: "Owner"
+        type: text
+        required: true
+        placeholder: "{name}"
+      - label: "Target release"
+        type: text
+        required: false
+        placeholder: "{milestone or date}"
+      - label: "User flow"
+        type: reference
+        target: user-flow
+        required: true
+        placeholder: "link to flow"
+      - label: "Wireframe(s)"
+        type: reference
+        target: wireframe-spec
+        required: false
+        multiple: true
+        placeholder: "links to wireframes"
+      - label: "Design handoff"
+        type: reference
+        target: handoff
+        required: false
+        placeholder: "link to handoff spec"
+      - label: "ADR(s)"
+        type: reference
+        target: adr
+        required: false
+        multiple: true
+        placeholder: "links to ADRs"
+      - label: "Data model entries"
+        type: reference
+        target: data-model-entry
+        required: false
+        multiple: true
+        placeholder: "links to entities"
+      - label: "API contract(s)"
+        type: reference
+        target: api-contract
+        required: false
+        multiple: true
+        placeholder: "links to contracts"
+    sections:
+      - name: "Problem"
+        description: "What problem does this feature solve, for whom, in what context? One paragraph."
+      - name: "Goals"
+        description: "Three or fewer outcomes this feature aims to produce. Each is measurable or observable."
+      - name: "Non-goals"
+        description: "What this feature deliberately does not do. Explicit non-goals prevent scope drift."
+      - name: "Users and use cases"
+        description: |
+          - **Primary user:** persona link.
+          - **Primary use case:** flow link.
+          - **Secondary use cases:** flow links.
+      - name: "Functional requirements"
+        description: |
+          Numbered list of behaviors the feature must support. Each requirement is testable.
+
+          1. The system shall …
+          2. The system shall …
+      - name: "Non-functional requirements"
+        description: "Performance, reliability, accessibility, privacy, internationalization. Concrete thresholds, not adjectives. \"List loads in under 300ms for up to 1000 items at p95\" — not \"feels fast.\""
+      - name: "Dependencies"
+        description: |
+          - Other features or services this depends on.
+          - External APIs or libraries.
+          - Data this feature creates, modifies, or reads.
+      - name: "Open questions"
+        description: "Things still to decide. Tag the responsible person."
+      - name: "Telemetry"
+        description: "Events emitted, properties captured, dashboards updated. Telemetry is part of the feature, not an afterthought."
+      - name: "QA plan"
+        description: "A short paragraph describing how this will be verified. The full QA pass is recorded later in `06_qa/audit-logs/`."
+
+  experiment-spec:
+    name: "Experiment spec"
+    title_pattern: "Experiment spec — {Experiment name}"
+    template_file: 00_meta/templates/experiment-spec-template.md
+    instance_folder: null  # lives under the project that owns it
+    description: "A configured, user-facing experiment instance in the app"
+    intro: "A user-facing experiment in the app, distinct from a research protocol (the protocol is the science; the experiment is the configured instance the user builds with our tool)."
+    fields:
+      - label: "Owner"
+        type: text
+        required: true
+        placeholder: "{researcher / org}"
+      - label: "Based on protocol"
+        type: reference
+        target: protocol
+        required: true
+        placeholder: "link to research protocol in 01_research/protocols/"
+      - label: "Status"
+        type: enum
+        values: [draft, piloting, live, archived]
+        required: true
+      - label: "Visibility"
+        type: enum
+        values: [private, shared, public]
+        required: true
+    sections:
+      - name: "Summary"
+        description: "One paragraph for the participant-facing description."
+      - name: "Configuration"
+        description: |
+          - **Duration estimate:** N minutes.
+          - **Device requirements:** desktop, mobile, both.
+          - **Browser/input requirements:** mouse, keyboard, touch, microphone, camera.
+          - **Language(s):** …
+      - name: "Structure"
+        description: |
+          The high-level structure of the experiment in our system's terms:
+
+          1. Block: {name} — {n} trials, condition {C}.
+          2. Block: {name} — …
+
+          If built as a node graph, link the graph definition file.
+      - name: "Nodes used"
+        description: |
+          For each node type in the experiment:
+
+          - **{Node type}** — its role here, parameters used.
+
+          This list helps verify all required node types exist in the system before the experiment is run.
+      - name: "Stimuli and assets"
+        description: "Inventory of stimuli (text, images, audio, video) with sources and licenses."
+      - name: "Measures captured"
+        description: "What data is recorded per trial, per block, per participant."
+      - name: "Data export"
+        description: "Format (CSV, JSON, BIDS-like), variables included, anonymization applied."
+      - name: "Pilot results"
+        description: "Once piloted: sample size, completion rate, dropout points, surprises."
+      - name: "Review log"
+        description: "Each review of this experiment (researcher review, ethics review, technical review) recorded with date, reviewer, outcome."
+
+  # ---------- Process artifacts (no instance folder) ----------
+
+  pr-checklist:
+    name: "PR checklist"
+    title_pattern: "PR / commit-batch checklist"
+    template_file: 00_meta/templates/pr-checklist-template.md
+    instance_folder: null  # template is copied into PR descriptions
+    description: "Pre-merge checklist — copied into PR descriptions, not saved as files"
+    intro: "Copy into the PR description (or, when working solo on `main`, into the commit message of the merge or squash commit). Items marked **REQUIRED** are gates; the change does not land until they are checked."
+    fields: []
+    sections:
+      - name: "What this change does"
+        description: "One paragraph. Plain language."
+      - name: "Traceability"
+        description: |
+          - [ ] **REQUIRED** — Links to the feature spec in `00_meta/` or wherever it lives.
+          - [ ] **REQUIRED** — Links to the user flow it serves.
+          - [ ] **REQUIRED** — Links to relevant ADR(s), or notes "no architectural change."
+      - name: "Phase-gate check"
+        description: |
+          - [ ] No new architectural concept introduced without an ADR.
+          - [ ] No new component used that isn't in the design system.
+          - [ ] No data model change without a migration *and* a migration test.
+          - [ ] No new tRPC procedure without a happy-path and an auth-failure test.
+      - name: "Code quality"
+        description: |
+          - [ ] `pnpm typecheck` passes locally.
+          - [ ] `pnpm lint` passes locally.
+          - [ ] `pnpm test` passes locally.
+          - [ ] No new `// @ts-ignore` without an explanatory comment.
+          - [ ] No new dependency without a one-line justification in the PR.
+          - [ ] No commented-out code, no `console.log` left behind.
+      - name: "Tests"
+        description: |
+          - [ ] **REQUIRED** — Tests added or updated for every code path changed.
+          - [ ] Pure domain logic: unit tests, all branches covered.
+          - [ ] State machines: model-based tests cover state transitions.
+          - [ ] Design-system components: Storybook story + axe check.
+          - [ ] Critical flows: Playwright e2e updated or added.
+      - name: "Design and accessibility (UI changes)"
+        description: |
+          - [ ] Matches the handoff spec; deviations noted and justified.
+          - [ ] All states implemented (default, loading, empty, error, partial).
+          - [ ] Keyboard reachable, focus visible.
+          - [ ] axe-core check passes.
+          - [ ] `prefers-reduced-motion` respected.
+      - name: "Data and security"
+        description: |
+          - [ ] No cross-tenant data path introduced.
+          - [ ] All new inputs validated at the boundary (Zod).
+          - [ ] No secrets committed; new secrets added to the secret manager.
+          - [ ] If touching auth, data isolation, or external input: `security-review` skill run, findings addressed.
+      - name: "Operational"
+        description: |
+          - [ ] New environment variables added to `.env.example` and the deploy config.
+          - [ ] New background jobs registered, dashboards updated.
+          - [ ] Telemetry events added or updated to match the feature spec.
+          - [ ] Rollout plan: feature flag, percentage rollout, or behind staging.
+      - name: "Risk and rollback"
+        description: |
+          - [ ] Risk level: low | medium | high. One sentence on why.
+          - [ ] Rollback plan: how do we undo this if it goes badly.
+      - name: "QA pass"
+        description: |
+          - [ ] **REQUIRED** for medium/high-risk changes — a QA audit log entry in `06_qa/audit-logs/`.
+
+  # ---------- QA ----------
+
+  qa-audit:
+    name: "QA audit log"
+    title_pattern: "QA audit — {YYYY-MM-DD} — {feature}"
+    template_file: null
+    instance_folder: 06_qa/audit-logs
+    description: "Record of a QA pass — tests run, accessibility/perf/security findings, sign-off"

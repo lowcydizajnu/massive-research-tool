@@ -1,0 +1,94 @@
+@import "tailwindcss";
+@import "../styles/tokens.css";
+
+/* Tailwind v4 — expose our tokens to utility classes.
+   `inline` keyword keeps the var() reference so [data-theme="dark"] swaps work. */
+
+@theme inline {
+  /* Surfaces */
+  --color-surface-page: var(--color-surface-page);
+  --color-surface-canvas: var(--color-surface-canvas);
+  --color-surface-panel: var(--color-surface-panel);
+  --color-surface-raised: var(--color-surface-raised);
+  --color-surface-subtle: var(--color-surface-subtle);
+
+  /* Text */
+  --color-text-primary: var(--color-text-primary);
+  --color-text-secondary: var(--color-text-secondary);
+  --color-text-muted: var(--color-text-muted);
+  --color-ink-deep: var(--color-ink-deep);
+
+  /* Primary */
+  --color-primary: var(--color-primary);
+  --color-primary-subtle: var(--color-primary-subtle);
+  --color-primary-text-on-subtle: var(--color-primary-text-on-subtle);
+
+  /* Accent */
+  --color-accent: var(--color-accent);
+  --color-accent-subtle: var(--color-accent-subtle);
+  --color-accent-text-on-subtle: var(--color-accent-text-on-subtle);
+
+  /* Functional */
+  --color-success: var(--color-success);
+  --color-success-subtle: var(--color-success-subtle);
+  --color-success-text-on-subtle: var(--color-success-text-on-subtle);
+  --color-warning: var(--color-warning);
+  --color-warning-subtle: var(--color-warning-subtle);
+  --color-warning-text-on-subtle: var(--color-warning-text-on-subtle);
+  --color-danger: var(--color-danger);
+  --color-danger-subtle: var(--color-danger-subtle);
+  --color-danger-text-on-subtle: var(--color-danger-text-on-subtle);
+  --color-info: var(--color-info);
+  --color-info-subtle: var(--color-info-subtle);
+  --color-info-text-on-subtle: var(--color-info-text-on-subtle);
+
+  /* Borders */
+  --color-border-heavy: var(--color-border-heavy);
+  --color-border-medium: var(--color-border-medium);
+  --color-border-subtle: var(--color-border-subtle);
+
+  /* Fonts */
+  --font-serif: var(--font-serif);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+
+  /* Radii */
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-full: var(--radius-full);
+}
+
+/* Dark mode variant — driven by [data-theme="dark"] on <html>, not Tailwind's `.dark` class.
+   Lets us honor user toggle + prefers-color-scheme via JS. */
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* Base layer — page chrome */
+
+body {
+  background-color: var(--color-surface-page);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color var(--motion-base) var(--ease-enter),
+    color var(--motion-base) var(--ease-enter);
+}
+
+/* Focus ring — visible on every interactive element */
+
+*:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: var(--radius-sm);
+}
+
+/* Selection */
+
+::selection {
+  background-color: var(--color-primary-subtle);
+  color: var(--color-primary-text-on-subtle);
+}

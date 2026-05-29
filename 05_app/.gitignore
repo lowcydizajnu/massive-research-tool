@@ -1,0 +1,31 @@
+# dependencies
+node_modules
+.pnp
+.pnp.js
+
+# next.js
+.next/
+out/
+build
+dist
+
+# environment
+.env
+.env*.local
+
+# testing
+coverage
+playwright-report
+test-results
+
+# misc
+.DS_Store
+*.pem
+.vercel
+.idea
+.vscode
+*.tsbuildinfo
+next-env.d.ts
+
+# editor
+.cursor

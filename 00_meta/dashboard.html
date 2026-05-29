@@ -1,0 +1,1154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Massive Research Tool — Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.10.0/dist/mermaid.min.js" integrity="sha384-PY+AFiXLIHkR5jE4nk0JwPQQmmQlT4mJXFlgeT4jJeuARaBQBK+nSwwxzrPRAtUM" crossorigin="anonymous"></script>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #fafaf9;
+    --surface: #ffffff;
+    --surface-alt: #f5f5f4;
+    --border: #e7e5e4;
+    --border-strong: #d6d3d1;
+    --text: #1c1917;
+    --text-muted: #57534e;
+    --text-soft: #78716c;
+    --accent: #4338ca;
+    --accent-soft: #eef2ff;
+
+    --status-done: #16a34a;
+    --status-done-bg: #f0fdf4;
+    --status-progress: #d97706;
+    --status-progress-bg: #fffbeb;
+    --status-blocked: #dc2626;
+    --status-blocked-bg: #fef2f2;
+    --status-todo: #a8a29e;
+    --status-todo-bg: #fafaf9;
+
+    /* Phase accents */
+    --phase-foundation: #475569;
+    --phase-discovery: #6b7280;
+    --phase-research: #6366f1;
+    --phase-product: #2563eb;
+    --phase-design: #db2777;
+    --phase-architecture: #ea580c;
+    --phase-build: #16a34a;
+    --phase-qa: #dc2626;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    color: var(--text);
+    background: var(--bg);
+    font-size: 14px;
+    line-height: 1.5;
+    padding-bottom: 96px; /* room for sticky chat */
+  }
+
+  /* ---------- Header ---------- */
+  .hero {
+    background: linear-gradient(180deg, #ffffff 0%, #fafaf9 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 24px 28px 20px;
+  }
+  .hero-title { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 4px; }
+  .hero-subtitle { font-size: 13px; color: var(--text-muted); margin: 0 0 16px; }
+  .hero-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin-top: 12px;
+  }
+  .stat {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .stat-label { font-size: 11px; color: var(--text-soft); text-transform: uppercase; letter-spacing: 0.04em; }
+  .stat-value { font-size: 18px; font-weight: 600; margin-top: 2px; }
+  .stat-sub { font-size: 11px; color: var(--text-soft); margin-top: 2px; }
+
+  /* ---------- Section frame ---------- */
+  section { padding: 20px 28px; }
+  section + section { border-top: 1px solid var(--border); }
+  .section-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-soft);
+    margin: 0 0 12px;
+  }
+
+  /* ---------- Pipeline strip ---------- */
+  .pipeline {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 8px;
+  }
+  .phase-pill {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    border-radius: 8px;
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: transform 0.08s ease, box-shadow 0.08s ease, border-color 0.08s ease;
+    position: relative;
+    overflow: hidden;
+  }
+  .phase-pill:hover { transform: translateY(-1px); box-shadow: 0 1px 3px rgba(0,0,0,0.06); border-color: var(--border-strong); }
+  .phase-pill .accent-bar {
+    position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  }
+  .phase-pill .phase-no { font-size: 10px; color: var(--text-soft); font-weight: 600; letter-spacing: 0.06em; }
+  .phase-pill .phase-name { font-size: 13px; font-weight: 600; margin-top: 2px; }
+  .phase-pill .phase-count { font-size: 11px; color: var(--text-soft); margin-top: 4px; }
+  .phase-pill .phase-bar {
+    margin-top: 6px;
+    height: 4px;
+    background: var(--surface-alt);
+    border-radius: 99px;
+    overflow: hidden;
+  }
+  .phase-pill .phase-bar-fill {
+    height: 100%;
+    border-radius: 99px;
+    transition: width 0.3s ease;
+  }
+
+  /* ---------- Workflow diagram ---------- */
+  .workflow-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    overflow-x: auto;
+  }
+  .workflow-wrap pre.mermaid { margin: 0; text-align: center; }
+
+  /* ---------- Next steps ---------- */
+  .next-steps { display: grid; gap: 8px; }
+  .next-step {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 12px 14px;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .next-step-number {
+    flex-shrink: 0;
+    width: 22px; height: 22px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-radius: 99px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 600;
+  }
+  .next-step-body { flex: 1; }
+  .next-step-title { font-weight: 600; font-size: 13px; }
+  .next-step-desc { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .next-step-action {
+    flex-shrink: 0;
+    background: var(--accent);
+    color: white;
+    border: 0;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .next-step-action:hover { background: #3730a3; }
+
+  /* ---------- Phase cards ---------- */
+  .phase-section { margin-bottom: 8px; }
+  .phase-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .phase-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .phase-header:hover { background: var(--surface-alt); }
+  .phase-chip {
+    width: 28px; height: 28px;
+    border-radius: 7px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 600;
+    color: white;
+    flex-shrink: 0;
+  }
+  .phase-header-main { flex: 1; }
+  .phase-header-title { font-weight: 600; font-size: 14px; }
+  .phase-header-sub { font-size: 11px; color: var(--text-soft); margin-top: 2px; }
+  .phase-header-progress {
+    flex-shrink: 0;
+    font-size: 12px;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .phase-toggle {
+    flex-shrink: 0;
+    width: 18px; height: 18px;
+    color: var(--text-soft);
+    transition: transform 0.15s ease;
+  }
+  .phase-card.collapsed .phase-toggle { transform: rotate(-90deg); }
+  .phase-card.collapsed .phase-body { display: none; }
+
+  .phase-body {
+    border-top: 1px solid var(--border);
+    padding: 12px 16px;
+  }
+  .artifact-group + .artifact-group { margin-top: 12px; }
+  .artifact-group-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .artifact-group-folder {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11px;
+    color: var(--text-soft);
+    font-weight: 400;
+  }
+  .artifact-list { display: grid; gap: 4px; }
+  .artifact-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    font-size: 13px;
+  }
+  .artifact-item:hover { background: var(--surface-alt); }
+  .artifact-status {
+    width: 12px; height: 12px;
+    border-radius: 99px;
+    flex-shrink: 0;
+    border: 1.5px solid var(--status-todo);
+    background: transparent;
+  }
+  .artifact-status.done { background: var(--status-done); border-color: var(--status-done); }
+  .artifact-status.in_progress { background: var(--status-progress); border-color: var(--status-progress); }
+  .artifact-status.blocked { background: var(--status-blocked); border-color: var(--status-blocked); }
+  .artifact-name { flex: 1; }
+  .artifact-name.done { color: var(--text-muted); text-decoration: line-through; text-decoration-color: var(--border-strong); }
+  .artifact-meta { font-size: 11px; color: var(--text-soft); }
+  .artifact-action {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    padding: 3px 8px;
+    border-radius: 5px;
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .artifact-action:hover { background: var(--surface-alt); border-color: var(--border-strong); }
+  .artifact-empty {
+    font-size: 12px;
+    color: var(--text-soft);
+    font-style: italic;
+    padding: 6px 8px;
+  }
+  .add-artifact-btn {
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px dashed var(--border-strong);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    width: 100%;
+    margin-top: 6px;
+  }
+  .add-artifact-btn:hover { background: var(--surface-alt); color: var(--text); }
+
+  /* ---------- Activity log ---------- */
+  .activity-log { display: grid; gap: 6px; }
+  .activity-row {
+    display: flex;
+    gap: 12px;
+    padding: 8px 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    font-size: 13px;
+  }
+  .activity-date {
+    flex-shrink: 0;
+    font-family: ui-monospace, monospace;
+    font-size: 11px;
+    color: var(--text-soft);
+    padding-top: 1px;
+  }
+
+  /* ---------- Chat bar (sticky) ---------- */
+  .chat-bar {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: 10px 16px;
+    display: flex;
+    gap: 8px;
+    z-index: 10;
+    box-shadow: 0 -2px 8px rgba(0,0,0,0.04);
+  }
+  .chat-input {
+    flex: 1;
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 13px;
+    font-family: inherit;
+    background: var(--surface-alt);
+    resize: none;
+    line-height: 1.4;
+    max-height: 120px;
+  }
+  .chat-input:focus { outline: none; border-color: var(--accent); background: var(--surface); }
+  .chat-send {
+    background: var(--accent);
+    color: white;
+    border: 0;
+    border-radius: 8px;
+    padding: 0 16px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .chat-send:hover { background: #3730a3; }
+  .chat-send:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .chat-suggestions {
+    position: fixed;
+    left: 16px; right: 16px;
+    bottom: 64px;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    pointer-events: none;
+  }
+  .chat-chip {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 99px;
+    padding: 4px 10px;
+    font-size: 11px;
+    color: var(--text-muted);
+    cursor: pointer;
+    pointer-events: auto;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  }
+  .chat-chip:hover { background: var(--surface-alt); color: var(--text); }
+
+  /* ---------- Misc ---------- */
+  .legend {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    font-size: 11px;
+    color: var(--text-soft);
+    margin-top: 12px;
+  }
+  .legend-item { display: inline-flex; align-items: center; gap: 5px; }
+  .legend-dot {
+    width: 10px; height: 10px; border-radius: 99px;
+    border: 1.5px solid var(--status-todo);
+    background: transparent;
+  }
+  .legend-dot.done { background: var(--status-done); border-color: var(--status-done); }
+  .legend-dot.in_progress { background: var(--status-progress); border-color: var(--status-progress); }
+  .legend-dot.blocked { background: var(--status-blocked); border-color: var(--status-blocked); }
+  .footer-note {
+    padding: 16px 28px 32px;
+    font-size: 11px;
+    color: var(--text-soft);
+    border-top: 1px solid var(--border);
+  }
+
+  /* ---------- Banner ---------- */
+  .info-banner {
+    margin: 16px 28px 0;
+    background: var(--accent-soft);
+    border: 1px solid #c7d2fe;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 12px;
+    color: #3730a3;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .info-banner svg { flex-shrink: 0; width: 14px; height: 14px; }
+
+  /* ---------- Toast ---------- */
+  .toast {
+    position: fixed;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-100px);
+    background: #1c1917;
+    color: white;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+    z-index: 100;
+    transition: transform 0.25s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    max-width: calc(100% - 32px);
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast svg { width: 16px; height: 16px; color: #4ade80; flex-shrink: 0; }
+  .toast-text { line-height: 1.3; }
+  .toast-hint { display: block; font-size: 11px; color: #a8a29e; margin-top: 2px; }
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+  STATE — Claude updates this JSON block when work happens.
+  Everything else (HTML structure, rendering) stays as-is.
+============================================================ -->
+<script id="dashboard-state" type="application/json">
+{
+  "project": "Massive Research Tool",
+  "tagline": "Multi-tenant SaaS for psychological experiments",
+  "lastUpdated": "2026-05-29",
+  "currentFocus": "Phase 5 (Build) advancing — adapter discipline in place before Clerk wires. Project owner asked for refreshed auth-provider comparison; chose to stay with Clerk for V1 with direction 'be prepared to migrate — maybe it won't happen but just not to be blocked and locked.' Mechanical preparation: 05_app/server/adapters/auth.ts defines the typed AuthAdapter interface (identity primitives only — workspace membership lives in our Drizzle member table, not Clerk Orgs); narrow AuthUserMetadata shape carries themeChoice + lastWorkspaceId so ThemeProvider swaps localStorage → Clerk-synced without component changes; Proxy-based default export throws until auth.clerk.ts lands next commit. server/adapters/README.md documents the one rule: no vendor SDK imports outside this folder. Strategic preparation: 04_architecture/lock-in-inventory.md tracks Clerk + Vercel + Liveblocks + Inngest + OSF + AI providers with per-vendor exception columns + migration targets + cost-ceiling triggers; ADR-0007 amended (2026-05-29) shifting Clerk migration target from Auth.js → Better Auth (TypeScript-first, organizations primitive built in, first-class Drizzle). Phase pipeline: Build 2/2 (scaffold + adapter prep). Validator clean at 37. Next commit: install @clerk/nextjs, implement auth.clerk.ts against the interface, middleware protecting (app)/*, /signup route per signup-onboarding wireframe, first Drizzle migration.",
+  "phases": [
+    {
+      "id": "foundation",
+      "no": "00",
+      "name": "Foundation",
+      "color": "--phase-foundation",
+      "description": "Operating rules, templates, stack recommendation — done before any artifact work.",
+      "groups": [
+        {
+          "type": "Root docs",
+          "folder": "/",
+          "items": [
+            { "name": "README.md", "status": "done", "path": "README.md" },
+            { "name": "CLAUDE.md", "status": "done", "path": "CLAUDE.md" },
+            { "name": "PROCESS.md", "status": "done", "path": "PROCESS.md" },
+            { "name": "STACK.md", "status": "done", "path": "STACK.md" },
+            { "name": "STATUS.md (dashboard mirror)", "status": "done", "path": "00_meta/STATUS.md" }
+          ]
+        },
+        {
+          "type": "Rules",
+          "folder": "00_meta/rules/",
+          "items": [
+            { "name": "architecture.md", "status": "done" },
+            { "name": "code-quality.md", "status": "done" },
+            { "name": "qa-and-testing.md", "status": "done" },
+            { "name": "design-rules.md", "status": "done" },
+            { "name": "research-rules.md", "status": "done" },
+            { "name": "decision-records.md", "status": "done" }
+          ]
+        },
+        {
+          "type": "Templates (generated from manifest)",
+          "folder": "00_meta/templates/",
+          "items": [
+            { "name": "ADR-template.md", "status": "done" },
+            { "name": "user-flow-template.md", "status": "done" },
+            { "name": "user-journey-template.md", "status": "done" },
+            { "name": "wireframe-spec-template.md", "status": "done" },
+            { "name": "feature-spec-template.md", "status": "done" },
+            { "name": "research-protocol-template.md", "status": "done" },
+            { "name": "experiment-spec-template.md", "status": "done" },
+            { "name": "pr-checklist-template.md", "status": "done" },
+            { "name": "persona-template.md", "status": "done" }
+          ]
+        },
+        {
+          "type": "Manifest system",
+          "folder": "00_meta/manifest/",
+          "items": [
+            { "name": "schema.yaml", "status": "done", "path": "00_meta/manifest/schema.yaml" },
+            { "name": "regenerate.py", "status": "done", "path": "00_meta/manifest/regenerate.py" },
+            { "name": "validate.py", "status": "done", "path": "00_meta/manifest/validate.py" },
+            { "name": "new_artifact.py", "status": "done", "path": "00_meta/manifest/new_artifact.py" },
+            { "name": "_schema.py", "status": "done", "path": "00_meta/manifest/_schema.py" },
+            { "name": "README.md", "status": "done", "path": "00_meta/manifest/README.md" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "discovery",
+      "no": "0",
+      "name": "Discovery",
+      "color": "--phase-discovery",
+      "description": "Open questions and hypotheses. Optional and recurring.",
+      "groups": [
+        {
+          "type": "Discovery notes",
+          "folder": "01_research/insights/ (tag: discovery)",
+          "items": []
+        }
+      ]
+    },
+    {
+      "id": "research",
+      "no": "1",
+      "name": "Research",
+      "color": "--phase-research",
+      "description": "The science layer that fuels every product decision.",
+      "groups": [
+        { "type": "Literature notes", "folder": "01_research/literature/", "items": [] },
+        { "type": "Protocols", "folder": "01_research/protocols/", "items": [] },
+        {
+          "type": "Insights",
+          "folder": "01_research/insights/",
+          "items": [
+            { "name": "researcher-tooling-pain-points.md (draft, lit-only, medium confidence)", "status": "in_progress", "path": "01_research/insights/researcher-tooling-pain-points.md" },
+            { "name": "persona-segmentation-and-strategic-risks.md (draft, synthetic-pilot, low confidence)", "status": "in_progress", "path": "01_research/insights/persona-segmentation-and-strategic-risks.md" }
+          ]
+        },
+        { "type": "Research decisions", "folder": "01_research/decisions/", "items": [] },
+        {
+          "type": "User research",
+          "folder": "01_research/user-research/",
+          "items": [
+            { "name": "pi-interview-guide.md (ready for use)", "status": "done", "path": "01_research/user-research/pi-interview-guide.md" },
+            { "name": "notes/2026-05-28-synthetic-pilot-interviews.md (SYNTHETIC, hypotheses-only)", "status": "done", "path": "01_research/user-research/notes/2026-05-28-synthetic-pilot-interviews.md" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "product",
+      "no": "2",
+      "name": "Product",
+      "color": "--phase-product",
+      "description": "Who the product is for and what jobs it does.",
+      "groups": [
+        {
+          "type": "Vision / brief",
+          "folder": "02_product/",
+          "items": [
+            { "name": "product-brief.md (vision + key decisions resolved)", "status": "in_progress", "path": "02_product/product-brief.md" }
+          ]
+        },
+        {
+          "type": "Personas",
+          "folder": "02_product/personas/",
+          "items": [
+            { "name": "principal-investigator.md (Maya — PI, in review, lit + synthetic pilot)", "status": "in_progress", "path": "02_product/personas/principal-investigator.md" },
+            { "name": "postdoc-operator.md (Hanna — daily operator, in review, synthetic pilot)", "status": "in_progress", "path": "02_product/personas/postdoc-operator.md" },
+            { "name": "multi-site-coordinator.md (Marek — consortium ops, in review, synthetic pilot)", "status": "in_progress", "path": "02_product/personas/multi-site-coordinator.md" },
+            { "name": "burned-replicator.md (Sofia — reproducibility reformer, in review, synthetic pilot)", "status": "in_progress", "path": "02_product/personas/burned-replicator.md" }
+          ]
+        },
+        {
+          "type": "Jobs-to-be-done",
+          "folder": "02_product/jobs-to-be-done/",
+          "items": [
+            { "name": "build-a-study.md (Hanna-anchored, Maya-validated)", "status": "in_progress", "path": "02_product/jobs-to-be-done/build-a-study.md" },
+            { "name": "get-set-up.md (auth/onboard/account)", "status": "in_progress", "path": "02_product/jobs-to-be-done/get-set-up.md" }
+          ]
+        },
+        {
+          "type": "User flows",
+          "folder": "02_product/user-flows/",
+          "items": [
+            { "name": "hanna-build-a-study.md (happy path + 3 decisions + 5 failure modes + Mermaid)", "status": "in_progress", "path": "02_product/user-flows/hanna-build-a-study.md" },
+            { "name": "signup-and-onboard.md (Clerk + theme picker + invite-or-new-workspace)", "status": "in_progress", "path": "02_product/user-flows/signup-and-onboard.md" },
+            { "name": "manage-account-settings.md (theme / OSF / display name / notification cadence)", "status": "in_progress", "path": "02_product/user-flows/manage-account-settings.md" },
+            { "name": "browse-library.md (find a module/theme/asset/template)", "status": "in_progress", "path": "02_product/user-flows/browse-library.md" },
+            { "name": "browse-frameworks.md (find a Framework to start from / follow)", "status": "in_progress", "path": "02_product/user-flows/browse-frameworks.md" }
+          ]
+        },
+        { "type": "User journeys", "folder": "02_product/user-journeys/", "items": [] },
+        { "type": "Use cases", "folder": "02_product/use-cases/", "items": [] }
+      ]
+    },
+    {
+      "id": "design",
+      "no": "3",
+      "name": "Design",
+      "color": "--phase-design",
+      "description": "Make it visible and interactable. Inspiration → IA → wireframes → system → prototype → handoff.",
+      "groups": [
+        {
+          "type": "Inspiration boards",
+          "folder": "03_design/inspiration/",
+          "items": [
+            { "name": "README.md (intake convention)", "status": "done", "path": "03_design/inspiration/README.md" },
+            { "name": "2026-05-28-first-batch.md (6 references annotated)", "status": "done", "path": "03_design/inspiration/2026-05-28-first-batch.md" }
+          ]
+        },
+        {
+          "type": "Design language brief",
+          "folder": "03_design/",
+          "items": [
+            { "name": "design-language-brief.md (v0.6 LOCKED — parchment #F7F2E8 final; modular floating panels; Plex Serif promoted; Light + Dark + System V1; themeability structural)", "status": "done", "path": "03_design/design-language-brief.md" }
+          ]
+        },
+        {
+          "type": "Information architecture",
+          "folder": "03_design/ia/",
+          "items": [
+            { "name": "information-architecture.md (v0.3 — forks-as-relationship, Templates split from Frameworks, Activity Yours/Follows, Participants five sub-views, four template share scopes)", "status": "done", "path": "03_design/ia/information-architecture.md" }
+          ]
+        },
+        {
+          "type": "Wireframe specs",
+          "folder": "03_design/wireframes/",
+          "items": [
+            { "name": "studies-destination.md (Hanna's home base)", "status": "in_progress", "path": "03_design/wireframes/studies-destination.md" },
+            { "name": "new-study-modal.md (Framework / Template / Blank picker)", "status": "in_progress", "path": "03_design/wireframes/new-study-modal.md" },
+            { "name": "build-stage-builder-mode.md (v0.5.3 modular surface)", "status": "in_progress", "path": "03_design/wireframes/build-stage-builder-mode.md" },
+            { "name": "save-as-version-dialog.md (three save semantics)", "status": "in_progress", "path": "03_design/wireframes/save-as-version-dialog.md" },
+            { "name": "library-browse.md (modules / themes / materials / templates)", "status": "in_progress", "path": "03_design/wireframes/library-browse.md" },
+            { "name": "frameworks-browse.md (curated systems with verified badges)", "status": "in_progress", "path": "03_design/wireframes/frameworks-browse.md" },
+            { "name": "account-settings.md (Profile / Appearance / Connections / Notifications)", "status": "in_progress", "path": "03_design/wireframes/account-settings.md" },
+            { "name": "signup-onboarding.md (centered narrow column + theme picker)", "status": "in_progress", "path": "03_design/wireframes/signup-onboarding.md" },
+            { "name": "module-picker-popover.md (popover from + Add block)", "status": "in_progress", "path": "03_design/wireframes/module-picker-popover.md" }
+          ]
+        },
+        {
+          "type": "Design system",
+          "folder": "03_design/design-system/",
+          "items": [
+            { "name": "tokens.md (Light + Dark per token; CSS variable contract)", "status": "done", "path": "03_design/design-system/tokens.md" }
+          ]
+        },
+        { "type": "Prototypes", "folder": "03_design/prototypes/", "items": [] },
+        { "type": "Handoff specs", "folder": "03_design/handoff/", "items": [] }
+      ]
+    },
+    {
+      "id": "architecture",
+      "no": "4",
+      "name": "Architecture",
+      "color": "--phase-architecture",
+      "description": "ADRs, diagrams, data model, API contracts before code.",
+      "groups": [
+        {
+          "type": "ADRs",
+          "folder": "04_architecture/adrs/",
+          "items": [
+            { "name": "0001-modular-composition-theme-overlays.md (accepted)", "status": "done", "path": "04_architecture/adrs/0001-modular-composition-theme-overlays.md" },
+            { "name": "0002-forking-model.md (accepted)", "status": "done", "path": "04_architecture/adrs/0002-forking-model.md" },
+            { "name": "0003-asset-storage.md (accepted)", "status": "done", "path": "04_architecture/adrs/0003-asset-storage.md" },
+            { "name": "0004-preregistration-amendments.md (accepted)", "status": "done", "path": "04_architecture/adrs/0004-preregistration-amendments.md" },
+            { "name": "0005-osf-integration.md (accepted)", "status": "done", "path": "04_architecture/adrs/0005-osf-integration.md" },
+            { "name": "0006-ai-plugin-architecture.md (accepted)", "status": "done", "path": "04_architecture/adrs/0006-ai-plugin-architecture.md" },
+            { "name": "0007-path-a-vs-b.md (accepted)", "status": "done", "path": "04_architecture/adrs/0007-path-a-vs-b.md" },
+            { "name": "0009-supply-side-strategy.md (accepted)", "status": "done", "path": "04_architecture/adrs/0009-supply-side-strategy.md" },
+            { "name": "0011-scaffold-strategy.md (accepted — MVP plan + Next.js 15 + tRPC + Drizzle + Clerk + Tailwind + shadcn/ui)", "status": "done", "path": "04_architecture/adrs/0011-scaffold-strategy.md" },
+            { "name": "0007 AMENDED 2026-05-29 — Clerk migration target → Better Auth (was Auth.js)", "status": "done", "path": "04_architecture/adrs/0007-path-a-vs-b.md" }
+          ]
+        },
+        { "type": "Diagrams", "folder": "04_architecture/diagrams/", "items": [] },
+        {
+          "type": "Data model",
+          "folder": "04_architecture/data-model/",
+          "items": [
+            { "name": "00-core-entities.md (Module, ModuleVersion, Theme, Experiment, ExperimentVersion + Mermaid ER)", "status": "done", "path": "04_architecture/data-model/00-core-entities.md" }
+          ]
+        },
+        { "type": "API contracts", "folder": "04_architecture/api-contracts/", "items": [] },
+        {
+          "type": "Lock-in inventory",
+          "folder": "04_architecture/",
+          "items": [
+            { "name": "lock-in-inventory.md (Clerk + Vercel + Liveblocks + Inngest + OSF + AI; per-vendor exceptions + migration targets)", "status": "done", "path": "04_architecture/lock-in-inventory.md" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "build",
+      "no": "5",
+      "name": "Build",
+      "color": "--phase-build",
+      "description": "Application code. Started 2026-05-29 with the app scaffold + theme system.",
+      "groups": [
+        {
+          "type": "Application",
+          "folder": "05_app/",
+          "items": [
+            { "name": "App scaffold (Next.js 15 + React 19 + Tailwind v4 + Plex fonts + tokens.css + ThemeProvider + verification page)", "status": "done", "path": "05_app/README.md" },
+            { "name": "server/adapters/auth.ts — AuthAdapter interface (Clerk impl wires next commit)", "status": "done", "path": "05_app/server/adapters/auth.ts" },
+            { "name": "server/adapters/README.md — adapter discipline (vendor SDKs live here only)", "status": "done", "path": "05_app/server/adapters/README.md" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "qa",
+      "no": "6",
+      "name": "QA",
+      "color": "--phase-qa",
+      "description": "Verification beyond unit tests — accessibility, security, performance, exploratory.",
+      "groups": [
+        {
+          "type": "Strategy",
+          "folder": "06_qa/",
+          "items": [
+            { "name": "test-strategy.md", "status": "done", "path": "06_qa/test-strategy.md" }
+          ]
+        },
+        { "type": "Audit logs", "folder": "06_qa/audit-logs/", "items": [] }
+      ]
+    }
+  ],
+  "recentActivity": [
+    { "date": "2026-05-29", "text": "Adapter discipline + ADR-0007 amendment landed before Clerk wires. Project owner asked for fresh auth-provider comparison (Clerk vs Auth.js vs Better Auth vs WorkOS) and chose to stay with Clerk for V1 with the explicit direction 'be prepared to migrate — maybe it won't happen but just not to be blocked and locked.' MECHANICAL PREPARATION: 05_app/server/adapters/auth.ts defines the typed AuthAdapter interface with identity primitives only (getCurrentUser / requireCurrentUser / getCurrentSession / signOut / getUserMetadata / setUserMetadata); workspace membership lives in our Drizzle member table NOT Clerk's Organizations primitive (Clerk only tells us who; our DB tells us what they can do); narrow AuthUserMetadata shape carries themeChoice + lastWorkspaceId so the ThemeProvider can swap localStorage-only → Clerk-synced without touching component code; Proxy-based default export throws on first call until auth.clerk.ts lands — guarantees no silent misuse. 05_app/server/adapters/README.md documents the one rule: no @clerk/nextjs (or @liveblocks/* or inngest) imports outside this folder; PR review enforces. STRATEGIC PREPARATION: 04_architecture/lock-in-inventory.md tracks Clerk + Vercel + Liveblocks + Inngest + OSF + AI providers — per-vendor what-we-use-it-for, behind-the-adapter portability, deliberate exceptions, migration target, cost-ceiling trigger; the file is what PR review consults when adding any vendor SDK import. ADR-0007 amended 2026-05-29: Clerk migration target shifts from Auth.js → Better Auth (TypeScript-first, organizations primitive built in, first-class Drizzle integration; Auth.js + Drizzle has known sharp edges; Lucia Auth was sunset by maintainer in late 2024). Cost ceilings ($200/mo plan, $500/mo execute) and migration order (Clerk first, hosting last) unchanged. Phase pipeline: Build 2/2 (scaffold + adapter prep). Validator clean at 37. Next commit: install @clerk/nextjs, implement auth.clerk.ts against the AuthAdapter, middleware protecting (app)/*, /signup route per signup-onboarding wireframe, first Drizzle migration." },
+    { "date": "2026-05-29", "text": "Phase 5 (Build) STARTED. First commit in 05_app/. Stack per ADR-0011: Next.js 15 + React 19 + TypeScript + Tailwind v4 (CSS-driven config, no tailwind.config.ts) + IBM Plex Sans/Serif/Mono via next/font/google. Token system materialized as runtime CSS variables — styles/tokens.css has every Light value on :root and every Dark value under [data-theme='dark'], mapped 1:1 from 03_design/design-system/tokens.md. Tailwind v4 picks them up via @theme inline in app/globals.css. Dark variant uses @custom-variant dark driven by the data-theme attribute, not Tailwind's .dark class — so user toggle and prefers-color-scheme both flow through one mechanism. ThemeProvider tracks user choice (light/dark/system), resolves it to a rendered state, persists to localStorage, and listens for OS theme changes when 'system' is active; Clerk metadata sync wires in the auth iteration. ThemeToggle is the three-card picker matching the signup-onboarding and account-settings wireframes including mini-mockup swatches for each option. Verification page at / exercises the full design language: parchment background, Plex Serif 'Build studies. Document everything.' headline, theme picker that immediately flips the surface, palette swatches showing polarized two-stop ramps for primary/accent/success/danger, demo block-validation row with vibrant emerald 'schema valid' + vibrant red 'missing field' chips — same visual treatment as Builder wireframe. lib/utils.ts provides cn() helper; components.json configures shadcn-cli for the next iteration; .env.example covers Clerk/DB/R2/Liveblocks/Inngest; .gitignore set up. README documents install + run + Dropbox warning (xattr to ignore node_modules). Phase pipeline now shows Build 1/1. Validator clean at 37 (no manifest artifacts added — code lives outside it). User should run cd 05_app && npm install && npm run dev to verify the surface before features land on top." },
+    { "date": "2026-05-29", "text": "v0.6 MILESTONE — Phase 3 (Design) complete enough for Build. Speed-up turn after project owner asked 'all wireframes + tokens + start MVP.' Triage applied per pushback recommendation: lock-not-iterate parchment at #F7F2E8; MVP-required wireframe scope only (~5 more); plan-now-scaffold-next-session build cadence. Shipped this turn: (1) brief → v0.6 LOCKED — no further iteration; parchment final, modular floating panels with stage-tabs pill above center, Plex Serif promoted, Light + Dark + System V1, themeability structural; (2) +1 JTBD get-set-up.md covering auth/onboard/account; (3) +4 user flows signup-and-onboard, manage-account-settings, browse-library, browse-frameworks; (4) +5 wireframe specs library-browse, frameworks-browse, account-settings, signup-onboarding, module-picker-popover — total wireframe coverage now 9 specs across all MVP-required surfaces; (5) composite MVP visualizer in chat showing Signup centered-column + Library browse three-zone + Account Settings Appearance tab, all on warm parchment; (6) tokens materialized at 03_design/design-system/tokens.md — Light + Dark values per token, canonical source for code, includes Themeability paraphrase and CSS-variable contract (kebab-case mapping); (7) ADR-0011 (scaffold strategy) accepted — Next.js 15 + tRPC v11 + Drizzle + Postgres + Clerk + Tailwind + shadcn/ui, full 05_app/ directory layout, MVP slice explicitly defined (auth → Studies → New study from Framework → Builder 2 blocks → Save as named version → return tomorrow find draft), deferred-from-MVP list explicit (Whiteboard, Replications, Activity, Participants, Team, Preregister/Share/Run/Results stages, OSF push, AI features, recruitment). Phase 5 (Build) ready to scaffold next session. Validator clean at 37 instances (+12 since v0.5.3 lock: +1 JTBD, +4 flows, +5 wireframe specs, +1 ADR, +1 tokens.md)." },
+    { "date": "2026-05-28", "text": "Design-language brief → v0.5.3. Stage-tabs placement re-locked from Option A to Option B after the project owner asked to see Option B visualized for comparison, then picked it. Option A (v0.5.2 — Typeform pattern, stage tabs in top-bar center slot) was familiar but reintroduced a dense full-width band that pulled against the brief's modular-floating-panels spirit. Option B is structurally closer to Miro / FigJam: the page is a board of floating modules, each module owns its own controls; the stage-tabs pill floats over the work surface it controls. Top bar reverts to slim form (workspace chip + breadcrumb on left; ⌘K + Save when applicable + user avatar on right — no stage tabs). Stage-tabs pill spans only the center column's width (not the full page) and sits above the work surface card with a small internal gutter. Left rail and right context panel cards extend full height of the center column. The reading: three modules on a parchment board (workspace nav · study column · context) with a slim top hat carrying global chrome above all three. Brief Layout system + Top-bar navigation sections rewritten; build-stage-builder-mode wireframe spec Layout + Content inventory + Stage-tab-click interaction revised. The model generalizes — future surfaces with sub-modes (Framework detail with Overview · Used in · Versions, Library module with Schema · Used in · Versions, etc.) follow the same floating-pill pattern. Validator clean (25 instances, no count change since the correction was layout-only)." },
+    { "date": "2026-05-28", "text": "Design-language brief → v0.5.2. Layout-hierarchy correction surfaced by the first wireframe pass. Project owner caught the disconnect between top bar / sidebar and the separate full-width stage-tabs strip: in v0.5.1's mockup the strip stretched above the sidebar, but stage tabs are STUDY-SCOPED (Build · Preview · Share · Preregister · Run · Results — only relevant when inside a specific study) while the sidebar is WORKSPACE-GLOBAL (Studies / Library / Frameworks / Participants / Activity / Team / Settings). Adjacent full-width rows implied the same hierarchy level, which is wrong. FIX (Option A — Typeform pattern, project owner picked): stage tabs move into the TOP BAR's CENTER SLOT between breadcrumb (left) and Save (right). Top bar grows in height. Sidebar starts directly below the top bar — no intervening full-width strip. The scope hierarchy becomes spatially literal: workspace-global chrome (sidebar) is one tier; study-scoped chrome (stage tabs) is nested inside the top bar. Top-bar content is now determined by what the breadcrumb points at — on a destination (Studies, Library, Frameworks, etc.) the center slot is empty and Save hides; on a study object the center slot carries the six stage tabs and Save appears on the right. Updates: brief Layout system + Top-bar navigation sections rewritten with table showing destination-vs-study-object slot mapping; 03_design/wireframes/build-stage-builder-mode.md Layout + Content inventory + Stage tab click interaction revised; re-rendered the Builder visualizer in chat Light + Dark side-by-side with the corrected pattern (workspace chip + breadcrumb on left, six stage tabs centered, ⌘K + Save + avatar on right). Validator clean (25 instances, no count change — correction was layout-only)." },
+    { "date": "2026-05-28", "text": "First wireframe pass landed + first JTBD + first user flow authored. Phase-gate sequence honored per CLAUDE.md (no wireframe without a user flow; no user flow without a JTBD). New JTBD `02_product/jobs-to-be-done/build-a-study.md` anchored on Hanna and validated against Maya's review role — covers situation/motivation/outcome, forces (pushing toward + pulling away), current alternatives the researcher 'hires' (Qualtrics+Doc, PsychoPy+GitHub, Otree+email, paper-Qualtrics), measurable outcomes (time-to-reviewable, round-trip count). New user flow `02_product/user-flows/hanna-build-a-study.md` covers happy path (Studies → New study → Framework picker → Builder mode → configure 2 blocks → Preview → Save as named version), three decision points (start-from-what, module-fits-or-swap, save-semantics), five failure modes (network drop with localStorage queue, validation-failing named save, framework-updated-since-fork with diff modal, asset-link-dead with replication risk badge, mid-edit save with auto-commit), Mermaid flowchart, five open questions. Four wireframe specs drafted in `03_design/wireframes/`: (1) `studies-destination.md` — Hanna's home base on warm parchment with modular floating panels, list + sub-nav (All/Mine/Drafts/Preregistered/Published/Replicating/Archived) + `+ New study` CTA + empty state; (2) `new-study-modal.md` — first decision point (three large cards: From a Framework / From a Template / Blank), embedded picker for Framework or Template; (3) `build-stage-builder-mode.md` — the meat: full three-zone canonical surface with floating top bar + stage tabs (Build · Preview · Share · Preregister · Run · Results), study title in Plex Serif display, block cards with vibrant valid/missing badges, right context panel tabs (Details · History · Replications · Comments · Validation), Builder/Whiteboard toggle; (4) `save-as-version-dialog.md` — three save semantics (Continue autosaving / Save as named version / Save & request review) with conditional sub-controls (label input, reviewer combobox) and validation-failing block on named save. Each spec covers Purpose, Layout, Content inventory, States (Default/Loading/Empty/Partial/Error/Offline/Read-only), Interactions, Edge cases, Accessibility, Open questions. Showed two visualizers in chat side-by-side Light + Dark: Studies destination (top bar + rail + work surface with three study cards: draft/preregistered/published with vibrant tinted badges) and Build stage Builder mode (full chrome with stage tabs Build-active, study title in Plex Serif, two block cards one schema-valid emerald + one missing-field red, right context panel Details tab). Dark variant uses warm-dark surfaces (#161514/#1B1A18/#1F1D1B) with off-white text #F5F1E8 and same vibrant functional colors — preserves editorial tone in both modes. Validator clean (25 instances; +6 since v0.5.1 baseline: +1 JTBD, +1 user flow, +4 wireframe specs)." },
+    { "date": "2026-05-28", "text": "Design-language brief → v0.5.1. Three refinements after v0.5 read as 'too creamy' and project owner asked for theming + light/dark V1 commitment. (a) PARCHMENT PALED: surface.page #F4EFE6 → #F7F2E8, surface.panel #FBF7EE → #FCFAF3. Final tone explicitly held open — project owner wants to 'see bigger picture before deciding final,' so wireframes inherit the v0.5.1 tone and the lock-in conversation happens against wireframes in context. (b) DARK MODE UPGRADED FROM POST-V1 TO V1 SHIP: both Light and Dark themes available, user-toggleable in account settings, persisted per user; System (auto-follow OS via prefers-color-scheme) is the default for new users. Every neutral + border token now has Light + Dark values. Dark surfaces are WARM-dark (#161514 page, #1F1D1B canvas, #1B1A18 panel) not cool slate — preserves the editorial tone. Dark-mode text is warm off-white #F5F1E8, not pure white. (c) THEMEABILITY MADE STRUCTURAL: new Themeability section in brief explaining tokens-as-CSS-variables, themes-as-token-value-bundles. User-facing themes: Editorial Light + Editorial Dark + System. Internal-only exploration themes live in 03_design/design-system/themes/, dev-mode switch only, never reach production — used to audit decisions against alternative visual directions. Hard rules: no raw hex in components (every color via token), every new color decision adds both Light + Dark in the same change, every screen contrast-checked in both modes before handoff. ADR-0010 (theming system) flagged as candidate but deferred to Build start — implementation is straightforward (CSS variables on :root + data-theme=dark selector + ThemeProvider reading user preference + localStorage cache). v0.5 modular floating panels + Plex Serif in more roles + v0.4 functional vibrancy all preserved. Validator clean (24 types, 19 instances)." },
+    { "date": "2026-05-28", "text": "Design-language brief → v0.5. Project owner referenced a Typeform Builder screenshot and gave directional feedback: 'color intensity is fine but it's Mural not Miro — want to be more Miro; use beige as the app background; more editorial / typography-sophisticated since we have a fantastic font; modern apps have modules/surfaces, this is stitched together.' Three corrections to v0.4. (a) PAGE BACKGROUND becomes warm parchment — new color.surface.page #F4EFE6 retiring v0.4's cool surface.sunken. The whole product sits on this. (b) MODULAR FLOATING PANELS — left rail / center work surface / right context panel each render as their own card with border.subtle #E6DFD2 outline, radius.lg corners, color.surface.panel #FBF7EE warm cream for side rails vs color.surface.canvas #FFFFFF for the work surface, 12-16px gutters between cards revealing the warm page (the Typeform / Linear / Miro pattern). (c) PLEX SERIF in more places — study titles in display sizes 32-40px Serif 500, section heads inside panels in Serif 500 (was Sans), stage indicators where editorial gravity helps. Functional palette vibrancy preserved from v0.4 (success #22C55E / danger #EF4444 / warning #F59E0B); .subtle washes nudged warm so they don't sit on parchment as cool islands. Heavy border.heavy now reserved for rare editorial moments; the modular cards carry the structural work via page-bg gap, not via heavy lines. Showed v0.5 visualizer in chat: warm parchment frame, three floating cards with their own warm cream/white backgrounds and rounded corners + page-bg gutters, prominent Plex Serif study title, Preregister stage tab as a floating pill card. Validator clean (24 types, 19 instances)." },
+    { "date": "2026-05-28", "text": "Design-language brief → v0.4 + IA → v0.3 with five new conceptual picks locked. PALETTE v0.4 CORRECTIONS (project owner feedback on v0.3 visualizer: 'make green/red more vibrant; pale or full nothing in the middle; avoid AI slop like vertical right-side edges'): functional palette pushed to true vibrancy (success #22C55E true emerald, danger #EF4444 true red, warning #F59E0B amber); shade ramps polarized to two stops only (very pale .subtle wash + full saturated token), mid-saturation .hover hues eliminated, hover/active via opacity overlay or border lift; zone separation moves from vertical heavy borders to background tint shift — new color.surface.sunken #F4F6FA for rail + right context panel vs color.surface.canvas #FFFFFF for work surface, heavy border.heavy #1A1F2C restricted to horizontal structural breaks only (top-bar bottom edge, major form section dividers). IA v0.3 FIVE PICKS: (1) forks-as-relationship not destination — surface in three places (forker's Studies with 'Replicating ...' subtitle + new Replicating sub-nav, parent's right-panel Replications tab two-directional renamed from Lineage, Activity stream), no top-level Forks destination; (2) Templates revoked as Frameworks alias — Frameworks = curated systems (schema + modules + measurement + reporting conventions for a research tradition), Templates = paste-ready starter studies, Templates moves to Library · Templates sub-section; (3) Activity Yours/Follows split — Follows is retention surface fed by five follow targets (tag, author, Framework, study, saved search) with + Follow affordance on every relevant chip / byline / details tab; (4) Participants destination as five sub-views (Panels, Open recruitment, Compensation, Quality, Connections), aggregated only never PII, explicitly not a CRM; (5) four template share scopes (Public-replicable default per ADR-0002 / Workspace / Invite link / Submit to Framework) via single Share panel on the saved version, no multi-step publish wizard. Showed v0.4 visualizer widget: three-zone mockup with zone separation via background tint (no vertical heavy edge), heavy horizontal break under top bar only, Preregister stage tab active, true-vibrant validation badges, Replications tab visible in right panel, Participants five-view inset. Validator clean (24 types, 19 instances)." },
+    { "date": "2026-05-28", "text": "Design-language brief → v0.3 + IA → v0.2 with picks locked. PALETTE REVISION (project owner feedback: v0.2 'looks a bit stale, like nothing new and fresh — wants more vibrant and bold, more contrasts, dark lines to divide sections'): primary changed from #0F2A47 to #1747C9 (electric royal blue) for action surfaces; secondary accent added #0EA5E9 (Picton-style cyan) for energy + highlights; deep navy preserved as color.ink.deep for editorial-feel headings only; three-tier border weights for the dark-divider move (border.heavy #1A1F2C 1.5-2px between zones / border.medium #94A0B5 sub-section / border.subtle #DDE1E8 within elements); functional palette pushed up in saturation (success #1F8A52 / warning #D97706 / danger #DC2626 / info #0EA5E9). IA PICKS (v0.2): Linear-style workspace switcher in top bar; global search with scope dropdown (Everything / This workspace / Studies / Library / Frameworks / Members); comments surfaced BOTH as right-panel tab AND as expandable bottom drawer (compare in real use); no notification bell (Activity destination with unread badge handles it); stage tabs now Build · Preview · Share · Preregister · Run · Results (Preregister is its own stage between Share for peer review and Run for commitment); Framework naming TBD — recommendation: keep 'Frameworks' canonical and alias 'Templates' in search. IA file renamed from v0.1-information-architecture.md to information-architecture.md. Showed v0.3 visualizer widget in chat: three-zone mockup with dark zone dividers, schema-validation callout in accent cyan, Preregister stage tab active, palette swatches, border-weight examples." },
+    { "date": "2026-05-28", "text": "Design-language brief → v0.2 (IBM Plex Serif/Sans/Mono locked + Maastricht-synthesis palette locked with full token tables for primary, neutrals, success/warning/danger/info). Wrote first IA pass v0.1 at 03_design/ia/v0.1-information-architecture.md anchored on Hanna + Maya: 7 top-level destinations (Studies primary, then Library / Frameworks / Participants / Activity / Team / Settings); breadcrumb pattern `Workspace · Destination · Object`; right-panel tab system specified per object type; Builder/Whiteboard toggle in study top-bar; mode-dependent rail contents; flat Studies (tags do grouping, no Project nesting); responsive collapse pattern. 8 open questions queued for wireframe pass. Showed visualizer widget in chat (three-zone mockup + palette swatches + type sampler). Validator clean (19 instances)." },
+    { "date": "2026-05-28", "text": "Phase 3 (Design) started. Inspiration intake structure set up (03_design/inspiration/README.md + 2026-05-28-first-batch.md). Six annotated references from project owner via Mobbin: Maze (study builder, three-zone layout, wizard breadcrumbs, live preview), Notion (formula popover pattern, low-chrome canvas), TheyDo (right drawer with property tabs, muted color tags), Typeform Builder (numbered list nav, Content/Design tab split), Typeform Logic (whiteboard mode confirming ADR-0001's builder/whiteboard duality is structural), Typeform Modal (rule-builder pattern for complex config). Wrote design-language-brief.md v0.1: serious-but-fresh tone, neutral palette with one accent (candidate deep teal/blue), Inter typeface candidate, 4px spacing grid with semantic layers, three-zone canonical layout with adaptive right context panel, customization scoped to zone-collapse and tab-pin for V1. Open: accent color pick, typeface pick, dark-mode timing. Validator clean (18 instances)." },
+    { "date": "2026-05-28", "text": "ADR-0009 accepted (04_architecture/adrs/0009-supply-side-strategy.md). Three-layer hybrid for the biggest non-technical risk. L1 default virtue (architectural posture — mostly enabled by ADRs 0001-0007; ongoing discipline). L2 demand-first V1 GTM (consortia, replicators, open-science labs; explicitly NOT reluctant authors). L3 mandate leverage V2+ (selected journals + funders; gated by V1 product evidence). Back catalogue out of scope — flow > stock. Strategic ADR; more posture than code. Validator clean (16 instances)." },
+    { "date": "2026-05-28", "text": "ADR-0007 accepted (04_architecture/adrs/0007-path-a-vs-b.md). Path A (Vercel + Clerk + Liveblocks + Inngest) with adapter discipline. Four interfaces: HostingShape / AuthAdapter / RealtimeAdapter / BackgroundJobAdapter. No vendor-specific types in app code. No Clerk pre-built UI in production. Lock-in inventory tracks deliberate exceptions; PR review enforces. Cost-ceiling triggers: $200/mo plan, $500/mo execute, per single managed service. Per-piece migration order: Clerk first (per-MAU pricing), then Liveblocks, then Inngest, hosting last. Adapter philosophy now consistent across infrastructure/registries/AI-providers/modules. Validator clean (15 instances)." },
+    { "date": "2026-05-28", "text": "ADR-0006 accepted (04_architecture/adrs/0006-ai-plugin-architecture.md). Task-based AI architecture per product-brief §2 (V1 architecture-ready). Tasks are first-class typed operations; AIProviderAdapter mirrors RegistryAdapter from ADR-0005; schemas-first validation built on ADR-0001 module schemas; per-tenant routing with sensitivity tags (metadata_only/experiment_definition/participant_data/pii); append-only ai_invocation audit + per-tenant cost metering; human-in-the-loop UX default. V1 ships substrate only; 0 AI features. Four new entities sketched. Validator clean (14 instances)." },
+    { "date": "2026-05-28", "text": "ADR-0005 accepted (04_architecture/adrs/0005-osf-integration.md). Push-to-OSF on preregistration via OAuth + Inngest async push. Sub-option B.3: JSON snapshot + rendered PDF + OSF template-field mapping + materials. Per-user OAuth, default-on opt-out, async with retry, failed pushes flag the version. Registry-agnostic adapter interface so AsPredicted/ClinicalTrials.gov plug in later. Three new entities sketched (Registry, RegistryConnection, RegistryPush). Validator clean (13 instances)." },
+    { "date": "2026-05-28", "text": "Persona work parked at synthetic-pilot validation; real interviews deferred due to access constraints. Drafted three new persona files: postdoc-operator (Hanna), multi-site-coordinator (Marek), burned-replicator (Sofia). All Status: in review, Evidence basis: SYNTHETIC pilot only, with explicit revisit triggers (before high-stakes design decisions; before V1 ships). Product-brief.md gained three new sections (§8 segment-dependent wedge, §9 supply-side risk, §10 inverted trust signals). Validator clean (12 instances). Standing trigger logged: revisit personas before V1." },
+    { "date": "2026-05-28", "text": "Integrated synthetic-pilot interview pass (uploaded by project owner). Preserved source + wrote new insight persona-segmentation-and-strategic-risks. Three strategic findings: (1) wedge value is segment-dependent; (2) supply-side incentives are biggest non-technical risk; (3) trust signals inverted across segments. Three new persona archetypes implied (queued for next turn). Pilot framed throughout as SYNTHETIC — hypotheses, not validated evidence. Validator clean (9 instances)." },
+    { "date": "2026-05-28", "text": "ADR-0004 accepted (04_architecture/adrs/0004-preregistration-amendments.md). Amendments to immutable preregistered versions: new preregistered ExperimentVersion with supersedes_version_id + required change_summary + optional amendment_classification. Both versions remain public, immutable, queryable. UI shows lineage in both directions. Follows OSF/ClinicalTrials.gov/AsPredicted convention. Data model updated with three new fields + DB CHECK constraint. ADR queue renumbered (0005=OSF, 0006=AI plug-in, 0007=Path A vs B, 0008=plugin). Validator clean (8 instances)." },
+    { "date": "2026-05-28", "text": "ADR-0003 accepted (04_architecture/adrs/0003-asset-storage.md). Option B: hybrid asset storage with researcher choice per asset (internal R2 upload or external link), auto-freeze on preregistration/publication with per-asset opt-out, failed freezes flag the version honestly. Per-tenant storage metering architected; pricing model deferred. Content-hash dedup for internal assets. Sketched Asset + TenantStorageMeter for future data-model entry. Validator clean (7 instances)." },
+    { "date": "2026-05-28", "text": "Sketched core data-model entities in 04_architecture/data-model/00-core-entities.md. Mermaid ER diagrams + per-entity fields/invariants for Module, ModuleVersion, Theme, Experiment, ExperimentVersion. Fork is not a separate entity (just FKs on Experiment). Framework parallel sketched. Resolved 5 ADR-0001/0002 contradictions: theme snapshot embed; module locks as JSON for V1; fork = copy + reference at different layers; cross-tenant forks allowed; deprecated modules stay resolvable. 5 open questions flagged for design phase. Validator clean (6 instances)." },
+    { "date": "2026-05-28", "text": "Triangulated PI persona via literature. 20 Consensus searches → researcher-tooling-pain-points insight (29 papers cited). Confirmed: fragmented tooling, uneven open-science adoption (20-25% preregistration), collaboration tools separate from authoring tools, dedicated misinformation tooling validates thematic-spaces architecture. New findings: Prolific>>MTurk for data quality; GitHub-for-research demand is real, supply is fragmented; sustainability = credibility signal. Persona status: draft → in review. Interviews still needed to validate." },
+    { "date": "2026-05-27", "text": "Created PI interview guide (01_research/user-research/pi-interview-guide.md) — semi-structured, ~60 min, designed for 2-3 academic PI interviews. Added interview-guide artifact type to manifest." },
+    { "date": "2026-05-27", "text": "Added 'Speak researcher, not developer' rule to 00_meta/rules/design-rules.md with a starter translation table — internal docs keep developer-precise terms (fork, snapshot, module, theme overlay); user-facing surfaces translate (Replicate / Adapt, Saved version, Question / Item / Artifact, Workspace). CLAUDE.md now references the rule for every session." },
+    { "date": "2026-05-27", "text": "ADR-0002 accepted (04_architecture/adrs/0002-forking-model.md) — stripped Option B: snapshot-based forking, pull-from-upstream deferred. Versions are immutable with kinds (autosave/named/preregistered/published). Forks lock to a specific parent version. Participant data never copied. Public-forkable default. Frameworks share the model. 8-item forward-readiness checklist for upgrade to full B. Validator clean (3 instances)." },
+    { "date": "2026-05-27", "text": "ADR-0001 accepted (04_architecture/adrs/0001-modular-composition-theme-overlays.md) — adopted versioned modular composition with theme overlays (Option C). Five load-bearing principles: source/key@version identity, schemas-first, pure-functional theme overlays, fork-version-locking, plugin-ready data model. Granularity: module = question type / artifact. Validator clean (2 instances)." },
+    { "date": "2026-05-27", "text": "Resolved 6 product decisions: positioning = Qualtrics + GitHub for research (combined); thematic spaces = composable overlays on one everything-space; AI = V1 architecture-ready / V2+ feature-bearing; chatbot = V2 conversational rendering; curation = human (project owner); stats = narrow + dashboard descriptives; AI synthesis = extraction not generation. ADR-0001 now is the modular composition + theme overlay model — highest-leverage architectural decision." },
+    { "date": "2026-05-27", "text": "Captured raw product vision in 02_product/product-brief.md — 12 themes (GitHub-for-research, thematic spaces, AI-assisted authoring, MCP, qualitative support, etc.). Scope analysis (V1/V2/V3/never), pushback on built-in stats and AI synthesis, 5+ ADRs queued, decomposition plan. Surfaced positioning question: better-Qualtrics vs. GitHub-for-research." },
+    { "date": "2026-05-27", "text": "Drafted PI persona (Dr. Maya Okonkwo, academic misinformation researcher) from single-source observation. Marked draft; listed validation steps. Extended manifest with persona schema; fixed parser bug where in-section bullets were treated as top-level fields. Validator clean (1 instance)." },
+    { "date": "2026-05-27", "text": "Built manifest system — schema.yaml declares 23 artifact types; regenerate.py rewrites templates from it; validate.py catches drift, missing fields, broken refs; new_artifact.py scaffolds instances." },
+    { "date": "2026-05-27", "text": "Fixed broken Send buttons in dashboard — switched to copy-to-clipboard pattern (artifact sandbox doesn't expose sendPrompt)." },
+    { "date": "2026-05-27", "text": "Built workflow dashboard artifact + STATUS.md mirror; wired CLAUDE.md to keep both in sync." },
+    { "date": "2026-05-27", "text": "Updated STACK.md with two-path framing (fast-to-ship vs frugal) + cost scaling table." },
+    { "date": "2026-05-27", "text": "Created workspace scaffold: 4 root docs, 6 rule files, 8 templates, 7 numbered phase folders with READMEs, archive folder." }
+  ],
+  "suggestedNext": [
+    {
+      "title": "Verify the scaffold renders correctly",
+      "desc": "First: run cd 05_app && npm install && npm run dev. Check parchment, Plex Serif, theme toggle, vibrant chips. Anything off — flag it.",
+      "prompt": "I've run cd 05_app && npm install && npm run dev. Walk me through what I should see on http://localhost:3000 vs what the design intent specifies, in this order: (a) page background tone; (b) headline typography; (c) theme toggle behavior when I click Dark; (d) the four palette swatches; (e) the two block-validation chips. For each, tell me what 'correct' looks like so I can spot any drift before features land on top."
+    },
+    {
+      "title": "Add Clerk auth + first Drizzle migration",
+      "desc": "Next commit: (auth)/signup route per signup-onboarding wireframe + Workspace/Member/Experiment/ExperimentVersion tables.",
+      "prompt": "Land the Clerk + Drizzle commit. (a) Install Clerk (@clerk/nextjs) + middleware.ts protecting (app)/* routes; wire NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY + CLERK_SECRET_KEY; replace localStorage-only theme persistence with Clerk user-metadata sync (localStorage stays as the cache). (b) Install Drizzle (drizzle-orm + drizzle-kit + postgres) + create server/db/schema.ts with workspace, member, experiment, experiment_version tables per 04_architecture/data-model/00-core-entities.md; drizzle.config.ts; first migration committed to server/db/migrations/. (c) /signup route implementing the signup-onboarding wireframe end-to-end (centered narrow column, Plex Serif headline, email magic-link via Clerk + Google OAuth, display name + theme picker step, workspace creation on standalone signup). Validator clean afterward; ensure existing verification page at / still works."
+    },
+    {
+      "title": "Write failing Playwright e2e for Hanna's loop",
+      "desc": "Per qa-and-testing rule: failing e2e first. The single source of truth for MVP-done.",
+      "prompt": "Set up Playwright in 05_app/tests/e2e/ and write the first failing e2e for Hanna's complete MVP loop: 'Hanna signs up, creates a study from Misinformation Research Framework, configures Block 1 (Stimulus) with valid schema, configures Block 2 (Manipulation check) — initially shows missing-field validation error in vibrant red — fixes the field, hits Save → Save as named version with label v1 draft, closes the browser, returns, finds the draft in Studies → Drafts sub-nav.' Keep the test failing until features land. Configure playwright.config.ts to run against localhost:3000 with a single browser project; auth uses Clerk's test-mode helpers per their docs. Each MVP feature lands by making more assertions in this single spec pass."
+    }
+  ]
+}
+</script>
+
+<!-- ============================================================
+  RENDERING (don't edit unless restructuring the UI)
+============================================================ -->
+
+<div class="hero">
+  <h1 class="hero-title" id="hero-title"></h1>
+  <p class="hero-subtitle" id="hero-subtitle"></p>
+  <div class="hero-stats" id="hero-stats"></div>
+</div>
+
+<div class="info-banner">
+  <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
+  <span>Buttons copy a prepared prompt to your clipboard. Paste it into the Cowork chat to send it to Claude — the artifact sandbox can't message the chat directly.</span>
+</div>
+
+<section>
+  <p class="section-title">Phase pipeline</p>
+  <div class="pipeline" id="pipeline"></div>
+  <div class="legend">
+    <span class="legend-item"><span class="legend-dot done"></span> done</span>
+    <span class="legend-item"><span class="legend-dot in_progress"></span> in progress</span>
+    <span class="legend-item"><span class="legend-dot blocked"></span> blocked</span>
+    <span class="legend-item"><span class="legend-dot"></span> not started</span>
+  </div>
+</section>
+
+<section>
+  <p class="section-title">Workflow</p>
+  <div class="workflow-wrap">
+    <pre class="mermaid" id="workflow-diagram"></pre>
+  </div>
+</section>
+
+<section>
+  <p class="section-title">What to do next</p>
+  <div class="next-steps" id="next-steps"></div>
+</section>
+
+<section>
+  <p class="section-title">Artifacts by phase</p>
+  <div id="phase-cards"></div>
+</section>
+
+<section>
+  <p class="section-title">Recent activity</p>
+  <div class="activity-log" id="activity-log"></div>
+</section>
+
+<div class="footer-note">
+  This dashboard's state is the JSON block at the top of the file. Claude updates it as work happens.
+  The mirror at <code>00_meta/STATUS.md</code> contains the same information in plain markdown.
+  Last updated: <span id="last-updated"></span>.
+</div>
+
+<!-- Chat suggestions floating above the input -->
+<div class="chat-suggestions">
+  <button class="chat-chip" data-prompt="Refresh the dashboard: scan the Massive Research Tool folder, update STATUS.md and the dashboard artifact to reflect what actually exists, and tell me what changed.">Refresh from filesystem</button>
+  <button class="chat-chip" data-prompt="Walk me through where we are. What phase, what's done, what's the most important next move?">Where are we?</button>
+  <button class="chat-chip" data-prompt="What gate am I closest to passing, and what specifically would unblock it?">What unblocks the next gate?</button>
+</div>
+
+<!-- Sticky chat bar -->
+<div class="chat-bar">
+  <textarea class="chat-input" id="chat-input" placeholder="Compose a prompt — clicking Copy puts it on your clipboard, then paste in chat..." rows="1"></textarea>
+  <button class="chat-send" id="chat-send">Copy</button>
+</div>
+
+<!-- Toast for copy confirmation -->
+<div class="toast" id="toast">
+  <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg>
+  <div>
+    <span class="toast-text" id="toast-text">Prompt copied</span>
+    <span class="toast-hint">Paste it into the Cowork chat below</span>
+  </div>
+</div>
+
+<script>
+(function() {
+  const STATE = JSON.parse(document.getElementById('dashboard-state').textContent);
+
+  // ---------- Computations ----------
+  function countItems(phase) {
+    let total = 0, done = 0, inProg = 0, blocked = 0;
+    phase.groups.forEach(g => {
+      g.items.forEach(it => {
+        total++;
+        if (it.status === 'done') done++;
+        else if (it.status === 'in_progress') inProg++;
+        else if (it.status === 'blocked') blocked++;
+      });
+    });
+    return { total, done, inProg, blocked };
+  }
+
+  function totals() {
+    let total = 0, done = 0, inProg = 0;
+    STATE.phases.forEach(p => {
+      const c = countItems(p);
+      total += c.total; done += c.done; inProg += c.inProg;
+    });
+    return { total, done, inProg };
+  }
+
+  // ---------- Hero ----------
+  document.getElementById('hero-title').textContent = STATE.project;
+  document.getElementById('hero-subtitle').textContent = STATE.tagline;
+  document.getElementById('last-updated').textContent = STATE.lastUpdated;
+
+  const t = totals();
+  const overallPct = t.total > 0 ? Math.round((t.done / t.total) * 100) : 0;
+  const currentPhase = STATE.phases.find(p => {
+    const c = countItems(p);
+    return c.total > 0 && c.done < c.total;
+  }) || STATE.phases[0];
+
+  document.getElementById('hero-stats').innerHTML = `
+    <div class="stat">
+      <div class="stat-label">Artifacts complete</div>
+      <div class="stat-value">${t.done} / ${t.total}</div>
+      <div class="stat-sub">${overallPct}% overall</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">In progress</div>
+      <div class="stat-value">${t.inProg}</div>
+      <div class="stat-sub">across all phases</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Active phase</div>
+      <div class="stat-value">${currentPhase.name}</div>
+      <div class="stat-sub">Phase ${currentPhase.no}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Focus</div>
+      <div class="stat-value" style="font-size:13px; line-height:1.3; font-weight:500;">${STATE.currentFocus}</div>
+    </div>
+  `;
+
+  // ---------- Pipeline strip ----------
+  const pipelineEl = document.getElementById('pipeline');
+  STATE.phases.forEach(phase => {
+    const c = countItems(phase);
+    const pct = c.total > 0 ? Math.round((c.done / c.total) * 100) : 0;
+    const color = `var(${phase.color})`;
+    const el = document.createElement('div');
+    el.className = 'phase-pill';
+    el.innerHTML = `
+      <div class="accent-bar" style="background:${color}"></div>
+      <div class="phase-no">PHASE ${phase.no}</div>
+      <div class="phase-name">${phase.name}</div>
+      <div class="phase-count">${c.done} / ${c.total} done</div>
+      <div class="phase-bar"><div class="phase-bar-fill" style="width:${pct}%; background:${color};"></div></div>
+    `;
+    el.addEventListener('click', () => {
+      const card = document.getElementById('phase-' + phase.id);
+      if (card) {
+        card.classList.remove('collapsed');
+        card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
+    pipelineEl.appendChild(el);
+  });
+
+  // ---------- Workflow diagram ----------
+  function phaseClass(phase) {
+    const c = countItems(phase);
+    if (c.total === 0) return 'todo';
+    if (c.done === c.total) return 'done';
+    if (c.done > 0 || c.inProg > 0) return 'inprog';
+    return 'todo';
+  }
+  const diagramLines = [
+    'flowchart LR',
+    '  Found([Foundation]) --> Disc[Discovery]',
+    '  Disc --> Res[Research]',
+    '  Res --> Prod[Product]',
+    '  Prod --> Des[Design]',
+    '  Des --> Arch[Architecture]',
+    '  Arch --> Build[Build]',
+    '  Build --> QA[QA]',
+    '  QA -. insights .-> Res',
+    '  classDef done fill:#dcfce7,stroke:#16a34a,color:#15803d,stroke-width:1.5px',
+    '  classDef inprog fill:#fef3c7,stroke:#d97706,color:#92400e,stroke-width:1.5px',
+    '  classDef todo fill:#f5f5f4,stroke:#a8a29e,color:#57534e,stroke-width:1px'
+  ];
+  const idMap = { foundation: 'Found', discovery: 'Disc', research: 'Res', product: 'Prod', design: 'Des', architecture: 'Arch', build: 'Build', qa: 'QA' };
+  STATE.phases.forEach(p => {
+    diagramLines.push(`  class ${idMap[p.id]} ${phaseClass(p)}`);
+  });
+  document.getElementById('workflow-diagram').textContent = diagramLines.join('\n');
+
+  // ---------- Next steps ----------
+  const nextEl = document.getElementById('next-steps');
+  STATE.suggestedNext.forEach((step, i) => {
+    const el = document.createElement('div');
+    el.className = 'next-step';
+    el.innerHTML = `
+      <div class="next-step-number">${i + 1}</div>
+      <div class="next-step-body">
+        <div class="next-step-title"></div>
+        <div class="next-step-desc"></div>
+      </div>
+      <button class="next-step-action">Copy prompt</button>
+    `;
+    el.querySelector('.next-step-title').textContent = step.title;
+    el.querySelector('.next-step-desc').textContent = step.desc;
+    el.querySelector('.next-step-action').addEventListener('click', () => sendToClause(step.prompt));
+    nextEl.appendChild(el);
+  });
+
+  // ---------- Phase cards ----------
+  const phaseCardsEl = document.getElementById('phase-cards');
+  STATE.phases.forEach(phase => {
+    const c = countItems(phase);
+    const color = `var(${phase.color})`;
+    const card = document.createElement('div');
+    card.className = 'phase-section';
+    const isCurrent = phase.id === currentPhase.id;
+    const isFoundation = phase.id === 'foundation';
+    // Default-collapse phases that haven't started, unless they're foundation
+    const startCollapsed = c.total === 0 && !isCurrent;
+
+    card.innerHTML = `
+      <div class="phase-card ${startCollapsed ? 'collapsed' : ''}" id="phase-${phase.id}">
+        <div class="phase-header">
+          <div class="phase-chip" style="background:${color}">${phase.no}</div>
+          <div class="phase-header-main">
+            <div class="phase-header-title">${phase.name}</div>
+            <div class="phase-header-sub">${phase.description}</div>
+          </div>
+          <div class="phase-header-progress">${c.done} / ${c.total}</div>
+          <svg class="phase-toggle" viewBox="0 0 20 20" fill="currentColor"><path d="M5.23 7.21a.75.75 0 011.06.02L10 11.06l3.71-3.83a.75.75 0 111.08 1.04l-4.25 4.39a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z"/></svg>
+        </div>
+        <div class="phase-body"></div>
+      </div>
+    `;
+
+    const header = card.querySelector('.phase-header');
+    const cardEl = card.querySelector('.phase-card');
+    header.addEventListener('click', () => cardEl.classList.toggle('collapsed'));
+
+    const body = card.querySelector('.phase-body');
+    phase.groups.forEach(group => {
+      const gEl = document.createElement('div');
+      gEl.className = 'artifact-group';
+      gEl.innerHTML = `
+        <div class="artifact-group-title">
+          <span>${group.type}</span>
+          <span class="artifact-group-folder">${group.folder}</span>
+        </div>
+        <div class="artifact-list"></div>
+      `;
+      const list = gEl.querySelector('.artifact-list');
+      if (group.items.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'artifact-empty';
+        empty.textContent = 'No items yet.';
+        list.appendChild(empty);
+      } else {
+        group.items.forEach(it => {
+          const row = document.createElement('div');
+          row.className = 'artifact-item';
+          row.innerHTML = `
+            <div class="artifact-status ${it.status || 'todo'}"></div>
+            <div class="artifact-name ${it.status || 'todo'}"></div>
+            <button class="artifact-action">Open</button>
+          `;
+          row.querySelector('.artifact-name').textContent = it.name;
+          row.querySelector('.artifact-action').addEventListener('click', () => {
+            const path = it.path || (group.folder + it.name);
+            sendToClause(`Show me the artifact at ${path}. Read the file and summarize what it contains and what depends on it.`);
+          });
+          list.appendChild(row);
+        });
+      }
+      // Add new button per group
+      const addBtn = document.createElement('button');
+      addBtn.className = 'add-artifact-btn';
+      addBtn.textContent = `+ Add ${group.type.toLowerCase()}`;
+      addBtn.addEventListener('click', () => {
+        sendToClause(`I want to add a new ${group.type.toLowerCase()} under ${group.folder}. Ask me clarifying questions first, then draft it using the right template from 00_meta/templates/, and update the dashboard.`);
+      });
+      gEl.appendChild(addBtn);
+      body.appendChild(gEl);
+    });
+
+    phaseCardsEl.appendChild(card);
+  });
+
+  // ---------- Activity log ----------
+  const actEl = document.getElementById('activity-log');
+  STATE.recentActivity.forEach(a => {
+    const row = document.createElement('div');
+    row.className = 'activity-row';
+    row.innerHTML = `<div class="activity-date">${a.date}</div><div></div>`;
+    row.querySelector('div:last-child').textContent = a.text;
+    actEl.appendChild(row);
+  });
+
+  // ---------- Toast ----------
+  const toastEl = document.getElementById('toast');
+  const toastTextEl = document.getElementById('toast-text');
+  let toastTimer = null;
+  function showToast(msg) {
+    toastTextEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2400);
+  }
+
+  // ---------- Copy prompt to clipboard ----------
+  // The artifact sandbox doesn't expose a way to inject messages into the Cowork chat,
+  // so we copy the prompt to the clipboard and prompt the user to paste it.
+  function sendToClause(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(
+        () => showToast('Prompt copied to clipboard'),
+        () => fallbackCopy(text)
+      );
+    } else {
+      fallbackCopy(text);
+    }
+  }
+  function fallbackCopy(text) {
+    // Older browsers / sandboxed contexts that block the async clipboard API.
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.top = '-1000px';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    if (ok) {
+      showToast('Prompt copied to clipboard');
+    } else {
+      // Last resort: show the prompt in a textarea modal so the user can copy manually.
+      window.prompt('Copy this prompt and paste it into the Cowork chat:', text);
+    }
+  }
+
+  const input = document.getElementById('chat-input');
+  const sendBtn = document.getElementById('chat-send');
+  function send() {
+    const v = input.value.trim();
+    if (!v) return;
+    sendToClause(v);
+    input.value = '';
+    input.style.height = 'auto';
+  }
+  sendBtn.addEventListener('click', send);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      send();
+    }
+  });
+  input.addEventListener('input', () => {
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+  });
+
+  document.querySelectorAll('.chat-chip').forEach(chip => {
+    chip.addEventListener('click', () => sendToClause(chip.dataset.prompt));
+  });
+
+  // ---------- Mermaid ----------
+  if (typeof mermaid !== 'undefined') {
+    mermaid.initialize({ startOnLoad: true, securityLevel: 'strict', theme: 'base', themeVariables: { fontFamily: 'inherit', fontSize: '13px' } });
+  }
+})();
+</script>
+
+</body>
+</html>

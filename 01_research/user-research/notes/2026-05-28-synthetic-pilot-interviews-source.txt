@@ -1,0 +1,322 @@
+Researcher Discovery Interviews
+Three synthetic personas — a web-based platform for running psychological experiments
+Purpose:  Pilot the discovery script and stress-test the “fork / reuse a study” wedge against three contrasting user types.
+Status:  SYNTHETIC personas, not field data. Use to refine the script and rehearse probing, and as hypotheses to test with real interviewees — NOT as evidence about the market or willingness to pay.
+Convention:  Q = interviewer; speaker initials = interviewee. “Interviewer note” blocks are the interviewer’s live annotations / flags.
+
+The three personas
+
+Full transcripts follow in order (HK, MS, SM); the cross-persona synthesis at the end carries the findings.
+
+Interview 1 — Dr. Hanna Kowalczyk (solo investigator)
+Profile:  Postdoc (yr 3–4), social & cognitive psychology, mid-sized European university. Studies online credibility: source cues, social metrics, framing.
+
+Section 1 — Their work
+Q  Tell me about your role and your lab. How long, what size?
+HK  So, I’m a postdoc — third year, almost four. Social cognition group, though “lab” is generous. The PI, me, one other postdoc, two PhD students, plus a rotating cast of master’s students. Six-ish, but the headcount is fake because half are gone by summer. I’ve done this since my PhD — seven years if you count that, which I try not to.
+Interviewer note  Career-stage anxiety surfaces immediately. The org is informal (she corrected “lab”) — matters for who actually adopts a tool. Probe soft-money precarity; it shapes how she evaluates a paid tool.
+Q  What questions does your research try to answer right now?
+HK  How people decide what online information to trust — specifically the cues: source, likes/shares, the way it’s written. Does a high share count make people credulous even when the writing is obviously manipulative. That’s the current grant’s angle anyway.
+Interviewer note  “That’s the current grant’s angle anyway” — her real interest and her funded work may differ.
+Q  Walk me through what you spent most of your time on this past week.
+HK  Honestly? Reviewing. Two manuscript reviews I’d avoided. Then email — a German collaborator, chasing an RA, a student whose analysis fell apart. I touched my actual study maybe Thursday afternoon. Rebuilt a Qualtrics block. That was it for real research.
+Interviewer note  The gold of Section 1. Gap between self-image (“runs studies”) and the real week (admin, review, mentoring). The walked-through week is the truth; the abstract “mostly studies” is the flattering fiction. Watch for that fiction with others.
+Section 2 — Last study, end to end
+Q  Walk me through the most recent study, idea to analyzable data.
+HK  Idea came from a reviewer comment — we hadn’t separated source from engagement metrics. So a two-by-two: manipulative vs. neutral style × high vs. low engagement. Fake likes and shares.
+I sketched the design, argued over conditions, built the materials — the posts took ages, matched on length/topic/reading level. Built it in Qualtrics; the metrics manipulation needed custom JavaScript because Qualtrics has no fake engagement bar. Borrowed code from a past study and Stack Overflow and frankenstein’d it. Prolific, ~300 people, two days. Then R, and longer cleaning than collecting.
+Interviewer note  Origin is “a reviewer told us to” — triggers are external/social. Build phase holds the richest pain. “Longer cleaning than collecting” is quotable.
+Q  What tools at each stage?
+HK  Google Doc + whiteboard, then Qualtrics + JS/HTML/CSS, Prolific (SONA pool unused), CSV → R/tidyverse, prereg on OSF. Materials are… supposed to be on OSF.
+Interviewer note  “Supposed to be on OSF” — a crack in the open-science story before Section 4 asks.
+Q  Where smooth, where painful?
+HK  Recruitment smooth — Prolific just works. Analysis fine, it’s R. The pain is the middle: the build, and the export. Qualtrics gives a horrible wide CSV with columns like Q14_3_TEXT — you reverse-engineer your own study from column names. And the JS — every condition change, I test all four arms by hand, because there’s no way to see the randomization is doing what I think. I lost a day once to a study where randomization silently broke and a quarter of people saw the wrong condition. Caught it in the data, after. That’s the nightmare.
+Interviewer note  Strongest FELT pain in her interview — concrete, scarring, specific. If the tool makes randomization inspectable BEFORE launch, this is the story to sell against.
+Q  What did you do outside the tool that you wish was inside?
+HK  Power analysis (R/G*Power, then I type the number into Prolific by hand). Stimulus-matching in a spreadsheet. And the prereg is a separate universe — I re-describe in the OSF form the exact design that’s already in Qualtrics. Copying my own design from one box into another box.
+Interviewer note  “Copying my design from one box to another” = the integration thesis, unprompted. But people love integration and still don’t switch. Don’t over-weight a stated wish vs. the felt randomization scar.
+Q  How did you make sure the right people got the right conditions?
+HK  Prolific handles the who. Conditions were Qualtrics randomization plus my JS. How did I make sure? [pause] I… checked the cell counts after. That’s the honest answer. I trusted the randomizer and verified in the data. No moment to confirm it before real people went through. That’s what bit me.
+Interviewer note  The pause + “honest answer” reframing is the key moment — “made sure” (competence) vs. “checked after” (reality). In a live interview, stop talking and let silence work.
+Q  What when the tool couldn’t express something?
+HK  Workaround in code, or cut the feature. We wanted an adaptive follow-up and dropped it — too fiddly in Qualtrics. You scope down to what the tool can do. Everyone does that and nobody admits it.
+Interviewer note  Critical for Section 6: tooling SHRINKS studies, said unprompted. Hold her to this at claim 3.
+Section 3 — Tooling landscape
+Q  Besides Qualtrics, what else?
+HK  R, Prolific, SONA, OSF, G*Power, Zotero, Slack with one collaborator, email with the rest. Used Gorilla, poked at jsPsych. Git… in theory. I have repos. Not well kept.
+Interviewer note  “In theory” / “not well kept” — candour about professed vs. actual practice. Less self-aware interviewees give cleaner-than-true answers.
+Q  Ever switched platforms? Trigger?
+HK  Tried Gorilla for one project — better timed/dynamic stimuli. Trigger was a study Qualtrics couldn’t do well. But I went back: rebuilding everything, license cost on a tight grant, and my collaborator didn’t know it — I’d be the only one who could touch the study. That killed it. It’s not enough for me to switch; the people I work with have to come too.
+Interviewer note  Switching barrier is SOCIAL, not features/price. A tool wins a GROUP, not a person. Tag against claim 1.
+Q  What tool do you wish existed?
+HK  Where design, prereg, and experiment are the same object. [beat] Though I’ve heard “all-in-one platform” pitches before — always a toy or a walled garden you can’t get your data out of. So I want it and I don’t believe in it.
+Interviewer note  “I want it and I don’t believe in it” = the real market reaction. Active disbelief barrier from prior burns (toys, lock-in).
+Q  Tool surprise — good, bad?
+HK  Good — Prolific prescreening filled a sample in a day I expected to take weeks. Bad — Qualtrics pushed an update that changed how my JS ran and broke a study mid-collection. I didn’t change anything; they did. It’s fine until someone else’s decision breaks your science.
+Interviewer note  “Someone else’s decision breaks your science” — fear of dependency. Cuts both ways: distrust of platforms AND a wedge if we offer transparency/versioning.
+Section 4 — Open science & collaboration
+Q  How does preregistration fit in?
+HK  Officially, always. [laughs] In practice — confirmatory, yes; messier exploratory, often not. There were times the prereg went up after I’d started collecting, because collection was time-sensitive and the form is tedious. Not proud of it. The system mostly checks the box, not the timestamp.
+Interviewer note  Pre-contradicts claim 5. The gap between “officially always” and the laugh is the whole finding.
+Q  Do you use OSF? For what?
+HK  Yes — preregs, and where I dump materials/data when a paper’s accepted. Reviewers want the link. A living project from day one? No. OSF is where things go to become public at the end, not where I work. Day to day is my laptop and a shared drive.
+Interviewer note  OSF = compliance/publication tool, not workflow. “The place researchers work” fights the laptop + shared drive, not OSF.
+Q  Cross-institution collaboration day to day?
+HK  Email with attachments, which I hate — “Analysis_v4_HK_final_FINAL.R.” Shared Drive or OneDrive depending on the institution. We can’t co-edit the Qualtrics survey — one account owns it, so one builds and the other comments from outside. Timezone calls. Three ethics processes in three formats. The data-sharing agreements take longer than the study.
+Interviewer note  “Analysis_v4_HK_final_FINAL.R” = perfect version-chaos artifact. Single-owner Qualtrics connects to the switching story. Probe whether she’d trust shared cloud edit given her control anxiety.
+Q  Most frustrating part of cross-institution collaboration?
+HK  Administrative duplication. Not the science — we agree on that. Three universities, three sets of paperwork/ethics/data rules, nothing talks. I spend more time on the scaffolding than the collaboration.
+Interviewer note  She narrows the cliche to a specific: admin/legal duplication — mostly outside what an experiment tool can fix. Risk of building for a pain that isn’t ours to solve.
+Section 5 — Replication & reuse
+Q  Ever tried to replicate someone’s study?
+HK  Once. The OSF link had data but no working experiment — a PDF and half the stimuli. Emailed the author, got ~60% of what I asked for, reconstructed the rest by guessing. Whether we replicated their study or a cousin of it, I can’t be sure. You’re often replicating your interpretation of a methods section.
+Interviewer note  “Replicating your interpretation of a methods section” — the case for a runnable object. But framed as one-time, not routine. Gauge frequency before sizing as a core use case.
+Q  Has anyone replicated yours?
+HK  Someone asked for materials. I sent a zip. Opening my own folder was embarrassing — uncommented code, files named after inside jokes, three versions. My own stuff isn’t reproducible even to me, six months later.
+Interviewer note  She’s the incomplete-materials author too. “Not reproducible even to me” = universal pain. Capture-by-default beats hygiene-as-extra-work.
+Q  Used/adapted someone’s framework? How decide to trust?
+HK  For paradigms, yes — grab the canonical version, found via papers or asking a colleague. Trust is the person or the lab’s reputation, or a journal I respect. Not the tool it’s hosted on. I wouldn’t trust a random GitHub repo more than a random stranger.
+Interviewer note  Evidence AGAINST naive “GitHub-for-research”: trust is social/reputational. “Fork” isn’t in her vocabulary. Discoverability would have to ride on reputation signals.
+Section 6 — Claim check
+Q  “I’d switch tools if a new one were genuinely modern.”
+HK  Yes. Completely. If it were a generation ahead, of course.
+Interviewer note  Polite/aspirational agreement — contradicts her switching story (Gorilla was better; she still went back). True as a feeling, false as a prediction. Don’t score as validation.
+Q  “How a tool looks and feels affects whether I trust it.”
+HK  I want to say no — I’m a scientist. [pause] But yes. 2008-looking = I assume unmaintained, worry it’ll break. Slick = I extend too much benefit of the doubt. So yes, embarrassingly.
+Interviewer note  Two-stage tell: defensible answer, then real one after the pause. Mechanism: looks → inferred maintenance → trust. Genuine resonance — the benchmark for her real agreement.
+Q  “Richer things → I’d scope studies UP, not down.”
+HK  I’d like to think so. The adaptive thing I dropped — yes, I’d have kept it. So in principle, yes.
+Interviewer note  “In principle” = soft, half-believed. Dropped-feature evidence is real, but scope is also bounded by time/money/sample. Partial validation.
+Q  “I’d build on a colleague’s study if the tool made it easy.”
+HK  Sure, if it were easy and I trusted it. Yeah.
+Interviewer note  Flattest, fastest answer = polite-agreement-as-disagreement. Treat with most suspicion. Hard probe: “last time you built on a SPECIFIC colleague’s study” — she may have no example.
+Q  “Preregistration is part of every study I run.”
+HK  [long pause] I mean… that’s the goal. For confirmatory work, yes.
+Interviewer note  Will NOT fully endorse — that’s the tell. The benchmark for a non-polite, true reaction.
+Wrap-up
+Q  Who else should I talk to?
+HK  A full professor running a big lab — they delegate building to students, care about oversight, not the randomization UI. A hardline open-science person — less forgiving than me. And a lab manager/RA — they click through the tool all day. I design; they suffer.
+Interviewer note  Unprompted segmentation (PI / zealot / RA). The heaviest USER often isn’t the person we interview.
+Q  Anything I should have asked but didn’t?
+HK  Money — who pays, grant or not, what I can expense. That decides everything. And what happens to a study after the paper’s published — it dies on a hard drive. Maybe that’s worth your attention.
+Interviewer note  Two script gaps: budget/procurement; and “study dies on a hard drive” may be a better wedge framing than “replication.”
+Q  Anything to follow up on?
+HK  Send me whatever you build and I’ll tell you if it’s a toy. I mean that warmly. And if you solve the prereg-is-a-separate-form thing, email me first.
+Interviewer note  “I’ll tell you if it’s a toy” — a genuine design-partner offer. Follow-up offers = highest-signal recruits.
+
+Interview 2 — Dr. Marek Stein (multi-site coordinator)
+Profile:  Research scientist / consortium coordinator, ~7 yrs post-PhD, soft money. Runs ManyLabs/PSA-style distributed replications: 63 labs, 19 countries.
+
+Section 1 — Their work
+Q  Role and lab — how long, what size?
+MS  Depends what “lab” means. Home lab is small — a PI, me, a couple of students. But I coordinate a consortium: sixty-three labs across nineteen countries, a living number. My “team” is four people or four hundred depending how you count. Coordinator ~5 years, research scientist on soft money. I run the machine that lets other people do experimental work.
+Interviewer note  Contrast with HK: the unit of his world is the SITE. “I run the machine” — he sees himself as infrastructure, your tool’s category. He may evaluate you as a peer to his homemade machine, not as a user.
+Q  What questions does your research answer?
+MS  Honestly the scientific question is secondary to me. Labs care whether effect X replicates across cultures. I care whether sixty-three labs can run the SAME study well enough that the answer means anything — how much variance is real difference vs. sixty-three slightly different implementations. That keeps me up.
+Interviewer note  His RESEARCH question IS the problem your tool claims to solve — implementation variance/drift. Most product-aligned interviewee. Probe hard.
+Q  Most of your time this past week?
+MS  Chasing. [laughs] A site’s ethics board wanted consent wording changed — a protocol deviation, twelve-person thread. Two sites hadn’t uploaded data; behind or gone? Rewrote analysis because one site’s data dictionary didn’t match the schema. A long authorship call. I didn’t touch science — I touched coordination, governance, and a CSV that wouldn’t parse.
+Interviewer note  His whole job IS the seams your tool lives in. Every item is a candidate feature.
+Section 2 — Last project, end to end
+Q  Idea to analyzable data.
+MS  Idea selection is itself a process — the consortium votes on which effect to target. Then a team writes the canonical protocol and materials. Then the real work: every site translates, back-translates, and clears its own ethics. Six to nine months just for that. We build the task once, centrally, portable — sites deploy that same build. Data returns to a central pipeline, validated against a schema, then combined. Vote to analyzable data is well over a year.
+Interviewer note  Time is dominated by GOVERNANCE + LOCALIZATION, not building. “Build once, sites deploy the same build” = literally fork/distribute.
+Q  Tools at each stage?
+MS  Protocol/materials in a shared repo — OSF public, Git working. Task in jsPsych specifically because it’s open and portable — I will not build the central instrument in something proprietary I can’t hand to sixty sites. Translation in spreadsheets, painfully. Ethics is sixty-three institutional processes, no common tool. Validation/combination in R.
+Interviewer note  HARD ADOPTION GATE: “I will not build the central instrument in something proprietary I can’t hand to sixty sites.” If the study isn’t extractable to an open format, he structurally cannot adopt you for the core artifact. Most important sentence for strategy.
+Q  Smooth vs. painful?
+MS  Smooth — the science. Painful — everything between protocol and data: translation drift, the ethics marathon, and the moment sixty-three datasets arrive and eleven deviated with nobody flagging it. One site ran an older version — forked the materials in March, never pulled the April fix. No automatic way to know. I found it because their trial count was off.
+Interviewer note  His version of HK’s randomization break, at scale and more damning. “Forked in March, never pulled the April fix.” “Forked” is in his NATURAL vocabulary. The feature to design and sell: version-identity + audit trail.
+Q  What did you wish was inside the tool?
+MS  Everything is outside — there is no main tool, just a pile held together with my attention. I wish for one place where the canonical build, the version each site is running, ethics status per site, and the data schema all stay in sync. Right now those are four surfaces and I am the synchronization layer — a single point of failure who takes holidays.
+Interviewer note  “I am the synchronization layer… single point of failure who takes holidays” names the role the product would replace. A multi-party state-sync problem, much bigger than HK’s three-box wish. Pulls toward CONSORTIUM-OPS, not a solo builder.
+Q  How ensure the right sites ran the right protocol?
+MS  Participants are each site’s job. The hard version is making sure every SITE ran the right protocol — and the honest answer is documentation and trust, checked after. Sites attest they ran version 1.4. I take them at their word until the data says otherwise. No “this dataset came from this exact build” guarantee. I would pay real money for that guarantee. Not a figure of speech.
+Interviewer note  Unprompted WILLINGNESS-TO-PAY on a specific capability: build-to-data attestation. Strongest buy signal anywhere. But EXACTLY what a synthetic persona can’t validate — confirm with 3 real coordinators.
+Q  When the tool couldn’t express what a site needed?
+MS  Constant tension. A site’s population or equipment differs — every accommodation is a fork that threatens comparability. I negotiate: acceptable documented deviation, or does it break the study? Sometimes a controlled variant, pre-registered as such; sometimes no, and the site can’t participate. The tool never helped me reason about that — all human judgment in Slack.
+Interviewer note  Deviation/variant GOVERNANCE. If the product can represent a sanctioned variant as a first-class object (an approved, documented diff/fork), that’s his pain. HK cut features; MS can’t cut, he must govern.
+Section 3 — Tooling landscape
+Q  What else is in your stack?
+MS  Slack, a wiki, OSF, Git, jsPsych, spreadsheets (translation + a site/authorship tracker), Zoom across timezones, absurd email, and sixty-three institutional ethics portals I don’t get to choose.
+Interviewer note  Involuntary tools (ethics portals) — the product can’t replace those. Useful scope boundary.
+Q  Ever switched platforms? Trigger?
+MS  For the central instrument we moved to jsPsych for reproducibility/portability — sites couldn’t run the old thing or reproduce it later. Switching at consortium scale is a different animal: migrate sixty-three sites, retrain coordinators, re-validate identical data. The switching cost isn’t mine; it’s multiplied by sixty-three.
+Interviewer note  Pre-demolishes claim 1. Switching cost is COMBINATORIAL. A tool must win BEFORE a consortium forms, or be adoptable site-by-site without breaking comparability.
+Q  Tool you wish existed?
+MS  A distribution-and-attestation layer for studies: publish the canonical build, every site pulls it, the system records which version each site ran and flags anyone behind, data comes back tagged with the build hash. Version control plus provenance for experiments. People say “GitHub for studies” and wave their hands — I want the boring parts: versioning, diffs, a guarantee of what ran.
+Interviewer note  Hands you the spec and REJECTS the hype while endorsing the mechanics — more credible than enthusiasm. For MS the value is OPERATIONAL CONTROL, not social discovery — the opposite reading from HK.
+Q  Tool surprise — good, bad?
+MS  Good — a colleague’s validation script auto-caught a schema error across sites; a glimpse of the future I want. Bad — a site’s local software update silently changed timestamp recording and corrupted timing data before anyone noticed. Same disease: a change I didn’t control, found too late.
+Interviewer note  His emotional driver is LOSS OF VISIBILITY into distributed state. Frame demos around DETECTION/ALERTING, not authoring. Already primed to value automated validation.
+Section 4 — Open science & collaboration
+Q  How does preregistration fit in?
+MS  Always, literally, not aspirationally. We work almost entirely in registered reports and preregistered protocols — the prereg IS the project. The legitimacy of a big replication rests on locking the analysis before data exists. Prereg isn’t a virtue I sometimes meet; it’s the load-bearing wall.
+Interviewer note  Deliberate opposite of HK’s laugh. Prereg’s MEANING is population-dependent. Integrated prereg is “nice to have” for HK, TABLE STAKES for MS.
+Q  Do you use OSF? For what?
+MS  Constantly, for real — registrations, public protocol, materials, data when embargoes lift, analysis code. It’s the SPINE from the start, because transparency is the product we sell to skeptics. Without showing our work, a non-replication of a famous effect just becomes a fight.
+Interviewer note  Opposite of HK’s “end-of-line” OSF. For MS it’s a WORKING surface and CREDIBILITY instrument. A tool adjacent to OSF faces a higher bar with him.
+Q  Cross-institution collaboration day to day?
+MS  It’s my entire job. Protocol version control, a tracker for each site’s ethics stage, data dictionaries, authorship governance, and managing that some sites need three reminders. Day to day is status-tracking: who’s where, what version, what’s blocked.
+Interviewer note  Reads like the spec for a PM dashboard for science. If you imagined an experiment BUILDER, this says the operator’s job is COORDINATION TRACKING. Decide which product you’re in.
+Q  Most frustrating part?
+MS  No single source of truth. “What version is site 40 running and have they cleared ethics” lives in my head, three spreadsheets, and a Slack thread. Reconciling is the job, error-prone, and I’m the only one who can do it. When I’m out, the consortium is partially blind.
+Interviewer note  Single-source-of-truth + bus-factor. His core, consistent pain; a clear thesis if you go multi-site.
+Section 5 — Replication & reuse
+Q  Ever tried to replicate someone’s study?
+MS  That’s the entire enterprise — at industrial scale. The recurring agony: the original almost never comes as a runnable thing. A paper, maybe partial stimuli, correspondence with authors who range from gracious to obstructive. Then sixty-three labs run our reconstruction. The whole consortium exists because studies aren’t shared as forkable, runnable objects.
+Interviewer note  Your wedge’s thesis from someone who lives it at scale. Frequency answered: at coordinator level, reuse-friction is CONSTANT and structural.
+Q  Has anyone replicated yours?
+MS  Our outputs are designed to be replicated — we publish the runnable build, data, everything. But even we don’t fully succeed. Six months later someone asks why version 1.3 changed a timing parameter and we’re digging through repo history to reconstruct WHY. The tooling records the what, not always the why.
+Interviewer note  Even the rigorous exemplar decays — he loses the RATIONALE behind versioned changes. Feature gap beyond version control: capture the decision/why alongside the diff.
+Q  Adapted someone’s framework? How decide to trust?
+MS  All the time — established paradigms. Trust comes from provenance and prior scrutiny, ideally registered. Reputation matters, but for me it’s reputation PLUS an inspectable artifact. A famous name on an unreproducible black box doesn’t help me.
+Interviewer note  Divergence from HK (trust purely social). For MS a platform that makes the artifact inspectable ADDS trust. Clearest evidence the wedge’s value is segment-dependent.
+Section 6 — Claim check
+Q  “I’d switch if a new one were genuinely modern.”
+MS  For my own small work, maybe. For the consortium? “Modern” isn’t close to sufficient. Modern AND open AND portable to sixty-three sites AND worth re-validating identical data. The bar is “better enough to justify migrating an entire distributed organization.” Very high.
+Interviewer note  Refuses the premise and itemizes the real bar — behaviorally consistent, far more useful than HK’s breezy yes. Corrective to reading “yes I’d switch” as a buy signal.
+Q  “How a tool looks and feels affects whether I trust it.”
+MS  Less than it should, but yes in one way: if a tool looks flaky I won’t deploy it to sixty-three sites — every rough edge becomes sixty-three support tickets. Polish matters operationally, not aesthetically: ugly means fragile means my inbox explodes.
+Interviewer note  Same claim, DIFFERENT mechanism than HK. Both reach “yes”; identical agreement, different meanings.
+Q  “Richer things → I’d scope UP.”
+MS  Honestly, no — and I may differ from most of your interviewees. In big team science, richness is the enemy: every degree of freedom is another way for sixty-three sites to diverge. I scope DOWN on purpose. A richer tool tempts complexity I’d then have to police.
+Interviewer note  Most valuable DISAGREEMENT. Rejects a claim HK accepted, with a role-specific reason. “Richer → bigger” is true for solo, FALSE for multi-site. Marketing “do richer things” may repel this segment.
+Q  “I’d build on a colleague’s study if easy.”
+MS  Yes — without hesitation. Building on others’ studies IS what I do; the friction is the central inefficiency of my field. If the tool made adaptation easy and trustworthy, it might reduce half of what consortia do manually. That’s the one I’d actually get excited about.
+Interviewer note  Vs. HK’s flat “sure, yeah” — the strongest, behaviorally-backed endorsement. Pinpoints WHICH segment the reuse wedge lands with.
+Q  “Preregistration is part of every study I run.”
+MS  Yes. Fully, no caveats. The load-bearing wall. If anything I’d want a tool to enforce it MORE strictly.
+Interviewer note  Opposite of HK’s pause. Wanting ENFORCEMENT is a feature idea (prereg-locking) that delights him and would irritate exploratory researchers — a real product tension.
+Wrap-up
+Q  Who else should I talk to?
+MS  A SITE PI inside a consortium — not the coordinator — they experience the protocol as imposed and will tell you where central control chafes. A data manager who builds the validation pipeline. And someone who tried to START a consortium and failed.
+Interviewer note  Points DOWN the hierarchy (site PI, data manager) and toward FAILURE cases. Coordinator vs. site have opposite interests (control vs. autonomy). Interview both.
+Q  Anything I should have asked but didn’t?
+MS  Who PAYS for infrastructure like this. Consortia are chronically underfunded, run on goodwill and soft money. A tool with per-seat cost across sixty-three sites is dead on arrival unless someone central funds it. And incentives to share — why would an original author make their study easy to fork when being hard to replicate protects them?
+Interviewer note  Two gaps; the second echoes the burned-replicator’s supply-side concern. Funding: per-seat × sites = DOA without central funding. Add a pricing/funding line.
+Q  Anything to follow up on?
+MS  If you build the attestation thing — proof of which build produced which dataset — I want to see it before anyone else. That’s the piece I’d change my workflow for. The rest is nice. That one’s load-bearing.
+Interviewer note  Re-narrows to the single capability he’d change behavior for: build-to-data attestation. The sharpest spear-tip for the multi-site market.
+
+Interview 3 — Dr. Sofia Marsh (burned replicator)
+Profile:  Senior postdoc (yr 5), cognitive/social (memory, metacognition). An 18-month replication saga rewired her toward reproducibility; simplified, archive-first stack.
+
+Section 1 — Their work
+Q  Role and lab — how long, what size?
+SM  Senior postdoc — fifth year out, the postdoc that won’t end. Small group: a PI, me, two PhD students. Memory and judgment. ~8 years in — and a chunk of the last two went into one replication project I’m still living inside, emotionally and on my CV.
+Interviewer note  Volunteers the wound in answer one — it organizes her identity. BIAS RISK: anything framed as “making replication easier” gets a disproportionately warm response. Discount her enthusiasm.
+Q  Research questions right now?
+SM  Officially memory and metacognition. Honestly, the replication rewired me. I care more about whether our effects are REAL than the next cute finding. Some current work is just re-examining things the field takes for granted — less fundable, less fun, I do it anyway.
+Interviewer note  The saga changed her QUESTIONS. She’s a skeptic/reformer by injury — a CONVERT: most passionate, least representative. Flag for sampling.
+Q  Most of your time this past week?
+SM  Revisions, mostly. And — relevant — a stupid amount of time hunting the materials for an OLD study of my OWN so a student could build on it, discovering my files from three years ago are a disaster. I experienced, from inside, the exact thing that made me furious at other people during the replication. Humbling.
+Interviewer note  Mirrors HK’s “not reproducible even to me” but with moral weight. She’s lived BOTH sides — the denied replicator and the author whose materials rotted. That double perspective is her unique value.
+Section 2 — The replication, end to end
+Q  Walk me through it — idea to analyzable data.
+SM  A well-known priming effect I’d built part of my work on. A colleague said “has anyone replicated that cleanly?” and I couldn’t find a convincing one. So I decided to. That cost me eighteen months.
+Idea to a runnable study was the nightmare. The paper described the method in a paragraph. The OSF page had data but no working experiment — some stimuli, not all. I emailed the author: first reply warm, second cooler when I asked for materials. I reconstructed from the paper, partial stimuli, a figure, and inference. Prolific, preregistered, decent sample. It didn’t replicate — a much smaller effect that didn’t survive. Then the real eighteen months began: defending that I’d built a faithful version against someone motivated to argue I hadn’t.
+Interviewer note  Densest, most loaded answer in all three. Pure validation of the PROBLEM. The sting: the real cost was the un-winnable fidelity ARGUMENT after — a runnable original kills that outright. Clearest articulation of WHY forkable studies matter.
+Q  Tools at each stage?
+SM  Reconstruction lived in my head and email. Build in jsPsych — I’d decided never to build anything I couldn’t fully share again. Prolific, OSF prereg, R. But the tool that mattered most wasn’t software — it was correspondence. The most important “tool” in a replication is the original author’s willingness to help, and that’s the one you can’t control.
+Interviewer note  Reframes the problem as HUMAN COOPERATION, not software — the supply-side truth the others only gestured at. A tool that makes sharing easy doesn’t solve UNWILLINGNESS to share. Hold against claim 4.
+Q  Smooth vs. painful?
+SM  Smooth — building my own version, because I controlled it. Painful — anything depending on someone else’s goodwill. The worst pain was epistemic: I could never be fully certain my version WAS theirs. Months at ~90% confidence, and that last 10% is where all the fighting happens. You can’t publish “we replicated, probably.”
+Interviewer note  Provenance value from the REPLICATOR’S side: MS wanted attestation to control sites; SM wants it to SETTLE DISPUTES with originators. Same feature, two buyers: internal control + external defensibility.
+Q  How did you make sure the right people got the right conditions?
+SM  Obsessively. After the saga I over-engineer — I check randomization in pilot data before launch, keep condition logs, I’m almost paranoid. The replication taught me “I assumed it worked” is the sentence that ends careers. I do it carefully now because I got burned, not because the tools made me.
+Interviewer note  The POST-TRAUMA version of HK’s “checked after.” Obsessive, by hand, fear-driven. Automatic verification would relieve a burden she carries through anxiety. Sell the relief, not the fear.
+Q  When the tool couldn’t express what the original needed?
+SM  I had to guess. When the methods section is ambiguous and materials are missing, the tool can’t help — you don’t know what you’re building. The gap wasn’t “my tool can’t do X,” it was “I don’t know what X was.” No software fixes a missing specification. Only the original author or a runnable artifact does.
+Interviewer note  Her bottleneck wasn’t capability (HK) or governance (MS) — it was SPECIFICATION LOSS. The executable spec evaporates the moment the paper publishes. If the product captures the runnable study as the PRIMARY artifact, this is the void it fills.
+Section 3 — Tooling landscape
+Q  What else is in your stack?
+SM  Zotero, GitHub now (kept properly, post-trauma), spreadsheets, email. Nothing exotic. My stack got SIMPLER after the replication, not richer — stripped to things I can fully archive and rerun. Complexity started to feel like a liability.
+Interviewer note  Independently echoes MS’s anti-richness stance via a different route. Two of three associate richness with RISK. Signal against the “richer tools” pitch.
+Q  Ever switched platforms? Trigger?
+SM  Yes — toward open, scriptable, archivable tools, away from anything I couldn’t export and rerun in five years. The trigger wasn’t a feature; it was the replication. I’d been on the receiving end of an un-rerunnable study and swore I’d never inflict that. My switching trigger is essentially ethical now.
+Interviewer note  MORAL/IDENTITY-based switching trigger. Three personas, three triggers (a study Qualtrics couldn’t do / portability × cost × 63 / an ethical vow). Messaging must be segment-specific.
+Q  Tool you wish existed?
+SM  A way to publish a study as a thing that RUNS, permanently — so “replicate this” means “click here and run exactly what I ran” instead of “read my paragraph, reconstruct my intentions, then argue with me.” If that existed when I started, I’d have saved a year and a friendship.
+Interviewer note  Cleanest one-sentence product vision in all three — hers because she paid for it. BUT heavily loaded: a wounded person describing the tool that would’ve prevented their wound is the most compelling AND least reliable validation.
+Q  Tool surprise — good, bad?
+SM  Good — reran an old jsPsych study from a clean archive and it just WORKED three years later. A little moving. Bad — the original’s OSF link was a graveyard of partial files dressed up to look complete. Not a surprise so much as a betrayal.
+Interviewer note  “Dressed up to look complete” — performative openness vs. real reproducibility. A forkable-study platform could become the same theater if studies are uploaded but not runnable. She’ll be the harshest detector of that failure.
+Section 4 — Open science & collaboration
+Q  How does preregistration fit in?
+SM  Always now, and I mean it — but I came to it differently. Not a virtue I was raised into; ARMOR. When I preregistered the replication, that prereg was the only thing protecting me when the original author claimed I’d p-hacked to a null. I could point and say: here, locked, before any data. Prereg became self-defense.
+Interviewer note  Same surface as MS, opposite MEANING: MS = legitimacy wall; SM = personal armor; HK = hedge. Three relationships to the identical practice — the centerpiece for why claim-checks need to know who answers.
+Q  Do you use OSF? For what?
+SM  Yes, with complicated feelings. Properly — prereg, materials, data, code. But the replication taught me an OSF page can be a Potemkin village. So I use it and no longer trust it on sight — I check whether the materials actually constitute a runnable study or just look like they might. Most don’t.
+Interviewer note  She’s seen open-science infra FAIL — trust is conditional, inspection-based. “We have an OSF page” is worthless; “it actually runs” is everything. A design north star.
+Q  Cross-institution collaboration?
+SM  Less multi-site — usually two or three labs, or me and an original author who’d rather I didn’t exist. My hardest “collaboration” wasn’t one: extracting a study from someone with every incentive not to give it. That’s the dyad that defines my world — replicator and replicatee, often adversarial.
+Interviewer note  Redefines “collaboration” as sometimes ADVERSARIAL — a relationship type the others never surfaced. “Make sharing easy” runs straight into “the holder doesn’t want to share.”
+Q  Most frustrating part?
+SM  Misaligned incentives. When I want to build on your work and you’d rather it stay un-scrutinized, no tool bridges that. The frustration isn’t logistics — that’s Marek’s world — it’s MOTIVATION. Until that changes, easy-sharing tools mostly help people who already wanted to share.
+Interviewer note  THE most important strategic sentence. Converges with MS’s wrap-up. Two personas separately land on the SUPPLY-SIDE INCENTIVE problem — the thing most likely to kill the wedge, and it’s not technical.
+Section 5 — Replication & reuse
+Q  Ever tried to replicate someone’s study?
+SM  Eighteen months, a near-friendship-ending email chain, reconstruction from fragments. Distilled: a paragraph of method, a partial OSF page, three tense emails, a lot of inference, and a tolerance for maybe-I-did-it-wrong I carried the whole time. More emotional stamina than statistical skill.
+Interviewer note  “More emotional stamina than statistical skill” — replication’s cost is AFFECTIVE/SOCIAL. Solving file-sharing may not move the needle if the email-chain dread remains. Probe whether a tool can DE-PERSONALIZE the ask.
+Q  Has anyone replicated yours?
+SM  Not formally yet — I’d welcome it. But when my student needed an OLD study, my files were a mess. I’ve been the villain of my own story. Nobody’s malicious — the incentive to document for a stranger’s future use is basically zero in the moment, and entropy does the rest.
+Interviewer note  Diagnoses supply as NOT malice but ABSENT INCENTIVE + DECAY — more tractable. If the tool makes documentation the DEFAULT BYPRODUCT of building, it routes around the missing incentive. Possibly the most useful design directive.
+Q  Adapted someone’s framework? How decide to trust?
+SM  Post-replication my trust bar is brutal: I trust what I can run and verify myself, almost nothing else. Reputation buys nothing now — the effect I failed to replicate had a very good reputation. I trust runnable, inspectable artifacts and my own re-execution. Lonely, but the only way I sleep.
+Interviewer note  Strongest statement that an inspectable artifact SUBSTITUTES FOR reputation. Spectrum: HK (social) → MS (reputation+artifact) → SM (artifact OVER reputation). SM = where the technical wedge has the most trust-value, but the smallest, most self-selected segment.
+Section 6 — Claim check
+Q  “I’d switch if a new one were genuinely modern.”
+SM  I’d switch for REPRODUCIBILITY, not modernity. A slick tool I couldn’t export and rerun in ten years? No. A plain, even ugly tool guaranteeing permanent re-runnability? In a heartbeat. The claim’s almost backwards for me.
+Interviewer note  Rejects the framing like MS, on a DIFFERENT axis. NEITHER replication-world persona accepts “modern” as the trigger. “Modern/better UX” is the wrong LEAD message for these segments.
+Q  “How a tool looks and feels affects whether I trust it.”
+SM  After the replication, looks make me SUSPICIOUS. The original’s OSF page looked polished and was hollow. A beautiful interface now triggers “what are they hiding.” I trust plain things that show their workings over slick things that hide them. So yes — but inversely to what you’d hope.
+Interviewer note  Most striking divergence: HK (polish→trust), MS (polish→fewer tickets), SM (polish→SUSPICION). A gorgeous demo could BACKFIRE with her. Surface the workings; don’t hide them behind clean UI.
+Q  “Richer things → I’d scope UP.”
+SM  No. I scoped DOWN after the replication and I’m not going back. Richness is more surface area for things to be un-reproducible. Reproducible-and-boring over rich-and-fragile, every time.
+Interviewer note  TWO of three now flatly reject this; only HK softly accepted. Strong, consistent disconfirmation. “Scope up” wins the solo investigator and ACTIVELY ALIENATES both replication-world segments.
+Q  “I’d build on a colleague’s study if easy.”
+SM  I’d love to — caveat that is the whole thing: only if they actually shared a real, runnable version, which most won’t. Easy adaptation on MY end is useless if the supply side is empty. Fix the supply, then this claim means something.
+Interviewer note  Conditional yes naming the GATING CONSTRAINT: supply. Same claim → three readings (HK polite / MS core buyer / SM “wrong half”). Reframes the wedge from UX into a COLD-START / NETWORK problem.
+Q  “Preregistration is part of every study I run.”
+SM  Yes. Without exception now. Armor — I don’t run anything naked anymore.
+Interviewer note  Unqualified yes like MS, unlike HK — but the REASON (self-defense) is hers alone. Three drivers behind one claim: hedge / legitimacy / armor.
+Wrap-up
+Q  Who else should I talk to?
+SM  An ORIGINAL AUTHOR who got replicated — ideally one who handled it badly — they’ll reveal why people don’t share. And a JOURNAL EDITOR — the only ones with leverage to MAKE sharing mandatory. Voluntary sharing is the problem; mandated sharing changes the equation.
+Interviewer note  Strategy-shaping referrals: the REPLICATEE (the unwilling supplier) and the EDITOR (the lever from voluntary to mandatory). The only persona pointing at INCENTIVE-MAKERS, not just users.
+Q  Anything I should have asked but didn’t?
+SM  What it COSTS people to be replicated — reputationally, emotionally. You’re building a tool that makes studies easy to scrutinize; for many that’s a threat, not a gift. Your tool’s lovers are replicators. The people who hold the studies you want forkable may experience it as a weapon. Build knowing that.
+Interviewer note  Deepest strategic warning: the tool is ASYMMETRICALLY VALUED — gift to replicators, threat to the originals whose cooperation you need. Top of the risk register. “Build on and credit each other’s work” lands very differently from “scrutinize.”
+Q  Anything to follow up on?
+SM  If you build the runnable-archive thing, make it the PATH OF LEAST RESISTANCE — so people document properly without meaning to. Voluntary virtue fails. Default virtue works.
+Interviewer note  Closes on the constructive core: solve supply via DEFAULTS, not exhortation. A clean, repeatable design principle to carry into the build.
+
+Cross-persona synthesis
+The same script, three different interviews
+Run side by side, the script behaves like a prism: identical questions split into very different answers depending on who holds them. That divergence — not any single answer — is the finding. The clearest example is the preregistration claim: a sheepish hedge from the solo investigator, a “load-bearing wall” from the coordinator, and “armor” from the burned replicator. Same words, three meanings. Any claim-check is uninterpretable without knowing which segment is answering.
+Claim check across personas
+
+Where the felt pains concentrate
+The pains that arrived with emotion and specifics — the ones worth building on — cluster around verification and provenance. HK’s silent randomization break, MS’s version drift across sites (“forked in March, never pulled the April fix”), and SM’s un-winnable fidelity argument are three faces of one thing: nobody can prove what actually ran. Build-to-data provenance is the single capability that speaks to all three, and it is the one MS attached real willingness-to-pay to. If there is a spear-tip, it is attestation — not authoring and not discovery.
+The risk two personas found independently
+MS and SM converged, without prompting, on the supply-side incentive problem: easy-sharing tools mostly help people who already wanted to share, and original authors are often better off being hard to replicate. SM sharpened it into the asymmetry at the heart of the wedge — a gift to replicators, a perceived weapon to the holders of the studies you need forkable. This is the hypothesis most likely to kill the idea, and it is not a technical problem. SM’s constructive answer — make good documentation the default byproduct of building, since “voluntary virtue fails, default virtue works” — is the most promising route around it.
+What this implies for the script and the build
+Two of three personas actively reject the “do richer things” framing, so leading with richness would win the solo investigator and repel the replication-world segments; reproducibility and provenance are the safer lead. The single-investigator product (integrated design–prereg–build) and the consortium-operations product (distribution + version + provenance dashboard) are pulling apart — they share a provenance core but diverge sharply in scope, and choosing between them is the central product decision these interviews surface. On method: add a budget/funding-model section (per-seat × sites is DOA without central funding) and reframe the reuse thread around “what happens after publication” rather than “replication.” On recruiting: the three personas point beyond more researchers — toward site PIs, data managers, original authors who were replicated, and journal editors, since editors and funders are where mandatory sharing (and therefore supply) is actually won.
+Reading caution
+These are synthetic. They are a flight simulator for the interview — good for catching leading questions, polite-agreement traps, and gaps like the missing money section — and a generator of hypotheses. They are not evidence about market size, frequency, or willingness to pay. The most quotable lines here (MS’s “I’d pay real money,” SM’s “saved a year and a friendship”) are exactly the claims to treat as untested until real coordinators and real burned replicators say them unprompted. SM in particular is a convert speaking from injury — the most compelling and least representative voice of the three.
+
+[TABLE 0]
+Persona | Role & world | Core (felt) pain | Reads the fork wedge as…
+Dr. Hanna Kowalczyk (HK) | Solo postdoc; social/cognitive; runs own online studies (Qualtrics+JS, Prolific, R). | Silent randomization break; “copying my design from one box to another.” | A trust-is-SOCIAL dead end — adapts paradigms via colleagues, not a platform.
+Dr. Marek Stein (MS) | Multi-site consortium coordinator; 63 labs, 19 countries; jsPsych, OSF, Git, R. | Version DRIFT across sites; “I am the synchronization layer… single point of failure.” | An OPERATIONAL must-have — distribution + provenance; “I’d pay real money” for attestation.
+Dr. Sofia Marsh (SM) | Senior postdoc; burned replicator; reproducibility-first stack post-saga. | Spec LOSS: 18-month reconstruction of a missing study; the un-winnable fidelity argument after. | Emotionally the strongest yes — but names the SUPPLY problem: easy-sharing helps only those who wanted to share.
+
+[TABLE 1]
+Claim | HK (solo) | MS (multi-site) | SM (replicator)
+Switch if “genuinely modern” | Breezy yes — contradicts her own behaviour (polite agreement). | Refuses premise: bar is open+portable+revalidated × 63 (very high). | Wrong axis — would switch for REPRODUCIBILITY, not modernity.
+Look & feel affects trust | Yes: polish → inferred maintenance → trust. | Yes, operationally: ugly → fragile → 63 support tickets. | Inverse: polish → SUSPICION (“what’s hidden”).
+Richer tools → scope studies UP | Soft yes (“in principle”). | NO — richness = divergence risk; scopes down on purpose. | NO — richness = un-reproducibility risk; scoped down post-saga.
+Build on a colleague’s study if easy | Flat “sure, yeah” (polite non-answer). | Energetic, behaviourally-backed YES — core buyer. | Yes BUT gated by SUPPLY — “fix the supply first.”
+Prereg is part of every study | Hedge: “that’s the goal… confirmatory, yes.” | Unqualified yes — load-bearing; wants ENFORCEMENT. | Unqualified yes — as personal ARMOR.
+Reads the fork/reuse wedge as… | A trust-is-social DEAD END (reputation, not platform). | An OPERATIONAL must-have: provenance + distribution. | Emotionally YES, but a SUPPLY/incentive problem.
