@@ -150,7 +150,8 @@ Started (parallel to Product Phase 2).
 5. **Then in order**: New study modal → Builder mode (one block) → Module picker popover → Save dialog. Each gated by an e2e assertion. Misinformation Research Framework seeded with two starter blocks.
 6. **Post-MVP wireframes (V1.5+)** deferred: Whiteboard mode, Replications tab populated, Activity Yours/Follows, Preregister stage, Share stage, Run stage, Results stage, Participants five sub-views, Team destination.
 7. **Open IA questions queued** — cross-workspace participant registry, AI features home (Settings · AI), follow-target notification cadence (Settings · Notifications). Resolve when MVP-adjacent surfaces are built.
-8. **ADR-0008 (plugin model)** — only deferred architectural ADR. Wait for a real third-party plugin author to design for.
+8. **ADR-0008 (plugin model)** — deferred architectural ADR. Wait for a real third-party plugin author to design for.
+9. **ADR-0012 candidate (participant runtime + 3rd-party analytics)** — surfaced 2026-05-29 by project-owner question about Clarity / heatmap support. Researcher-facing app is SPA-like (fine — no third-party analytics on admin surfaces). Participant runtime is deferred to V1.5 per ADR-0011; when we design it, **build as server-rendered multi-page navigation** — `/take/[studyId]/[questionIndex]` per-question routes, real page transitions, no SPA on the participant side — so researchers can use Microsoft Clarity / Hotjar / FullStory / PostHog cleanly (same reason Qualtrics + SurveyMonkey render survey responses page-by-page). Add a researcher settings page to paste a third-party tracking ID; server-inject the script only on `/take/*` routes, never on the dashboard. GDPR consent flow for participant tracking needs product-level resolution. Don't write the ADR yet — design properly when V1.5 participant work starts.
 
 ---
 
