@@ -13,6 +13,7 @@
 import { sql } from "drizzle-orm";
 import {
   type AnyPgColumn,
+  boolean,
   check,
   integer,
   jsonb,
@@ -110,6 +111,47 @@ export const member = pgTable(
   ],
 );
 
+/* ---------- module catalogue (data-model 02 / ADR-0012) ---------- */
+
+export const module = pgTable(
+  "module",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** Identity namespace. V1: always "core". */
+    source: text("source").notNull(),
+    /** Kebab-case key within source (e.g. "social-post"). */
+    key: text("key").notNull(),
+    name: text("name").notNull(),
+    description: text("description").notNull().default(""),
+    /** string[] for picker grouping / theme filtering. */
+    categoryTags: jsonb("category_tags").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("module_source_key_unique").on(t.source, t.key)],
+);
+
+export const moduleVersion = pgTable(
+  "module_version",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    moduleId: uuid("module_id")
+      .notNull()
+      .references(() => module.id),
+    /** Semver, e.g. "1.0.0". */
+    version: text("version").notNull(),
+    name: text("name").notNull(),
+    /** JSON-Schema representation of the config (authoritative runtime schema is the in-repo Zod registry). */
+    schema: jsonb("schema").notNull(),
+    /** Config a freshly-added block starts with (valid against `schema`). */
+    defaultConfig: jsonb("default_config").notNull(),
+    changelog: text("changelog").notNull().default(""),
+    isBreaking: boolean("is_breaking").notNull().default(false),
+    deprecatedAt: timestamp("deprecated_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("module_version_unique").on(t.moduleId, t.version)],
+);
+
 /* ---------- core entities (data-model 00) ---------- */
 
 export const experiment = pgTable(
@@ -205,3 +247,7 @@ export type Member = typeof member.$inferSelect;
 export type NewMember = typeof member.$inferInsert;
 export type Experiment = typeof experiment.$inferSelect;
 export type ExperimentVersion = typeof experimentVersion.$inferSelect;
+export type Module = typeof module.$inferSelect;
+export type NewModule = typeof module.$inferInsert;
+export type ModuleVersion = typeof moduleVersion.$inferSelect;
+export type NewModuleVersion = typeof moduleVersion.$inferInsert;
