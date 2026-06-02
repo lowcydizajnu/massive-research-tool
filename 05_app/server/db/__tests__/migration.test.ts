@@ -43,6 +43,8 @@ describe("first migration — forward apply", () => {
       "member",
       "experiment",
       "experiment_version",
+      "module",
+      "module_version",
     ]) {
       expect(tables).toContain(t);
     }

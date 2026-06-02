@@ -1,0 +1,43 @@
+import { db } from "@/server/db/client";
+import { module, moduleVersion } from "@/server/db/schema";
+import { MODULE_REGISTRY } from "@/server/modules/registry";
+
+/**
+ * Seed the V1 core module catalogue (ADR-0012) from the in-repo registry.
+ * Idempotent — safe to run repeatedly (upserts the Module, no-ops the version).
+ */
+export async function seedCoreModules(): Promise<void> {
+  for (const def of MODULE_REGISTRY) {
+    const [m] = await db
+      .insert(module)
+      .values({
+        source: def.source,
+        key: def.key,
+        name: def.name,
+        description: def.description,
+        categoryTags: def.categoryTags,
+      })
+      .onConflictDoUpdate({
+        target: [module.source, module.key],
+        set: {
+          name: def.name,
+          description: def.description,
+          categoryTags: def.categoryTags,
+        },
+      })
+      .returning();
+
+    await db
+      .insert(moduleVersion)
+      .values({
+        moduleId: m.id,
+        version: def.version,
+        name: def.name,
+        schema: def.jsonSchema,
+        defaultConfig: def.defaultConfig,
+      })
+      .onConflictDoNothing({
+        target: [moduleVersion.moduleId, moduleVersion.version],
+      });
+  }
+}
