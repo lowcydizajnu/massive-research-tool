@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { LeftRail } from "@/components/chrome/left-rail";
 import { TopBar } from "@/components/chrome/top-bar";
 import { NewStudyProvider } from "@/components/feature/new-study/provider";
+import { TRPCReactProvider } from "@/lib/trpc/react";
 import { auth } from "@/server/adapters/auth";
 import { getServerApi } from "@/server/trpc/server";
 
@@ -39,16 +40,18 @@ export default async function AppLayout({
   const initials = user ? initialsFrom(user.displayName, user.email) : "··";
 
   return (
-    <NewStudyProvider>
-      <div className="flex min-h-screen flex-col gap-3 bg-[var(--color-surface-page)] p-3">
-        <TopBar workspaceName={workspace.name} userInitials={initials} />
-        {/* Each surface composes the area right of the rail (Studies = one
-            work-surface card; Builder = stage pill + work surface + right panel). */}
-        <div className="flex flex-1 gap-3">
-          <LeftRail />
-          {children}
+    <TRPCReactProvider>
+      <NewStudyProvider>
+        <div className="flex min-h-screen flex-col gap-3 bg-[var(--color-surface-page)] p-3">
+          <TopBar workspaceName={workspace.name} userInitials={initials} />
+          {/* Each surface composes the area right of the rail (Studies = one
+              work-surface card; Builder = stage pill + work surface + right panel). */}
+          <div className="flex flex-1 gap-3">
+            <LeftRail />
+            {children}
+          </div>
         </div>
-      </div>
-    </NewStudyProvider>
+      </NewStudyProvider>
+    </TRPCReactProvider>
   );
 }

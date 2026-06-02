@@ -172,6 +172,33 @@ describe("studies.get", () => {
   });
 });
 
+describe("studies.updateTitle", () => {
+  it("renames a study in the caller's workspace", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "Old" });
+
+    const res = await caller.studies.updateTitle({ id, title: "New title" });
+    expect(res).toEqual({ id, title: "New title" });
+
+    const [row] = await db.select().from(experiment).where(eq(experiment.id, id));
+    expect(row.title).toBe("New title");
+  });
+
+  it("is NOT_FOUND for a study in another workspace", async () => {
+    const a = await seedUserWithWorkspace("ext_a", "Alpha");
+    await seedUserWithWorkspace("ext_b", "Beta");
+    const [other] = await db
+      .insert(experiment)
+      .values({ tenantId: a.workspace.id, ownerId: a.user.id, title: "Alpha only" })
+      .returning();
+    const callerB = createCaller({ authUser: authUser("ext_b") });
+    await expect(
+      callerB.studies.updateTitle({ id: other.id, title: "hijack" }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+});
+
 describe("workspace.active", () => {
   it("returns the caller's owned workspace", async () => {
     await seedUserWithWorkspace("ext_a", "Alpha");

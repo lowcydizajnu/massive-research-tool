@@ -143,6 +143,23 @@ export const studiesRouter = router({
       };
     }),
 
+  /** Rename a study (autosaves the title; the title lives on Experiment, not a version). */
+  updateTitle: workspaceProcedure
+    .input(
+      z.object({ id: z.string().uuid(), title: z.string().trim().min(1).max(200) }),
+    )
+    .mutation(async ({ ctx, input }): Promise<{ id: string; title: string }> => {
+      const [row] = await db
+        .update(experiment)
+        .set({ title: input.title, updatedAt: new Date() })
+        .where(
+          and(eq(experiment.id, input.id), eq(experiment.tenantId, ctx.workspace.id)),
+        )
+        .returning();
+      if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+      return { id: row.id, title: row.title };
+    }),
+
   /**
    * Create a new study in the active workspace. Inserts the Experiment + its
    * first version (v1, autosave, empty definition) and points current_version_id

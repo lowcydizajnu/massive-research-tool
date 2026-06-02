@@ -2,6 +2,7 @@ import { Plus } from "lucide-react";
 import { notFound } from "next/navigation";
 
 import { StageTabs } from "@/components/chrome/stage-tabs";
+import { EditableStudyTitle } from "@/components/feature/editable-study-title";
 import { getServerApi } from "@/server/trpc/server";
 import type { StudyDetail } from "@/server/trpc/routers/studies";
 
@@ -53,12 +54,7 @@ export default async function BuildStagePage({
           {/* Title row */}
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <h1
-                aria-label="Study title"
-                className="font-serif text-[length:var(--text-display)] font-medium text-[var(--color-text-primary)]"
-              >
-                {study.title}
-              </h1>
+              <EditableStudyTitle studyId={study.id} initialTitle={study.title} />
               <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
                 v{study.versionNumber} · {STAGE_LABEL[study.stage]} · Edited{" "}
                 {formatEdited(study.lastEditedAt)}
