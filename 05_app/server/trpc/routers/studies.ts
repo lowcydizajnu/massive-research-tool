@@ -1,10 +1,54 @@
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq, isNotNull, isNull } from "drizzle-orm";
+import { ulid } from "ulid";
 import { z } from "zod";
 
 import { db } from "@/server/db/client";
 import { experiment, experimentVersion, user } from "@/server/db/schema";
+import {
+  blockDisplay,
+  locksFromBlocks,
+  readBlocks,
+  validateConfig,
+} from "@/server/modules/blocks";
+import { getModuleDef } from "@/server/modules/registry";
 import { router, workspaceProcedure } from "@/server/trpc/trpc";
+
+/**
+ * Load a study's working tip (its current autosave version), scoped to the
+ * workspace. NOT_FOUND outside the workspace; PRECONDITION_FAILED if it somehow
+ * has no working version.
+ */
+async function loadWorkingTip(studyId: string, workspaceId: string) {
+  const [row] = await db
+    .select({ experiment, version: experimentVersion })
+    .from(experiment)
+    .leftJoin(experimentVersion, eq(experiment.currentVersionId, experimentVersion.id))
+    .where(and(eq(experiment.id, studyId), eq(experiment.tenantId, workspaceId)))
+    .limit(1);
+  if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+  if (!row.version) {
+    throw new TRPCError({ code: "PRECONDITION_FAILED", message: "No working version." });
+  }
+  return { experiment: row.experiment, version: row.version };
+}
+
+/**
+ * Persist the block set to the autosave working tip (ADR-0012): definition
+ * snapshot + derived module_version_locks, and touch the experiment. No
+ * transaction — last-write-wins per ADR-0012's V1 concurrency decision.
+ */
+async function writeBlocks(
+  versionId: string,
+  studyId: string,
+  blocks: ReturnType<typeof readBlocks>,
+) {
+  await db
+    .update(experimentVersion)
+    .set({ definitionSnapshot: { blocks }, moduleVersionLocks: locksFromBlocks(blocks) })
+    .where(eq(experimentVersion.id, versionId));
+  await db.update(experiment).set({ updatedAt: new Date() }).where(eq(experiment.id, studyId));
+}
 
 /**
  * How a new study begins (new-study-modal wireframe). Framework + Template
@@ -43,6 +87,17 @@ export type StudyListItem = {
   isOwner: boolean;
 };
 
+export type StudyBlock = {
+  instanceId: string;
+  source: string;
+  key: string;
+  version: string;
+  name: string;
+  ref: string;
+  config: Record<string, unknown>;
+  complete: boolean;
+};
+
 export type StudyDetail = {
   id: string;
   title: string;
@@ -51,7 +106,7 @@ export type StudyDetail = {
   lastEditedAt: string;
   ownerName: string;
   isReplication: boolean;
-  blockCount: number;
+  blocks: StudyBlock[];
 };
 
 export const studiesRouter = router({
@@ -130,7 +185,20 @@ export const studiesRouter = router({
 
       if (!row) throw new TRPCError({ code: "NOT_FOUND" });
 
-      const def = (row.version?.definitionSnapshot ?? {}) as { blocks?: unknown[] };
+      const blocks: StudyBlock[] = readBlocks(row.version?.definitionSnapshot).map((b) => {
+        const d = blockDisplay(b);
+        return {
+          instanceId: b.instanceId,
+          source: b.source,
+          key: b.key,
+          version: b.version,
+          name: d.name,
+          ref: d.ref,
+          config: b.config,
+          complete: d.complete,
+        };
+      });
+
       return {
         id: row.experiment.id,
         title: row.experiment.title,
@@ -139,7 +207,7 @@ export const studiesRouter = router({
         lastEditedAt: row.experiment.updatedAt.toISOString(),
         ownerName: row.ownerName ?? "",
         isReplication: row.experiment.forkOfExperimentId !== null,
-        blockCount: Array.isArray(def.blocks) ? def.blocks.length : 0,
+        blocks,
       };
     }),
 
@@ -158,6 +226,71 @@ export const studiesRouter = router({
         .returning();
       if (!row) throw new TRPCError({ code: "NOT_FOUND" });
       return { id: row.id, title: row.title };
+    }),
+
+  /** Append a block (from the module catalogue) to the study's working tip. */
+  addBlock: workspaceProcedure
+    .input(
+      z.object({
+        studyId: z.string().uuid(),
+        source: z.string(),
+        key: z.string(),
+        version: z.string(),
+      }),
+    )
+    .mutation(async ({ ctx, input }): Promise<{ instanceId: string }> => {
+      const def = getModuleDef(input.source, input.key, input.version);
+      if (!def) throw new TRPCError({ code: "BAD_REQUEST", message: "Unknown module." });
+      const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+      const blocks = readBlocks(tip.version.definitionSnapshot);
+      const instanceId = ulid();
+      blocks.push({
+        instanceId,
+        source: def.source,
+        key: def.key,
+        version: def.version,
+        config: def.defaultConfig,
+      });
+      await writeBlocks(tip.version.id, input.studyId, blocks);
+      return { instanceId };
+    }),
+
+  /** Remove a block by instance id. */
+  removeBlock: workspaceProcedure
+    .input(z.object({ studyId: z.string().uuid(), instanceId: z.string() }))
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+      const blocks = readBlocks(tip.version.definitionSnapshot).filter(
+        (b) => b.instanceId !== input.instanceId,
+      );
+      await writeBlocks(tip.version.id, input.studyId, blocks);
+      return { ok: true };
+    }),
+
+  /** Update a block's config (validated against its module schema, ADR-0012). */
+  updateBlockConfig: workspaceProcedure
+    .input(
+      z.object({
+        studyId: z.string().uuid(),
+        instanceId: z.string(),
+        config: z.record(z.string(), z.unknown()),
+      }),
+    )
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+      const blocks = readBlocks(tip.version.definitionSnapshot);
+      const idx = blocks.findIndex((b) => b.instanceId === input.instanceId);
+      if (idx === -1) throw new TRPCError({ code: "NOT_FOUND" });
+      const target = blocks[idx];
+      let validated: Record<string, unknown>;
+      try {
+        validated = validateConfig(target.source, target.key, target.version, input.config);
+      } catch {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid block config." });
+      }
+      blocks[idx] = { ...target, config: validated };
+      await writeBlocks(tip.version.id, input.studyId, blocks);
+      return { ok: true };
     }),
 
   /**
