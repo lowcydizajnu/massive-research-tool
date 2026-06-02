@@ -15,8 +15,8 @@ This is what makes ADR-0007's cost-ceiling triggers feasible in 2 weeks instead 
 | `AuthAdapter` | `auth.clerk.ts` (Clerk v7) | Clerk → Better Auth |
 | `HostingShape` | (implicit — Next.js + Vercel patterns) | Vercel → Node container |
 | `RealtimeAdapter` | (stub only) | Liveblocks → Yjs |
-| `BackgroundJobAdapter` | (stub only) | Inngest → BullMQ |
-| `RegistryAdapter` | (none — wires when OSF push lands) | OSF → AsPredicted / ClinicalTrials.gov |
+| `BackgroundJobAdapter` | `jobs.inngest.ts` (Inngest; serve route at `app/api/inngest`) | Inngest → BullMQ |
+| `RegistryAdapter` | `registry.osf.ts` (OSF; OAuth + push — PR-1c) | OSF → AsPredicted / ClinicalTrials.gov |
 | `AIProviderAdapter` | (none — V1 ships substrate only per ADR-0006) | per-provider |
 
 ## How to add a new adapter

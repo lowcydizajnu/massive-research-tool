@@ -1,0 +1,31 @@
+/**
+ * BackgroundJobAdapter — the vendor-agnostic async-jobs surface (ADR-0007).
+ *
+ * Feature code enqueues TYPED events through this interface; the vendor
+ * (Inngest) lives only in `jobs.inngest.ts` and the `/api/inngest` serve route
+ * (a deliberate lock-in exception, recorded in lock-in-inventory.md). Swapping
+ * to BullMQ later is a new implementation file + a one-line change here.
+ */
+
+/** The typed catalogue of background jobs. Add a key per job; the payload is ours, not Inngest's. */
+export type JobCatalog = {
+  "registry.push": {
+    experimentVersionId: string;
+    registryKey: string; // 'osf'
+    userId: string; // whose per-user registry connection to push under
+    isAmendment: boolean;
+    priorDoi?: string; // required when isAmendment (ADR-0004 / ADR-0005)
+  };
+};
+
+export type JobName = keyof JobCatalog;
+
+export interface BackgroundJobAdapter {
+  /** Enqueue a background job. Returns once the event is accepted, not when the job completes. */
+  enqueue<N extends JobName>(name: N, data: JobCatalog[N]): Promise<void>;
+}
+
+// Active implementation. Switching vendors is a one-line change here.
+import { inngestJobs } from "./jobs.inngest";
+
+export const jobs: BackgroundJobAdapter = inngestJobs;
