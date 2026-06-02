@@ -4,6 +4,10 @@ import {
   IBM_Plex_Serif,
   IBM_Plex_Mono,
 } from "next/font/google";
+// Deliberate lock-in exception (ADR-0007, recorded in lock-in-inventory.md):
+// ClerkProvider is a React context provider and must wrap the app at the root,
+// so it can't sit behind the server-only AuthAdapter. Removed on auth migration.
+import { ClerkProvider } from "@clerk/nextjs";
 
 import { ThemeProvider } from "@/components/theme-provider";
 
@@ -36,12 +40,14 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body
-        className={`${plexSans.variable} ${plexSerif.variable} ${plexMono.variable}`}
-      >
-        <ThemeProvider>{children}</ThemeProvider>
-      </body>
-    </html>
+    <ClerkProvider>
+      <html lang="en" suppressHydrationWarning>
+        <body
+          className={`${plexSans.variable} ${plexSerif.variable} ${plexMono.variable}`}
+        >
+          <ThemeProvider>{children}</ThemeProvider>
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }

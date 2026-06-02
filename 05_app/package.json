@@ -14,29 +14,30 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@clerk/nextjs": "^7.4.2",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "drizzle-orm": "^0.38.3",
+    "lucide-react": "^0.468.0",
     "next": "^15.1.0",
+    "postgres": "^3.4.5",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "clsx": "^2.1.1",
-    "tailwind-merge": "^2.5.5",
-    "class-variance-authority": "^0.7.1",
-    "lucide-react": "^0.468.0",
-    "drizzle-orm": "^0.38.3",
-    "postgres": "^3.4.5"
+    "tailwind-merge": "^2.5.5"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.2.14",
+    "@tailwindcss/postcss": "^4.0.0",
     "@types/node": "^22.10.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "@tailwindcss/postcss": "^4.0.0",
-    "tailwindcss": "^4.0.0",
-    "postcss": "^8.4.49",
-    "typescript": "^5.7.2",
+    "dotenv": "^16.4.7",
+    "drizzle-kit": "^0.30.1",
     "eslint": "^9.17.0",
     "eslint-config-next": "^15.1.0",
-    "drizzle-kit": "^0.30.1",
-    "dotenv": "^16.4.7",
-    "@electric-sql/pglite": "^0.2.14",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.7.2",
     "vitest": "^2.1.8"
   }
 }
