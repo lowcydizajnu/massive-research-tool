@@ -15,6 +15,13 @@
       "when": 1780424455941,
       "tag": "0001_omniscient_whistler",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1780434677251,
+      "tag": "0002_same_plazm",
+      "breakpoints": true
     }
   ]
 }
