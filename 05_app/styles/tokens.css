@@ -120,10 +120,11 @@
    ========================================================================= */
 
 :root {
-  /* Typography family stacks */
-  --font-serif: var(--font-plex-serif), Georgia, "Times New Roman", serif;
-  --font-sans: var(--font-plex-sans), system-ui, -apple-system, sans-serif;
-  --font-mono: var(--font-plex-mono), "SF Mono", Menlo, monospace;
+  /* Typography family stacks. Families come from @fontsource (imported in
+     app/layout.tsx), referenced here by their literal names. */
+  --font-serif: "IBM Plex Serif", Georgia, "Times New Roman", serif;
+  --font-sans: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", "SF Mono", Menlo, monospace;
 
   /* Type scale */
   --text-display: 2rem;        /* 32px — Serif 500 */

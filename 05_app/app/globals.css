@@ -47,7 +47,8 @@
   --color-border-medium: var(--color-border-medium);
   --color-border-subtle: var(--color-border-subtle);
 
-  /* Fonts */
+  /* Fonts — bridge tokens.css values into Tailwind's font-{sans,serif,mono}
+     utilities (same inline pattern as the colors above). */
   --font-serif: var(--font-serif);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
