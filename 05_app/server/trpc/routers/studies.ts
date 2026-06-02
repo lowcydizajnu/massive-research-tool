@@ -14,7 +14,7 @@ import {
   validateConfig,
 } from "@/server/modules/blocks";
 import { getModuleDef } from "@/server/modules/registry";
-import { router, workspaceProcedure } from "@/server/trpc/trpc";
+import { router, workspaceProcedure, writeProcedure } from "@/server/trpc/trpc";
 
 /**
  * Load a study's working tip (its current autosave version), scoped to the
@@ -214,7 +214,7 @@ export const studiesRouter = router({
     }),
 
   /** Rename a study (autosaves the title; the title lives on Experiment, not a version). */
-  updateTitle: workspaceProcedure
+  updateTitle: writeProcedure
     .input(
       z.object({ id: z.string().uuid(), title: z.string().trim().min(1).max(200) }),
     )
@@ -231,7 +231,7 @@ export const studiesRouter = router({
     }),
 
   /** Append a block (from the module catalogue) to the study's working tip. */
-  addBlock: workspaceProcedure
+  addBlock: writeProcedure
     .input(
       z.object({
         studyId: z.string().uuid(),
@@ -258,7 +258,7 @@ export const studiesRouter = router({
     }),
 
   /** Remove a block by instance id. */
-  removeBlock: workspaceProcedure
+  removeBlock: writeProcedure
     .input(z.object({ studyId: z.string().uuid(), instanceId: z.string() }))
     .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
       const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
@@ -270,7 +270,7 @@ export const studiesRouter = router({
     }),
 
   /** Update a block's config (validated against its module schema, ADR-0012). */
-  updateBlockConfig: workspaceProcedure
+  updateBlockConfig: writeProcedure
     .input(
       z.object({
         studyId: z.string().uuid(),
@@ -300,7 +300,7 @@ export const studiesRouter = router({
    * immutable `named` version (ADR-0012). The autosave continues unchanged.
    * Label must be unique within the study's history.
    */
-  saveAsNamed: workspaceProcedure
+  saveAsNamed: writeProcedure
     .input(
       z.object({ studyId: z.string().uuid(), name: z.string().trim().min(1).max(64) }),
     )
@@ -358,7 +358,7 @@ export const studiesRouter = router({
    * at it — all in one transaction. Returns the new study id; the caller routes
    * to its Build stage.
    */
-  create: workspaceProcedure
+  create: writeProcedure
     .input(
       z.object({
         kind: z.enum(START_KINDS).default("blank"),

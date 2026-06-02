@@ -322,6 +322,35 @@ describe("studies.saveAsNamed", () => {
   });
 });
 
+describe("role enforcement", () => {
+  it("lets a viewer read but blocks writes (FORBIDDEN)", async () => {
+    const owner = await seedUserWithWorkspace("ext_owner", "Alpha");
+    const [viewer] = await db
+      .insert(user)
+      .values({ externalId: "ext_viewer", email: "ext_viewer@example.com", displayName: "V" })
+      .returning();
+    await db.insert(member).values({
+      workspaceId: owner.workspace.id,
+      userId: viewer.id,
+      role: "viewer",
+      status: "active",
+    });
+    await db
+      .insert(experiment)
+      .values({ tenantId: owner.workspace.id, ownerId: owner.user.id, title: "S" });
+
+    const caller = createCaller({ authUser: authUser("ext_viewer") });
+
+    // Reads are allowed for any member.
+    expect(await caller.studies.list()).toHaveLength(1);
+
+    // Writes are blocked for viewers.
+    await expect(caller.studies.create({ kind: "blank" })).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+  });
+});
+
 describe("workspace.active", () => {
   it("returns the caller's owned workspace", async () => {
     await seedUserWithWorkspace("ext_a", "Alpha");
