@@ -138,6 +138,37 @@ describe("studies.create", () => {
       code: "UNAUTHORIZED",
     });
   });
+
+  it("creates a study from a framework with its starter blocks copied in", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+
+    const frameworks = await caller.frameworks.list();
+    expect(frameworks.length).toBeGreaterThan(0);
+    const misinfo = frameworks.find((f) => f.key === "misinformation")!;
+    expect(misinfo.blockCount).toBe(2);
+
+    const { id } = await caller.studies.create({
+      kind: "framework",
+      frameworkKey: "misinformation",
+    });
+    const detail = await caller.studies.get({ id });
+    expect(detail.blocks).toHaveLength(2);
+    expect(detail.blocks.map((b) => b.key).sort()).toEqual(["likert-7", "social-post"]);
+    // Each block has a fresh ULID instanceId (not shared with the framework def).
+    expect(new Set(detail.blocks.map((b) => b.instanceId)).size).toBe(2);
+    // The pre-worded manipulation check arrives complete; the stimulus needs setup.
+    const likert = detail.blocks.find((b) => b.key === "likert-7")!;
+    expect(likert.complete).toBe(true);
+  });
+
+  it("rejects an unknown framework", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    await expect(
+      caller.studies.create({ kind: "framework", frameworkKey: "nope" }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
 });
 
 describe("studies.get", () => {
