@@ -17,6 +17,7 @@ import {
   check,
   integer,
   jsonb,
+  numeric,
   pgEnum,
   pgTable,
   text,
@@ -55,6 +56,38 @@ export const amendmentClassification = pgEnum("amendment_classification", [
   "clarification",
   "scope-change",
   "other",
+]);
+
+/* V1.5 — response/conditioning + registry (ADR-0014, ADR-0005) */
+
+export const recruitmentStatus = pgEnum("recruitment_status", [
+  "open",
+  "paused",
+  "closed",
+]);
+
+export const responseMode = pgEnum("response_mode", ["run", "preview"]);
+
+export const responseStatus = pgEnum("response_status", [
+  "started",
+  "completed",
+  "abandoned",
+  "disqualified",
+]);
+
+export const registryPushStatus = pgEnum("registry_push_status", [
+  "not_pushed",
+  "pending",
+  "pushed",
+  "failed",
+  "no_credentials",
+  "opted_out",
+]);
+
+export const registryPushAttemptStatus = pgEnum("registry_push_attempt_status", [
+  "pending",
+  "pushed",
+  "failed",
 ]);
 
 /* ---------- auth + tenancy (data-model 01) ---------- */
@@ -218,6 +251,13 @@ export const experimentVersion = pgTable(
     ),
     changeSummary: text("change_summary"),
     amendmentClassification: amendmentClassification("amendment_classification"),
+    // Registry/OSF push (ADR-0005). external_registration_url already exists above.
+    registryPushStatus: registryPushStatus("registry_push_status")
+      .notNull()
+      .default("not_pushed"),
+    registryPushAttempts: integer("registry_push_attempts").notNull().default(0),
+    registryPushLastError: text("registry_push_last_error"),
+    externalRegistrationDoi: text("external_registration_doi"),
   },
   (t) => [
     uniqueIndex("experiment_version_number_unique").on(
@@ -237,6 +277,140 @@ export const experimentVersion = pgTable(
   ],
 );
 
+/* ---------- response + conditioning (data-model 04 / ADR-0014) ---------- */
+
+export const condition = pgTable(
+  "condition",
+  {
+    id: text("id").primaryKey(), // ULID (app-generated)
+    experimentVersionId: uuid("experiment_version_id")
+      .notNull()
+      .references(() => experimentVersion.id),
+    slug: text("slug").notNull(),
+    name: text("name").notNull(),
+    description: text("description"),
+    allocationWeight: numeric("allocation_weight").notNull().default("1.0"),
+    position: integer("position").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("condition_version_slug_unique").on(t.experimentVersionId, t.slug)],
+);
+
+export const recruitmentSession = pgTable("recruitment_session", {
+  id: text("id").primaryKey(), // ULID; appears in the recruitment URL
+  experimentVersionId: uuid("experiment_version_id")
+    .notNull()
+    .references(() => experimentVersion.id),
+  status: recruitmentStatus("status").notNull().default("open"),
+  targetN: integer("target_n"),
+  currentN: integer("current_n").notNull().default(0),
+  openedAt: timestamp("opened_at", { withTimezone: true }).notNull().defaultNow(),
+  closedAt: timestamp("closed_at", { withTimezone: true }),
+  metadata: jsonb("metadata").notNull().default({}),
+});
+
+export const response = pgTable(
+  "response",
+  {
+    id: text("id").primaryKey(), // ULID; the [sessionId] in /take URLs + the anonymous identifier
+    recruitmentSessionId: text("recruitment_session_id")
+      .notNull()
+      .references(() => recruitmentSession.id),
+    experimentVersionId: uuid("experiment_version_id")
+      .notNull()
+      .references(() => experimentVersion.id),
+    conditionId: text("condition_id")
+      .notNull()
+      .references(() => condition.id),
+    /** Opaque external recruitment id (Prolific PID etc.) — never a key, never demographic-joined. */
+    externalPid: text("external_pid"),
+    mode: responseMode("mode").notNull(),
+    status: responseStatus("status").notNull().default("started"),
+    currentQuestionIndex: integer("current_question_index").notNull().default(0),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    abandonedAt: timestamp("abandoned_at", { withTimezone: true }),
+    /** UA/locale/screen only — no IP, no raw UA string (PII boundary, ADR-0014). */
+    clientMetadata: jsonb("client_metadata").notNull().default({}),
+  },
+  (t) => [
+    // One completed take per external PID per session; nulls (direct recruitment) coexist.
+    uniqueIndex("response_session_pid_unique")
+      .on(t.recruitmentSessionId, t.externalPid)
+      .where(sql`${t.externalPid} is not null`),
+  ],
+);
+
+export const responseItem = pgTable(
+  "response_item",
+  {
+    id: text("id").primaryKey(), // ULID
+    responseId: text("response_id")
+      .notNull()
+      .references(() => response.id),
+    /** Matches the block instanceId in definition_snapshot (ADR-0012). */
+    blockInstanceId: text("block_instance_id").notNull(),
+    blockPosition: integer("block_position").notNull(),
+    moduleSource: text("module_source").notNull(),
+    moduleKey: text("module_key").notNull(),
+    moduleVersion: text("module_version").notNull(),
+    /** Module-specific; validated against ModuleVersion.responseSchema (added when response-writing lands). */
+    answer: jsonb("answer").notNull(),
+    answeredAt: timestamp("answered_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("response_item_unique").on(t.responseId, t.blockInstanceId)],
+);
+
+/* ---------- registry integration (data-model 05 / ADR-0005) ---------- */
+
+export const registry = pgTable("registry", {
+  id: text("id").primaryKey(), // ULID
+  key: text("key").notNull().unique(), // 'osf' | 'aspredicted' | ...
+  name: text("name").notNull(),
+  oauthConfig: jsonb("oauth_config").notNull().default({}),
+  pushConfig: jsonb("push_config").notNull().default({}),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const registryConnection = pgTable(
+  "registry_connection",
+  {
+    id: text("id").primaryKey(), // ULID
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id),
+    registryId: text("registry_id")
+      .notNull()
+      .references(() => registry.id),
+    /** Encrypted at rest (AES-256-GCM); never plaintext in the DB. */
+    accessToken: text("access_token").notNull(),
+    refreshToken: text("refresh_token"),
+    scopes: jsonb("scopes").notNull().default([]),
+    connectedAt: timestamp("connected_at", { withTimezone: true }).notNull().defaultNow(),
+    lastRefreshedAt: timestamp("last_refreshed_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (t) => [uniqueIndex("registry_connection_user_registry_unique").on(t.userId, t.registryId)],
+);
+
+export const registryPush = pgTable("registry_push", {
+  id: text("id").primaryKey(), // ULID
+  experimentVersionId: uuid("experiment_version_id")
+    .notNull()
+    .references(() => experimentVersion.id),
+  registryId: text("registry_id")
+    .notNull()
+    .references(() => registry.id),
+  status: registryPushAttemptStatus("status").notNull().default("pending"),
+  requestPayload: jsonb("request_payload").notNull(),
+  responsePayload: jsonb("response_payload"),
+  errorText: text("error_text"),
+  pushedDoi: text("pushed_doi"),
+  pushedUrl: text("pushed_url"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+});
+
 /* ---------- inferred types ---------- */
 
 export type User = typeof user.$inferSelect;
@@ -251,3 +425,16 @@ export type Module = typeof module.$inferSelect;
 export type NewModule = typeof module.$inferInsert;
 export type ModuleVersion = typeof moduleVersion.$inferSelect;
 export type NewModuleVersion = typeof moduleVersion.$inferInsert;
+export type Condition = typeof condition.$inferSelect;
+export type NewCondition = typeof condition.$inferInsert;
+export type RecruitmentSession = typeof recruitmentSession.$inferSelect;
+export type NewRecruitmentSession = typeof recruitmentSession.$inferInsert;
+export type Response = typeof response.$inferSelect;
+export type NewResponse = typeof response.$inferInsert;
+export type ResponseItem = typeof responseItem.$inferSelect;
+export type NewResponseItem = typeof responseItem.$inferInsert;
+export type Registry = typeof registry.$inferSelect;
+export type RegistryConnection = typeof registryConnection.$inferSelect;
+export type NewRegistryConnection = typeof registryConnection.$inferInsert;
+export type RegistryPush = typeof registryPush.$inferSelect;
+export type NewRegistryPush = typeof registryPush.$inferInsert;

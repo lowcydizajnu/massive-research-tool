@@ -45,6 +45,13 @@ describe("first migration — forward apply", () => {
       "experiment_version",
       "module",
       "module_version",
+      "condition",
+      "recruitment_session",
+      "response",
+      "response_item",
+      "registry",
+      "registry_connection",
+      "registry_push",
     ]) {
       expect(tables).toContain(t);
     }
