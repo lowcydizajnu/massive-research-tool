@@ -153,7 +153,7 @@ describe("studies.get", () => {
       stage: "draft",
       versionNumber: 1,
       ownerName: "ext_a",
-      blockCount: 0,
+      blocks: [],
     });
   });
 
@@ -196,6 +196,70 @@ describe("studies.updateTitle", () => {
     await expect(
       callerB.studies.updateTitle({ id: other.id, title: "hijack" }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+});
+
+describe("studies block editing", () => {
+  it("adds, configures (validity flips complete), and removes a block", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+
+    const { instanceId } = await caller.studies.addBlock({
+      studyId: id,
+      source: "core",
+      key: "social-post",
+      version: "1.0.0",
+    });
+    let detail = await caller.studies.get({ id });
+    expect(detail.blocks).toHaveLength(1);
+    expect(detail.blocks[0]).toMatchObject({
+      instanceId,
+      name: "Social post",
+      ref: "core/social-post@1.0.0",
+      complete: false, // headline empty
+    });
+
+    await caller.studies.updateBlockConfig({
+      studyId: id,
+      instanceId,
+      config: { headline: "Breaking", body: "", source: "", imageUrl: "", shareCountVisible: false },
+    });
+    detail = await caller.studies.get({ id });
+    expect(detail.blocks[0].complete).toBe(true);
+    expect(detail.blocks[0].config.headline).toBe("Breaking");
+
+    await caller.studies.removeBlock({ studyId: id, instanceId });
+    detail = await caller.studies.get({ id });
+    expect(detail.blocks).toHaveLength(0);
+  });
+
+  it("rejects an unknown module", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank" });
+    await expect(
+      caller.studies.addBlock({ studyId: id, source: "core", key: "nope", version: "1.0.0" }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("rejects block config that fails the module schema", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank" });
+    const { instanceId } = await caller.studies.addBlock({
+      studyId: id,
+      source: "core",
+      key: "likert-7",
+      version: "1.0.0",
+    });
+    await expect(
+      caller.studies.updateBlockConfig({
+        studyId: id,
+        instanceId,
+        config: { prompt: "Q", leftAnchor: "a", rightAnchor: "b", required: "yes" },
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 });
 
