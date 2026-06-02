@@ -294,6 +294,63 @@ export const studiesRouter = router({
     }),
 
   /**
+   * Save as a named version — snapshot the autosave working tip into a new
+   * immutable `named` version (ADR-0012). The autosave continues unchanged.
+   * Label must be unique within the study's history.
+   */
+  saveAsNamed: workspaceProcedure
+    .input(
+      z.object({ studyId: z.string().uuid(), name: z.string().trim().min(1).max(64) }),
+    )
+    .mutation(async ({ ctx, input }): Promise<{ versionNumber: number; name: string }> => {
+      const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+
+      const existing = await db
+        .select({ id: experimentVersion.id })
+        .from(experimentVersion)
+        .where(
+          and(
+            eq(experimentVersion.experimentId, input.studyId),
+            eq(experimentVersion.name, input.name),
+          ),
+        )
+        .limit(1);
+      if (existing.length > 0) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "A version with this label already exists.",
+        });
+      }
+
+      const [latest] = await db
+        .select({ n: experimentVersion.versionNumber })
+        .from(experimentVersion)
+        .where(eq(experimentVersion.experimentId, input.studyId))
+        .orderBy(desc(experimentVersion.versionNumber))
+        .limit(1);
+      const nextNumber = (latest?.n ?? 0) + 1;
+
+      const [named] = await db
+        .insert(experimentVersion)
+        .values({
+          experimentId: input.studyId,
+          versionNumber: nextNumber,
+          kind: "named",
+          name: input.name,
+          definitionSnapshot: tip.version.definitionSnapshot,
+          moduleVersionLocks: tip.version.moduleVersionLocks,
+          createdBy: ctx.dbUser.id,
+        })
+        .returning();
+      await db
+        .update(experiment)
+        .set({ updatedAt: new Date() })
+        .where(eq(experiment.id, input.studyId));
+
+      return { versionNumber: named.versionNumber, name: named.name! };
+    }),
+
+  /**
    * Create a new study in the active workspace. Inserts the Experiment + its
    * first version (v1, autosave, empty definition) and points current_version_id
    * at it — all in one transaction. Returns the new study id; the caller routes

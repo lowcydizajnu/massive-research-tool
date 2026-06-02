@@ -1,7 +1,7 @@
 "use client";
 
 import { Plus } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { StageTabs } from "@/components/chrome/stage-tabs";
 import { EditableStudyTitle } from "@/components/feature/editable-study-title";
@@ -11,6 +11,7 @@ import type { StudyBlock, StudyDetail } from "@/server/trpc/routers/studies";
 
 import { ConfigureForm } from "./configure-form";
 import { ModulePicker } from "./module-picker";
+import { SaveVersionDialog } from "./save-version-dialog";
 
 /**
  * Builder mode — the interactive three-zone body (build-stage-builder-mode.md).
@@ -39,6 +40,8 @@ export function BuilderWorkspace({ study: initial }: { study: StudyDetail }) {
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [savedMsg, setSavedMsg] = useState<string | null>(null);
 
   const invalidate = () => utils.studies.get.invalidate({ id: study.id });
   const addBlock = api.studies.addBlock.useMutation({
@@ -54,6 +57,12 @@ export function BuilderWorkspace({ study: initial }: { study: StudyDetail }) {
   });
 
   const selected = study.blocks.find((b) => b.instanceId === selectedId) ?? null;
+
+  useEffect(() => {
+    if (!savedMsg) return;
+    const t = setTimeout(() => setSavedMsg(null), 3000);
+    return () => clearTimeout(t);
+  }, [savedMsg]);
 
   return (
     <>
@@ -71,20 +80,29 @@ export function BuilderWorkspace({ study: initial }: { study: StudyDetail }) {
                 {study.isReplication ? " · replicating an upstream study" : ""}
               </p>
             </div>
-            <div
-              role="group"
-              aria-label="Editor mode"
-              className="flex shrink-0 items-center gap-1 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-0.5 text-[length:var(--text-small)]"
-            >
-              <span className="rounded-[var(--radius-sm)] bg-[var(--color-primary-subtle)] px-2 py-1 font-medium text-[var(--color-primary-text-on-subtle)]">
-                Builder
-              </span>
-              <span
-                title="Whiteboard — coming soon"
-                className="cursor-default px-2 py-1 text-[var(--color-text-muted)] opacity-60"
+            <div className="flex shrink-0 items-center gap-2">
+              <div
+                role="group"
+                aria-label="Editor mode"
+                className="flex items-center gap-1 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-0.5 text-[length:var(--text-small)]"
               >
-                Whiteboard
-              </span>
+                <span className="rounded-[var(--radius-sm)] bg-[var(--color-primary-subtle)] px-2 py-1 font-medium text-[var(--color-primary-text-on-subtle)]">
+                  Builder
+                </span>
+                <span
+                  title="Whiteboard — coming soon"
+                  className="cursor-default px-2 py-1 text-[var(--color-text-muted)] opacity-60"
+                >
+                  Whiteboard
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSaveOpen(true)}
+                className="rounded-[var(--radius-md)] bg-[var(--color-primary)] px-3 py-1.5 text-[length:var(--text-body-emphasis)] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80"
+              >
+                Save
+              </button>
             </div>
           </div>
 
@@ -192,6 +210,29 @@ export function BuilderWorkspace({ study: initial }: { study: StudyDetail }) {
           </div>
         )}
       </aside>
+
+      {saveOpen ? (
+        <SaveVersionDialog
+          studyId={study.id}
+          incompleteCount={study.blocks.filter((b) => !b.complete).length}
+          onClose={() => setSaveOpen(false)}
+          onSaved={(name, n) => {
+            setSaveOpen(false);
+            setSavedMsg(`Saved “${name}” as v${n}`);
+            void invalidate();
+          }}
+        />
+      ) : null}
+
+      {savedMsg ? (
+        <div
+          role="status"
+          className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-[var(--radius-md)] bg-[var(--color-success-subtle)] px-4 py-2 text-[length:var(--text-small)] font-medium text-[var(--color-success-text-on-subtle)]"
+          style={{ boxShadow: "var(--shadow-md)" }}
+        >
+          {savedMsg}
+        </div>
+      ) : null}
     </>
   );
 }
