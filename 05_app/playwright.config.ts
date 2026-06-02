@@ -18,7 +18,20 @@ export default defineConfig({
     trace: "on-first-retry",
   },
   projects: [
-    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+    // Default suite — surface flows that run anywhere. Excludes the auth loop
+    // so the default run has zero skipped tests (per qa-and-testing.md).
+    {
+      name: "chromium",
+      use: { ...devices["Desktop Chrome"] },
+      testIgnore: "**/hanna-loop.spec.ts",
+    },
+    // Opt-in authenticated suite — needs a reachable Clerk + a test user.
+    // Run with `npm run test:e2e:auth` (sets RUN_AUTH_E2E + Clerk creds).
+    {
+      name: "auth",
+      use: { ...devices["Desktop Chrome"] },
+      testMatch: "**/hanna-loop.spec.ts",
+    },
   ],
   webServer: {
     // Production server on a dedicated port (avoids the :3000 dev server and
