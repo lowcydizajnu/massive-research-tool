@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "mrt-app",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "05_app", "run", "dev", "--", "-p", "3100"],
+      "port": 3100
+    }
+  ]
+}

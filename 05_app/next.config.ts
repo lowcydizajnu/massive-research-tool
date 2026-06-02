@@ -4,6 +4,10 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   // Moved out of `experimental` in Next 15.5.
   typedRoutes: true,
+  // Pin the workspace root to this app dir. Without it Next infers the root
+  // from a stray ~/package-lock.json and warns on every dev/build.
+  outputFileTracingRoot: import.meta.dirname,
+  turbopack: { root: import.meta.dirname },
 };
 
 export default nextConfig;
