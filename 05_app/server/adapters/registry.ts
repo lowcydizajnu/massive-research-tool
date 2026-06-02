@@ -53,16 +53,7 @@ export interface RegistryAdapter {
   withdraw(userId: string, doi: string, reason: string): Promise<void>;
 }
 
-/**
- * The active implementation re-exports below. Switching registries is a one-line
- * change. Today: throws on first call because no implementation is wired yet.
- * PR-1c: import from "./registry.osf".
- */
-export const registry: RegistryAdapter = new Proxy({} as RegistryAdapter, {
-  get(_target, prop) {
-    throw new Error(
-      `RegistryAdapter.${String(prop)} called but no implementation is wired. ` +
-        `Wire ./registry.osf (PR-1c).`,
-    );
-  },
-});
+// Active implementation. Switching registries is a one-line change here.
+import { osfRegistry } from "./registry.osf";
+
+export const registry: RegistryAdapter = osfRegistry;
