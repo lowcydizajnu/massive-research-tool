@@ -5,6 +5,13 @@ import { db } from "@/server/db/client";
 import { experiment, experimentVersion } from "@/server/db/schema";
 import { router, workspaceProcedure } from "@/server/trpc/trpc";
 
+/**
+ * How a new study begins (new-study-modal wireframe). Framework + Template
+ * require the Framework entity + seeded data (ADR-0011 item 9), so V1 ships
+ * "blank" only; the modal disables the other two per its own edge case.
+ */
+const START_KINDS = ["blank"] as const;
+
 /** Sub-nav filters per the studies-destination wireframe. */
 export const STUDY_FILTERS = [
   "all",
@@ -83,5 +90,44 @@ export const studiesRouter = router({
         default:
           return items;
       }
+    }),
+
+  /**
+   * Create a new study in the active workspace. Inserts the Experiment + its
+   * first version (v1, autosave, empty definition) and points current_version_id
+   * at it — all in one transaction. Returns the new study id; the caller routes
+   * to its Build stage.
+   */
+  create: workspaceProcedure
+    .input(
+      z.object({
+        kind: z.enum(START_KINDS).default("blank"),
+        title: z.string().trim().max(200).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }): Promise<{ id: string }> => {
+      const title = input.title?.trim() || "Untitled study";
+      return db.transaction(async (tx) => {
+        const [exp] = await tx
+          .insert(experiment)
+          .values({ tenantId: ctx.workspace.id, ownerId: ctx.dbUser.id, title })
+          .returning();
+        const [version] = await tx
+          .insert(experimentVersion)
+          .values({
+            experimentId: exp.id,
+            versionNumber: 1,
+            kind: "autosave",
+            definitionSnapshot: {},
+            moduleVersionLocks: [],
+            createdBy: ctx.dbUser.id,
+          })
+          .returning();
+        await tx
+          .update(experiment)
+          .set({ currentVersionId: version.id })
+          .where(eq(experiment.id, exp.id));
+        return { id: exp.id };
+      });
     }),
 });

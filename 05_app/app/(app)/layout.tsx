@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 
 import { LeftRail } from "@/components/chrome/left-rail";
 import { TopBar } from "@/components/chrome/top-bar";
+import { NewStudyProvider } from "@/components/feature/new-study/provider";
 import { auth } from "@/server/adapters/auth";
 import { getServerApi } from "@/server/trpc/server";
 
@@ -38,14 +39,16 @@ export default async function AppLayout({
   const initials = user ? initialsFrom(user.displayName, user.email) : "··";
 
   return (
-    <div className="flex min-h-screen flex-col gap-3 bg-[var(--color-surface-page)] p-3">
-      <TopBar workspaceName={workspace.name} userInitials={initials} />
-      <div className="flex flex-1 gap-3">
-        <LeftRail />
-        <main className="min-w-0 flex-1 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6">
-          {children}
-        </main>
+    <NewStudyProvider>
+      <div className="flex min-h-screen flex-col gap-3 bg-[var(--color-surface-page)] p-3">
+        <TopBar workspaceName={workspace.name} userInitials={initials} />
+        <div className="flex flex-1 gap-3">
+          <LeftRail />
+          <main className="min-w-0 flex-1 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6">
+            {children}
+          </main>
+        </div>
       </div>
-    </div>
+    </NewStudyProvider>
   );
 }

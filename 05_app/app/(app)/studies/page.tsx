@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { NewStudyButton } from "@/components/feature/new-study/new-study-button";
 import { StudyCard } from "@/components/feature/study-card";
 import { cn } from "@/lib/utils";
 import { getServerApi } from "@/server/trpc/server";
@@ -90,13 +91,7 @@ function EmptyWorkspace() {
       <p className="font-serif text-[length:var(--text-heading-1)] font-medium text-[var(--color-text-primary)]">
         Your first study is one click away.
       </p>
-      <Link
-        href="/studies/new"
-        autoFocus
-        className="rounded-[var(--radius-md)] bg-[var(--color-primary)] px-4 py-2 text-[length:var(--text-body-emphasis)] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80"
-      >
-        New study
-      </Link>
+      <NewStudyButton autoFocus />
     </div>
   );
 }
