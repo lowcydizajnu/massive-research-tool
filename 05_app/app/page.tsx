@@ -1,4 +1,5 @@
 import { ThemeToggle } from "@/components/theme-toggle";
+import { auth } from "@/server/adapters/auth";
 
 /**
  * /  — verification page for the Phase 5 scaffold landing.
@@ -11,12 +12,34 @@ import { ThemeToggle } from "@/components/theme-toggle";
  *   - Theme toggle persisting + flipping the whole surface.
  *   - Vibrant functional palette swatches.
  *
- * This page goes away once /studies becomes the default landing.
+ * When signed in, shows a minimal authenticated welcome (the assertable
+ * post-onboarding landing for the signup-slice e2e). This whole page goes away
+ * once /studies becomes the default landing.
  */
 
-export default function HomePage() {
+export default async function HomePage() {
+  // Server-side read via the adapter — no Clerk import in feature code.
+  const user = await auth.getCurrentUser();
+
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-8 px-6 py-12">
+      {user ? (
+        <section
+          data-testid="welcome"
+          className="flex flex-col gap-1 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6"
+        >
+          <p className="font-mono text-[length:var(--text-mono)] uppercase tracking-wider text-[var(--color-text-muted)]">
+            Signed in
+          </p>
+          <p className="font-serif text-[length:var(--text-heading-1)] font-medium text-[var(--color-text-primary)]">
+            Welcome, {user.displayName || user.email}.
+          </p>
+          <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+            Studies destination lands here next (a later ADR-0011 move).
+          </p>
+        </section>
+      ) : null}
+
       <header className="flex flex-col gap-2">
         <p className="font-mono text-[length:var(--text-mono)] uppercase tracking-wider text-[var(--color-text-muted)]">
           Phase 5 · scaffold landing
