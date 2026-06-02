@@ -18,13 +18,31 @@ const OPTIONS: Array<{ choice: ThemeChoice; label: string }> = [
 export function ThemeToggle() {
   const { choice, setChoice } = useTheme();
 
+  // Roving arrow-key selection within the radiogroup (WAI-ARIA radio pattern).
+  function handleKeyDown(event: React.KeyboardEvent, index: number) {
+    let nextIndex: number | null = null;
+    if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+      nextIndex = (index + 1) % OPTIONS.length;
+    } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+      nextIndex = (index - 1 + OPTIONS.length) % OPTIONS.length;
+    }
+    if (nextIndex === null) return;
+    event.preventDefault();
+    setChoice(OPTIONS[nextIndex].choice);
+    const group = event.currentTarget.parentElement;
+    const next = group?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[
+      nextIndex
+    ];
+    next?.focus();
+  }
+
   return (
     <div
       role="radiogroup"
       aria-label="Theme preference"
       className="grid grid-cols-3 gap-3"
     >
-      {OPTIONS.map((option) => {
+      {OPTIONS.map((option, index) => {
         const active = choice === option.choice;
         return (
           <button
@@ -32,6 +50,8 @@ export function ThemeToggle() {
             type="button"
             role="radio"
             aria-checked={active}
+            tabIndex={active ? 0 : -1}
+            onKeyDown={(e) => handleKeyDown(e, index)}
             onClick={() => setChoice(option.choice)}
             className={cn(
               "group flex flex-col items-center gap-2 rounded-[var(--radius-lg)] border p-3 text-left transition-[background,border]",
