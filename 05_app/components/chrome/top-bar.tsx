@@ -1,5 +1,6 @@
 import { ChevronDown } from "lucide-react";
 
+import { Breadcrumb } from "@/components/chrome/breadcrumb";
 import { NewStudyButton } from "@/components/feature/new-study/new-study-button";
 
 /**
@@ -27,9 +28,7 @@ export function TopBar({
         <ChevronDown className="size-3.5 shrink-0 text-[var(--color-text-muted)]" aria-hidden />
       </button>
 
-      <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-        · Studies
-      </span>
+      <Breadcrumb />
 
       <div className="flex-1" />
 
