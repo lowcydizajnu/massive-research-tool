@@ -52,9 +52,9 @@ For each vendor:
 
 | | |
 | --- | --- |
-| **What we use it for** | (stub only in V1 — per ADR-0011, no background jobs ship in MVP). Future: OSF push (per ADR-0005), asset freeze (per ADR-0003), AI task invocations (per ADR-0006), email notifications. |
-| **Behind an adapter** | `BackgroundJobAdapter` interface (to be drafted when the first job lands — most likely OSF push). All `inngest` imports limited to `05_app/server/adapters/jobs.inngest.ts`. |
-| **Deliberate exceptions** | (none — adapter not yet written.) |
+| **What we use it for** | **V1.5: OSF push (ADR-0005) is the first job.** Future: asset freeze (ADR-0003), AI task invocations (ADR-0006), email notifications, abandonment sweeper. |
+| **Behind an adapter** | `BackgroundJobAdapter` (`05_app/server/adapters/jobs.ts`) — feature code enqueues typed events; all `inngest` imports confined to `jobs.inngest.ts`. |
+| **Deliberate exceptions** | `serve()` in `05_app/app/api/inngest/route.ts` — the Inngest serve handler must sit at the route boundary (like `clerkMiddleware`); import-only, no business logic. Removal trigger = job-vendor migration. |
 | **Migration target** | BullMQ + a Redis instance. Standard Node.js queue stack; runs anywhere. |
 | **Cost-ceiling trigger** | Inngest free tier covers most early-stage usage; ~$50–$150/mo at moderate scale. Trigger when monthly cost > $200/mo OR when we hit the job-execution-rate ceiling. |
 
@@ -63,8 +63,8 @@ For each vendor:
 | | |
 | --- | --- |
 | **What we use it for** | Push-to-OSF on preregistration. Per-user OAuth (researchers own their OSF identity). |
-| **Behind an adapter** | `RegistryAdapter` interface per ADR-0005 — registry-agnostic. All OSF API calls limited to `05_app/server/adapters/registry.osf.ts`. |
-| **Deliberate exceptions** | (none — adapter not yet written; first preregistration push triggers the interface.) |
+| **Behind an adapter** | `RegistryAdapter` (`05_app/server/adapters/registry.ts`, registry-agnostic) — all OSF API/OAuth calls confined to `registry.osf.ts`. |
+| **Deliberate exceptions** | (none — the OSF OAuth redirect/callback routes use the adapter's `getAuthorizeUrl`/`completeConnection`, no OSF SDK leaks into route/UI code.) |
 | **Migration target** | Not a migration so much as a *plurality*: AsPredicted, ClinicalTrials.gov, PsyArXiv all plug into the same `RegistryAdapter` shape. Per-tenant config picks which registries are enabled. |
 | **Cost-ceiling trigger** | OSF is free for researchers — no cost trigger. Capability trigger: when a customer demands a registry we don't support. |
 
