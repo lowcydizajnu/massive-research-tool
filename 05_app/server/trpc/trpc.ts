@@ -32,16 +32,29 @@ export const protectedProcedure = t.procedure.use(async ({ ctx, next }) => {
 });
 
 /**
- * workspaceProcedure — protectedProcedure plus the resolved active workspace.
- * Every study query is scoped to `ctx.workspace.id` (the tenant boundary).
+ * workspaceProcedure — protectedProcedure plus the resolved active workspace
+ * and the caller's role in it. Every study query is scoped to
+ * `ctx.workspace.id` (the tenant boundary); reads are open to any member.
  */
 export const workspaceProcedure = protectedProcedure.use(async ({ ctx, next }) => {
-  const workspace = await resolveActiveWorkspace(ctx.dbUser.id);
-  if (!workspace) {
+  const active = await resolveActiveWorkspace(ctx.dbUser.id);
+  if (!active) {
     throw new TRPCError({
       code: "FORBIDDEN",
       message: "No workspace for this user.",
     });
   }
-  return next({ ctx: { workspace } });
+  return next({ ctx: { workspace: active.workspace, role: active.role } });
+});
+
+/**
+ * writeProcedure — workspaceProcedure that additionally requires a write-capable
+ * role. `viewer` members can read but not mutate. (V1 workspaces are
+ * single-author owners; this enforces the boundary for when invites land.)
+ */
+export const writeProcedure = workspaceProcedure.use(async ({ ctx, next }) => {
+  if (ctx.role === "viewer") {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Read-only access to this workspace." });
+  }
+  return next();
 });

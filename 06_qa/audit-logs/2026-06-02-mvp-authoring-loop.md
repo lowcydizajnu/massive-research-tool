@@ -27,7 +27,8 @@
 
 - **Tenant isolation:** every study read/write goes through `workspaceProcedure`, scoped to the caller's active workspace; cross-workspace access returns NOT_FOUND (covered by tests). Auth identity flows only through the `AuthAdapter`; no `@clerk/*` in feature code beyond the inventoried exceptions.
 - **Input validation:** block `config` is Zod-validated at the write boundary (ADR-0012); tRPC inputs are zod-typed. Block config that fails its module schema is rejected, not stored.
-- **Not formally reviewed:** rate limiting, authorization beyond workspace membership (role enforcement is modelled but not enforced on mutations yet — all members can edit; fine for single-author V1, **open** for multi-member workspaces), and the `/api/trpc` surface area. **Open:** a `security-review` pass before exposing multi-member workspaces.
+- **Role enforcement (addressed 2026-06-02):** write mutations now go through `writeProcedure`, which rejects `viewer`-role members (FORBIDDEN); reads stay open to any member. Tested. (No functional change for V1 single-author owners, but the boundary is enforced for when invites land.)
+- **Not formally reviewed:** rate limiting and the `/api/trpc` surface area. **Open:** a `security-review` pass before exposing multi-member workspaces.
 
 ## Manual exploratory notes
 
