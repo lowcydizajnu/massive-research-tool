@@ -263,6 +263,34 @@ describe("studies block editing", () => {
   });
 });
 
+describe("studies.saveAsNamed", () => {
+  it("snapshots the working tip into a named version and leaves the autosave", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    await caller.studies.addBlock({ studyId: id, source: "core", key: "social-post", version: "1.0.0" });
+
+    const res = await caller.studies.saveAsNamed({ studyId: id, name: "v1 for review" });
+    expect(res).toMatchObject({ name: "v1 for review" });
+    expect(res.versionNumber).toBeGreaterThan(1);
+
+    // The working tip (autosave) is still what studies.get reads, with its block.
+    const detail = await caller.studies.get({ id });
+    expect(detail.stage).toBe("draft");
+    expect(detail.blocks).toHaveLength(1);
+  });
+
+  it("rejects a duplicate label within the study", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank" });
+    await caller.studies.saveAsNamed({ studyId: id, name: "v1" });
+    await expect(
+      caller.studies.saveAsNamed({ studyId: id, name: "v1" }),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+  });
+});
+
 describe("workspace.active", () => {
   it("returns the caller's owned workspace", async () => {
     await seedUserWithWorkspace("ext_a", "Alpha");
