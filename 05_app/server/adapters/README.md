@@ -12,7 +12,7 @@ This is what makes ADR-0007's cost-ceiling triggers feasible in 2 weeks instead 
 
 | Interface | Implementation(s) today | Migration target |
 | --- | --- | --- |
-| `AuthAdapter` | (none — wires next commit) | Clerk → Better Auth |
+| `AuthAdapter` | `auth.clerk.ts` (Clerk v7) | Clerk → Better Auth |
 | `HostingShape` | (implicit — Next.js + Vercel patterns) | Vercel → Node container |
 | `RealtimeAdapter` | (stub only) | Liveblocks → Yjs |
 | `BackgroundJobAdapter` | (stub only) | Inngest → BullMQ |

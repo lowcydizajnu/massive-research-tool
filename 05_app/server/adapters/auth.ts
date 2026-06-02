@@ -3,12 +3,8 @@
  *
  * Per ADR-0007 + lock-in inventory: no route handler, tRPC procedure, or
  * component imports @clerk/nextjs directly. Everything goes through this
- * interface. The active implementation (`auth.clerk.ts` once wired) re-exports
- * the default; switching vendors is a one-line change in this file.
- *
- * Today (Phase 5 scaffold landing): the interface is defined; no implementation
- * yet. Next commit lands `auth.clerk.ts` + the `defaultAuth` export below points
- * at it.
+ * interface. The active implementation (`auth.clerk.ts`) is assigned to the
+ * `auth` export at the bottom; switching vendors is a one-line change here.
  *
  * Design intent:
  *   - Identity primitives only (user, session, sign-out).
@@ -19,6 +15,7 @@
  *     ThemeProvider's persistence layer can swap from localStorage-only to
  *     Clerk-synced without touching component code.
  */
+import { clerkAuthAdapter } from "./auth.clerk";
 
 export type AuthUserId = string;
 
@@ -53,6 +50,13 @@ export interface AuthUserMetadata {
   themeChoice?: "light" | "dark" | "system";
   /** Last workspace the user was active in (route-restoration hint). */
   lastWorkspaceId?: string;
+  /**
+   * Whether the user finished the signup-and-onboard flow. Written through
+   * `setUserMetadata` by the onboarding finalize step so feature code never
+   * imports Clerk directly. Mirrors `AuthUser.hasCompletedOnboarding`, which
+   * reads the same `publicMetadata` flag.
+   */
+  hasCompletedOnboarding?: boolean;
 }
 
 export interface AuthAdapter {
@@ -79,20 +83,11 @@ export interface AuthAdapter {
 }
 
 /**
- * The active implementation re-exports below. Switching auth providers is
- * a one-line change here: replace the lazy import + assignment.
- *
- * Today: throws on first call because no implementation is wired yet.
- * Next commit: import from "./auth.clerk".
+ * The active implementation. Switching auth providers is a one-line change:
+ * replace the import above + this assignment with the new adapter (e.g.
+ * ./auth.better when the Clerk cost-ceiling trigger fires per ADR-0007).
  */
-export const auth: AuthAdapter = new Proxy({} as AuthAdapter, {
-  get(_target, prop) {
-    throw new Error(
-      `AuthAdapter.${String(prop)} called but no implementation is wired. ` +
-        `Wire ./auth.clerk in the next commit (per ADR-0011 step 2).`,
-    );
-  },
-});
+export const auth: AuthAdapter = clerkAuthAdapter;
 
 /* ============================================================
    When migrating to Better Auth (per ADR-0007 amendment):
