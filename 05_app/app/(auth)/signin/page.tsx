@@ -23,7 +23,7 @@ export default function SigninPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (userLoaded && isSignedIn) router.replace("/");
+    if (userLoaded && isSignedIn) router.replace("/studies");
   }, [userLoaded, isSignedIn, router]);
 
   async function handleEmail(e: React.FormEvent) {
@@ -47,7 +47,7 @@ export default function SigninPage() {
       });
       if (res.status === "complete" && res.createdSessionId) {
         await setActive({ session: res.createdSessionId });
-        router.replace("/");
+        router.replace("/studies");
       } else {
         setState("error");
         setError("That link expired before it was used. Send a new one.");
@@ -65,7 +65,7 @@ export default function SigninPage() {
       await signIn.authenticateWithRedirect({
         strategy: "oauth_google",
         redirectUrl: "/signup/sso-callback",
-        redirectUrlComplete: "/",
+        redirectUrlComplete: "/studies",
       });
     } catch (err) {
       setState("error");

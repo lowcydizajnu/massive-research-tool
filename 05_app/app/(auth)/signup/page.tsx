@@ -59,7 +59,7 @@ function SignupFlow() {
   useEffect(() => {
     if (!userLoaded || !isSignedIn || !user) return;
     if (user.publicMetadata?.hasCompletedOnboarding === true) {
-      router.replace("/");
+      router.replace("/studies");
       return;
     }
     if (step === "identify") {
@@ -114,7 +114,7 @@ function SignupFlow() {
     setError(null);
     try {
       await finalizeOnboarding({ displayName, workspaceName, themeChoice: choice });
-      router.replace("/");
+      router.replace("/studies");
     } catch (err) {
       setSubmitting(false);
       setError(messageFrom(err, "Couldn't finish setting up your workspace."));

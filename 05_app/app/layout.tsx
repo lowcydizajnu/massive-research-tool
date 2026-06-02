@@ -40,7 +40,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <ClerkProvider>
+    <ClerkProvider signInUrl="/signin" signUpUrl="/signup">
       <html lang="en" suppressHydrationWarning>
         <body
           className={`${plexSans.variable} ${plexSerif.variable} ${plexMono.variable}`}
