@@ -16,11 +16,12 @@ import { expect, test } from "@playwright/test";
  *      factor this spec uses (password by default).
  *   2. Set env: RUN_AUTH_E2E=1, E2E_CLERK_IDENTIFIER=..., E2E_CLERK_PASSWORD=...
  *   3. cd 05_app && npx playwright install chromium \
- *        && RUN_AUTH_E2E=1 E2E_CLERK_IDENTIFIER=... E2E_CLERK_PASSWORD=... npm run test:e2e
+ *        && E2E_CLERK_IDENTIFIER=... E2E_CLERK_PASSWORD=... npm run test:e2e:auth
+ *
+ * This spec lives in the opt-in `auth` Playwright project (not the default
+ * suite), so it never shows as a skipped test in main (per qa-and-testing.md).
  */
-const RUN = process.env.RUN_AUTH_E2E === "1";
-
-(RUN ? test.describe : test.describe.skip)("Hanna build-a-study loop", () => {
+test.describe("Hanna build-a-study loop", () => {
   test("from Framework → configure → save named → reopen finds it", async ({ page }) => {
     await setupClerkTestingToken({ page });
 
