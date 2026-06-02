@@ -1,5 +1,6 @@
-import { ChevronDown, Plus } from "lucide-react";
-import Link from "next/link";
+import { ChevronDown } from "lucide-react";
+
+import { NewStudyButton } from "@/components/feature/new-study/new-study-button";
 
 /**
  * Top bar — floating cap with workspace-global chrome (studies-destination
@@ -40,14 +41,7 @@ export function TopBar({
         ⌘K
       </span>
 
-      <Link
-        href="/studies/new"
-        aria-keyshortcuts="Command+N"
-        className="flex items-center gap-1 rounded-[var(--radius-md)] bg-[var(--color-primary)] px-3 py-1.5 text-[length:var(--text-body-emphasis)] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80"
-      >
-        <Plus className="size-4" aria-hidden />
-        New study
-      </Link>
+      <NewStudyButton variant="topbar" />
 
       <span
         aria-label="Account"

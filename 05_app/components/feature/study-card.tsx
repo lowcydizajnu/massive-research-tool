@@ -1,9 +1,10 @@
+import Link from "next/link";
+
 import type { StudyListItem, StudyStage } from "@/server/trpc/routers/studies";
 
 /**
- * Study card for the Studies destination list. Presentational for now — the
- * study detail / Build stage it links to isn't built yet (ADR-0011 item 7),
- * so cards don't navigate until then.
+ * Study card for the Studies destination list. Links to the study's Build
+ * stage (placeholder until the three-zone Builder lands, ADR-0011 item 7).
  *
  * Stage badge encoding per studies-destination.md (token .subtle washes with
  * dark-on-subtle text; the full token only on the status dot).
@@ -44,7 +45,10 @@ function formatEdited(iso: string): string {
 export function StudyCard({ study }: { study: StudyListItem }) {
   const stage = STAGE_STYLES[study.stage];
   return (
-    <article className="flex items-start justify-between gap-3 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-4">
+    <Link
+      href={`/studies/${study.id}/build`}
+      className="flex items-start justify-between gap-3 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-4 transition-colors hover:border-[var(--color-border-medium)] hover:bg-[var(--color-surface-subtle)]"
+    >
       <div className="min-w-0">
         <h3 className="truncate font-serif text-[17px] font-medium text-[var(--color-text-primary)]">
           {study.title}
@@ -65,6 +69,6 @@ export function StudyCard({ study }: { study: StudyListItem }) {
         <span className="size-1.5 rounded-full" style={{ backgroundColor: stage.dot }} />
         {stage.label}
       </span>
-    </article>
+    </Link>
   );
 }

@@ -4,6 +4,7 @@
  * The router is exercised through a directly-constructed caller (no HTTP) over
  * a real migrated PGlite DB. Deterministic, no network.
  */
+import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/server/db/client", async () => {
@@ -19,7 +20,7 @@ vi.mock("@/server/db/client", async () => {
 
 import type { AuthUser } from "@/server/adapters/auth";
 import { db } from "@/server/db/client";
-import { experiment, member, user, workspace } from "@/server/db/schema";
+import { experiment, experimentVersion, member, user, workspace } from "@/server/db/schema";
 import { appRouter } from "@/server/trpc/root";
 import { createCallerFactory } from "@/server/trpc/trpc";
 
@@ -54,6 +55,9 @@ async function seedUserWithWorkspace(externalId: string, wsName: string) {
 }
 
 beforeEach(async () => {
+  // Break the experiment <-> experiment_version circular FK before deleting.
+  await db.update(experiment).set({ currentVersionId: null });
+  await db.delete(experimentVersion);
   await db.delete(experiment);
   await db.delete(member);
   await db.delete(workspace);
@@ -98,6 +102,41 @@ describe("studies.list", () => {
     const caller = createCaller({ authUser: authUser("ext_a") });
     expect(await caller.studies.list()).toHaveLength(0);
     expect(await caller.studies.list({ filter: "archived" })).toHaveLength(1);
+  });
+});
+
+describe("studies.create", () => {
+  it("creates a blank draft in the caller's workspace and links its first version", async () => {
+    const a = await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+
+    const { id } = await caller.studies.create({ kind: "blank", title: "My Study" });
+
+    const [row] = await db.select().from(experiment).where(eq(experiment.id, id));
+    expect(row.title).toBe("My Study");
+    expect(row.tenantId).toBe(a.workspace.id);
+    expect(row.ownerId).toBe(a.user.id);
+    expect(row.currentVersionId).not.toBeNull();
+
+    // It now shows in the list as a draft.
+    const studies = await caller.studies.list();
+    expect(studies).toHaveLength(1);
+    expect(studies[0]).toMatchObject({ id, stage: "draft", isOwner: true });
+  });
+
+  it("defaults the title when omitted", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank" });
+    const [row] = await db.select().from(experiment).where(eq(experiment.id, id));
+    expect(row.title).toBe("Untitled study");
+  });
+
+  it("rejects an unauthenticated caller", async () => {
+    const caller = createCaller({ authUser: null });
+    await expect(caller.studies.create({ kind: "blank" })).rejects.toMatchObject({
+      code: "UNAUTHORIZED",
+    });
   });
 });
 
