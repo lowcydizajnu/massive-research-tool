@@ -3,12 +3,13 @@
 # Subfolders (notably 05_app/) have their own .gitignore for tool-specific patterns.
 # =========================================================================
 
-# Node / Next.js
+# Node / Next.js — anchor output dirs to repo root so they don't match route
+# segments named out/dist/build (e.g. 05_app/app/(app)/studies/[id]/build/).
 node_modules/
 .next/
-out/
-dist/
-build/
+/out/
+/dist/
+/build/
 *.tsbuildinfo
 next-env.d.ts
 

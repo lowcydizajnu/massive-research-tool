@@ -37,7 +37,7 @@ export default async function StudiesPage({
   const studies = await api.studies.list({ filter });
 
   return (
-    <div className="flex flex-col gap-5">
+    <main className="flex min-w-0 flex-1 flex-col gap-5 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6">
       <h1 className="font-serif text-[length:var(--text-display)] font-medium text-[var(--color-text-primary)]">
         Studies
       </h1>
@@ -81,7 +81,7 @@ export default async function StudiesPage({
       ) : (
         <FilterEmpty />
       )}
-    </div>
+    </main>
   );
 }
 
