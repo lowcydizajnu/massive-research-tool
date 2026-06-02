@@ -42,11 +42,11 @@ export default async function AppLayout({
     <NewStudyProvider>
       <div className="flex min-h-screen flex-col gap-3 bg-[var(--color-surface-page)] p-3">
         <TopBar workspaceName={workspace.name} userInitials={initials} />
+        {/* Each surface composes the area right of the rail (Studies = one
+            work-surface card; Builder = stage pill + work surface + right panel). */}
         <div className="flex flex-1 gap-3">
           <LeftRail />
-          <main className="min-w-0 flex-1 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6">
-            {children}
-          </main>
+          {children}
         </div>
       </div>
     </NewStudyProvider>

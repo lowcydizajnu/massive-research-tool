@@ -1,8 +1,9 @@
+import { TRPCError } from "@trpc/server";
 import { and, desc, eq, isNotNull, isNull } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/server/db/client";
-import { experiment, experimentVersion } from "@/server/db/schema";
+import { experiment, experimentVersion, user } from "@/server/db/schema";
 import { router, workspaceProcedure } from "@/server/trpc/trpc";
 
 /**
@@ -40,6 +41,17 @@ export type StudyListItem = {
   lastEditedAt: string;
   isReplication: boolean;
   isOwner: boolean;
+};
+
+export type StudyDetail = {
+  id: string;
+  title: string;
+  stage: StudyStage;
+  versionNumber: number;
+  lastEditedAt: string;
+  ownerName: string;
+  isReplication: boolean;
+  blockCount: number;
 };
 
 export const studiesRouter = router({
@@ -90,6 +102,45 @@ export const studiesRouter = router({
         default:
           return items;
       }
+    }),
+
+  /**
+   * Fetch one study in the active workspace (the Build stage). Scoped to the
+   * tenant — a study id outside the workspace is NOT_FOUND. Blocks come from the
+   * current version's definition_snapshot (opaque JSON for now; the formal
+   * block format is deferred per data-model open question 3 — blank studies
+   * have none yet).
+   */
+  get: workspaceProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .query(async ({ ctx, input }): Promise<StudyDetail> => {
+      const [row] = await db
+        .select({
+          experiment,
+          version: experimentVersion,
+          ownerName: user.displayName,
+        })
+        .from(experiment)
+        .leftJoin(experimentVersion, eq(experiment.currentVersionId, experimentVersion.id))
+        .leftJoin(user, eq(experiment.ownerId, user.id))
+        .where(
+          and(eq(experiment.id, input.id), eq(experiment.tenantId, ctx.workspace.id)),
+        )
+        .limit(1);
+
+      if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const def = (row.version?.definitionSnapshot ?? {}) as { blocks?: unknown[] };
+      return {
+        id: row.experiment.id,
+        title: row.experiment.title,
+        stage: stageFromKind(row.version?.kind),
+        versionNumber: row.version?.versionNumber ?? 1,
+        lastEditedAt: row.experiment.updatedAt.toISOString(),
+        ownerName: row.ownerName ?? "",
+        isReplication: row.experiment.forkOfExperimentId !== null,
+        blockCount: Array.isArray(def.blocks) ? def.blocks.length : 0,
+      };
     }),
 
   /**

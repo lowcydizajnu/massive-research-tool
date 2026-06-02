@@ -140,6 +140,38 @@ describe("studies.create", () => {
   });
 });
 
+describe("studies.get", () => {
+  it("returns a study in the caller's workspace", async () => {
+    const a = await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "Source cues" });
+
+    const detail = await caller.studies.get({ id });
+    expect(detail).toMatchObject({
+      id,
+      title: "Source cues",
+      stage: "draft",
+      versionNumber: 1,
+      ownerName: "ext_a",
+      blockCount: 0,
+    });
+  });
+
+  it("is NOT_FOUND for a study in another workspace (tenant scoping)", async () => {
+    const a = await seedUserWithWorkspace("ext_a", "Alpha");
+    await seedUserWithWorkspace("ext_b", "Beta");
+    const [other] = await db
+      .insert(experiment)
+      .values({ tenantId: a.workspace.id, ownerId: a.user.id, title: "Alpha only" })
+      .returning();
+
+    const callerB = createCaller({ authUser: authUser("ext_b") });
+    await expect(callerB.studies.get({ id: other.id })).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+  });
+});
+
 describe("workspace.active", () => {
   it("returns the caller's owned workspace", async () => {
     await seedUserWithWorkspace("ext_a", "Alpha");

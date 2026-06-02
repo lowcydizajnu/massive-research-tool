@@ -3,11 +3,12 @@ node_modules
 .pnp
 .pnp.js
 
-# next.js
+# next.js — anchor output dirs to the app root so they don't match route
+# segments named build/dist/out (e.g. app/(app)/studies/[id]/build/).
 .next/
-out/
-build
-dist
+/out/
+/build
+/dist
 
 # environment
 .env
