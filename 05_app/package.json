@@ -8,7 +8,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "test": "vitest run"
   },
   "dependencies": {
     "next": "^15.1.0",
@@ -17,7 +20,9 @@
     "clsx": "^2.1.1",
     "tailwind-merge": "^2.5.5",
     "class-variance-authority": "^0.7.1",
-    "lucide-react": "^0.468.0"
+    "lucide-react": "^0.468.0",
+    "drizzle-orm": "^0.38.3",
+    "postgres": "^3.4.5"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
@@ -28,6 +33,10 @@
     "postcss": "^8.4.49",
     "typescript": "^5.7.2",
     "eslint": "^9.17.0",
-    "eslint-config-next": "^15.1.0"
+    "eslint-config-next": "^15.1.0",
+    "drizzle-kit": "^0.30.1",
+    "dotenv": "^16.4.7",
+    "@electric-sql/pglite": "^0.2.14",
+    "vitest": "^2.1.8"
   }
 }
