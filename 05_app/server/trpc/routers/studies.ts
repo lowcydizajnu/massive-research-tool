@@ -5,7 +5,9 @@ import { z } from "zod";
 
 import { db } from "@/server/db/client";
 import { experiment, experimentVersion, user } from "@/server/db/schema";
+import { getFrameworkDef } from "@/server/frameworks/registry";
 import {
+  type BlockInstance,
   blockDisplay,
   locksFromBlocks,
   readBlocks,
@@ -55,7 +57,7 @@ async function writeBlocks(
  * require the Framework entity + seeded data (ADR-0011 item 9), so V1 ships
  * "blank" only; the modal disables the other two per its own edge case.
  */
-const START_KINDS = ["blank"] as const;
+const START_KINDS = ["blank", "framework"] as const;
 
 /** Sub-nav filters per the studies-destination wireframe. */
 export const STUDY_FILTERS = [
@@ -360,10 +362,24 @@ export const studiesRouter = router({
     .input(
       z.object({
         kind: z.enum(START_KINDS).default("blank"),
+        frameworkKey: z.string().optional(),
         title: z.string().trim().max(200).optional(),
       }),
     )
     .mutation(async ({ ctx, input }): Promise<{ id: string }> => {
+      // Blank → no blocks; Framework → copy the framework's blocks with fresh ULIDs.
+      let blocks: BlockInstance[] = [];
+      if (input.kind === "framework") {
+        const fw = input.frameworkKey ? getFrameworkDef(input.frameworkKey) : undefined;
+        if (!fw) throw new TRPCError({ code: "BAD_REQUEST", message: "Unknown framework." });
+        blocks = fw.blocks.map((b) => ({
+          instanceId: ulid(),
+          source: b.source,
+          key: b.key,
+          version: b.version,
+          config: b.config,
+        }));
+      }
       const title = input.title?.trim() || "Untitled study";
       return db.transaction(async (tx) => {
         const [exp] = await tx
@@ -376,8 +392,8 @@ export const studiesRouter = router({
             experimentId: exp.id,
             versionNumber: 1,
             kind: "autosave",
-            definitionSnapshot: {},
-            moduleVersionLocks: [],
+            definitionSnapshot: { blocks },
+            moduleVersionLocks: locksFromBlocks(blocks),
             createdBy: ctx.dbUser.id,
           })
           .returning();

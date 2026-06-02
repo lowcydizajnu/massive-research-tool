@@ -1,19 +1,19 @@
 "use client";
 
-import { Puzzle, SquarePlus, LayoutTemplate, X } from "lucide-react";
+import { LayoutTemplate, Puzzle, SquarePlus, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { api } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
 import { createStudyAction } from "@/server/studies/create";
 
 import { useNewStudy } from "./context";
 
 /**
- * New study modal (new-study-modal.md). Framework + Template are shown but
- * disabled — the Framework entity + seeded data are deferred (ADR-0011 item 9),
- * which is the wireframe's own "no Frameworks available" edge case. Blank is
- * the functional V1 path; it creates a draft and routes to its Build stage.
+ * New study modal (new-study-modal.md). Framework (V1: the in-repo built-ins)
+ * and Blank are functional; Template stays disabled (a distinct concept,
+ * deferred). Selecting Framework reveals an embedded picker, per the wireframe.
  */
 type Choice = "framework" | "template" | "blank";
 
@@ -28,9 +28,9 @@ const CARDS: {
     choice: "framework",
     label: "From a Framework",
     description:
-      "A research tradition's curated kit: schema, modules, measurement, reporting. Recommended.",
+      "A research tradition's curated kit of blocks. Recommended.",
     icon: Puzzle,
-    enabled: false,
+    enabled: true,
   },
   {
     choice: "template",
@@ -52,19 +52,23 @@ export function NewStudyModal() {
   const { isOpen, close } = useNewStudy();
   const router = useRouter();
   const [selected, setSelected] = useState<Choice | null>(null);
+  const [frameworkKey, setFrameworkKey] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Reset transient state whenever the modal opens.
+  const frameworks = api.frameworks.list.useQuery(undefined, {
+    enabled: isOpen && selected === "framework",
+  });
+
   useEffect(() => {
     if (isOpen) {
       setSelected(null);
+      setFrameworkKey(null);
       setSubmitting(false);
       setError(null);
     }
   }, [isOpen]);
 
-  // Esc closes (unless submitting).
   useEffect(() => {
     if (!isOpen) return;
     const onKey = (e: KeyboardEvent) => {
@@ -76,12 +80,21 @@ export function NewStudyModal() {
 
   if (!isOpen) return null;
 
+  const selectedFramework =
+    selected === "framework"
+      ? (frameworks.data ?? []).find((f) => f.key === frameworkKey)
+      : undefined;
+
   async function handleContinue() {
-    if (selected !== "blank") return;
+    if (!selected || selected === "template") return;
+    if (selected === "framework" && !frameworkKey) return;
     setSubmitting(true);
     setError(null);
     try {
-      const { id } = await createStudyAction({ kind: "blank" });
+      const { id } =
+        selected === "framework"
+          ? await createStudyAction({ kind: "framework", frameworkKey: frameworkKey! })
+          : await createStudyAction({ kind: "blank" });
       close();
       router.push(`/studies/${id}/build`);
     } catch {
@@ -89,6 +102,15 @@ export function NewStudyModal() {
       setError("Couldn't create the study. Try again.");
     }
   }
+
+  const primaryLabel =
+    selected === "framework"
+      ? selectedFramework
+        ? `Continue with ${selectedFramework.name}`
+        : "Continue"
+      : "Create blank study";
+  const primaryDisabled =
+    submitting || (selected === "framework" && !frameworkKey);
 
   return (
     <div
@@ -163,6 +185,48 @@ export function NewStudyModal() {
           })}
         </div>
 
+        {/* Embedded framework picker */}
+        {selected === "framework" ? (
+          <div
+            role="listbox"
+            aria-label="Frameworks"
+            className="flex max-h-[200px] flex-col gap-2 overflow-auto rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-2"
+          >
+            {frameworks.isLoading ? (
+              <p className="px-2 py-1 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                Loading…
+              </p>
+            ) : (frameworks.data ?? []).length === 0 ? (
+              <p className="px-2 py-1 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                No Frameworks available in this workspace.
+              </p>
+            ) : (
+              (frameworks.data ?? []).map((f) => (
+                <button
+                  key={f.key}
+                  type="button"
+                  role="option"
+                  aria-selected={frameworkKey === f.key}
+                  onClick={() => setFrameworkKey(f.key)}
+                  className={cn(
+                    "flex flex-col items-start rounded-[var(--radius-md)] px-2 py-1.5 text-left",
+                    frameworkKey === f.key
+                      ? "bg-[var(--color-primary-subtle)]"
+                      : "hover:bg-[var(--color-surface-subtle)]",
+                  )}
+                >
+                  <span className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">
+                    {f.name}
+                  </span>
+                  <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                    {f.description} · {f.blockCount} block{f.blockCount === 1 ? "" : "s"}
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+        ) : null}
+
         {error ? (
           <p
             role="alert"
@@ -172,7 +236,7 @@ export function NewStudyModal() {
           </p>
         ) : null}
 
-        {selected ? (
+        {selected && selected !== "template" ? (
           <div className="flex items-center justify-end gap-3">
             <button
               type="button"
@@ -184,10 +248,10 @@ export function NewStudyModal() {
             <button
               type="button"
               onClick={handleContinue}
-              disabled={submitting}
+              disabled={primaryDisabled}
               className="rounded-[var(--radius-md)] bg-[var(--color-primary)] px-4 py-2 text-[length:var(--text-body-emphasis)] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80 disabled:opacity-60"
             >
-              {submitting ? "Creating…" : "Create blank study"}
+              {submitting ? "Creating…" : primaryLabel}
             </button>
           </div>
         ) : null}
