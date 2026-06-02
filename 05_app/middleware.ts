@@ -13,6 +13,7 @@
  * moment it lands.
  */
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
 
 const isProtectedRoute = createRouteMatcher([
   "/studies(.*)",
@@ -22,8 +23,14 @@ const isProtectedRoute = createRouteMatcher([
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
-  if (isProtectedRoute(req)) {
-    await auth.protect();
+  if (!isProtectedRoute(req)) return;
+  const { userId } = await auth();
+  if (!userId) {
+    // Redirect to our own sign-in (not Clerk's hosted page). auth.protect()
+    // would target the Account Portal; we own the auth surface (ADR-0007).
+    const signIn = new URL("/signin", req.url);
+    signIn.searchParams.set("redirect_url", req.url);
+    return NextResponse.redirect(signIn);
   }
 });
 
