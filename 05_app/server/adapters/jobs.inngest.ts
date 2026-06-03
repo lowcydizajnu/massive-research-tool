@@ -29,6 +29,16 @@ export const inngestJobs: BackgroundJobAdapter = {
         await runRegistryPush(data as JobCatalog["registry.push"]).catch(() => undefined);
         return;
       }
+      if (name === "notification.fanout") {
+        const { runNotificationFanout } = await import("@/server/jobs/notification-fanout");
+        await runNotificationFanout(data as JobCatalog["notification.fanout"]).catch(() => undefined);
+        return;
+      }
+      if (name === "email.digest") {
+        const { runEmailDigest } = await import("@/server/jobs/notification-fanout");
+        await runEmailDigest(data as JobCatalog["email.digest"]).catch(() => undefined);
+        return;
+      }
       throw err;
     }
   },

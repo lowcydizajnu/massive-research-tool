@@ -15,6 +15,7 @@ import {
   type AnyPgColumn,
   boolean,
   check,
+  index,
   integer,
   jsonb,
   numeric,
@@ -411,6 +412,134 @@ export const registryPush = pgTable("registry_push", {
   completedAt: timestamp("completed_at", { withTimezone: true }),
 });
 
+/* ---------- V1.7: notifications, comments, activity (ADR-0015) ----------
+ * Own PKs are text ULIDs; FKs to existing tables use their column type (uuid
+ * for user/workspace/experiment), polymorphic refs are plain text — the V1.5
+ * mixed-id pattern. target_type/status use text + CHECK (the ADR's open enums).
+ */
+
+// Comments on a study or a specific block instance.
+export const comment = pgTable(
+  "comment",
+  {
+    id: text("id").primaryKey(), // ULID
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspace.id),
+    targetType: text("target_type").notNull(), // 'study' | 'block_instance'
+    targetId: text("target_id").notNull(), // experiment.id (as text) OR block instanceId — polymorphic, no FK
+    experimentId: uuid("experiment_id")
+      .notNull()
+      .references(() => experiment.id),
+    authorUserId: uuid("author_user_id")
+      .notNull()
+      .references(() => user.id),
+    bodyMd: text("body_md").notNull(),
+    status: text("status").notNull().default("open"), // 'open' | 'resolved'
+    resolvedByUserId: uuid("resolved_by_user_id").references(() => user.id),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    editedAt: timestamp("edited_at", { withTimezone: true }),
+  },
+  (t) => [
+    check("comment_target_type", sql`${t.targetType} IN ('study', 'block_instance')`),
+    check("comment_status", sql`${t.status} IN ('open', 'resolved')`),
+    index("idx_comment_target").on(t.targetType, t.targetId, t.createdAt.desc()),
+    index("idx_comment_experiment").on(t.experimentId, t.createdAt.desc()),
+  ],
+);
+
+// @mentions inside a comment, resolved at write time.
+export const mention = pgTable(
+  "mention",
+  {
+    id: text("id").primaryKey(), // ULID
+    commentId: text("comment_id")
+      .notNull()
+      .references(() => comment.id, { onDelete: "cascade" }),
+    mentionedUserId: uuid("mentioned_user_id")
+      .notNull()
+      .references(() => user.id),
+    notifiedAt: timestamp("notified_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("mention_comment_user_unique").on(t.commentId, t.mentionedUserId)],
+);
+
+// One row per recipient × event — the Yours feed + unread counts.
+export const notification = pgTable(
+  "notification",
+  {
+    id: text("id").primaryKey(), // ULID
+    recipientUserId: uuid("recipient_user_id")
+      .notNull()
+      .references(() => user.id),
+    type: text("type").notNull(), // EventType (open enum)
+    sourceEventId: text("source_event_id").notNull(), // ULID of the originating activity_event (idempotency anchor)
+    targetType: text("target_type").notNull(),
+    targetId: text("target_id").notNull(),
+    actorUserId: uuid("actor_user_id").references(() => user.id),
+    payload: jsonb("payload").notNull().default({}),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    // Idempotency: an event reaches a recipient at most once.
+    uniqueIndex("notification_recipient_event_unique").on(t.recipientUserId, t.sourceEventId),
+    index("idx_notification_recipient_unread")
+      .on(t.recipientUserId)
+      .where(sql`${t.readAt} IS NULL`),
+    index("idx_notification_recipient_recent").on(t.recipientUserId, t.createdAt.desc()),
+  ],
+);
+
+// Append-only event log — the Follows feed (and audit).
+export const activityEvent = pgTable(
+  "activity_event",
+  {
+    id: text("id").primaryKey(), // ULID
+    type: text("type").notNull(),
+    actorUserId: uuid("actor_user_id").references(() => user.id),
+    workspaceId: uuid("workspace_id").references(() => workspace.id), // nullable for cross-workspace events
+    targetType: text("target_type").notNull(),
+    targetId: text("target_id").notNull(),
+    // Denormalized "followable attributes" of the target — drives the Follows join.
+    relatedTagSlugs: text("related_tag_slugs").array(),
+    relatedAuthorUserId: uuid("related_author_user_id").references(() => user.id),
+    relatedFrameworkId: text("related_framework_id"),
+    relatedStudyId: text("related_study_id"),
+    payload: jsonb("payload").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_activity_event_recent").on(t.createdAt.desc()),
+    index("idx_activity_event_tag").using("gin", t.relatedTagSlugs),
+    index("idx_activity_event_author").on(t.relatedAuthorUserId, t.createdAt.desc()),
+    index("idx_activity_event_framework").on(t.relatedFrameworkId, t.createdAt.desc()),
+    index("idx_activity_event_study").on(t.relatedStudyId, t.createdAt.desc()),
+  ],
+);
+
+// A user's follow targets (tag / author / framework / study).
+export const follow = pgTable(
+  "follow",
+  {
+    id: text("id").primaryKey(), // ULID
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id),
+    targetType: text("target_type").notNull(), // 'tag' | 'author' | 'framework' | 'study'
+    targetId: text("target_id").notNull(), // tag slug, or the entity id (as text)
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check("follow_target_type", sql`${t.targetType} IN ('tag', 'author', 'framework', 'study')`),
+    uniqueIndex("follow_user_target_unique").on(t.userId, t.targetType, t.targetId),
+    index("idx_follow_user").on(t.userId),
+    index("idx_follow_target").on(t.targetType, t.targetId),
+  ],
+);
+
 /* ---------- inferred types ---------- */
 
 export type User = typeof user.$inferSelect;
@@ -438,3 +567,13 @@ export type RegistryConnection = typeof registryConnection.$inferSelect;
 export type NewRegistryConnection = typeof registryConnection.$inferInsert;
 export type RegistryPush = typeof registryPush.$inferSelect;
 export type NewRegistryPush = typeof registryPush.$inferInsert;
+export type Comment = typeof comment.$inferSelect;
+export type NewComment = typeof comment.$inferInsert;
+export type Mention = typeof mention.$inferSelect;
+export type NewMention = typeof mention.$inferInsert;
+export type Notification = typeof notification.$inferSelect;
+export type NewNotification = typeof notification.$inferInsert;
+export type ActivityEvent = typeof activityEvent.$inferSelect;
+export type NewActivityEvent = typeof activityEvent.$inferInsert;
+export type Follow = typeof follow.$inferSelect;
+export type NewFollow = typeof follow.$inferInsert;
