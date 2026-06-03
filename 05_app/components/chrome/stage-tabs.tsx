@@ -15,6 +15,7 @@ type Stage = (typeof STAGES)[number];
 function hrefFor(stage: Stage, studyId: string): Route | null {
   if (stage === "Build") return `/studies/${studyId}/build` as Route;
   if (stage === "Preregister") return `/studies/${studyId}/preregister` as Route;
+  if (stage === "Run") return `/studies/${studyId}/run` as Route;
   return null;
 }
 
