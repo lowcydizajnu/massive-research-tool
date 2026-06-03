@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { cn } from "@/lib/utils";
 import { registry } from "@/server/adapters/registry";
+import { isOsfConfigured } from "@/server/adapters/registry.osf";
 import { getCurrentDbUser } from "@/server/auth/current-db-user";
 import { disconnectOsfAction } from "@/server/registry/disconnect";
 
@@ -30,7 +31,7 @@ export default async function AccountSettingsPage({
   if (!dbUser) redirect("/signin");
 
   const connection = await registry.getConnection(dbUser.id);
-  const osfConfigured = !!process.env.OSF_CLIENT_ID;
+  const osfConfigured = isOsfConfigured();
   const flag = (await searchParams).osf;
 
   return (
@@ -89,7 +90,7 @@ export default async function AccountSettingsPage({
             </div>
             {!osfConfigured ? (
               <div className="mt-1 text-[length:var(--text-small)] text-[var(--color-warning-text-on-subtle)]">
-                OSF app not configured on this server (set OSF_CLIENT_ID / OSF_CLIENT_SECRET).
+                OSF app not configured on this server (set OSF_OAUTH_CLIENT_ID / OSF_OAUTH_CLIENT_SECRET / OSF_OAUTH_REDIRECT_URI).
               </div>
             ) : null}
           </div>
@@ -105,7 +106,7 @@ export default async function AccountSettingsPage({
             </form>
           ) : (
             <Link
-              href="/api/registry/osf/connect"
+              href="/api/auth/osf/connect"
               className={cn(
                 "shrink-0 rounded-[var(--radius-md)] px-3 py-1.5 text-[length:var(--text-body-emphasis)] font-medium text-white",
                 osfConfigured

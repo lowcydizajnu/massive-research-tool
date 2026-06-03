@@ -29,14 +29,12 @@ export type RegistrationPayload = {
 export type PushResult = { doi: string; url: string };
 
 export interface RegistryAdapter {
-  /** OAuth: the URL a user visits to authorize their registry account. */
-  getAuthorizeUrl(input: { userId: string; redirectUri: string; state: string }): string;
+  /** OAuth: the URL a user visits to authorize their registry account. The
+   *  redirect URI is adapter config (must match the registered app), not a
+   *  per-call value. */
+  getAuthorizeUrl(input: { userId: string; state: string }): string;
   /** OAuth callback: exchange the code and store encrypted tokens for the user. */
-  completeConnection(input: {
-    userId: string;
-    code: string;
-    redirectUri: string;
-  }): Promise<void>;
+  completeConnection(input: { userId: string; code: string }): Promise<void>;
   /** Revoke the user's connection locally (does not delete already-pushed registrations). */
   disconnect(userId: string): Promise<void>;
   /** Whether the user has an active connection. */
