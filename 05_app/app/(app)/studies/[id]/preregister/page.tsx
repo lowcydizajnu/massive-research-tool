@@ -183,6 +183,18 @@ export default async function PreregisterStagePage({
             {pre.pushStatus === "failed" || pre.pushStatus === "no_credentials" ? (
               <RetryPushButton studyId={study.id} />
             ) : null}
+
+            <div className="mt-2 flex flex-col gap-2 border-t border-[var(--color-border-subtle)] pt-4">
+              <p className="max-w-prose text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+                Changed the design since this preregistration? Preregister the current draft as a
+                new version — it snapshots your latest blocks and conditions and submits them to OSF.
+              </p>
+              <PreregisterButton studyId={study.id} label="Preregister current draft" variant="secondary" />
+              <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                This creates a fresh preregistration. Linking it as a formal amendment to the prior
+                one (with a change summary) arrives with the amendment flow.
+              </p>
+            </div>
           </section>
         )}
       </div>
