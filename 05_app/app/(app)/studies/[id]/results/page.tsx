@@ -106,14 +106,36 @@ export default async function ResultsStagePage({
                   {results.questions.map((q) => (
                     <li
                       key={q.instanceId}
-                      className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-2"
+                      className="flex flex-col gap-1 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-2"
                     >
-                      <span className="min-w-0 truncate text-[length:var(--text-body)] text-[var(--color-text-primary)]">
-                        {q.prompt}
-                      </span>
-                      <span className="shrink-0 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
-                        {q.mean !== null ? `mean ${q.mean.toFixed(2)} · n=${q.n}` : `n=${q.n}`}
-                      </span>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="min-w-0 truncate text-[length:var(--text-body)] text-[var(--color-text-primary)]">
+                          {q.prompt}
+                        </span>
+                        <span className="shrink-0 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+                          {q.kind === "numeric" && q.mean !== null
+                            ? `mean ${q.mean.toFixed(2)} · n=${q.n}`
+                            : `n=${q.n}`}
+                        </span>
+                      </div>
+                      {q.kind === "categorical" && q.optionCounts.length ? (
+                        <ul className="flex flex-col gap-0.5 pl-1 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                          {q.optionCounts
+                            .slice()
+                            .sort((a, b) => b.count - a.count)
+                            .map((o) => (
+                              <li key={o.value} className="flex justify-between gap-2">
+                                <span className="min-w-0 truncate">{o.value}</span>
+                                <span className="shrink-0">{o.count}</span>
+                              </li>
+                            ))}
+                        </ul>
+                      ) : null}
+                      {q.kind === "text" ? (
+                        <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                          Open-ended — see CSV export for responses.
+                        </span>
+                      ) : null}
                     </li>
                   ))}
                 </ul>

@@ -45,8 +45,9 @@ export default async function QuestionPage({
         <input type="hidden" name="studyId" value={studyId} />
         <input type="hidden" name="responseId" value={sessionId} />
         <input type="hidden" name="questionIndex" value={index} />
+        <input type="hidden" name="moduleKey" value={q.block.key} />
 
-        <BlockView block={q.block} />
+        <BlockView block={q.block} seed={sessionId} />
 
         {errorMsg ? (
           <p role="alert" className="text-[length:var(--text-small)] text-[var(--color-danger-text-on-subtle)]">

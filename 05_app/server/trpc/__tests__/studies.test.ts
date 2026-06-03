@@ -685,6 +685,40 @@ describe("studies.getResults (end-to-end)", () => {
     const { id } = await caller.studies.create({ kind: "blank", title: "S" });
     expect(await caller.studies.getResults({ studyId: id })).toBeNull();
   });
+
+  it("summarizes a multiple-choice question as per-option counts + a stringified CSV cell", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    const { instanceId } = await caller.studies.addBlock({
+      studyId: id,
+      source: "core",
+      key: "multiple-choice",
+      version: "1.0.0",
+    });
+    await caller.studies.updateBlockConfig({
+      studyId: id,
+      instanceId,
+      config: { prompt: "Pick", options: ["A", "B"], multiple: false, required: true, randomizeOrder: false },
+    });
+    await caller.studies.preregister({ studyId: id });
+    await caller.studies.openRecruitment({ studyId: id });
+
+    const open = await resolveOpenRecruitment(id);
+    const started = await startResponse({
+      recruitmentSessionId: open!.recruitmentSessionId,
+      mode: "run",
+      externalPid: null,
+    });
+    const responseId = (started as { responseId: string }).responseId;
+    await recordAnswer({ responseId, questionIndex: 0, answer: { selected: ["B"] } });
+
+    const results = await caller.studies.getResults({ studyId: id });
+    const q = results!.questions[0];
+    expect(q).toMatchObject({ moduleKey: "multiple-choice", kind: "categorical", n: 1, mean: null });
+    expect(q.optionCounts).toEqual([{ value: "B", count: 1 }]);
+    expect(results!.rows[0].answers[instanceId]).toBe("B");
+  });
 });
 
 describe("role enforcement", () => {
