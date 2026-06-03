@@ -63,6 +63,55 @@ async function writeBlocks(
   await db.update(experiment).set({ updatedAt: new Date() }).where(eq(experiment.id, studyId));
 }
 
+/** A condition as the Builder UI consumes it (weight as a number). */
+export type ConditionRow = {
+  id: string;
+  slug: string;
+  name: string;
+  allocationWeight: number;
+  position: number;
+};
+
+function toConditionRow(row: typeof conditionTable.$inferSelect): ConditionRow {
+  return {
+    id: row.id,
+    slug: row.slug,
+    name: row.name,
+    allocationWeight: Number(row.allocationWeight),
+    position: row.position,
+  };
+}
+
+async function conditionsForVersion(versionId: string): Promise<ConditionRow[]> {
+  const rows = await db
+    .select()
+    .from(conditionTable)
+    .where(eq(conditionTable.experimentVersionId, versionId))
+    .orderBy(conditionTable.position);
+  return rows.map(toConditionRow);
+}
+
+async function conditionSlugs(versionId: string): Promise<Set<string>> {
+  return new Set((await conditionsForVersion(versionId)).map((c) => c.slug));
+}
+
+/** kebab-case slug: lowercase, non-alphanumerics → single hyphen, trimmed. */
+function slugify(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+/** Ensure a slug is unique within `taken` by appending -2, -3, … */
+function uniqueSlug(base: string, taken: Set<string>): string {
+  if (!taken.has(base)) return base;
+  for (let i = 2; ; i++) {
+    const candidate = `${base}-${i}`;
+    if (!taken.has(candidate)) return candidate;
+  }
+}
+
 /**
  * How a new study begins (new-study-modal wireframe). Framework + Template
  * require the Framework entity + seeded data (ADR-0011 item 9), so V1 ships
@@ -367,6 +416,141 @@ export const studiesRouter = router({
     }),
 
   /**
+   * Set a block's condition-visibility (builder-conditions.md, ADR-0014).
+   * `showIfCondition` is a list of condition *slugs* that must all exist for the
+   * study; empty = shown to everyone (the visibility key is removed).
+   */
+  setBlockVisibility: writeProcedure
+    .input(
+      z.object({
+        studyId: z.string().uuid(),
+        instanceId: z.string(),
+        showIfCondition: z.array(z.string()).default([]),
+      }),
+    )
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+      const slugs = await conditionSlugs(tip.version.id);
+      const unknown = input.showIfCondition.filter((s) => !slugs.has(s));
+      if (unknown.length) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Unknown condition(s): ${unknown.join(", ")}`,
+        });
+      }
+      const blocks = readBlocks(tip.version.definitionSnapshot);
+      const idx = blocks.findIndex((b) => b.instanceId === input.instanceId);
+      if (idx === -1) throw new TRPCError({ code: "NOT_FOUND" });
+      const next = { ...blocks[idx] };
+      if (input.showIfCondition.length) next.visibility = { showIfCondition: input.showIfCondition };
+      else delete next.visibility;
+      blocks[idx] = next;
+      await writeBlocks(tip.version.id, input.studyId, blocks);
+      return { ok: true };
+    }),
+
+  /** List the study's conditions (working-tip version), in display order. */
+  listConditions: workspaceProcedure
+    .input(z.object({ studyId: z.string().uuid() }))
+    .query(async ({ ctx, input }): Promise<ConditionRow[]> => {
+      const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+      return conditionsForVersion(tip.version.id);
+    }),
+
+  /** Add a condition to the working-tip version (slug auto-derived, unique). */
+  addCondition: writeProcedure
+    .input(z.object({ studyId: z.string().uuid(), name: z.string().trim().min(1).max(80) }))
+    .mutation(async ({ ctx, input }): Promise<ConditionRow> => {
+      const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+      const existing = await conditionsForVersion(tip.version.id);
+      const taken = new Set(existing.map((c) => c.slug));
+      const slug = uniqueSlug(slugify(input.name) || "condition", taken);
+      const position = existing.length;
+      const [row] = await db
+        .insert(conditionTable)
+        .values({
+          id: ulid(),
+          experimentVersionId: tip.version.id,
+          slug,
+          name: input.name,
+          allocationWeight: "1.0",
+          position,
+        })
+        .returning();
+      await db.update(experiment).set({ updatedAt: new Date() }).where(eq(experiment.id, input.studyId));
+      return toConditionRow(row);
+    }),
+
+  /** Update a condition's name / slug / weight. Slug locks once a block uses it. */
+  updateCondition: writeProcedure
+    .input(
+      z.object({
+        studyId: z.string().uuid(),
+        conditionId: z.string(),
+        name: z.string().trim().min(1).max(80).optional(),
+        slug: z.string().trim().min(1).max(60).optional(),
+        allocationWeight: z.number().min(0).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }): Promise<ConditionRow> => {
+      const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+      const all = await conditionsForVersion(tip.version.id);
+      const target = all.find((c) => c.id === input.conditionId);
+      if (!target) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const set: Record<string, unknown> = {};
+      if (input.name !== undefined) set.name = input.name;
+      if (input.allocationWeight !== undefined) set.allocationWeight = String(input.allocationWeight);
+      if (input.slug !== undefined && input.slug !== target.slug) {
+        const desired = slugify(input.slug);
+        if (all.some((c) => c.id !== target.id && c.slug === desired)) {
+          throw new TRPCError({ code: "CONFLICT", message: "A condition with this slug already exists." });
+        }
+        // Slug locks once a block references it (visibility stores slugs).
+        const referenced = readBlocks(tip.version.definitionSnapshot).some((b) =>
+          b.visibility?.showIfCondition?.includes(target.slug),
+        );
+        if (referenced) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "This condition's slug is locked because a block shows only to it. Rename the name instead.",
+          });
+        }
+        set.slug = desired;
+      }
+      const [row] = await db
+        .update(conditionTable)
+        .set(set)
+        .where(eq(conditionTable.id, target.id))
+        .returning();
+      await db.update(experiment).set({ updatedAt: new Date() }).where(eq(experiment.id, input.studyId));
+      return toConditionRow(row);
+    }),
+
+  /** Remove a condition + strip its slug from every block's visibility. */
+  removeCondition: writeProcedure
+    .input(z.object({ studyId: z.string().uuid(), conditionId: z.string() }))
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+      const all = await conditionsForVersion(tip.version.id);
+      const target = all.find((c) => c.id === input.conditionId);
+      if (!target) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const blocks = readBlocks(tip.version.definitionSnapshot).map((b) => {
+        const gate = b.visibility?.showIfCondition;
+        if (!gate?.includes(target.slug)) return b;
+        const next = gate.filter((s) => s !== target.slug);
+        const nb = { ...b };
+        if (next.length) nb.visibility = { showIfCondition: next };
+        else delete nb.visibility;
+        return nb;
+      });
+      await writeBlocks(tip.version.id, input.studyId, blocks);
+      await db.delete(conditionTable).where(eq(conditionTable.id, target.id));
+      return { ok: true };
+    }),
+
+  /**
    * Save as a named version — snapshot the autosave working tip into a new
    * immutable `named` version (ADR-0012). The autosave continues unchanged.
    * Label must be unique within the study's history.
@@ -465,6 +649,25 @@ export const studiesRouter = router({
             registryPushStatus: pushStatus,
           })
           .returning();
+
+        // Conditions FK to experiment_version (ADR-0014), so freeze them into
+        // the immutable snapshot too — copy the working-tip conditions onto the
+        // new preregistered version (fresh ULIDs, same slug/name/weight/position
+        // so the slug-based block visibility carries over unchanged).
+        const tipConditions = await conditionsForVersion(tip.version.id);
+        if (tipConditions.length) {
+          await db.insert(conditionTable).values(
+            tipConditions.map((c) => ({
+              id: ulid(),
+              experimentVersionId: pre.id,
+              slug: c.slug,
+              name: c.name,
+              allocationWeight: String(c.allocationWeight),
+              position: c.position,
+            })),
+          );
+        }
+
         await db
           .update(experiment)
           .set({ updatedAt: new Date() })
