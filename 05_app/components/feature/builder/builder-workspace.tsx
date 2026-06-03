@@ -9,6 +9,8 @@ import { api } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
 import type { StudyBlock, StudyDetail } from "@/server/trpc/routers/studies";
 
+import { BlockVisibilityField } from "./block-visibility-field";
+import { ConditionsSection } from "./conditions-section";
 import { ConfigureForm } from "./configure-form";
 import { ModulePicker } from "./module-picker";
 import { SaveVersionDialog } from "./save-version-dialog";
@@ -175,18 +177,25 @@ export function BuilderWorkspace({ study: initial }: { study: StudyDetail }) {
         </nav>
 
         {selected ? (
-          <ConfigureForm
-            key={selected.instanceId}
-            block={selected}
-            pending={updateConfig.isPending || removeBlock.isPending}
-            onChange={(config) =>
-              updateConfig.mutate({ studyId: study.id, instanceId: selected.instanceId, config })
-            }
-            onRemove={() => {
-              removeBlock.mutate({ studyId: study.id, instanceId: selected.instanceId });
-              setSelectedId(null);
-            }}
-          />
+          <>
+            <ConfigureForm
+              key={selected.instanceId}
+              block={selected}
+              pending={updateConfig.isPending || removeBlock.isPending}
+              onChange={(config) =>
+                updateConfig.mutate({ studyId: study.id, instanceId: selected.instanceId, config })
+              }
+              onRemove={() => {
+                removeBlock.mutate({ studyId: study.id, instanceId: selected.instanceId });
+                setSelectedId(null);
+              }}
+            />
+            <BlockVisibilityField
+              studyId={study.id}
+              instanceId={selected.instanceId}
+              current={selected.showIfCondition}
+            />
+          </>
         ) : (
           <div className="flex flex-col gap-3">
             <h2 className="font-serif text-[17px] font-medium text-[var(--color-text-primary)]">
@@ -207,6 +216,8 @@ export function BuilderWorkspace({ study: initial }: { study: StudyDetail }) {
                 {study.blocks.length}
               </span>
             </DetailRow>
+
+            <ConditionsSection studyId={study.id} />
           </div>
         )}
       </aside>

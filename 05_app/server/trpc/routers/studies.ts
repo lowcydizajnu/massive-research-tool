@@ -158,6 +158,8 @@ export type StudyBlock = {
   ref: string;
   config: Record<string, unknown>;
   complete: boolean;
+  /** Condition slugs this block is gated to; empty = shown to everyone. */
+  showIfCondition: string[];
 };
 
 export type StudyDetail = {
@@ -318,6 +320,7 @@ export const studiesRouter = router({
           ref: d.ref,
           config: b.config,
           complete: d.complete,
+          showIfCondition: b.visibility?.showIfCondition ?? [],
         };
       });
 
