@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { api } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
+import type { FollowsFeedItem } from "@/server/trpc/routers/follows";
 import type { NotificationDTO } from "@/server/trpc/routers/notifications";
 
 /**
@@ -114,12 +115,74 @@ function YoursStream() {
 }
 
 function FollowsStream() {
-  // PR-3 wires activity_event × follow + the + Follow affordances. The tab ships
-  // now so the Yours/Follows IA is legible (activity-destination.md).
+  // activity_event × follow (query-time, ADR-0015) — follow-affordances.md.
+  const { data, isLoading, isError } = api.follows.feed.useQuery();
+
+  if (isLoading) {
+    return <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">Loading…</p>;
+  }
+  if (isError) {
+    return (
+      <p role="alert" className="text-[length:var(--text-small)] text-[var(--color-danger-text-on-subtle)]">
+        Couldn’t load activity — refresh.
+      </p>
+    );
+  }
+  if (!data || data.length === 0) {
+    return (
+      <Empty>
+        Your Follows feed is empty. Follow a tag, an author, a Framework, or a study — look for
+        <strong className="font-medium"> + Follow</strong> on tags, bylines, and details panels.
+      </Empty>
+    );
+  }
+
   return (
-    <Empty>
-      Follow tags, authors, Frameworks, and studies to build your feed. Following arrives soon.
-    </Empty>
+    <ul className="flex flex-col gap-2">
+      {data.map((f) => (
+        <FollowRow key={f.id} f={f} />
+      ))}
+    </ul>
+  );
+}
+
+function FollowRow({ f }: { f: FollowsFeedItem }) {
+  const actor = f.actorName ?? "Someone";
+  const named = f.studyTitle ? `“${f.studyTitle}”` : "a study";
+  const href = f.studyId ? (`/studies/${f.studyId}` as Route) : null;
+  const text =
+    f.type === "preregister_complete"
+      ? `${actor} preregistered ${named}`
+      : f.type === "new_named_version"
+        ? `${actor} saved a new version of ${named}`
+        : f.type === "fork"
+          ? `${actor} replicated ${named}`
+          : f.type === "osf_push_complete"
+            ? `${named}'s OSF registration is live`
+            : `${actor} updated ${named}`;
+
+  return (
+    <li className="flex flex-col gap-1 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-3">
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="min-w-0 text-[length:var(--text-body)] text-[var(--color-text-primary)]">
+          {href ? (
+            <Link href={href} className="hover:underline">
+              {text}
+            </Link>
+          ) : (
+            text
+          )}
+        </p>
+        <time className="shrink-0 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+          {relativeTime(f.createdAt)}
+        </time>
+      </div>
+      {f.reasonLabel ? (
+        <span className="w-fit text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+          Following {f.reasonLabel}
+        </span>
+      ) : null}
+    </li>
   );
 }
 

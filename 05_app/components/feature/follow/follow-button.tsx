@@ -1,0 +1,63 @@
+"use client";
+
+import { api } from "@/lib/trpc/react";
+import { cn } from "@/lib/utils";
+import type { FollowTargetType } from "@/server/trpc/routers/follows";
+
+/**
+ * The one reusable +Follow toggle (follow-affordances.md, ADR-0015). Reads the
+ * user's follows once (cached) to decide state; follow/unfollow optimistically
+ * invalidate myFollows + the Follows feed. State is conveyed by text, never
+ * color alone; the accessible name includes the target. Parents gate rendering
+ * for self (you don't follow your own author/study).
+ */
+export function FollowButton({
+  targetType,
+  targetId,
+  name,
+  className,
+}: {
+  targetType: FollowTargetType;
+  targetId: string;
+  /** Human label for the accessible name (tag slug / author / Framework / study title). */
+  name?: string;
+  className?: string;
+}) {
+  const utils = api.useUtils();
+  const { data: mine } = api.follows.myFollows.useQuery();
+  const following = (mine ?? []).some(
+    (f) => f.targetType === targetType && f.targetId === targetId,
+  );
+  const invalidate = () => {
+    void utils.follows.myFollows.invalidate();
+    void utils.follows.feed.invalidate();
+  };
+  const follow = api.follows.follow.useMutation({ onSuccess: invalidate });
+  const unfollow = api.follows.unfollow.useMutation({ onSuccess: invalidate });
+  const pending = follow.isPending || unfollow.isPending;
+  const label = name ?? targetId;
+
+  return (
+    <button
+      type="button"
+      disabled={pending}
+      aria-pressed={following}
+      aria-label={following ? `Following ${label} — activate to unfollow` : `Follow ${label}`}
+      onClick={() =>
+        following
+          ? unfollow.mutate({ targetType, targetId })
+          : follow.mutate({ targetType, targetId })
+      }
+      className={cn(
+        "inline-flex shrink-0 items-center rounded-[var(--radius-md)] px-2 py-0.5 text-[length:var(--text-small)] font-medium",
+        following
+          ? "bg-[var(--color-primary-subtle)] text-[var(--color-primary-text-on-subtle)]"
+          : "border border-[var(--color-border-subtle)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]",
+        pending && "opacity-60",
+        className,
+      )}
+    >
+      {following ? "Following" : "+ Follow"}
+    </button>
+  );
+}

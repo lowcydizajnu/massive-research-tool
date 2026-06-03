@@ -208,6 +208,7 @@ export type StudyDetail = {
   stage: StudyStage;
   versionNumber: number;
   lastEditedAt: string;
+  ownerId: string;
   ownerName: string;
   isReplication: boolean;
   blocks: StudyBlock[];
@@ -382,6 +383,7 @@ export const studiesRouter = router({
         stage: await furthestStage(input.id),
         versionNumber: row.version?.versionNumber ?? 1,
         lastEditedAt: row.experiment.updatedAt.toISOString(),
+        ownerId: row.experiment.ownerId,
         ownerName: row.ownerName ?? "",
         isReplication: row.experiment.forkOfExperimentId !== null,
         blocks,

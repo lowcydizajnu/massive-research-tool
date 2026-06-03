@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 import { StageTabs } from "@/components/chrome/stage-tabs";
 import { EditableStudyTitle } from "@/components/feature/editable-study-title";
+import { FollowButton } from "@/components/feature/follow/follow-button";
 import { api } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
 import type { StudyBlock, StudyDetail } from "@/server/trpc/routers/studies";
@@ -35,7 +36,13 @@ function formatEdited(iso: string): string {
   }).format(new Date(iso));
 }
 
-export function BuilderWorkspace({ study: initial }: { study: StudyDetail }) {
+export function BuilderWorkspace({
+  study: initial,
+  currentUserId = null,
+}: {
+  study: StudyDetail;
+  currentUserId?: string | null;
+}) {
   const utils = api.useUtils();
   const { data } = api.studies.get.useQuery({ id: initial.id }, { initialData: initial });
   const study = data ?? initial;
@@ -228,8 +235,14 @@ export function BuilderWorkspace({ study: initial }: { study: StudyDetail }) {
               </span>
             </DetailRow>
             <DetailRow label="Owner">
-              <span className="text-[length:var(--text-body)] text-[var(--color-text-primary)]">
-                {study.ownerName || "—"}
+              <span className="flex items-center gap-2">
+                <span className="text-[length:var(--text-body)] text-[var(--color-text-primary)]">
+                  {study.ownerName || "—"}
+                </span>
+                {/* Follow the author — hidden for your own studies (follow-affordances.md). */}
+                {currentUserId && currentUserId !== study.ownerId ? (
+                  <FollowButton targetType="author" targetId={study.ownerId} name={study.ownerName} />
+                ) : null}
               </span>
             </DetailRow>
             <DetailRow label="Blocks">
@@ -237,6 +250,16 @@ export function BuilderWorkspace({ study: initial }: { study: StudyDetail }) {
                 {study.blocks.length}
               </span>
             </DetailRow>
+
+            {/* Follow this study (track a study you don't own). */}
+            {currentUserId && currentUserId !== study.ownerId ? (
+              <FollowButton
+                targetType="study"
+                targetId={study.id}
+                name={study.title}
+                className="self-start"
+              />
+            ) : null}
 
             <ConditionsSection studyId={study.id} />
           </div>

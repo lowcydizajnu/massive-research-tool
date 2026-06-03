@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { BuilderWorkspace } from "@/components/feature/builder/builder-workspace";
+import { getCurrentDbUser } from "@/server/auth/current-db-user";
 import { getServerApi } from "@/server/trpc/server";
 import type { StudyDetail } from "@/server/trpc/routers/studies";
 
@@ -25,5 +26,7 @@ export default async function BuildStagePage({
   }
   if (!study) notFound();
 
-  return <BuilderWorkspace study={study} />;
+  const dbUser = await getCurrentDbUser();
+
+  return <BuilderWorkspace study={study} currentUserId={dbUser?.id ?? null} />;
 }
