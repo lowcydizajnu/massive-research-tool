@@ -11,6 +11,7 @@ import {
   condition as conditionTable,
   experiment,
   experimentVersion,
+  member,
   recruitmentSession,
   response as responseTable,
   responseItem,
@@ -19,8 +20,10 @@ import {
 import { openRecruitment as runtimeOpenRecruitment } from "@/server/runtime/participant";
 import { getFrameworkDef } from "@/server/frameworks/registry";
 import {
+  type BlockDiff,
   type BlockInstance,
   blockDisplay,
+  diffBlocks,
   locksFromBlocks,
   readBlocks,
   validateConfig,
@@ -108,6 +111,85 @@ async function conditionsForVersion(versionId: string): Promise<ConditionRow[]> 
 
 async function conditionSlugs(versionId: string): Promise<Set<string>> {
   return new Set((await conditionsForVersion(versionId)).map((c) => c.slug));
+}
+
+/**
+ * The ONE permission-gated cross-tenant read (ADR-0018). Loads a fork source
+ * WITHOUT the active-workspace filter, and only if the caller may fork it:
+ * forkable_by = 'public' (anyone) OR the caller is an active member of the
+ * source's workspace (same-workspace forks of any forkability). Returns the
+ * source experiment + the version to pin (latest runnable, else the tip).
+ * link-only is recognised but deferred (treated as not-forkable cross-tenant).
+ */
+async function loadForkSource(studyId: string, callerUserId: string) {
+  const [exp] = await db.select().from(experiment).where(eq(experiment.id, studyId)).limit(1);
+  if (!exp) throw new TRPCError({ code: "NOT_FOUND", message: "Study not found." });
+
+  const isMember =
+    (
+      await db
+        .select({ id: member.id })
+        .from(member)
+        .where(
+          and(
+            eq(member.workspaceId, exp.tenantId),
+            eq(member.userId, callerUserId),
+            eq(member.status, "active"),
+          ),
+        )
+        .limit(1)
+    ).length > 0;
+  if (!isMember && exp.forkableBy !== "public") {
+    throw new TRPCError({ code: "FORBIDDEN", message: "This study isn't open for replication." });
+  }
+
+  // Pin the latest runnable version (what's meaningful to replicate) else the tip.
+  const [runnable] = await db
+    .select()
+    .from(experimentVersion)
+    .where(
+      and(
+        eq(experimentVersion.experimentId, studyId),
+        inArray(experimentVersion.kind, RUNNABLE_KINDS),
+      ),
+    )
+    .orderBy(desc(experimentVersion.versionNumber))
+    .limit(1);
+  let version = runnable;
+  if (!version && exp.currentVersionId) {
+    [version] = await db
+      .select()
+      .from(experimentVersion)
+      .where(eq(experimentVersion.id, exp.currentVersionId))
+      .limit(1);
+  }
+  if (!version) {
+    throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Nothing to replicate yet." });
+  }
+  return { experiment: exp, version };
+}
+
+/** Current-tip blocks of an experiment (for the replication diff). */
+async function studyTipBlocks(exp: typeof experiment.$inferSelect): Promise<BlockInstance[]> {
+  if (!exp.currentVersionId) return [];
+  const [v] = await db
+    .select({ snapshot: experimentVersion.definitionSnapshot })
+    .from(experimentVersion)
+    .where(eq(experimentVersion.id, exp.currentVersionId))
+    .limit(1);
+  return readBlocks(v?.snapshot);
+}
+
+/** Cross-tenant load of an experiment + its tip blocks + author name (ADR-0018 replications read). */
+async function studyMeta(studyId: string) {
+  const [exp] = await db.select().from(experiment).where(eq(experiment.id, studyId)).limit(1);
+  if (!exp) return null;
+  const [u] = await db
+    .select({ name: user.displayName })
+    .from(user)
+    .where(eq(user.id, exp.ownerId))
+    .limit(1);
+  return { exp, blocks: await studyTipBlocks(exp), authorName: u?.name ?? "" };
 }
 
 /** kebab-case slug: lowercase, non-alphanumerics → single hyphen, trimmed. */
@@ -225,9 +307,20 @@ export type StudyDetail = {
   ownerId: string;
   ownerName: string;
   tags: string[];
+  forkableBy: "public" | "link-only" | "private";
   isReplication: boolean;
   blocks: StudyBlock[];
 };
+
+/** A node in a study's replication family (ADR-0018). `diff` is withheld (null) when the caller can't see the other study's protocol. */
+export type ReplicationNode = {
+  studyId: string;
+  title: string;
+  authorName: string;
+  canSeeDetail: boolean;
+  diff: BlockDiff | null;
+};
+export type ReplicationsView = { parent: ReplicationNode | null; children: ReplicationNode[] };
 
 export type RegistryPushStatus =
   | "not_pushed"
@@ -401,9 +494,75 @@ export const studiesRouter = router({
         ownerId: row.experiment.ownerId,
         ownerName: row.ownerName ?? "",
         tags: row.experiment.tags ?? [],
+        forkableBy: row.experiment.forkableBy,
         isReplication: row.experiment.forkOfExperimentId !== null,
         blocks,
       };
+    }),
+
+  /**
+   * The replication family of a study (ADR-0018): its parent (if this study is
+   * itself a fork) + its children (studies that forked it, possibly in other
+   * workspaces). Each carries a block-level divergence diff — withheld (null)
+   * when the caller may not see the other study's protocol (not public + not
+   * the caller's workspace), so private cross-tenant protocols don't leak.
+   */
+  getReplications: workspaceProcedure
+    .input(z.object({ studyId: z.string().uuid() }))
+    .query(async ({ ctx, input }): Promise<ReplicationsView> => {
+      const [self] = await db
+        .select()
+        .from(experiment)
+        .where(
+          and(eq(experiment.id, input.studyId), eq(experiment.tenantId, ctx.workspace.id)),
+        )
+        .limit(1);
+      if (!self) throw new TRPCError({ code: "NOT_FOUND" });
+      const selfBlocks = await studyTipBlocks(self);
+
+      const canSee = (exp: typeof experiment.$inferSelect) =>
+        exp.forkableBy === "public" || exp.tenantId === ctx.workspace.id;
+
+      let parent: ReplicationNode | null = null;
+      if (self.forkOfExperimentId) {
+        const meta = await studyMeta(self.forkOfExperimentId);
+        if (meta) {
+          const visible = canSee(meta.exp);
+          parent = {
+            studyId: meta.exp.id,
+            title: meta.exp.title,
+            authorName: meta.authorName,
+            canSeeDetail: visible,
+            // How THIS study diverged from its parent.
+            diff: visible ? diffBlocks(meta.blocks, selfBlocks) : null,
+          };
+        }
+      }
+
+      const childRows = await db
+        .select()
+        .from(experiment)
+        .where(eq(experiment.forkOfExperimentId, input.studyId))
+        .orderBy(desc(experiment.createdAt));
+      const children: ReplicationNode[] = [];
+      for (const child of childRows) {
+        const visible = canSee(child);
+        const meta = visible ? await studyMeta(child.id) : null;
+        const [u] = await db
+          .select({ name: user.displayName })
+          .from(user)
+          .where(eq(user.id, child.ownerId))
+          .limit(1);
+        children.push({
+          studyId: child.id,
+          title: child.title,
+          authorName: u?.name ?? "",
+          canSeeDetail: visible,
+          // How the child diverged from THIS study.
+          diff: meta ? diffBlocks(selfBlocks, meta.blocks) : null,
+        });
+      }
+      return { parent, children };
     }),
 
   /** Rename a study (autosaves the title; the title lives on Experiment, not a version). */
@@ -1251,5 +1410,109 @@ export const studiesRouter = router({
           .where(eq(experiment.id, exp.id));
         return { id: exp.id };
       });
+    }),
+
+  /**
+   * Replicate (fork) a study into the caller's active workspace (ADR-0002 +
+   * ADR-0018). Reads the source cross-tenant via the permission-gated loader
+   * (public, or caller is a member), copies its latest runnable (else tip)
+   * snapshot — instanceIds PRESERVED so the Replications diff aligns by
+   * identity — plus its conditions, pins lineage to that version, and emits the
+   * `fork` event (notifies the source author + their Followers). The new study
+   * is private by default. No participant data is ever copied (ADR-0002 §6).
+   */
+  fork: writeProcedure
+    .input(z.object({ studyId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }): Promise<{ id: string }> => {
+      const source = await loadForkSource(input.studyId, ctx.dbUser.id);
+      const blocks = readBlocks(source.version.definitionSnapshot);
+      const sourceConditions = await conditionsForVersion(source.version.id);
+
+      const newId = await db.transaction(async (tx) => {
+        const [exp] = await tx
+          .insert(experiment)
+          .values({
+            tenantId: ctx.workspace.id,
+            ownerId: ctx.dbUser.id,
+            title: source.experiment.title,
+            tags: source.experiment.tags ?? null,
+            forkOfExperimentId: source.experiment.id,
+            forkOfVersionId: source.version.id,
+          })
+          .returning();
+        const [version] = await tx
+          .insert(experimentVersion)
+          .values({
+            experimentId: exp.id,
+            versionNumber: 1,
+            kind: "autosave",
+            definitionSnapshot: { blocks },
+            moduleVersionLocks: locksFromBlocks(blocks),
+            createdBy: ctx.dbUser.id,
+          })
+          .returning();
+        if (sourceConditions.length) {
+          await tx.insert(conditionTable).values(
+            sourceConditions.map((c) => ({
+              id: ulid(),
+              experimentVersionId: version.id,
+              slug: c.slug,
+              name: c.name,
+              allocationWeight: String(c.allocationWeight),
+              position: c.position,
+            })),
+          );
+        }
+        await tx
+          .update(experiment)
+          .set({ currentVersionId: version.id })
+          .where(eq(experiment.id, exp.id));
+        return exp.id;
+      });
+
+      // Notify the source author + their Followers (ADR-0015). Best-effort.
+      try {
+        await emit({
+          type: "fork",
+          actorUserId: ctx.dbUser.id,
+          workspaceId: ctx.workspace.id,
+          targetType: "study",
+          targetId: source.experiment.id,
+          related: {
+            authorUserId: source.experiment.ownerId,
+            studyId: source.experiment.id,
+            tagSlugs: source.experiment.tags ?? undefined,
+          },
+          data: {
+            studyId: source.experiment.id,
+            studyTitle: source.experiment.title,
+            forkStudyId: newId,
+            forkAuthorId: ctx.dbUser.id,
+          },
+        });
+      } catch {
+        // The fork succeeded; the notification is non-critical.
+      }
+      return { id: newId };
+    }),
+
+  /** Set a study's forkability (ADR-0002/0018) — owner-workspace only. */
+  setForkable: writeProcedure
+    .input(
+      z.object({
+        studyId: z.string().uuid(),
+        forkableBy: z.enum(["public", "link-only", "private"]),
+      }),
+    )
+    .mutation(async ({ ctx, input }): Promise<{ forkableBy: string }> => {
+      const [row] = await db
+        .update(experiment)
+        .set({ forkableBy: input.forkableBy, updatedAt: new Date() })
+        .where(
+          and(eq(experiment.id, input.studyId), eq(experiment.tenantId, ctx.workspace.id)),
+        )
+        .returning({ forkableBy: experiment.forkableBy });
+      if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+      return { forkableBy: row.forkableBy };
     }),
 });

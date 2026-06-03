@@ -71,3 +71,46 @@ export function blockDisplay(b: BlockInstance): {
     complete: def ? def.isComplete(b.config) : false,
   };
 }
+
+export type BlockRef = { instanceId: string; name: string; ref: string };
+export type BlockDiff = {
+  added: BlockRef[];
+  removed: BlockRef[];
+  changed: BlockRef[];
+  unchangedCount: number;
+};
+
+/** Stable JSON for config comparison (key order shouldn't count as a change). */
+function stableConfig(c: Record<string, unknown>): string {
+  return JSON.stringify(c, Object.keys(c).sort());
+}
+function refOf(b: BlockInstance): BlockRef {
+  const d = blockDisplay(b);
+  return { instanceId: b.instanceId, name: d.name, ref: d.ref };
+}
+
+/**
+ * Divergence of a forked study's blocks from its source (ADR-0018), aligned by
+ * `instanceId` — forks preserve instanceIds, so a matching id means "same
+ * block, possibly edited". A block is `changed` when its module ref
+ * (source/key@version) or its config differs. Pure + deterministic.
+ */
+export function diffBlocks(parent: BlockInstance[], child: BlockInstance[]): BlockDiff {
+  const byParent = new Map(parent.map((b) => [b.instanceId, b]));
+  const byChild = new Map(child.map((b) => [b.instanceId, b]));
+
+  const added = child.filter((b) => !byParent.has(b.instanceId)).map(refOf);
+  const removed = parent.filter((b) => !byChild.has(b.instanceId)).map(refOf);
+
+  const changed: BlockRef[] = [];
+  let unchangedCount = 0;
+  for (const c of child) {
+    const p = byParent.get(c.instanceId);
+    if (!p) continue; // counted in `added`
+    const refChanged = `${p.source}/${p.key}@${p.version}` !== `${c.source}/${c.key}@${c.version}`;
+    const configChanged = stableConfig(p.config) !== stableConfig(c.config);
+    if (refChanged || configChanged) changed.push(refOf(c));
+    else unchangedCount += 1;
+  }
+  return { added, removed, changed, unchangedCount };
+}
