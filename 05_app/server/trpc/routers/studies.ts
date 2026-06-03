@@ -433,6 +433,63 @@ export const studiesRouter = router({
     ),
 
   /**
+   * Retry the OSF push for the latest preregistered version (recovers from a
+   * `failed` / `no_credentials` push without creating a new version — the
+   * frozen snapshot is fine; only the push failed). Resets the status and
+   * re-enqueues the job if connected.
+   */
+  retryPush: writeProcedure
+    .input(z.object({ studyId: z.string().uuid() }))
+    .mutation(
+      async ({
+        ctx,
+        input,
+      }): Promise<{ pushStatus: "pending" | "no_credentials" }> => {
+        const [exp] = await db
+          .select({ id: experiment.id })
+          .from(experiment)
+          .where(and(eq(experiment.id, input.studyId), eq(experiment.tenantId, ctx.workspace.id)))
+          .limit(1);
+        if (!exp) throw new TRPCError({ code: "NOT_FOUND", message: "Study not found." });
+
+        const [pre] = await db
+          .select({ id: experimentVersion.id })
+          .from(experimentVersion)
+          .where(
+            and(
+              eq(experimentVersion.experimentId, input.studyId),
+              eq(experimentVersion.kind, "preregistered"),
+            ),
+          )
+          .orderBy(desc(experimentVersion.versionNumber))
+          .limit(1);
+        if (!pre) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "Nothing to retry — this study has no preregistration yet.",
+          });
+        }
+
+        const connection = await registry.getConnection(ctx.dbUser.id);
+        const pushStatus = connection.connected ? "pending" : "no_credentials";
+        await db
+          .update(experimentVersion)
+          .set({ registryPushStatus: pushStatus, registryPushLastError: null })
+          .where(eq(experimentVersion.id, pre.id));
+
+        if (connection.connected) {
+          await jobs.enqueue("registry.push", {
+            experimentVersionId: pre.id,
+            registryKey: "osf",
+            userId: ctx.dbUser.id,
+            isAmendment: false,
+          });
+        }
+        return { pushStatus };
+      },
+    ),
+
+  /**
    * The latest preregistered version of a study + its registry-push status
    * (drives the Preregister-stage receipt/banner). Null when never
    * preregistered. Tenant-scoped: NOT_FOUND outside the active workspace.
