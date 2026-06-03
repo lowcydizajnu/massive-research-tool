@@ -6,7 +6,15 @@ import { z } from "zod";
 import { jobs } from "@/server/adapters/jobs";
 import { registry } from "@/server/adapters/registry";
 import { db } from "@/server/db/client";
-import { experiment, experimentVersion, recruitmentSession, user } from "@/server/db/schema";
+import {
+  condition as conditionTable,
+  experiment,
+  experimentVersion,
+  recruitmentSession,
+  response as responseTable,
+  responseItem,
+  user,
+} from "@/server/db/schema";
 import { openRecruitment as runtimeOpenRecruitment } from "@/server/runtime/participant";
 import { getFrameworkDef } from "@/server/frameworks/registry";
 import {
@@ -136,6 +144,23 @@ export type PreregistrationStatus = {
 export type RunInfo = {
   isPreregistered: boolean;
   recruitment: { status: "open" | "paused" | "closed"; currentN: number } | null;
+};
+
+/** Per-condition + per-question results, plus per-response rows for CSV export. */
+export type ResultsSummary = {
+  versionNumber: number;
+  totalCompleted: number;
+  includesPreview: boolean;
+  conditions: { slug: string; name: string; completed: number }[];
+  questions: { instanceId: string; prompt: string; moduleKey: string; n: number; mean: number | null }[];
+  rows: {
+    responseId: string;
+    conditionSlug: string;
+    externalPid: string | null;
+    startedAt: string;
+    completedAt: string | null;
+    answers: Record<string, number | null>;
+  }[];
 };
 
 export const studiesRouter = router({
@@ -621,6 +646,129 @@ export const studiesRouter = router({
       }
       await runtimeOpenRecruitment(ver.id);
       return { ok: true };
+    }),
+
+  /**
+   * Results for the study's latest preregistered version (results-stage.md):
+   * per-condition completion counts, per-question summaries (likert mean + n),
+   * and per-response rows for CSV export. Excludes preview unless asked.
+   * Aggregated in-memory (V1 study sizes are small). Null if not preregistered.
+   */
+  getResults: workspaceProcedure
+    .input(
+      z.object({ studyId: z.string().uuid(), includePreview: z.boolean().default(false) }),
+    )
+    .query(async ({ ctx, input }): Promise<ResultsSummary | null> => {
+      const [ver] = await db
+        .select({ id: experimentVersion.id, n: experimentVersion.versionNumber, snapshot: experimentVersion.definitionSnapshot })
+        .from(experimentVersion)
+        .innerJoin(experiment, eq(experimentVersion.experimentId, experiment.id))
+        .where(
+          and(
+            eq(experimentVersion.experimentId, input.studyId),
+            eq(experiment.tenantId, ctx.workspace.id),
+            eq(experimentVersion.kind, "preregistered"),
+          ),
+        )
+        .orderBy(desc(experimentVersion.versionNumber))
+        .limit(1);
+      if (!ver) return null;
+
+      const conditions = await db
+        .select({ id: conditionTable.id, slug: conditionTable.slug, name: conditionTable.name, position: conditionTable.position })
+        .from(conditionTable)
+        .where(eq(conditionTable.experimentVersionId, ver.id))
+        .orderBy(conditionTable.position);
+      const condBySlug = new Map(conditions.map((c) => [c.id, c]));
+
+      const modes: ("run" | "preview")[] = input.includePreview ? ["run", "preview"] : ["run"];
+      const completed = await db
+        .select({
+          id: responseTable.id,
+          conditionId: responseTable.conditionId,
+          externalPid: responseTable.externalPid,
+          startedAt: responseTable.startedAt,
+          completedAt: responseTable.completedAt,
+        })
+        .from(responseTable)
+        .where(
+          and(
+            eq(responseTable.experimentVersionId, ver.id),
+            eq(responseTable.status, "completed"),
+            inArray(responseTable.mode, modes),
+          ),
+        );
+
+      const items = completed.length
+        ? await db
+            .select({
+              responseId: responseItem.responseId,
+              blockInstanceId: responseItem.blockInstanceId,
+              answer: responseItem.answer,
+            })
+            .from(responseItem)
+            .where(inArray(responseItem.responseId, completed.map((r) => r.id)))
+        : [];
+
+      // Per-condition completion counts (every condition shown, even at 0).
+      const completedByCondition = new Map<string, number>();
+      for (const r of completed) {
+        completedByCondition.set(r.conditionId, (completedByCondition.get(r.conditionId) ?? 0) + 1);
+      }
+
+      // Per-question summary: numeric mean + n over answer.value (likert etc.).
+      const blocks = readBlocks(ver.snapshot);
+      const questionBlocks = blocks.filter((b) => getModuleDef(b.source, b.key, b.version)?.collectsResponse);
+      const itemsByBlock = new Map<string, number[]>();
+      const answersByResponse = new Map<string, Record<string, number | null>>();
+      for (const it of items) {
+        const value =
+          it.answer && typeof it.answer === "object" && "value" in it.answer
+            ? Number((it.answer as { value: unknown }).value)
+            : NaN;
+        const v = Number.isFinite(value) ? value : null;
+        if (v !== null) {
+          const arr = itemsByBlock.get(it.blockInstanceId) ?? [];
+          arr.push(v);
+          itemsByBlock.set(it.blockInstanceId, arr);
+        }
+        const row = answersByResponse.get(it.responseId) ?? {};
+        row[it.blockInstanceId] = v;
+        answersByResponse.set(it.responseId, row);
+      }
+
+      const questions = questionBlocks.map((b) => {
+        const vals = itemsByBlock.get(b.instanceId) ?? [];
+        const n = vals.length;
+        const mean = n > 0 ? vals.reduce((a, c) => a + c, 0) / n : null;
+        return {
+          instanceId: b.instanceId,
+          prompt: typeof b.config?.prompt === "string" && b.config.prompt ? b.config.prompt : b.key,
+          moduleKey: b.key,
+          n,
+          mean,
+        };
+      });
+
+      return {
+        versionNumber: ver.n,
+        totalCompleted: completed.length,
+        includesPreview: input.includePreview,
+        conditions: conditions.map((c) => ({
+          slug: c.slug,
+          name: c.name,
+          completed: completedByCondition.get(c.id) ?? 0,
+        })),
+        questions,
+        rows: completed.map((r) => ({
+          responseId: r.id,
+          conditionSlug: condBySlug.get(r.conditionId)?.slug ?? "?",
+          externalPid: r.externalPid,
+          startedAt: r.startedAt.toISOString(),
+          completedAt: r.completedAt ? r.completedAt.toISOString() : null,
+          answers: answersByResponse.get(r.id) ?? {},
+        })),
+      };
     }),
 
   /**
