@@ -1,219 +1,130 @@
-# Deploy runbook — V1.7.0 production ship
+# Deploy runbook — V1.7.0 production ship (max-automation edition)
 
-Concrete, ordered checklist for executing the production deploy locked in [ADR-0016](./adrs/0016-production-deployment-architecture.md). Mirrors the ADR's 10-step setup checklist with current-state notes (what Code tab still owes, which env vars actually exist today) so this page is enough to work through end-to-end. **Read [ADR-0016](./adrs/0016-production-deployment-architecture.md) once for context before starting; this page is the do-list.**
+Concrete, ordered checklist for executing the production deploy locked in [ADR-0016](./adrs/0016-production-deployment-architecture.md) per the **2026-06-03 amendment** (API-driven bootstrap script — most steps automated via Code tab; owner engagement reduced from ~3-4h to **~30-40 min total**).
 
-**Order matters.** Phase 0 has to land before owner can do Phase 1. Phase 6 only runs once everything is live.
-
----
-
-## Phase 0 — Code tab pre-deploy work (~1 day; Code tab autonomously)
-
-These cannot be skipped. The deploy is contingent on them. Code tab handoff for these items is paired with this runbook (see `04_architecture/handoffs/code-tab-pre-deploy-v170.md`).
-
-- [ ] **Upstash RateLimitAdapter** at `05_app/server/adapters/ratelimit.upstash.ts` (interface in `ratelimit.ts`); reads `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN`; exposes `check(key, window): Promise<{allowed, remaining, resetMs}>`.
-- [ ] **Rate-limit calls on `/take/*`** Server Actions — keyed by `recruitment_session_id` + a coarse IP bucket from the edge headers; sliding window (3 starts/min per session + 30 answers/min per session). Closes participant-runtime security review item #9.
-- [ ] **`.github/workflows/ci.yml`** runs `npm run typecheck && npm run test && npm run build && npx playwright test --project=chromium` on every PR + push to main; uploads a status check.
-- [ ] **`.env.example` updated** with the new Upstash vars (`UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`) and a comment about Vercel-Project-env-var scoping.
-- [ ] **Vitest + new rate-limit tests green; validator clean.** (Code tab's own discipline.)
-- [ ] **Lock-in inventory updated** with Upstash entry (vendor, what's behind the adapter, migration target = self-managed Redis on Railway/Fly).
-- [ ] **Commit + push to GitHub.** (Owner okays the push since the workflow file change touches CI.)
-
-**Owner waits.** Don't start Phase 1 until Code tab pings "pre-deploy code merged."
+**Read this once start to finish before doing anything.** Then work top to bottom. Phases marked "Code tab" are not your work; they happen autonomously.
 
 ---
 
-## Phase 1 — Vendor accounts + Code tab work merged (~30 min owner)
+## Phase 0 — Code tab pre-deploy code (~1.5 days; **Code tab**, you wait)
 
-- [ ] **Vercel Hobby account** — sign up at vercel.com (free; you can upgrade to Pro later if cost ceilings change). Connect GitHub.
-- [ ] **Upstash account** — sign up at upstash.com (free tier covers V1.7.0 easily).
-- [ ] (Already have) Clerk, Neon, Inngest, OSF accounts from dev.
-- [ ] (Optional now, required before Phase 5) Domain purchased + ready to point DNS. If you don't have one, `<project>.vercel.app` is fine for the first smoke test.
+Code tab is building: Upstash rate-limiter + `/take/*` rate-limit calls + GitHub Actions CI + `.env.example` updates + `scripts/deploy-bootstrap.ts` (the API-driven setup) + `scripts/deploy-verify.ts` (the automated quality gate) + `e2e/a11y-researcher-surfaces.spec.ts` (replaces your axe DevTools click-through). Spec: [`handoffs/code-tab-pre-deploy-v170.md`](./handoffs/code-tab-pre-deploy-v170.md).
+
+**Wait** for Code tab's "Phase 0 merged" ping. Don't start Phase 1 until then.
 
 ---
 
-## Phase 2 — Per-vendor production setup (~1.5 hours owner)
+## Phase 1 — Accounts + API keys (~15 min you, one sitting)
 
-Each of these creates a **separate** production instance distinct from your existing dev keys in `.env.local`. **Do not** reuse dev keys in production — different environment, different blast radius, different rotation policy.
+Do these in any order. Goal: end this phase with every key needed for Phase 2 pasted into a local file.
 
-### 2a. Clerk production application
-
-- [ ] Clerk dashboard → **Create application** → name it (e.g., "Massive Research Tool — Production").
-- [ ] Enable: Email magic-link sign-in + Google OAuth (mirror dev).
-- [ ] Production URLs:
-  - Application home: `https://<your-domain>/`
-  - Sign-in URL: `https://<your-domain>/signin`
-  - Sign-up URL: `https://<your-domain>/signup`
-  - After sign-up URL: `https://<your-domain>/studies`
-  - After sign-in URL: `https://<your-domain>/studies`
-- [ ] **Authorized redirect URLs** (Google OAuth):
-  - `https://<your-domain>/sso-callback`
-  - `https://<your-domain>/signup/sso-callback`
-- [ ] Email-link "verify" page: `https://<your-domain>/signup/verify` (or whatever your sign-up flow expects).
-- [ ] **Copy the production keys** — Publishable + Secret. You'll paste them into Vercel in Phase 4.
-- [ ] **Do not delete the dev app** — you'll still want it for localhost testing.
-
-### 2b. OSF production application
-
-- [ ] At `osf.io/settings/applications` → **Create new application**.
-- [ ] Name: "Massive Research Tool — Production".
-- [ ] **Redirect URI**: `https://<your-domain>/api/auth/osf/callback` (this is the path `.env.example` already names as `OSF_OAUTH_REDIRECT_URI`).
-- [ ] Scope: `osf.full_write`.
-- [ ] **Copy** the production `OSF_OAUTH_CLIENT_ID` + `OSF_OAUTH_CLIENT_SECRET`.
-
-### 2c. Neon production branch
-
-- [ ] Neon dashboard → open the existing project → **Branches** → create new branch from `main` named `production` (Neon branches are full Postgres branches; isolated data but shared project).
-- [ ] **Copy** the production `DATABASE_URL` (the `pgbouncer`-pooled connection string is fine — Drizzle + postgres-js work with it).
-- [ ] Run the migration **once against production** before first deploy. From your machine:
+- [ ] **Vercel** — sign up at [vercel.com](https://vercel.com) (Hobby tier, free). Then generate a Personal Access Token at [vercel.com/account/tokens](https://vercel.com/account/tokens) (full scope, or team-scoped if you're using a team).
+- [ ] **Upstash** — sign up at [upstash.com](https://upstash.com) (free tier covers V1.7.0). Then generate a Management API key at [upstash.com/account/management-api](https://console.upstash.com/account/api).
+- [ ] **Neon** — already have an account (you have the dev branch). Generate an API key at [console.neon.tech/app/settings/api-keys](https://console.neon.tech/app/settings/api-keys). Also grab your Neon `PROJECT_ID` (visible in any branch's connection URL).
+- [ ] **Clerk** — open [dashboard.clerk.com](https://dashboard.clerk.com); **Create application** named "Massive Research Tool — Production". Don't configure anything inside it yet — the bootstrap script does that. Just grab: Publishable Key, Secret Key, and the Application ID (in the dashboard URL: `dashboard.clerk.com/apps/{APPLICATION_ID}/...`).
+- [ ] **OSF** — open [osf.io/settings/applications](https://osf.io/settings/applications); **Create new application**: name "MRT Production", redirect URI `https://<your-domain>/api/auth/osf/callback` (you'll know `<your-domain>` from the next step; come back here after if needed), scope `osf.full_write`. Grab Client ID + Client Secret.
+- [ ] **Domain** — buy if you don't have one. If your DNS provider is Cloudflare / Route53 / Namecheap (any provider with a REST API), also generate a scoped DNS API token. Otherwise you'll add one DNS record manually in Phase 3 (~2 min).
+- [ ] **TOKEN_ENCRYPTION_KEY** — open a terminal locally:
   ```sh
-  cd 05_app
-  DATABASE_URL='<production-url>' npm run db:migrate
+  openssl rand -hex 32
   ```
-  (You can also wire `db:migrate` into Vercel's build command — but running it once manually first verifies the URL is correct without a deploy.)
-- [ ] **Re-seed the module catalogue + frameworks** against production (the dev seed scripts read from `DATABASE_URL`):
-  ```sh
-  DATABASE_URL='<production-url>' npm run db:seed
-  ```
-  (Don't run `seed-network-demo.ts` against prod — that's solo-testing scaffold.)
-
-### 2d. Inngest Cloud
-
-- [ ] Inngest dashboard → **New app** → connect via Vercel integration (it'll appear after you've created the Vercel project in Phase 3).
-- [ ] Inngest auto-discovers the `/api/inngest` route handler once the Vercel app deploys.
-- [ ] **Copy** `INNGEST_EVENT_KEY` + `INNGEST_SIGNING_KEY`.
-
-### 2e. Upstash Redis
-
-- [ ] Upstash dashboard → **Create database** → Redis → single-region close to your Vercel primary region (probably `us-east-1` or `eu-central-1`); Global is overkill for V1.7.0.
-- [ ] **Copy** `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN`.
-- [ ] (Optional) Set max-memory eviction policy to `allkeys-lru` — Upstash default is fine for rate-limit keys (short TTLs).
-
-### 2f. `TOKEN_ENCRYPTION_KEY` (generate ONCE; **NEVER rotate** under V1 per ADR-0016 §6)
-
-On your machine:
-```sh
-openssl rand -hex 32
-```
-
-- [ ] Copy the output. **This will go into Vercel production env vars only.** Don't put it in `.env.local` (different value), don't commit it anywhere, don't share it.
-- [ ] **Back it up** in your password manager. If you lose it, every stored OSF token becomes garbage and every researcher has to reconnect OSF. There's no "I forgot" recovery — the key IS the recovery.
+  Copy the 64-char hex string. **Back it up in your password manager immediately.** If you lose this, every researcher has to reconnect OSF. **Do NOT paste it into the `.env.production` file from Phase 2** — it goes directly into Vercel via `vercel env add` in Phase 3.
 
 ---
 
-## Phase 3 — Vercel project creation (~10 min owner)
+## Phase 2 — Paste keys into `.env.production` (~2 min you)
 
-- [ ] Vercel dashboard → **Add new project** → Import from GitHub → pick the `Massive Research Tool` repo.
-- [ ] **Root directory**: `05_app` (not the repo root).
-- [ ] **Framework preset**: Next.js (auto-detected).
-- [ ] **Build command**: `npm run build` (default).
-- [ ] **Production branch**: `main`.
-- [ ] **Install command**: default (`npm install`).
-- [ ] **DO NOT click Deploy yet** — env vars first (Phase 4).
-
----
-
-## Phase 4 — Vercel environment variables (~15 min owner)
-
-Vercel → project → **Settings** → **Environment Variables**. **Production scope only** (uncheck Preview + Development; preview env will use a separate set later if needed).
-
-Paste each of the following with its production value from Phase 2:
-
-| Variable | Source | Scope |
-|---|---|---|
-| `NEXT_PUBLIC_SITE_URL` | `https://<your-domain>` (or `https://<project>.vercel.app` if no domain yet) | Production |
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk PROD app | Production |
-| `CLERK_SECRET_KEY` | Clerk PROD app | Production |
-| `DATABASE_URL` | Neon `production` branch | Production |
-| `INNGEST_EVENT_KEY` | Inngest Cloud | Production |
-| `INNGEST_SIGNING_KEY` | Inngest Cloud | Production |
-| `TOKEN_ENCRYPTION_KEY` | `openssl rand -hex 32` from 2f | **Production (NEVER ROTATE)** |
-| `OSF_OAUTH_CLIENT_ID` | OSF PROD app | Production |
-| `OSF_OAUTH_CLIENT_SECRET` | OSF PROD app | Production |
-| `OSF_OAUTH_REDIRECT_URI` | `https://<your-domain>/api/auth/osf/callback` | Production |
-| `OSF_API_BASE` | `https://api.osf.io/v2` | Production |
-| `OSF_AUTHORIZE_URL` | `https://accounts.osf.io/oauth2/authorize` | Production |
-| `OSF_TOKEN_URL` | `https://accounts.osf.io/oauth2/token` | Production |
-| `OSF_SCOPES` | `osf.full_write` | Production |
-| `UPSTASH_REDIS_REST_URL` | Upstash database | Production |
-| `UPSTASH_REDIS_REST_TOKEN` | Upstash database | Production |
-
-R2 + Liveblocks vars in `.env.example` are **not yet wired** (no consumers in V1.7.0); skip them. Add when the asset-storage / Whiteboard features land.
-
----
-
-## Phase 5 — Domain + SSL (~30 min owner, including DNS propagation wait)
-
-- [ ] Vercel → project → **Settings** → **Domains** → Add domain.
-- [ ] Follow Vercel's wizard — usually one `CNAME` record at your DNS provider pointing `<subdomain>` to `cname.vercel-dns.com`. Bare apex uses an `ALIAS`/`ANAME` instead.
-- [ ] Vercel auto-provisions SSL via Let's Encrypt. **Wait until SSL is green** before the smoke test.
-- [ ] **Update Clerk + OSF redirect URLs** in their respective dashboards to use the real domain (you may have used `<project>.vercel.app` in Phase 2; swap now). Yes, this is annoying. Yes, you'll forget and get an `invalid_redirect_uri` if you don't.
-
----
-
-## Phase 6 — First deploy + smoke test (~20 min owner)
-
-- [ ] Push **anything** to `main` (the pre-deploy code merge in Phase 0 was likely the first such push and may have already triggered a build; if not, push a no-op commit to trigger one).
-- [ ] Vercel build runs; if CI gate is wired (Phase 0 item) it'll skip on a failed CI status check. If green, deploys.
-- [ ] Open `https://<your-domain>/` — should land on the marketing/welcome surface.
-- [ ] **Smoke test** — mirror the V1.5 + V1.6 owner walkthroughs but on production:
-  1. Sign up as a fresh user (real email).
-  2. Build a study (any framework or blank).
-  3. **Preregister** against real OSF (a real registration will be created — feel free to use a throwaway one; OSF holds it pending your approval per `require_approval()`).
-  4. Open recruitment.
-  5. In an incognito tab: take the study as a participant.
-  6. Verify Results updates.
-- [ ] If anything errors: check Vercel **Logs** + Inngest **Runs** + Upstash **Data Browser**. Common first-deploy issues: a misnamed env var, a forgotten redirect URI update, a missed `db:migrate`.
-
----
-
-## Phase 7 — Owner-run quality gates (~1 hour owner)
-
-These are the V1.7 audit Sign-off carry-forwards. Run them against the **production URL** — preview URLs are fine for axe; the multi-user e2e needs real Clerk anyway.
-
-### 7a. Real-Clerk axe DevTools
-
-Install the axe DevTools browser extension if not already. Sign in to production. For each of these surfaces, open axe DevTools → run the WCAG 2.1 AA scan → log results:
-
-- [ ] `/studies` (Studies destination)
-- [ ] `/studies/[id]/build` (Builder — Conditions section + tag editor + forkability control + module configs)
-- [ ] `/studies/[id]/share` (Share stage — comment composer + thread)
-- [ ] `/studies/[id]/preregister` (Preregister stage)
-- [ ] `/studies/[id]/run` (Run stage — Preregister + Publish & run buttons)
-- [ ] `/studies/[id]/results` (Results stage)
-- [ ] `/activity` Yours + Follows
-- [ ] `/frameworks` Frameworks destination
-- [ ] `/studies/[id]/build` Replications tab
-
-Log each pass/fail + the specific violations into a new file at `06_qa/audit-logs/{date}-v170-axe-pass.md` (Code tab can scaffold + fix any findings as a follow-up).
-
-### 7b. Multi-user e2e on real Clerk
-
-Create three test users in Clerk (Hanna, Maya, Sofia). Add their email + password to a local-only `.env.test`:
-```
-HANNA_TEST_EMAIL=...
-HANNA_TEST_PASSWORD=...
-MAYA_TEST_EMAIL=...
-MAYA_TEST_PASSWORD=...
-SOFIA_TEST_EMAIL=...
-SOFIA_TEST_PASSWORD=...
-```
-
-From your machine, against the production URL:
 ```sh
 cd 05_app
-RUN_AUTH_E2E=1 BASE_URL='https://<your-domain>' npm run test:e2e:auth
+cp .env.production.example .env.production
 ```
 
-If selectors are stale, Code tab fixes them. Goal: the multi-workspace e2e (Hanna requests review → Maya comments + @mentions → Sofia forks → Maya sees fork in Activity Follows → Replications shows divergence) runs green end to end.
+Open `05_app/.env.production` and fill in every value from Phase 1. Save. **This file is gitignored** (the `.env*` rule in `.gitignore` covers it); verify it doesn't show in `git status`.
+
+**Do NOT add `TOKEN_ENCRYPTION_KEY` here.** That goes through `vercel env add` in Phase 3.
 
 ---
 
-## Phase 8 — Deploy audit log + V1.7.0 close (~30 min Code tab + sign-off)
+## Phase 3 — Run the bootstrap (~5 min you watching it work + ~5 min DNS wait)
 
-- [ ] Code tab drafts `06_qa/audit-logs/{date}-v170-production-deploy.md` mirroring the V1.5/V1.6 audit pattern: scope, test results (incl. the 3-user e2e), a11y (the Phase 7a log), security (rate-limiter live + the V1.7 audit items now closed), performance (Lighthouse on `/take/*` finally measurable), manual exploratory, sign-off.
-- [ ] **Owner signs off** the audit. V1.7.0 is now **publicly shippable**.
-- [ ] Tag the commit: `git tag v1.7.0 && git push origin v1.7.0`.
-- [ ] Add a `release-notes/v1.7.0.md` summarizing the user-facing additions (the review network) for posterity.
+```sh
+cd 05_app
+npm run deploy:bootstrap
+```
+
+This drives every vendor API for you. Across ~3-5 minutes you'll see:
+
+1. Validating `.env.production`...
+2. Neon: creating `production` branch, running migrations, seeding modules...
+3. Upstash: creating Redis database `mrt-production`...
+4. Vercel: creating project, pushing 15 environment variables to Production scope...
+5. Clerk Production: configuring redirect URLs, OAuth providers, sign-in/sign-up paths...
+6. Clerk Production: creating 3 `+clerk_test` users for the multi-workspace e2e...
+7. DNS (if your provider has API): adding the `CNAME` record...
+8. Vercel: registering the custom domain (SSL provisions automatically)...
+
+When it's done, paste your `TOKEN_ENCRYPTION_KEY` into Vercel:
+
+```sh
+vercel env add TOKEN_ENCRYPTION_KEY production
+# CLI prompts for value; paste the 64-char hex string from Phase 1.
+# (Do NOT echo it into the terminal via cat / heredoc — type or paste at the prompt.)
+```
+
+The bootstrap script's final summary will tell you:
+- Anything that couldn't be automated (rare: maybe an OSF reminder if your domain wasn't set at the time you created the OSF app).
+- Your `https://<your-domain>` URL.
+- The next command: `npm run deploy:verify`.
+
+**Wait for DNS to resolve.** Usually 2-15 min. You'll know when `https://<your-domain>/` loads instead of erroring. Once it does, the deploy is live — Vercel auto-deployed when the project was created (the GitHub `main` branch is the production source).
+
+---
+
+## Phase 4 — Smoke test (~5-10 min you, irreducible)
+
+This is the one part that can't be meaningfully automated — a first production deploy deserves a human walking through "do I see what I expect."
+
+Mirror the V1.5 + V1.6 owner walkthroughs but on production:
+
+- [ ] Open `https://<your-domain>/` — should land on the marketing/welcome surface.
+- [ ] Sign up as a fresh user with a real email (use a throwaway if you prefer).
+- [ ] Build a study (any framework or blank; the seeded catalogue should show 8 modules / 9 versions).
+- [ ] **Preregister** against real OSF (it'll create a real registration; OSF holds it pending your approval per `require_approval()` — feel free to use a throwaway registration since this is verification, not real research).
+- [ ] Open recruitment.
+- [ ] In an incognito tab: take the study as a participant; complete all questions.
+- [ ] Verify Results updates.
+
+If anything errors: check Vercel **Logs** + Inngest **Runs** + Upstash **Data Browser**. Common first-deploy issues:
+- A misnamed env var → fix in Vercel dashboard, redeploy via `vercel --prod`.
+- OSF redirect URI mismatch → update in OSF Dashboard to the real production URL.
+- Clerk redirect URI mismatch → update in Clerk Dashboard (the bootstrap should have done this, but Clerk sometimes needs a manual save).
+
+---
+
+## Phase 5 — Automated quality gates (~2 min you reading the report)
+
+```sh
+cd 05_app
+npm run deploy:verify
+```
+
+This runs (across ~3-5 min):
+1. HTTP smoke probe (`/`, `/signin`, `/api/health` — verifies the deploy is live + serving the expected commit SHA).
+2. `playwright test --project=auth e2e/a11y-researcher-surfaces.spec.ts` (axe-core across 9 researcher surfaces using the 3 `+clerk_test` users the bootstrap created — **this replaces the axe DevTools click-through** per ADR-0016 amendment §"Quality gates also automated").
+3. `playwright test --project=auth e2e/hanna-network.spec.ts e2e/hanna-publish-and-run.spec.ts` (the multi-workspace e2e + the V1.6 carry-forward).
+4. Writes a draft `06_qa/audit-logs/{date}-v170-production-deploy.md`.
+
+Read the summary. If anything's red, Code tab fixes it (paste the failing output to Code tab; iterate; re-run `deploy:verify`).
+
+---
+
+## Phase 6 — Sign off + tag (~5 min you + Code tab)
+
+- [ ] Open the draft `06_qa/audit-logs/{date}-v170-production-deploy.md` Code tab wrote in Phase 5; verify it reflects reality.
+- [ ] Add your sign-off line at the bottom (mirrors the V1.5/V1.6 audits): "Signed: Paweł Rosner — {date}."
+- [ ] Tell Code tab: "Tag v1.7.0 and write release notes." Code tab runs `git tag v1.7.0 && git push origin v1.7.0` (with your standing rule, asks confirmation; you confirm) and writes `release-notes/v1.7.0.md` summarizing the review network for posterity.
+
+**V1.7.0 is shipped publicly.** First time the network features are actually meaningful (Maya can review a study Hanna shared; Sofia can fork a real published study; the activity feed shows real activity).
 
 ---
 
@@ -227,10 +138,36 @@ If `TOKEN_ENCRYPTION_KEY` is somehow lost or compromised: the recovery story is 
 
 ---
 
+## Security discipline this runbook depends on (per ADR-0016 amendment "Tradeoff")
+
+- `05_app/.env.production` MUST stay gitignored. Verify with `git status` after Phase 2.
+- The five production-scoped API keys (Vercel, Neon, Upstash, Clerk Production Secret, optional DNS) live in `.env.production` on your machine. If your machine is ever compromised, revoke them immediately at each vendor's dashboard.
+- Rotate them quarterly. These are rotatable — unlike `TOKEN_ENCRYPTION_KEY`.
+- `TOKEN_ENCRYPTION_KEY` is never in `.env.production` and never enters Code tab's process. It lives in your password manager + Vercel's env var store. That's it.
+
+---
+
+## What "owner engagement" actually is
+
+| Phase | You doing | ~Time |
+|---|---|---|
+| 0 | Waiting on Code tab | 0 (you can do other things) |
+| 1 | Vendor signups + API key generation + `openssl rand -hex 32` | ~15 min |
+| 2 | Paste keys into `.env.production` | ~2 min |
+| 3 | Watch `npm run deploy:bootstrap` work + paste `TOKEN_ENCRYPTION_KEY` via `vercel env add` + DNS wait | ~5 min active + ~5-15 min DNS |
+| 4 | Smoke-click through the app | ~5-10 min |
+| 5 | Read `npm run deploy:verify` report | ~2 min |
+| 6 | Sign audit + tell Code tab to tag | ~5 min |
+| **Total active engagement** | | **~30-40 min** |
+
+If something errors mid-run, that's extra (rare; bootstrap is idempotent — just re-run after fixing). DNS propagation is wall-clock wait, not engagement.
+
+---
+
 ## References
 
-- [ADR-0016 — Production deployment architecture](./adrs/0016-production-deployment-architecture.md) (the locked decisions; this runbook is the execution side)
-- [ADR-0007 — Path A vs B](./adrs/0007-path-a-vs-b.md) (vendor lock-in + cost ceilings)
-- [Lock-in inventory](./lock-in-inventory.md) (per-vendor migration targets)
-- [V1.7 closeout audit](../06_qa/audit-logs/2026-06-03-v17-review-network.md) (the four ship carry-forwards this runbook closes)
-- [Participant-runtime security review](../06_qa/audit-logs/2026-06-03-participant-runtime-security-review.md) (item #9 — the rate-limit deferral this runbook executes)
+- [ADR-0016 — Production deployment architecture](./adrs/0016-production-deployment-architecture.md) + 2026-06-03 amendment (API-driven bootstrap)
+- [Code tab pre-deploy handoff](./handoffs/code-tab-pre-deploy-v170.md) (Phase 0 spec)
+- [Lock-in inventory](./lock-in-inventory.md)
+- [V1.7 closeout audit](../06_qa/audit-logs/2026-06-03-v17-review-network.md)
+- [Participant-runtime security review](../06_qa/audit-logs/2026-06-03-participant-runtime-security-review.md)
