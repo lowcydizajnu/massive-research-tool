@@ -201,6 +201,8 @@ export const experiment = pgTable(
       .references(() => user.id),
     title: text("title").notNull(),
     description: text("description").notNull().default(""),
+    /** Research-area tag slugs (ADR-0017) — the tag follow target's source; copied into activity_event.related_tag_slugs on emit. */
+    tags: text("tags").array(),
     /** The working tip. Nullable until the first version is written (resolves the experiment<->version circular FK). */
     currentVersionId: uuid("current_version_id").references(
       (): AnyPgColumn => experimentVersion.id,

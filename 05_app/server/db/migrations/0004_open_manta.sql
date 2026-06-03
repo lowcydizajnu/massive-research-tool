@@ -1,0 +1,1 @@
+ALTER TABLE "experiment" ADD COLUMN "tags" text[];

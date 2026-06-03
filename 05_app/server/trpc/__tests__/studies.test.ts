@@ -813,3 +813,30 @@ describe("guards", () => {
     await expect(caller.studies.list()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });
+
+describe("studies.setTags (ADR-0017)", () => {
+  it("normalizes + dedupes tags, exposes them on get, and emits tagSlugs on preregister", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+
+    const res = await caller.studies.setTags({
+      studyId: id,
+      tags: ["Misinformation Research!", "misinformation-research", "  Source Cues  "],
+    });
+    // Slugged, deduped (the first two collapse to one slug).
+    expect(res.tags).toEqual(["misinformation-research", "source-cues"]);
+    expect((await caller.studies.get({ id })).tags).toEqual([
+      "misinformation-research",
+      "source-cues",
+    ]);
+
+    // Preregister copies the study's tags onto the activity_event (Follows source).
+    await caller.studies.preregister({ studyId: id });
+    const [ev] = await db
+      .select()
+      .from(activityEvent)
+      .where(eq(activityEvent.type, "preregister_complete"));
+    expect(ev.relatedTagSlugs).toEqual(["misinformation-research", "source-cues"]);
+  });
+});
