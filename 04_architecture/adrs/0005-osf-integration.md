@@ -157,6 +157,22 @@ Same machinery, different metadata. A published version pushes a "publication" r
 
 **Why not** make PAT the only method? OAuth remains the better UX on a real deployment (no copy-paste of a long-lived secret), and keeping both lets production use OAuth while local/self-hosted/CI use the PAT.
 
+## Amendment 2026-06-03 — Verified OSF registration-push flow + DOI is async
+
+**Context.** Implementing `pushRegistration` required the exact OSF APIv2 contract. `developer.osf.io` is a client-rendered SPA (un-fetchable), so the flow was verified against two authoritative sources: the OSF swagger spec (`github.com/CenterForOpenScience/developer.osf.io`, `swagger-spec/nodes/draft_registrations_list.yaml` + `swagger-spec/draft_registrations/draft_registration_detail.yaml`) and the OSF backend serializer (`github.com/CenterForOpenScience/osf.io`, `api/registrations/serializers.py` → `RegistrationCreateSerializer`).
+
+**Verified flow (what `registry.osf.ts` implements).** Four JSON:API calls (`Content-Type: application/vnd.api+json`), Bearer token decrypted inside the adapter:
+1. `POST /v2/nodes/` — create a project node (`attributes: {title, category:"project", public:false}`).
+2. `POST /v2/nodes/{node}/draft_registrations/` — relationship `registration_schema` → the schema id resolved at runtime by name (`GET /v2/schemas/registrations/?filter[name]=…`).
+3. `PATCH /v2/draft_registrations/{draft}/` — set `attributes.registration_responses`.
+4. `POST /v2/nodes/{node}/registrations/` — `attributes: {draft_registration, registration_choice:"immediate"}` (the default-API-version field names; the newer `draft_registration_id` requires a pinned version).
+
+**DOI is asynchronous (contract change).** `RegistrationCreateSerializer.create()` calls `registration.require_approval()` — a newly-registered OSF registration enters **pending-approval**, and OSF mints the **DOI only on approval**. So a push cannot return a DOI synchronously. `PushResult` is changed from `{doi, url}` to `{registrationId, url, doi: string | null}`: the registration GUID + public URL are available immediately; `doi` is `null` at push time and backfilled later (poll the registration's identifiers). The `registry_push_status` `pushed` therefore means "submitted to OSF, pending approval", not "DOI minted".
+
+**Schema choice — "Open-Ended Registration".** Its only response is a free-text `summary`, so our lossless design snapshot always validates. **Why not "OSF Preregistration"?** Its schema has many required structured fields (hypotheses, design, analysis plan, …) that we'd have to map one-to-one and keep in sync with OSF's schema versions; that field-by-field template mapping is deferred to V1.6. For V1.5 we write a human-readable summary plus the machine-readable JSON snapshot into `summary` — lossless and never rejected on missing required fields. Schema is env-overridable (`OSF_REGISTRATION_SCHEMA`).
+
+**Amendment/withdrawal push** (`pushAmendment`/`withdraw`) stay NOT_IMPLEMENTED until V1.6 — the V1.5 anchor is "Hanna preregisters and runs", not "amends".
+
 ## Revisit triggers
 
 Reopen this decision (probably as a superseding or extending ADR) if:

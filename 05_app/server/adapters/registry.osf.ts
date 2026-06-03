@@ -3,7 +3,7 @@ import { ulid } from "ulid";
 
 import { db } from "@/server/db/client";
 import { registry as registryTable, registryConnection } from "@/server/db/schema";
-import { encryptSecret } from "@/server/crypto/tokens";
+import { decryptSecret, encryptSecret } from "@/server/crypto/tokens";
 
 import type {
   PushResult,
@@ -40,7 +40,21 @@ export function osfConfig() {
     tokenUrl: process.env.OSF_TOKEN_URL ?? "https://accounts.osf.io/oauth2/token",
     apiBase: process.env.OSF_API_BASE ?? "https://api.osf.io/v2",
     scopes: process.env.OSF_SCOPES ?? "osf.full_write",
+    // Registration schema to file under. "Open-Ended Registration" has a single
+    // free-text `summary` response, so our lossless snapshot always validates —
+    // unlike "OSF Preregistration", whose many required structured fields we'd
+    // have to map field-by-field (deferred to V1.6). Override by name if needed.
+    registrationSchemaName: process.env.OSF_REGISTRATION_SCHEMA ?? "Open-Ended Registration",
   };
+}
+
+/** Thrown when the user has no active OSF connection — lets the push job mark
+ *  the version `no_credentials` rather than retrying a doomed request. */
+export class OsfNotConnectedError extends Error {
+  constructor() {
+    super("No active OSF connection for this user.");
+    this.name = "OsfNotConnectedError";
+  }
 }
 
 /** Whether OSF OAuth is configured on this server (client id + redirect). */
@@ -77,8 +91,80 @@ async function ensureOsfRegistry(): Promise<string> {
 }
 
 const NOT_IMPLEMENTED =
-  "OSF registration push lands with the Preregister stage (step 3, ADR-0005) — " +
-  "built against verified OSF registrations API, not stubbed here.";
+  "OSF amendment/withdrawal push lands in V1.6 (ADR-0004/0005) — " +
+  "built against verified OSF API, not stubbed here.";
+
+/** OSF JSON:API media type (required Content-Type/Accept for v2 writes). */
+const JSON_API = "application/vnd.api+json";
+
+/** Decrypt the user's active OSF access token, or throw OsfNotConnectedError. */
+async function osfAccessToken(userId: string): Promise<string> {
+  const registryId = await ensureOsfRegistry();
+  const rows = await db
+    .select({ accessToken: registryConnection.accessToken })
+    .from(registryConnection)
+    .where(
+      and(
+        eq(registryConnection.userId, userId),
+        eq(registryConnection.registryId, registryId),
+        isNull(registryConnection.revokedAt),
+      ),
+    )
+    .limit(1);
+  const row = rows[0];
+  if (!row) throw new OsfNotConnectedError();
+  return decryptSecret(row.accessToken);
+}
+
+/** Thin JSON:API fetch against the OSF API. Throws on non-2xx with the OSF error
+ *  body attached. `path` is relative to apiBase (e.g. "/nodes/"). */
+async function osfApi(
+  token: string,
+  method: string,
+  path: string,
+  body?: unknown,
+): Promise<{ data: Record<string, unknown> & { id?: string; attributes?: Record<string, unknown>; links?: Record<string, unknown> } }> {
+  const cfg = osfConfig();
+  const res = await fetch(`${cfg.apiBase}${path}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: JSON_API,
+      ...(body ? { "Content-Type": JSON_API } : {}),
+    },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`OSF ${method} ${path} failed: ${res.status} ${text}`);
+  }
+  return (await res.json()) as { data: { id?: string } };
+}
+
+/** Resolve the registration-schema id by name (e.g. "Open-Ended Registration"). */
+async function resolveSchemaId(token: string): Promise<string> {
+  const name = osfConfig().registrationSchemaName;
+  const res = await fetch(
+    `${osfConfig().apiBase}/schemas/registrations/?filter[name]=${encodeURIComponent(name)}`,
+    { headers: { Authorization: `Bearer ${token}`, Accept: JSON_API } },
+  );
+  if (!res.ok) throw new Error(`OSF schema lookup failed: ${res.status} ${await res.text()}`);
+  const json = (await res.json()) as { data: Array<{ id: string; attributes?: { name?: string } }> };
+  const match = json.data.find((s) => s.attributes?.name === name) ?? json.data[0];
+  if (!match) throw new Error(`OSF registration schema not found: ${name}`);
+  return match.id;
+}
+
+/** A human-readable summary of the snapshot for the Open-Ended `summary` response.
+ *  Lossless detail lives in the JSON appended below the prose. */
+function buildSummary(payload: RegistrationPayload): string {
+  const json = JSON.stringify(payload.snapshot, null, 2);
+  return (
+    `${payload.title}\n\n` +
+    `Preregistered from Massive Research Tool (experiment version ${payload.experimentVersionId}).\n\n` +
+    `--- Machine-readable design snapshot ---\n${json}`
+  );
+}
 
 export const osfRegistry: RegistryAdapter = {
   getAuthorizeUrl({ state }) {
@@ -214,10 +300,63 @@ export const osfRegistry: RegistryAdapter = {
     };
   },
 
-  // Push fires from the Preregister stage (step 3); decryption of the stored
-  // token happens there, inside this adapter, so plaintext never leaves it.
-  async pushRegistration(_userId: string, _payload: RegistrationPayload): Promise<PushResult> {
-    throw new Error(NOT_IMPLEMENTED);
+  // Push fires from the Preregister stage via the background job. Token
+  // decryption happens here, inside the adapter, so plaintext never leaves it.
+  // Flow verified against OSF's APIv2 swagger + api/registrations/serializers.py
+  // (RegistrationCreateSerializer): node -> draft_registration -> PATCH
+  // registration_responses -> register (registration_choice "immediate").
+  // NOTE: OSF then calls require_approval() — the registration is pending and
+  // the DOI is minted on approval, so `doi` is null at push time (backfilled).
+  async pushRegistration(userId, payload): Promise<PushResult> {
+    const token = await osfAccessToken(userId);
+
+    // 1. Project node to register from.
+    const node = await osfApi(token, "POST", "/nodes/", {
+      data: {
+        type: "nodes",
+        attributes: { title: payload.title, category: "project", public: false },
+      },
+    });
+    const nodeId = node.data.id!;
+
+    // 2. Draft registration under that node, bound to the chosen schema.
+    const schemaId = await resolveSchemaId(token);
+    const draft = await osfApi(token, "POST", `/nodes/${nodeId}/draft_registrations/`, {
+      data: {
+        type: "draft_registrations",
+        relationships: {
+          registration_schema: {
+            data: { type: "registration_schemas", id: schemaId },
+          },
+        },
+      },
+    });
+    const draftId = draft.data.id!;
+
+    // 3. Fill the draft's registration_responses (Open-Ended: a single summary).
+    await osfApi(token, "PATCH", `/draft_registrations/${draftId}/`, {
+      data: {
+        id: draftId,
+        type: "draft_registrations",
+        attributes: {
+          title: payload.title,
+          registration_responses: { summary: buildSummary(payload) },
+        },
+      },
+    });
+
+    // 4. Register the draft immediately (enters pending-approval on OSF).
+    const reg = await osfApi(token, "POST", `/nodes/${nodeId}/registrations/`, {
+      data: {
+        type: "registrations",
+        attributes: { draft_registration: draftId, registration_choice: "immediate" },
+      },
+    });
+    const registrationId = reg.data.id!;
+    const url =
+      (reg.data.links?.html as string | undefined) ?? `https://osf.io/${registrationId}/`;
+
+    return { registrationId, url, doi: null };
   },
   async pushAmendment(): Promise<PushResult> {
     throw new Error(NOT_IMPLEMENTED);
