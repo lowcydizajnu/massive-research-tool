@@ -1,139 +1,175 @@
 # Code tab handoff — V1.7.0 pre-deploy code (Phase 0 of `deploy-runbook.md`)
 
-Owner has approved executing the V1.7.0 production deploy per ADR-0016. Phase 0 is your work; owner blocks on it. Estimate: ~1 day of focused work.
+Owner has approved executing the V1.7.0 production deploy per [ADR-0016](../adrs/0016-production-deployment-architecture.md) + its **2026-06-03 amendment** (API-driven bootstrap script — owner wants maximum automation, ~30-40 min total owner engagement instead of ~3-4h). Phase 0 is your work; owner blocks on it. Estimate: **~1.5 days of focused work** (expanded from ~1 day per the original handoff because the bootstrap + verification scripts are new scope).
 
 ## What you're doing
 
-Closing the in-code half of the V1.7 ship carry-forwards + the participant-runtime security review #9 deferral + the CI gate ADR-0016 specifies. Owner does the vendor signups + deploy clicks afterward per `04_architecture/deploy-runbook.md`.
+Closing the V1.7 ship carry-forwards + participant-runtime security review #9 + ADR-0016's CI gate **AND** building the bootstrap + verification machinery that drives the deploy itself with minimal owner clicks. Owner does account signups + API key generation + smoke test + sign-off; everything else flows through your code.
 
-## What's in scope (4 items; one commit per item)
+## Read first (in this order)
 
-### 1. Upstash RateLimitAdapter
+1. [`04_architecture/deploy-runbook.md`](../deploy-runbook.md) — the trimmed owner sequence; understand what owner WILL do so you know what your bootstrap doesn't have to.
+2. [`04_architecture/adrs/0016-production-deployment-architecture.md`](../adrs/0016-production-deployment-architecture.md) — original ADR + **2026-06-03 amendment** (the API-driven bootstrap is the load-bearing decision; the "stays manual" + "tradeoff" sections set your constraints).
+3. [`06_qa/audit-logs/2026-06-03-participant-runtime-security-review.md`](../../06_qa/audit-logs/2026-06-03-participant-runtime-security-review.md) §"Deferred to production deploy" — item #9 = your rate-limit work.
+4. [`04_architecture/lock-in-inventory.md`](../lock-in-inventory.md) — you'll add an Upstash row at the end.
+5. [`00_meta/STATUS.md`](../../00_meta/STATUS.md) — current state.
 
-- New interface: `05_app/server/adapters/ratelimit.ts`
-  ```ts
-  export interface RateLimitAdapter {
-    /**
-     * Check + increment under a sliding window.
-     * @returns allowed: false → caller must reject the request.
-     */
-    check(key: string, window: RateLimitWindow): Promise<{
-      allowed: boolean;
-      remaining: number;
-      resetMs: number;
-    }>;
-  }
+## Scope (8 items; one PR per logical chunk OR one big PR titled "PR-A pre-deploy: V1.7.0 ship automation")
 
-  export interface RateLimitWindow {
-    /** Window length in seconds. */
-    windowSeconds: number;
-    /** Max requests per window. */
-    max: number;
-  }
-  ```
-- New impl: `05_app/server/adapters/ratelimit.upstash.ts` — wraps `@upstash/ratelimit` + `@upstash/redis`; reads `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN`; uses `Ratelimit.slidingWindow(max, ${windowSeconds} s)`. Per ADR-0007 adapter discipline: this file is the ONLY one in the repo importing from `@upstash/*`.
-- Dev fallback: same pattern as the Inngest dev fallback you already shipped — when `UPSTASH_REDIS_REST_URL` is unset, return an in-memory limiter that's per-instance (acceptable for `npm run dev`; ineffective on serverless, which is fine because we won't ship without the real one).
-- Tests: round-trip + boundary cases for both the real adapter (mock the Upstash REST endpoint via MSW or similar) + the dev fallback.
-- Lock-in inventory update — add an Upstash row: behind the adapter; migration target = self-managed Redis on Railway/Fly.
+### 1. Upstash `RateLimitAdapter`
+
+(Unchanged from prior handoff.) Interface at `05_app/server/adapters/ratelimit.ts`; impl at `05_app/server/adapters/ratelimit.upstash.ts` (ONLY repo file importing `@upstash/*` per ADR-0007 adapter discipline); dev fallback in-memory per-instance (parallel to the Inngest dev fallback you shipped). Tests for round-trip + boundary + the dev fallback. Add Upstash to the lock-in inventory (migration target = self-managed Redis on Railway/Fly).
 
 ### 2. Rate-limit calls on `/take/*` Server Actions
 
-Per the participant-runtime security review #9 deferral. Two windows from the security review note:
+(Unchanged from prior handoff.) Closes participant-runtime security review #9.
 
-- `beginAction` (consent → session start): **3 starts/min per `recruitment_session_id` + a coarse IP bucket** from the edge headers (Vercel sets `x-forwarded-for`; take the first IP, hash to a coarse `/24` bucket — don't store raw IPs anywhere, just the bucket key).
-- `answerAction` (per-question advance): **30 answers/min per `response.id`** (the session ULID). This bounds a runaway client without affecting normal pace.
+- `beginAction`: **3 starts/min per `recruitment_session_id` + coarse-IP bucket** (one-way hash of first-3-octets + `UPSTASH_IP_BUCKET_SALT`, never persisted to Postgres — ADR-0014 PII boundary holds).
+- `answerAction`: **30 answers/min per `response.id`**.
+- On `allowed: false`: `beginAction` → redirect to `/take/[studyId]/throttled`; `answerAction` → render current question with retry banner.
 
-Behavior on `allowed: false`:
-- `beginAction` → redirect to a friendly "too many starts, please wait" page (new route `/take/[studyId]/throttled`).
-- `answerAction` → render the current question with a banner "throttled, retry in {N}s" + a `Retry` button that re-submits.
-
-**Note on the IP bucket:** ADR-0014 forbids storing raw IPs. The bucket is a one-way hash of `${ipv4_first_3_octets}:${UPSTASH_SECRET_SALT}` (env var; treat like `TOKEN_ENCRYPTION_KEY` but cheap to rotate). Never persisted to Postgres; lives only in Upstash key space.
-
-Tests: a participant taking a study normally is unaffected (~1 start, ~2-3s between answers); a fuzzed loop tripping the limit is rejected.
+Tests: normal pace unaffected; fuzzed loop tripping the limit is rejected.
 
 ### 3. `.github/workflows/ci.yml`
 
-Standard Node 20 + npm pipeline:
+(Unchanged.) Node 20 + `npm ci && npm run typecheck && npm run test && npm run build && npx playwright install --with-deps chromium && npm run test:e2e`. Sets a status check; Vercel's "Skip build if CI failing" hooks off it.
 
-```yaml
-name: CI
-on:
-  push:
-    branches: [main]
-  pull_request:
+### 4. `05_app/.env.example` update — Upstash + bootstrap
 
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: 05_app
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: 05_app/package-lock.json
-      - run: npm ci
-      - run: npm run typecheck
-      - run: npm run test
-      - run: npm run build
-      - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
-```
-
-- The default Playwright `test:e2e` is the 4 unauthenticated specs (chromium project); the gated `test:e2e:auth` project stays opt-in (owner runs it against real Clerk per `deploy-runbook.md` Phase 7b).
-- The pgLite tests Drizzle uses don't need a live Postgres in CI.
-- Vercel **Settings → Git → Ignored Build Step** should be wired post-merge:
-  ```sh
-  bash -c "git fetch && git diff --quiet HEAD~1 HEAD ':!**/*.md' && exit 1 || exit 0"
-  ```
-  ...or simpler, use Vercel's "Skip build if CI is failing" via a GitHub status check. Either path works.
-
-### 4. `05_app/.env.example` update
-
-Add the two Upstash vars + the IP-bucket salt:
+Add the three Upstash vars (`UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, `UPSTASH_IP_BUCKET_SALT`) per the prior handoff, **PLUS** add a separate `05_app/.env.production.example` with the deploy-bootstrap-only keys owner pastes in once:
 
 ```
-# === Rate limiting (V1.7.0, ADR-0016) — Upstash Redis ===
-# Sign up at upstash.com → create a Redis database → copy REST URL + REST token.
-# When unset locally, the RateLimitAdapter falls back to an in-memory per-instance
-# limiter (sufficient for `npm run dev`; ineffective on serverless).
-UPSTASH_REDIS_REST_URL=
-UPSTASH_REDIS_REST_TOKEN=
-# Coarse-bucket IP hash salt for /take/* rate-limiting. Generate once and keep
-# stable: openssl rand -hex 16. Rotating invalidates current IP buckets (cheap;
-# unlike TOKEN_ENCRYPTION_KEY this is safe to rotate).
-UPSTASH_IP_BUCKET_SALT=
+# === Deploy bootstrap (V1.7.0, ADR-0016 amendment 2026-06-03) ===
+# This file mirrors .env.production (gitignored). Owner pastes API keys
+# generated in deploy-runbook.md Phase 1 here once; scripts/deploy-bootstrap.ts
+# reads them and drives every vendor that has a programmatic API. NEVER COMMIT.
+#
+# TOKEN_ENCRYPTION_KEY is INTENTIONALLY NOT IN THIS FILE per ADR-0016
+# amendment — owner pastes it directly into Vercel via `vercel env add`.
+
+VERCEL_TOKEN=                          # vercel.com/account/tokens (full scope OR team-scoped)
+VERCEL_TEAM_ID=                        # optional; only if you use a Vercel team
+GITHUB_REPO=                           # e.g. paweł-rosner/massive-research-tool
+
+NEON_API_KEY=                          # console.neon.tech/app/settings/api-keys
+NEON_PROJECT_ID=                       # from any branch URL in Neon
+
+UPSTASH_API_KEY=                       # upstash.com/account/management-api
+UPSTASH_EMAIL=                         # the email on your Upstash account
+UPSTASH_REGION=us-east-1               # single region; close to Vercel primary
+
+CLERK_PROD_SECRET_KEY=                 # from the PROD Clerk Application you create as a shell
+CLERK_PROD_PUBLISHABLE_KEY=            # ditto
+CLERK_PROD_APPLICATION_ID=             # from the PROD Clerk dashboard URL
+
+# Optional DNS automation; if your provider isn't here, skip + add the CNAME manually.
+DNS_PROVIDER=                          # cloudflare | route53 | namecheap | none
+CLOUDFLARE_API_TOKEN=                  # if DNS_PROVIDER=cloudflare; needs DNS:Edit on the zone
+CLOUDFLARE_ZONE_ID=                    # ditto
+# (route53/namecheap: similar; document equivalents)
+
+OSF_PROD_OAUTH_CLIENT_ID=              # from osf.io/settings/applications PROD app
+OSF_PROD_OAUTH_CLIENT_SECRET=          # ditto
+
+PRODUCTION_DOMAIN=                     # e.g. app.example.com (no scheme)
+TEST_USER_HANNA_EMAIL=                 # e.g. hanna+clerk_test@example.com (uses Clerk's +clerk_test convention)
+TEST_USER_MAYA_EMAIL=                  # ditto
+TEST_USER_SOFIA_EMAIL=                 # ditto
+TEST_USER_PASSWORD=                    # shared across the 3 +clerk_test users; bootstrap script sets it
 ```
 
-## What's NOT in scope (owner-only or later)
+### 5. `scripts/deploy-bootstrap.ts` — the load-bearing script
 
-- **Do not** create Vercel/Upstash/Clerk-prod/OSF-prod accounts (owner does that in Phase 1-2 of the runbook).
-- **Do not** push to GitHub without owner confirmation (the workflow file changes CI behavior — owner approves).
-- **Do not** touch `TOKEN_ENCRYPTION_KEY` anywhere (permanent ledger key per ADR-0016 §6).
-- **Do not** run `npm run db:migrate` against any environment that isn't yours (Neon prod branch is owner-owned).
-- The 3-user auth e2e run happens against real Clerk on production — that's Phase 7b, owner-coordinated; you fix selector issues when they surface.
-- Axe DevTools pass is owner-run (Phase 7a); you fix findings.
+The single command owner runs: `npm run deploy:bootstrap`. Reads `.env.production`; drives every vendor with an API; exits with a runbook-style summary owner can paste into the deploy audit.
 
-## Commit sequence (4 small commits, one PR per logical chunk)
+Steps (each idempotent — re-running the script after a partial failure picks up where it left off):
 
-1. `feat(adapters): RateLimitAdapter interface + Upstash impl + dev fallback (PR-A pre-deploy)`
-2. `feat(take): rate-limit beginAction + answerAction per security review #9 (PR-A pre-deploy)`
-3. `ci: GitHub Actions workflow + Vercel ignored-build-step hook (PR-A pre-deploy)`
-4. `docs(env): Upstash + IP-bucket-salt env vars (PR-A pre-deploy)`
+1. **Validate env** — every required key present + non-empty; fail fast with a list of missing keys.
+2. **Neon: create `production` branch** if absent (`POST /projects/{NEON_PROJECT_ID}/branches`); capture connection string (the pooled one — Drizzle works fine with PGBouncer). Run `db:migrate` against it. Run `db:seed` against it (modules + frameworks; **not** the network-demo seeder).
+3. **Upstash: create Redis database** (`POST /redis/database/{name}`) if absent; capture REST URL + REST token. Set `allkeys-lru` eviction (cheap; defaults to noeviction).
+4. **Vercel: create project** (`POST /v9/projects`) if absent; set root dir `05_app`, framework `nextjs`, production branch `main`, install + build commands from the runbook.
+5. **Vercel: bulk-set env vars** (`POST /v9/projects/{id}/env`, scope `production`). Loop over the 15 vars to seed (everything except `TOKEN_ENCRYPTION_KEY`). Include the OSF vars (from `.env.production`), Clerk vars, `DATABASE_URL` from step 2, `INNGEST_*` (owner pastes from Inngest dashboard into `.env.production`; or wire the Vercel-Inngest integration which auto-syncs these), Upstash vars from step 3, `NEXT_PUBLIC_SITE_URL = https://{PRODUCTION_DOMAIN}`. Print a clear note: "TOKEN_ENCRYPTION_KEY NOT set — owner must run `vercel env add TOKEN_ENCRYPTION_KEY production` interactively, then `openssl rand -hex 32 | tr -d '\n' | pbcopy` and paste."
+6. **Clerk Production: configure** (`PATCH /v1/applications/{id}` via Backend API) — set redirect URLs (`https://{PRODUCTION_DOMAIN}/sso-callback`, `…/signup/sso-callback`, `…/signup/verify`), enable email magic-link + Google OAuth (mirror dev), set sign-in/sign-up paths. Then `POST /v1/users` for each of the 3 `+clerk_test` users (Clerk's `+clerk_test` convention bypasses email verification for testing).
+7. **OSF Production: print manual reminder** (no API) — "Open `https://osf.io/settings/applications` → confirm the PROD app's redirect URI is `https://{PRODUCTION_DOMAIN}/api/auth/osf/callback`. The bootstrap script can't do this for you." (Owner did the create in Phase 2 of the runbook; this is a verification reminder.)
+8. **DNS (optional)** — if `DNS_PROVIDER=cloudflare`, `POST /zones/{id}/dns_records` adding the `CNAME` for `{PRODUCTION_DOMAIN}` pointing at `cname.vercel-dns.com`. If `DNS_PROVIDER=none`, print the record owner needs to add manually.
+9. **Vercel: add domain to project** (`POST /v9/projects/{id}/domains`) — Vercel then auto-provisions SSL via Let's Encrypt (async; the verify script polls).
+10. **Vercel: configure Ignored Build Step** — set the project setting that ties build approval to the GitHub status check from `.github/workflows/ci.yml`.
+11. **Print summary** — what was created, what owner still needs to do (paste `TOKEN_ENCRYPTION_KEY`; wait for DNS), the next command to run (`npm run deploy:verify`).
 
-Or bundle as one PR titled "PR-A pre-deploy: rate-limiter + CI for V1.7.0 deploy" if you prefer.
+Idempotency notes: each step uses "create if absent" via list-then-create or upsert semantics. Re-running is safe. If a step fails, the script exits with a clear "rerun after fixing {thing}" message + the partial state preserved.
 
-When green: ping owner. Owner starts Phase 1 of the deploy runbook.
+Tests: each vendor's API call has a unit test against a mocked HTTP layer (MSW). An integration test runs the bootstrap end-to-end against a sandbox or with stubs (the test mode shouldn't hit real Neon / Vercel / etc.). The bootstrap should NEVER auto-run on import; only via the CLI entry.
 
-## Reading order before you start
+### 6. `scripts/deploy-verify.ts` — the verification wrapper
 
-1. `04_architecture/deploy-runbook.md` (the do-list this handoff feeds)
-2. `04_architecture/adrs/0016-production-deployment-architecture.md` (the architecture; §2 explains why Upstash; §6 explains why TOKEN_ENCRYPTION_KEY is sacred)
-3. `06_qa/audit-logs/2026-06-03-participant-runtime-security-review.md` §"Deferred to production deploy" (item #9 = your rate-limit work)
-4. `04_architecture/lock-in-inventory.md` (you'll add an Upstash row at the end)
-5. `00_meta/STATUS.md` (current state)
+The second command owner runs: `npm run deploy:verify`. Chains:
 
-Then start with item 1. Don't skip ahead — the rate-limit calls in item 2 import the adapter from item 1.
+1. **HTTP smoke probe** — `GET https://{PRODUCTION_DOMAIN}/` expects 200; `GET …/signin` expects 200; `GET …/api/health` (Code tab adds this endpoint as a tiny RSC that returns `{ok: true, version: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0,7) ?? 'dev'}`) expects 200 with the right SHA.
+2. **Trigger the axe spec** — `playwright test --project=auth e2e/a11y-researcher-surfaces.spec.ts` with `BASE_URL=https://{PRODUCTION_DOMAIN}`.
+3. **Trigger the multi-user e2e** — `playwright test --project=auth e2e/hanna-network.spec.ts e2e/hanna-publish-and-run.spec.ts` with the same `BASE_URL`.
+4. **Aggregate** — pretty-print a one-screen summary: smoke ✓/✗, axe violations count per surface, e2e pass/fail per spec.
+5. **Write deploy audit draft** — populate `06_qa/audit-logs/{YYYY-MM-DD}-v170-production-deploy.md` from a template (mirror V1.5/V1.6 audit structure). Test counts + a11y results + smoke results fill in automatically; owner reviews + signs.
+
+### 7. `e2e/a11y-researcher-surfaces.spec.ts` — the replacement for owner-run axe DevTools
+
+Uses the existing `auth` Playwright project (the `+clerk_test` fixture you already shipped for `hanna-runtime.spec.ts` and `hanna-network.spec.ts`). For each of the 9 researcher surfaces below: sign in as Hanna (or as needed for the surface), navigate, run `await new AxeBuilder({page}).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()`, assert `violations.length === 0` (or a tightly-scoped allowlist if a known false-positive exists — document each in a comment).
+
+Surfaces:
+
+1. `/studies`
+2. `/studies/[id]/build` (Builder + Conditions section + tag editor + forkability control + a representative module config form)
+3. `/studies/[id]/share`
+4. `/studies/[id]/preregister`
+5. `/studies/[id]/run` (both Preregister and Publish & run paths)
+6. `/studies/[id]/results`
+7. `/activity` Yours + `/activity?tab=follows` Follows
+8. `/frameworks`
+9. `/studies/[id]/build?tab=replications` (the Replications tab)
+
+Output: a structured `06_qa/audit-logs/{date}-v170-axe-pass.md` written by a post-test hook listing each surface + violations count + (for any violations) the rule id + impact + selector. **Per ADR-0016 amendment §"Quality gates also automated", this REPLACES the owner-run axe DevTools pass** — owner reads the report, doesn't click through axe DevTools in the browser. Equivalence is the same `axe-core` engine under both; what neither catches is focus-management bugs and AT-narration quality (the prior owner-run pass also missed those, so the floor doesn't drop).
+
+### 8. `package.json` scripts + Vercel-CLI wiring
+
+```json
+"deploy:bootstrap": "tsx scripts/deploy-bootstrap.ts",
+"deploy:verify": "tsx scripts/deploy-verify.ts",
+"deploy:test-users": "tsx scripts/seed-clerk-test-users.ts"   // standalone reseed if needed
+```
+
+`tsx` already in dev deps from prior work. The verify script picks up `BASE_URL` from `.env.production` (`https://${PRODUCTION_DOMAIN}`).
+
+## What's NOT in scope (owner-only)
+
+- **`TOKEN_ENCRYPTION_KEY` handling.** The bootstrap script intentionally never reads or writes this key. Owner generates with `openssl rand -hex 32`, runs `vercel env add TOKEN_ENCRYPTION_KEY production` interactively (CLI prompts; nothing written to disk), pastes from clipboard. The bootstrap's env-var loop explicitly skips this var and prints a reminder.
+- **Vercel + Upstash account signups.** Owner clicks through.
+- **Clerk Production Application SHELL creation.** Owner creates the empty app once in the Clerk dashboard; bootstrap configures it. (Clerk Backend API can't `POST /applications` AFAIK.)
+- **OSF Developer App creation.** No API; owner clicks.
+- **Domain purchase.**
+- **Smoke test.** Owner human-verifies. This is irreducible and that's correct — a first production deploy deserves a human walkthrough.
+- **Audit sign-off + `git tag v1.7.0`.** Owner signs; Code tab tags only after explicit confirmation per project standing rule.
+
+## Commit sequence
+
+If splitting (recommended for review):
+
+1. `feat(adapters): RateLimitAdapter interface + Upstash impl + dev fallback`
+2. `feat(take): rate-limit beginAction + answerAction per security review #9`
+3. `ci: GitHub Actions workflow + Vercel ignored-build-step hook`
+4. `docs(env): .env.example Upstash vars + .env.production.example deploy-bootstrap shape`
+5. `feat(deploy): scripts/deploy-bootstrap.ts — API-driven vendor setup (ADR-0016 amendment)`
+6. `feat(deploy): scripts/deploy-verify.ts + /api/health + V1.7.0 audit-log scaffold`
+7. `test(a11y): e2e/a11y-researcher-surfaces.spec.ts — Playwright+axe on the 9 surfaces`
+
+If bundling: one PR titled `PR-A pre-deploy: V1.7.0 ship automation (rate-limiter + CI + bootstrap + verify + axe spec)`.
+
+When green: ping owner. Owner starts Phase 1 of the trimmed deploy runbook (~30-40 min start to deploy live + verified).
+
+## Security discipline reminders (per ADR-0016 amendment "Tradeoff")
+
+- `.env.production` lives in `05_app/`; verify it's covered by the existing `.env*` rule in `05_app/.gitignore`. If not, add `.env.production` explicitly + a test that asserts the file is gitignored.
+- The bootstrap script's HTTP layer should redact secret values from any error logs (a Vercel API error log shouldn't echo the token). Add a tiny redactor that masks any value that matches `/^[A-Za-z0-9_-]{20,}$/` in error output.
+- Never read or store `TOKEN_ENCRYPTION_KEY` anywhere in Code tab's process. If a script ever encounters it (e.g., a verify pass that lists Vercel env vars), drop it on the floor.
+
+## When you're done
+
+Ping owner with: "Phase 0 merged on commit `<sha>`. Owner runbook is ready to execute from Phase 1. Estimated owner engagement: ~30-40 min."

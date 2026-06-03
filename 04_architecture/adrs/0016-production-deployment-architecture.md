@@ -203,3 +203,62 @@ When the owner is ready to execute the deploy, the work is mechanical clicks plu
 - [V1.6 audit log](../../06_qa/audit-logs/2026-06-03-v16-prework-publish-and-run.md) (names this ADR as the carry-forward).
 - Vercel docs — [Environment Variables](https://vercel.com/docs/projects/environment-variables), [Custom Domains](https://vercel.com/docs/projects/domains), [Ignored Build Step](https://vercel.com/docs/projects/overview#ignored-build-step).
 - Upstash docs — [@upstash/ratelimit](https://github.com/upstash/ratelimit), [Vercel integration](https://vercel.com/integrations/upstash).
+
+---
+
+## 2026-06-03 amendment — API-driven bootstrap script (reduce owner clicks)
+
+**Trigger:** project owner asked to maximise automation when executing the deploy: "I want to reduce my engagement and clicks." The original 10-step per-vendor checklist (Phase 2 of `04_architecture/deploy-runbook.md`) is ~2-3h of owner work; substituting API calls for dashboard clicks where the vendor supports it brings total owner engagement to ~30-40 min.
+
+**Decision:** **the deploy is executed via a Code-tab-authored bootstrap script (`05_app/scripts/deploy-bootstrap.ts`)** that drives every vendor offering a programmatic API; the remaining steps stay manual because the vendor has no API for that surface (or because the step is intrinsically owner-only). The script reads from a local-only, gitignored `05_app/.env.production` file the owner populates once with the API keys generated in Phase 1.
+
+**Automated via API (Code tab + the bootstrap script):**
+
+| Vendor | API used | Operations |
+|---|---|---|
+| Neon | REST (`api.neon.tech`) | Create `production` branch from `main`; return connection string; run `db:migrate`; run `db:seed` |
+| Vercel | REST (`api.vercel.com`) | Create project from GitHub repo; set root dir + framework preset + build/install commands + production branch; bulk-set all 16 Production-scoped env vars; configure Ignored Build Step |
+| Upstash | Management REST | Create Redis database (region picked from a flag); return REST URL + REST token |
+| Clerk | Backend API (`api.clerk.com`) | Configure the Production application after owner creates the shell — redirect URLs, OAuth provider config, sign-in/sign-up paths, email-link template; create the 3 `+clerk_test` users for the multi-user e2e |
+| Cloudflare / Route53 / Namecheap (optional) | Their REST APIs | Add the `CNAME` (or `ALIAS`) DNS record pointing at Vercel — only if owner's DNS provider has an API + owner provides a scoped key; otherwise stays manual (1 record, ~2 min) |
+| Vercel deploy verification | Vercel REST + a smoke probe | Watch the build status; HTTP-probe the deployed URL; trigger Phase 7 automated verification once green |
+
+**Stays manual (owner-only; cannot be automated):**
+
+| Step | Why |
+|---|---|
+| Vercel + Upstash account signup | Identity + terms + billing acceptance; vendor doesn't permit programmatic account creation |
+| Clerk Production **application shell** creation | Clerk Backend API can configure an existing Application but cannot create one (Application creation is dashboard-only as of writing); once the shell exists, ALL further configuration is API-driven |
+| OSF Developer Application creation | OSF has no management API for Developer Apps; entire surface is dashboard-only (~2 min) |
+| Domain purchase | Owner's credit card |
+| `TOKEN_ENCRYPTION_KEY` generation | Security: `openssl rand -hex 32` runs locally; the key MUST NOT flow through Code tab's process memory or be written to any file the bootstrap script reads. Owner generates → backs up in password manager → pastes directly into Vercel's env var UI (NOT into the `.env.production` Code tab reads). |
+| API key generation in each vendor's dashboard | All vendors require interactive dashboard login to generate management tokens; owner does Vercel + Neon + Upstash + Clerk Production Secret + (optional) DNS API tokens in one ~5-min sitting |
+| Clerk + OSF redirect URL updates after DNS resolves | The dashboards accept these; Clerk Backend API can update them too — bootstrap script can re-run after DNS to do this automatically (we'll include the path) |
+| Smoke test | A human clicking through "do I see what I expect" is the point; automated probes are a *first-pass* signal, not a *replacement* on first production deploy |
+| Audit sign-off | Owner literally signs |
+
+**Quality gates also automated:**
+
+- **The real-Clerk axe DevTools pass is replaced** by an in-repo Playwright spec (`05_app/e2e/a11y-researcher-surfaces.spec.ts` in the `auth` project) that authenticates as a `+clerk_test` user, navigates each of the 9 researcher surfaces, runs `axe-core` via `@axe-core/playwright`, asserts 0 WCAG 2.1 AA violations, and outputs a structured report to `06_qa/audit-logs/{date}-v170-axe-pass.md`. **Equivalence note:** axe-DevTools and `@axe-core/playwright` both wrap the same `axe-core` engine; coverage is equivalent for the rules engine. They differ in what they DON'T catch — both miss focus-management bugs and screen-reader-narration quality issues that require a human or a dedicated AT review. Owner accepts this tradeoff (the manual pass also missed those, so the floor doesn't drop).
+- **The 3-user multi-workspace e2e** runs via `npm run test:e2e:auth` against the production URL after the bootstrap script seeds the 3 `+clerk_test` users into the Production Clerk application. The wrapper script `npm run deploy:verify` chains: HTTP smoke probe → axe spec → 3-user e2e → owner sees one summary line.
+
+**Tradeoff (recorded honestly):** the bootstrap approach puts **production-scoped API keys onto the owner's local machine** inside `05_app/.env.production` (Vercel personal token, Neon API key, Upstash management token, Clerk Production Secret Key, optional DNS API key). This file MUST be gitignored (already covered by `.gitignore`'s `.env*` rule) and MUST never be committed. The blast radius if `.env.production` leaks: a malicious actor could redeploy / read production data / impersonate users in production Clerk. Mitigations: scope each token as narrowly as possible (Vercel team-scoped if owner has a team; Neon project-scoped; Upstash database-scoped; Clerk Application Secret is already application-scoped); rotate quarterly (these tokens ARE rotatable, unlike `TOKEN_ENCRYPTION_KEY`); revoke immediately if owner's machine is ever compromised. The increment from "dev keys in `.env.local`" is real but small if scoping is disciplined; the owner accepts it explicitly.
+
+**`TOKEN_ENCRYPTION_KEY` discipline preserved:** the bootstrap script intentionally does NOT touch `TOKEN_ENCRYPTION_KEY`. Owner generates it locally, pastes it directly into Vercel's env var UI (or via `vercel env add TOKEN_ENCRYPTION_KEY production` which prompts securely without reading any file). Never written to `.env.production`. This is the one env var the script's "bulk env var upload" call explicitly skips. Rationale: the original ADR-0016 §6 decision (permanent ledger key, never rotate under V1) means this key's blast radius scales with how many systems have ever seen it — Code tab's process memory is one such system we deliberately exclude.
+
+**Revised owner phase timing:**
+
+| Phase | Original | Amended |
+|---|---|---|
+| 0 — Code tab pre-deploy code | ~1 day (Code tab) | ~1.5 days (Code tab; expanded scope) |
+| 1 — Vendor accounts + API keys | ~30 min owner | ~15 min owner |
+| 2 — Per-vendor production setup | ~1.5h owner | ~5 min owner (Clerk app shell + OSF app + domain purchase) |
+| 3 — Vercel project creation | ~10 min owner | 0 (bootstrap script) |
+| 4 — Vercel env vars | ~15 min owner | ~2 min owner (paste into `.env.production` + one `vercel env add` for `TOKEN_ENCRYPTION_KEY`) |
+| 5 — Domain + SSL | ~30 min + DNS wait | 0 active owner if DNS API used + DNS wait; otherwise ~2 min + DNS wait |
+| 6 — First deploy + smoke test | ~20 min owner | ~10 min owner (smoke test is irreducible) |
+| 7 — Quality gates | ~1h owner | ~2 min owner (read the report) |
+| 8 — Audit + tag | ~30 min Code tab + sign-off | unchanged |
+| **Owner total** | **~3-4h** | **~30-40 min** |
+
+**Revisit trigger added:** if the bootstrap script's API surface ever drifts (a vendor deprecates an endpoint, changes auth shape, etc.), the script's tests should fail in CI before the next deploy attempt. If a vendor adds management-API surface for previously-manual steps (e.g., Clerk ships an Application-create API), amend further.
