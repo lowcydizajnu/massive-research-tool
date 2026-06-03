@@ -53,7 +53,7 @@
 ## Known issues / gaps (accepted for V1.7)
 
 - **Cross-workspace discovery is absent.** There's no UI to browse/open another workspace's public study, so the *cross-workspace* Replicate is reachable only by id/link (the gated e2e drives `studies.fork` directly). A study link you can't open `notFound()`s gracefully. A share-link / explore surface is the ADR-0018 revisit trigger.
-- **Follows "why you see this" label is wrong for `fork` events.** The author-reason label uses the event actor's name; for a fork the actor (replicator) ≠ the followed author (source author), so it can mislabel. Correct for preregister/named (actor = author, the common Follows events). Minor cosmetic — fix is a related-author name lookup. *(Logged; not blocking.)*
+- **Follows "why you see this" label is wrong for `fork` events.** ~~The author-reason label uses the event actor's name; for a fork the actor (replicator) ≠ the followed author (source author), so it can mislabel.~~ **FIXED post-audit (`feed` now joins the related author via an aliased user join and labels with the author's name; +1 test covering the fork case).**
 - **Team-invite UI is still deferred.** A real workspace has only the owner, so the network loops can't be exercised by inviting a teammate; a **dev seeder** (`05_app/scripts/seed-network-demo.ts`) stands in (adds members + seeds activity) for manual/solo testing. Seeded members have no Clerk login (can't act back).
 - **Comment markdown sanitizer has no node unit test** (DOMPurify binds `window`); the allowlist is declarative + battle-tested, exercised by build + the gated e2e.
 - **Email digest** events are emitted but the handler is a stub (V1.8).
