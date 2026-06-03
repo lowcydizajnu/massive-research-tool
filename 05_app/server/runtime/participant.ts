@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { ulid } from "ulid";
 
 import { db } from "@/server/db/client";
@@ -133,7 +133,8 @@ export async function resolveOpenRecruitment(studyId: string): Promise<
     .where(
       and(
         eq(experimentVersion.experimentId, studyId),
-        eq(experimentVersion.kind, "preregistered"),
+        // Runnable = preregistered (OSF) OR published (no OSF). ADR-0013.
+        inArray(experimentVersion.kind, ["preregistered", "published"]),
       ),
     )
     .orderBy(desc(experimentVersion.versionNumber))

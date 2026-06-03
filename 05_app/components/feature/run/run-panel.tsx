@@ -27,20 +27,34 @@ export function RunPanel({
   const router = useRouter();
   const [copied, setCopied] = useState(false);
   const open = api.studies.openRecruitment.useMutation({ onSuccess: () => router.refresh() });
+  const publish = api.studies.publish.useMutation({ onSuccess: () => router.refresh() });
 
-  if (!info.isPreregistered) {
+  if (!info.runnable) {
     return (
       <section className="flex flex-col gap-3 border-t border-[var(--color-border-subtle)] pt-4">
         <p className="max-w-prose text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
-          Preregister this study before you can run it — participants always take the preregistered
-          version.
+          To run a study you freeze an immutable version participants take (your editable draft is
+          never run directly). Two ways to freeze:
         </p>
-        <Link
-          href={`/studies/${studyId}/preregister`}
-          className="w-fit rounded-[var(--radius-md)] bg-[var(--color-primary)] px-4 py-2 text-[length:var(--text-body-emphasis)] font-medium text-white hover:opacity-90"
-        >
-          Go to Preregister →
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href={`/studies/${studyId}/preregister`}
+            className="rounded-[var(--radius-md)] bg-[var(--color-primary)] px-4 py-2 text-[length:var(--text-body-emphasis)] font-medium text-white hover:opacity-90"
+          >
+            Preregister (to OSF) →
+          </Link>
+          <button
+            type="button"
+            onClick={() => publish.mutate({ studyId })}
+            disabled={publish.isPending}
+            className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-4 py-2 text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)] disabled:opacity-60"
+          >
+            {publish.isPending ? "Publishing…" : "Publish & run (no OSF)"}
+          </button>
+        </div>
+        <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+          Preregister is the open-science path; Publish &amp; run is for pilots and exploratory work.
+        </p>
       </section>
     );
   }

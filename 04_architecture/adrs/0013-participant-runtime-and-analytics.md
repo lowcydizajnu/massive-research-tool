@@ -92,6 +92,15 @@ The reasoning in one sentence: participant analytics is a real researcher need t
 - Treating Preview as a separate surface with its own code path. The flag-and-reuse pattern is mandatory; divergent Preview code drifts and becomes a separate maintenance burden.
 - Sharing participant-side state via React Context across question navigation (it would re-mount per page); state must travel via the URL or the session record.
 
+## Amendment 2026-06-03 (V1.6 PR-1c) — preregistration is not required to run
+
+V1.5 gated recruitment on a `kind:preregistered` version, which forced the OSF open-science path on *every* run — wrong for pilots / exploratory studies that don't want an OSF preregistration. This amendment separates the two concerns the runtime had fused:
+
+- **Running still requires an *immutable, frozen* version** — the participant runtime never serves the mutable autosave tip (so a design can't change mid-collection and the dataset always maps to one design). That invariant is unchanged.
+- **That frozen version no longer has to be a preregistration.** A study can be **published** — frozen into an immutable `kind:published` version with **no OSF push** — and run from that. Preregistration (`kind:preregistered`, with the OSF push) remains the confirmatory / open-science path.
+
+Concretely: the **runnable version** is the latest version whose `kind ∈ {preregistered, published}`. `studies.openRecruitment`, `studies.getRunInfo`, `studies.getResults`, and the participant `resolveOpenRecruitment` all resolve the latest *runnable* version (not preregistered-only). A new `studies.publish` mutation freezes the autosave tip into a `published` version (copying conditions, same as preregister) without enqueuing an OSF push. The Build/Run surface offers both paths: **Preregister** (open-science) and **Publish & run** (no OSF). `studies.getPreregistration` stays preregistered-only (it backs the Preregister-stage receipt). No schema change — `published` is an existing `experiment_version_kind` (ADR-0002).
+
 ## Revisit triggers
 
 - A researcher requires a SPA-style experience for a high-fidelity stimulus (e.g., a continuous-tracking task where each question transition would break the data). Likely a separate "live experiment" sub-runtime with its own ADR rather than reopening this one.

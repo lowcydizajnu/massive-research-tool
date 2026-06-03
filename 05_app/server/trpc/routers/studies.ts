@@ -159,6 +159,10 @@ function stageFromKind(kind: string | null | undefined): StudyStage {
 
 const STAGE_RANK: Record<StudyStage, number> = { draft: 0, preregistered: 1, published: 2 };
 
+/** Version kinds a study can be RUN from — immutable + collectible. A study is
+ *  runnable once it's preregistered (OSF) OR published (no OSF). ADR-0013. */
+const RUNNABLE_KINDS: ("preregistered" | "published")[] = ["preregistered", "published"];
+
 /** A study's stage = the FURTHEST milestone any of its versions reached (the
  *  autosave working tip is always 'draft', so the tip's kind under-reports a
  *  preregistered/published study). */
@@ -226,9 +230,11 @@ export type PreregistrationStatus = {
   lastError: string | null;
 };
 
-/** Run-stage state: whether the study can run + its recruitment status. */
+/** Run-stage state: whether the study is runnable (has a preregistered OR
+ *  published immutable version), which kind, + recruitment status. */
 export type RunInfo = {
-  isPreregistered: boolean;
+  runnable: boolean;
+  versionKind: "preregistered" | "published" | null;
   recruitment: { status: "open" | "paused" | "closed"; currentN: number } | null;
 };
 
@@ -735,6 +741,60 @@ export const studiesRouter = router({
     ),
 
   /**
+   * Publish — freeze the autosave working tip into an immutable `published`
+   * version to RUN it, WITHOUT an OSF preregistration (ADR-0013 amendment:
+   * preregistration isn't required to run). Mirrors preregister (copies
+   * conditions into the snapshot) but does no OSF push. For pilots / exploratory
+   * studies; the open-science path stays `preregister`.
+   */
+  publish: writeProcedure
+    .input(z.object({ studyId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }): Promise<{ versionNumber: number }> => {
+      const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+
+      const [latest] = await db
+        .select({ n: experimentVersion.versionNumber })
+        .from(experimentVersion)
+        .where(eq(experimentVersion.experimentId, input.studyId))
+        .orderBy(desc(experimentVersion.versionNumber))
+        .limit(1);
+      const nextNumber = (latest?.n ?? 0) + 1;
+
+      const [pub] = await db
+        .insert(experimentVersion)
+        .values({
+          experimentId: input.studyId,
+          versionNumber: nextNumber,
+          kind: "published",
+          name: `Published v${nextNumber}`,
+          definitionSnapshot: tip.version.definitionSnapshot,
+          moduleVersionLocks: tip.version.moduleVersionLocks,
+          createdBy: ctx.dbUser.id,
+        })
+        .returning();
+
+      // Freeze the conditions into the snapshot too (same as preregister).
+      const tipConditions = await conditionsForVersion(tip.version.id);
+      if (tipConditions.length) {
+        await db.insert(conditionTable).values(
+          tipConditions.map((c) => ({
+            id: ulid(),
+            experimentVersionId: pub.id,
+            slug: c.slug,
+            name: c.name,
+            allocationWeight: String(c.allocationWeight),
+            position: c.position,
+          })),
+        );
+      }
+      await db
+        .update(experiment)
+        .set({ updatedAt: new Date() })
+        .where(eq(experiment.id, input.studyId));
+      return { versionNumber: pub.versionNumber };
+    }),
+
+  /**
    * Retry the OSF push for the latest preregistered version (recovers from a
    * `failed` / `no_credentials` push without creating a new version — the
    * frozen snapshot is fine; only the push failed). Resets the status and
@@ -843,19 +903,19 @@ export const studiesRouter = router({
     .input(z.object({ studyId: z.string().uuid() }))
     .query(async ({ ctx, input }): Promise<RunInfo> => {
       const [ver] = await db
-        .select({ id: experimentVersion.id })
+        .select({ id: experimentVersion.id, kind: experimentVersion.kind })
         .from(experimentVersion)
         .innerJoin(experiment, eq(experimentVersion.experimentId, experiment.id))
         .where(
           and(
             eq(experimentVersion.experimentId, input.studyId),
             eq(experiment.tenantId, ctx.workspace.id),
-            eq(experimentVersion.kind, "preregistered"),
+            inArray(experimentVersion.kind, RUNNABLE_KINDS),
           ),
         )
         .orderBy(desc(experimentVersion.versionNumber))
         .limit(1);
-      if (!ver) return { isPreregistered: false, recruitment: null };
+      if (!ver) return { runnable: false, versionKind: null, recruitment: null };
 
       const [rs] = await db
         .select({ status: recruitmentSession.status, currentN: recruitmentSession.currentN })
@@ -864,14 +924,16 @@ export const studiesRouter = router({
         .orderBy(desc(recruitmentSession.openedAt))
         .limit(1);
       return {
-        isPreregistered: true,
+        runnable: true,
+        versionKind: ver.kind as "preregistered" | "published",
         recruitment: rs ? { status: rs.status, currentN: rs.currentN } : null,
       };
     }),
 
   /**
-   * Open recruitment for the study's latest preregistered version (Run stage).
-   * Ensures a default condition + an open recruitment_session (idempotent).
+   * Open recruitment for the study's latest runnable version — preregistered
+   * OR published (Run stage). Ensures a default condition + an open
+   * recruitment_session (idempotent).
    */
   openRecruitment: writeProcedure
     .input(z.object({ studyId: z.string().uuid() }))
@@ -884,7 +946,7 @@ export const studiesRouter = router({
           and(
             eq(experimentVersion.experimentId, input.studyId),
             eq(experiment.tenantId, ctx.workspace.id),
-            eq(experimentVersion.kind, "preregistered"),
+            inArray(experimentVersion.kind, RUNNABLE_KINDS),
           ),
         )
         .orderBy(desc(experimentVersion.versionNumber))
@@ -892,7 +954,7 @@ export const studiesRouter = router({
       if (!ver) {
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
-          message: "Preregister this study before opening recruitment.",
+          message: "Preregister or publish this study before opening recruitment.",
         });
       }
       await runtimeOpenRecruitment(ver.id);
@@ -918,7 +980,7 @@ export const studiesRouter = router({
           and(
             eq(experimentVersion.experimentId, input.studyId),
             eq(experiment.tenantId, ctx.workspace.id),
-            eq(experimentVersion.kind, "preregistered"),
+            inArray(experimentVersion.kind, RUNNABLE_KINDS),
           ),
         )
         .orderBy(desc(experimentVersion.versionNumber))

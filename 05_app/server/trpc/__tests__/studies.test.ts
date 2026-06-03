@@ -515,30 +515,57 @@ describe("studies.getRunInfo + openRecruitment", () => {
     const { id } = await caller.studies.create({ kind: "blank", title: "S" });
 
     expect(await caller.studies.getRunInfo({ studyId: id })).toEqual({
-      isPreregistered: false,
+      runnable: false,
+      versionKind: null,
       recruitment: null,
     });
 
     await caller.studies.preregister({ studyId: id });
     expect(await caller.studies.getRunInfo({ studyId: id })).toEqual({
-      isPreregistered: true,
+      runnable: true,
+      versionKind: "preregistered",
       recruitment: null,
     });
 
     await caller.studies.openRecruitment({ studyId: id });
     expect(await caller.studies.getRunInfo({ studyId: id })).toEqual({
-      isPreregistered: true,
+      runnable: true,
+      versionKind: "preregistered",
       recruitment: { status: "open", currentN: 0 },
     });
   });
 
-  it("openRecruitment refuses a study that isn't preregistered", async () => {
+  it("openRecruitment refuses a study that is neither preregistered nor published", async () => {
     await seedUserWithWorkspace("ext_a", "Alpha");
     const caller = createCaller({ authUser: authUser("ext_a") });
     const { id } = await caller.studies.create({ kind: "blank", title: "S" });
     await expect(caller.studies.openRecruitment({ studyId: id })).rejects.toMatchObject({
       code: "PRECONDITION_FAILED",
     });
+  });
+
+  it("publish makes a study runnable (no OSF) — runnable via the published version", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    await caller.studies.addCondition({ studyId: id, name: "Treatment" });
+
+    await caller.studies.publish({ studyId: id });
+    const info = await caller.studies.getRunInfo({ studyId: id });
+    expect(info).toMatchObject({ runnable: true, versionKind: "published" });
+
+    // No OSF push happened (publish doesn't preregister).
+    expect(enqueue).not.toHaveBeenCalled();
+
+    // The published version froze the conditions, and recruitment can open on it.
+    const [pub] = await db
+      .select()
+      .from(experimentVersion)
+      .where(eq(experimentVersion.kind, "published"));
+    const copied = await db.select().from(condition).where(eq(condition.experimentVersionId, pub.id));
+    expect(copied.map((c) => c.slug)).toEqual(["treatment"]);
+    await caller.studies.openRecruitment({ studyId: id });
+    expect((await caller.studies.getRunInfo({ studyId: id })).recruitment?.status).toBe("open");
   });
 
   it("openRecruitment is idempotent (one open session)", async () => {
