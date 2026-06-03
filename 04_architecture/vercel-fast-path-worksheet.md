@@ -1,4 +1,17 @@
-# Fast-path Vercel deploy worksheet — V1.7 to .vercel.app
+# ⚠️ SUPERSEDED 2026-06-03 — DO NOT USE
+
+> **Owner rejected the tradeoffs of this fast path** (dev Clerk + dev Neon + dev OSF on prod; no rate-limiter; no CI gate; no auto-axe). This file is preserved for historical context only.
+>
+> **Use instead:**
+> - [`deploy-runbook.md`](./deploy-runbook.md) — the trimmed owner runbook for the proper-path V1.7.0 deploy (~30-40 min owner engagement)
+> - [`handoffs/code-tab-pre-deploy-v170.md`](./handoffs/code-tab-pre-deploy-v170.md) — the Phase 0 Code-tab work that precedes the runbook (~1.5 days, includes Upstash rate-limiter, CI workflow, auto-axe spec, bootstrap script, and the lazy-DB fix)
+> - [`handoffs/code-tab-lazy-db-init.md`](./handoffs/code-tab-lazy-db-init.md) — the urgent prereq Code tab does first (~30 min); the lazy-DB fix unblocks future builds regardless of which deploy path you take
+>
+> The content below is left for reference but no decisions should be made from it.
+
+---
+
+# Fast-path Vercel deploy worksheet — V1.7 to .vercel.app (SUPERSEDED)
 
 > Goal: get V1.7 LIVE in ~15 minutes by reusing your existing dev credentials. Tradeoffs at the bottom — read once before starting, then work top to bottom.
 >

@@ -2,6 +2,14 @@
 
 Owner has approved executing the V1.7.0 production deploy per [ADR-0016](../adrs/0016-production-deployment-architecture.md) + its **2026-06-03 amendment** (API-driven bootstrap script — owner wants maximum automation, ~30-40 min total owner engagement instead of ~3-4h). Phase 0 is your work; owner blocks on it. Estimate: **~1.5 days of focused work** (expanded from ~1 day per the original handoff because the bootstrap + verification scripts are new scope).
 
+> **Context (2026-06-03 update):** Owner attempted a Vercel deploy from commit `ab65760` before this Phase 0 was started; the build failed at "Collecting page data" because `server/db/client.ts` throws at import time when `DATABASE_URL` is missing. Owner briefly considered a fast-path deploy (reuse dev credentials on prod) and rejected the tradeoffs (mixed user pool, dev data on prod, no rate-limiter, no CI, no auto-axe). Proper path is back on. **Step 0 below is the urgent prereq that unblocks any deploy — proper or otherwise — so do it first and ship it standalone before bundling the rest.**
+
+## Step 0 — Lazy-init the DB client (URGENT, ~30 min, ship standalone first)
+
+See full spec at [`handoffs/code-tab-lazy-db-init.md`](./code-tab-lazy-db-init.md). One-line summary: convert `server/db/client.ts` to lazy-init via a Proxy shim so `next build`'s page-data collection stops throwing on missing env. Audit other env-throw-at-import modules (`auth.clerk.ts`, `registry.osf.ts`, `crypto/tokens.ts`, `jobs/registry-push.ts`) and apply the same pattern. Add unit tests covering import-without-env + first-call-throws-clearly.
+
+**Ship as its own commit BEFORE starting items 1-8 below:** `fix(db): lazy-init DB client so missing DATABASE_URL doesn't break build`. Once that lands on `main`, future Vercel auto-builds stop failing on this class of issue — including the existing failed deployment, which Vercel will auto-retry from `main` on next push.
+
 ## What you're doing
 
 Closing the V1.7 ship carry-forwards + participant-runtime security review #9 + ADR-0016's CI gate **AND** building the bootstrap + verification machinery that drives the deploy itself with minimal owner clicks. Owner does account signups + API key generation + smoke test + sign-off; everything else flows through your code.
@@ -51,8 +59,11 @@ VERCEL_TOKEN=                          # vercel.com/account/tokens (full scope O
 VERCEL_TEAM_ID=                        # optional; only if you use a Vercel team
 GITHUB_REPO=                           # e.g. paweł-rosner/massive-research-tool
 
-NEON_API_KEY=                          # console.neon.tech/app/settings/api-keys
-NEON_PROJECT_ID=                       # from any branch URL in Neon
+NEON_API_KEY=                          # console.neon.tech/app/settings/api-keys (scope: read+write projects)
+# NOTE: NEON_PROJECT_ID is intentionally NOT an input — the bootstrap script
+# creates a FRESH `mrt-production` project for clean dev/prod isolation
+# (the dev project stays untouched). The new project's connection string
+# becomes DATABASE_URL in Vercel; the script prints the new project ID.
 
 UPSTASH_API_KEY=                       # upstash.com/account/management-api
 UPSTASH_EMAIL=                         # the email on your Upstash account
@@ -85,7 +96,7 @@ The single command owner runs: `npm run deploy:bootstrap`. Reads `.env.productio
 Steps (each idempotent — re-running the script after a partial failure picks up where it left off):
 
 1. **Validate env** — every required key present + non-empty; fail fast with a list of missing keys.
-2. **Neon: create `production` branch** if absent (`POST /projects/{NEON_PROJECT_ID}/branches`); capture connection string (the pooled one — Drizzle works fine with PGBouncer). Run `db:migrate` against it. Run `db:seed` against it (modules + frameworks; **not** the network-demo seeder).
+2. **Neon: create a fresh `mrt-production` PROJECT** (NOT a branch from the dev project) if absent (`POST /projects` with name `mrt-production`). The dev project's `main` branch contains researcher accounts + studies + responses + OSF tokens encrypted with the dev `TOKEN_ENCRYPTION_KEY` — none of which should migrate to production. A fresh project guarantees clean isolation + a clean schema. Capture the new project's connection string (pooled — Drizzle works fine with PGBouncer). Run `db:migrate` against it (schema). Run `db:seed` against it (modules + frameworks catalogue only — **not** the network-demo seeder; **not** any dev studies/responses). Add the new project's ID to the bootstrap's output summary so the owner sees what was created. The dev Neon project stays exactly as it is — your local `.env.local` still points at it.
 3. **Upstash: create Redis database** (`POST /redis/database/{name}`) if absent; capture REST URL + REST token. Set `allkeys-lru` eviction (cheap; defaults to noeviction).
 4. **Vercel: create project** (`POST /v9/projects`) if absent; set root dir `05_app`, framework `nextjs`, production branch `main`, install + build commands from the runbook.
 5. **Vercel: bulk-set env vars** (`POST /v9/projects/{id}/env`, scope `production`). Loop over the 15 vars to seed (everything except `TOKEN_ENCRYPTION_KEY`). Include the OSF vars (from `.env.production`), Clerk vars, `DATABASE_URL` from step 2, `INNGEST_*` (owner pastes from Inngest dashboard into `.env.production`; or wire the Vercel-Inngest integration which auto-syncs these), Upstash vars from step 3, `NEXT_PUBLIC_SITE_URL = https://{PRODUCTION_DOMAIN}`. Print a clear note: "TOKEN_ENCRYPTION_KEY NOT set — owner must run `vercel env add TOKEN_ENCRYPTION_KEY production` interactively, then `openssl rand -hex 32 | tr -d '\n' | pbcopy` and paste."
