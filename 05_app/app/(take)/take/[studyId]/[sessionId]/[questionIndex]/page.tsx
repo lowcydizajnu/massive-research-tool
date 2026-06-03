@@ -9,6 +9,7 @@ import { answerAction } from "../../actions";
 const ERROR_COPY: Record<string, string> = {
   answer_required: "Please answer this question to continue.",
   invalid_answer: "That answer wasn’t valid. Please try again.",
+  throttled: "You’re going a little fast — pause a moment, then submit again.",
 };
 
 /**

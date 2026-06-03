@@ -1,8 +1,10 @@
 "use server";
 
+import type { Route } from "next";
 import { redirect } from "next/navigation";
 
 import { recordAnswer, startResponse } from "@/server/runtime/participant";
+import { allowAnswer, allowBegin } from "@/server/runtime/take-rate-limit";
 
 /**
  * Server actions for the participant runtime (ADR-0013: advance via form POST →
@@ -17,6 +19,11 @@ export async function beginAction(formData: FormData): Promise<void> {
   const mode = formData.get("mode") === "preview" ? "preview" : "run";
   const externalPid = (formData.get("externalPid") as string | null)?.trim() || null;
 
+  // Rate-limit real runs (not the researcher's own preview replay) — security review #9.
+  if (mode === "run" && !(await allowBegin(recruitmentSessionId))) {
+    redirect(`/take/${studyId}/throttled` as Route);
+  }
+
   const started = await startResponse({ recruitmentSessionId, mode, externalPid });
   if ("error" in started) {
     redirect(`/take/${studyId}/start?closed=1`);
@@ -30,6 +37,12 @@ export async function answerAction(formData: FormData): Promise<void> {
   const responseId = String(formData.get("responseId") ?? "");
   const questionIndex = Number(formData.get("questionIndex") ?? 0);
   const moduleKey = String(formData.get("moduleKey") ?? "");
+
+  // Cap answer submissions per response — a fuzzing loop trips this; a real
+  // participant never does. Re-render the current question with a retry banner.
+  if (!(await allowAnswer(responseId))) {
+    redirect(`/take/${studyId}/${responseId}/${questionIndex}?e=throttled`);
+  }
 
   // Build the module-specific answer shape from the form fields. recordAnswer
   // re-validates against the block's responseSchema server-side, so trusting
