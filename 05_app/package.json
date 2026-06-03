@@ -5,7 +5,7 @@
   "description": "SaaS for psychological experiments — Phase 5 MVP scaffold per ADR-0011",
   "scripts": {
     "dev": "next dev --turbopack",
-    "dev:https": "next dev --experimental-https -p 3000",
+    "dev:https": "next dev --experimental-https --experimental-https-key ./certificates/localhost-key.pem --experimental-https-cert ./certificates/localhost.pem -p 3000",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

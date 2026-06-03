@@ -43,10 +43,16 @@ export function osfConfig() {
   };
 }
 
-/** Whether the OSF app is configured on this server (client id + redirect). */
+/** Whether OSF OAuth is configured on this server (client id + redirect). */
 export function isOsfConfigured(): boolean {
   const cfg = osfConfig();
   return !!cfg.clientId && !!cfg.redirectUri;
+}
+
+/** Whether the OSF API base is set (the Personal Access Token path needs only
+ *  this — no OAuth app required, so it works on localhost/self-hosted). */
+export function isOsfApiConfigured(): boolean {
+  return !!osfConfig().apiBase;
 }
 
 /** Upsert the 'osf' registry row; returns its id. */
@@ -128,6 +134,47 @@ export const osfRegistry: RegistryAdapter = {
         set: {
           accessToken: encryptSecret(tok.access_token),
           refreshToken: tok.refresh_token ? encryptSecret(tok.refresh_token) : null,
+          connectedAt: new Date(),
+          revokedAt: null,
+        },
+      });
+  },
+
+  async connectWithToken({ userId, token }) {
+    const trimmed = token.trim();
+    if (!trimmed) throw new Error("Paste a Personal Access Token to connect.");
+    const cfg = osfConfig();
+
+    // Validate the token by reading the owning OSF user. A bad/expired/wrong-scope
+    // token fails here, before anything is stored — so we never persist a token
+    // that can't actually push.
+    const res = await fetch(`${cfg.apiBase}/users/me/`, {
+      headers: { Authorization: `Bearer ${trimmed}`, Accept: "application/json" },
+    });
+    if (!res.ok) {
+      throw new Error(
+        `OSF rejected the token (${res.status}). Generate one at osf.io/settings/tokens ` +
+          `with the osf.full_write scope and try again.`,
+      );
+    }
+
+    const registryId = await ensureOsfRegistry();
+    await db
+      .insert(registryConnection)
+      .values({
+        id: ulid(),
+        userId,
+        registryId,
+        accessToken: encryptSecret(trimmed),
+        refreshToken: null, // PATs don't refresh; the user reissues if revoked
+        scopes: ["osf.full_write"],
+        revokedAt: null,
+      })
+      .onConflictDoUpdate({
+        target: [registryConnection.userId, registryConnection.registryId],
+        set: {
+          accessToken: encryptSecret(trimmed),
+          refreshToken: null,
           connectedAt: new Date(),
           revokedAt: null,
         },

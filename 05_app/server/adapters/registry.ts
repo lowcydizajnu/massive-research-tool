@@ -35,6 +35,13 @@ export interface RegistryAdapter {
   getAuthorizeUrl(input: { userId: string; state: string }): string;
   /** OAuth callback: exchange the code and store encrypted tokens for the user. */
   completeConnection(input: { userId: string; code: string }): Promise<void>;
+  /** Alternative to OAuth: connect with a Personal Access Token the user pastes.
+   *  The token is validated against the registry API, then stored encrypted in
+   *  the same `registry_connection` row as an OAuth token. This is the path that
+   *  works for localhost/self-hosted and is the only one the automated e2e can
+   *  drive (OAuth needs an interactive registry login). See ADR-0005 (PAT
+   *  amendment). */
+  connectWithToken(input: { userId: string; token: string }): Promise<void>;
   /** Revoke the user's connection locally (does not delete already-pushed registrations). */
   disconnect(userId: string): Promise<void>;
   /** Whether the user has an active connection. */
