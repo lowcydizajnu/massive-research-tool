@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import { ulid } from "ulid";
 import { z } from "zod";
 
@@ -154,10 +154,29 @@ export const studiesRouter = router({
         )
         .orderBy(desc(experiment.updatedAt));
 
-      const items: StudyListItem[] = rows.map(({ experiment: e, version: v }) => ({
+      // A study's stage is the FURTHEST milestone any of its versions reached
+      // (published > preregistered > draft) — NOT the autosave working tip's
+      // kind, which is always 'draft'. Otherwise a preregistered study (whose
+      // tip stays an editable autosave) would never leave the Drafts filter.
+      const expIds = rows.map((r) => r.experiment.id);
+      const kindRows = expIds.length
+        ? await db
+            .select({ experimentId: experimentVersion.experimentId, kind: experimentVersion.kind })
+            .from(experimentVersion)
+            .where(inArray(experimentVersion.experimentId, expIds))
+        : [];
+      const stageByExp = new Map<string, StudyStage>();
+      const rank: Record<StudyStage, number> = { draft: 0, preregistered: 1, published: 2 };
+      for (const { experimentId, kind } of kindRows) {
+        const s = stageFromKind(kind);
+        const cur = stageByExp.get(experimentId) ?? "draft";
+        if (rank[s] >= rank[cur]) stageByExp.set(experimentId, s);
+      }
+
+      const items: StudyListItem[] = rows.map(({ experiment: e }) => ({
         id: e.id,
         title: e.title,
-        stage: stageFromKind(v?.kind),
+        stage: stageByExp.get(e.id) ?? "draft",
         lastEditedAt: e.updatedAt.toISOString(),
         isReplication: e.forkOfExperimentId !== null,
         isOwner: e.ownerId === ctx.dbUser.id,
