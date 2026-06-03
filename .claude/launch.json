@@ -4,8 +4,8 @@
     {
       "name": "mrt-app",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "05_app", "run", "dev", "--", "-p", "3100"],
-      "port": 3100
+      "runtimeArgs": ["--prefix", "05_app", "run", "dev", "--", "-p", "3000"],
+      "port": 3000
     }
   ]
 }

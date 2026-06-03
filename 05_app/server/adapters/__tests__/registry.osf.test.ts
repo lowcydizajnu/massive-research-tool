@@ -15,7 +15,8 @@ import { osfRegistry } from "@/server/adapters/registry.osf";
 describe("osfRegistry.getAuthorizeUrl", () => {
   const prev = { ...process.env };
   beforeEach(() => {
-    process.env.OSF_CLIENT_ID = "client-123";
+    process.env.OSF_OAUTH_CLIENT_ID = "client-123";
+    process.env.OSF_OAUTH_REDIRECT_URI = "http://localhost:3000/api/auth/osf/callback";
     process.env.OSF_AUTHORIZE_URL = "https://accounts.osf.io/oauth2/authorize";
     process.env.OSF_SCOPES = "osf.full_write";
   });
@@ -24,18 +25,12 @@ describe("osfRegistry.getAuthorizeUrl", () => {
   });
 
   it("builds a standard OAuth2 authorization-code URL", () => {
-    const url = new URL(
-      osfRegistry.getAuthorizeUrl({
-        userId: "u1",
-        redirectUri: "https://app.example.com/api/registry/osf/callback",
-        state: "abc",
-      }),
-    );
+    const url = new URL(osfRegistry.getAuthorizeUrl({ userId: "u1", state: "abc" }));
     expect(url.origin + url.pathname).toBe("https://accounts.osf.io/oauth2/authorize");
     expect(url.searchParams.get("response_type")).toBe("code");
     expect(url.searchParams.get("client_id")).toBe("client-123");
     expect(url.searchParams.get("redirect_uri")).toBe(
-      "https://app.example.com/api/registry/osf/callback",
+      "http://localhost:3000/api/auth/osf/callback",
     );
     expect(url.searchParams.get("scope")).toBe("osf.full_write");
     expect(url.searchParams.get("state")).toBe("abc");

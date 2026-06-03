@@ -5,15 +5,10 @@ import { registry } from "@/server/adapters/registry";
 import { getCurrentDbUser } from "@/server/auth/current-db-user";
 
 /**
- * OSF OAuth callback. Verifies the CSRF state against the cookie, exchanges the
- * code (RegistryAdapter.completeConnection stores encrypted tokens), then
- * redirects back to Account Settings · Connections with a status flag.
+ * OSF OAuth callback (matches the registered OSF_OAUTH_REDIRECT_URI). Verifies
+ * the CSRF state cookie, exchanges the code (RegistryAdapter stores encrypted
+ * tokens), then redirects to Account Settings · Connections with a status flag.
  */
-function redirectUri(reqUrl: string): string {
-  const base = process.env.NEXT_PUBLIC_SITE_URL ?? new URL(reqUrl).origin;
-  return `${base}/api/registry/osf/callback`;
-}
-
 export async function GET(req: Request) {
   const dbUser = await getCurrentDbUser();
   if (!dbUser) return NextResponse.redirect(new URL("/signin", req.url));
@@ -33,11 +28,7 @@ export async function GET(req: Request) {
   }
 
   try {
-    await registry.completeConnection({
-      userId: dbUser.id,
-      code,
-      redirectUri: redirectUri(req.url),
-    });
+    await registry.completeConnection({ userId: dbUser.id, code });
     settings.searchParams.set("osf", "connected");
   } catch {
     settings.searchParams.set("osf", "error");

@@ -29,15 +29,24 @@ import type {
  */
 const OSF_KEY = "osf";
 
-function osfConfig() {
+export function osfConfig() {
   return {
-    clientId: process.env.OSF_CLIENT_ID ?? "",
-    clientSecret: process.env.OSF_CLIENT_SECRET ?? "",
+    clientId: process.env.OSF_OAUTH_CLIENT_ID ?? "",
+    clientSecret: process.env.OSF_OAUTH_CLIENT_SECRET ?? "",
+    /** Must match the OSF app's registered redirect URI exactly. */
+    redirectUri: process.env.OSF_OAUTH_REDIRECT_URI ?? "",
     // OSF documented defaults; override per the registered app if they differ.
     authorizeUrl: process.env.OSF_AUTHORIZE_URL ?? "https://accounts.osf.io/oauth2/authorize",
     tokenUrl: process.env.OSF_TOKEN_URL ?? "https://accounts.osf.io/oauth2/token",
+    apiBase: process.env.OSF_API_BASE ?? "https://api.osf.io/v2",
     scopes: process.env.OSF_SCOPES ?? "osf.full_write",
   };
+}
+
+/** Whether the OSF app is configured on this server (client id + redirect). */
+export function isOsfConfigured(): boolean {
+  const cfg = osfConfig();
+  return !!cfg.clientId && !!cfg.redirectUri;
 }
 
 /** Upsert the 'osf' registry row; returns its id. */
@@ -66,18 +75,18 @@ const NOT_IMPLEMENTED =
   "built against verified OSF registrations API, not stubbed here.";
 
 export const osfRegistry: RegistryAdapter = {
-  getAuthorizeUrl({ redirectUri, state }) {
+  getAuthorizeUrl({ state }) {
     const cfg = osfConfig();
     const url = new URL(cfg.authorizeUrl);
     url.searchParams.set("response_type", "code");
     url.searchParams.set("client_id", cfg.clientId);
-    url.searchParams.set("redirect_uri", redirectUri);
+    url.searchParams.set("redirect_uri", cfg.redirectUri);
     url.searchParams.set("scope", cfg.scopes);
     url.searchParams.set("state", state);
     return url.toString();
   },
 
-  async completeConnection({ userId, code, redirectUri }) {
+  async completeConnection({ userId, code }) {
     const cfg = osfConfig();
     const res = await fetch(cfg.tokenUrl, {
       method: "POST",
@@ -88,7 +97,7 @@ export const osfRegistry: RegistryAdapter = {
       body: new URLSearchParams({
         grant_type: "authorization_code",
         code,
-        redirect_uri: redirectUri,
+        redirect_uri: cfg.redirectUri,
         client_id: cfg.clientId,
         client_secret: cfg.clientSecret,
       }),
