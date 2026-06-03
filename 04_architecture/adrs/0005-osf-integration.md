@@ -147,6 +147,16 @@ Same machinery, different metadata. A published version pushes a "publication" r
 - Synchronous OSF dependency in any user-facing flow.
 - OSF-specific logic outside the adapter (registry-agnostic interface is enforced as a code-review rule).
 
+## Amendment 2026-06-03 — Personal Access Token as a second connect path
+
+**Context.** OSF's CAS OAuth server rejects a `localhost` redirect URI at the authorize step (verified live: a well-formed authorize request with a matching registered `http://localhost` callback returns `invalid_client`; switching to `https://localhost` then returns "invalid request parameters" at OSF's redirect-validation stage). OAuth-on-localhost is therefore not viable for local development, and OAuth in general cannot drive an automated end-to-end test because it requires an interactive OSF login.
+
+**Decision.** Add a second connection method alongside OAuth: a **Personal Access Token** (PAT) the researcher generates at `osf.io/settings/tokens` (scope `osf.full_write`) and pastes into Account Settings · Connections. This is the documented, standard way server-side tools authenticate to the OSF API (osfr, datalad-osf, jsPsych all use a PAT). The token is validated against `GET /v2/users/me/` and then **stored encrypted in the same `registry_connection` row as an OAuth access token** — identical crypto (AES-256-GCM, ADR unchanged), identical downstream push path. `refresh_token` is null (PATs don't refresh; the user reissues if revoked).
+
+**Why this doesn't disturb the architecture.** The PAT is just another way to populate `registry_connection.access_token`. Everything downstream (the push job, token decryption inside the adapter, the registry-agnostic interface) is unchanged. OAuth stays in place for a future deployed `https` domain where the redirect works. Interface change is one additive method: `RegistryAdapter.connectWithToken({ userId, token })`.
+
+**Why not** make PAT the only method? OAuth remains the better UX on a real deployment (no copy-paste of a long-lived secret), and keeping both lets production use OAuth while local/self-hosted/CI use the PAT.
+
 ## Revisit triggers
 
 Reopen this decision (probably as a superseding or extending ADR) if:

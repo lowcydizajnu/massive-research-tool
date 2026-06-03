@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { registry } from "@/server/adapters/registry";
 import { isOsfConfigured } from "@/server/adapters/registry.osf";
 import { getCurrentDbUser } from "@/server/auth/current-db-user";
+import { connectOsfTokenAction } from "@/server/registry/connect-token";
 import { disconnectOsfAction } from "@/server/registry/disconnect";
 
 /**
@@ -78,45 +79,83 @@ export default async function AccountSettingsPage({
           Connections
         </h2>
 
-        <div className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-4">
-          <div className="min-w-0">
-            <div className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">
-              OSF
-            </div>
-            <div className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-              {connection.connected
-                ? `Connected${connection.connectedAt ? ` · since ${formatDate(connection.connectedAt)}` : ""}`
-                : "Push preregistrations to the Open Science Framework."}
-            </div>
-            {!osfConfigured ? (
-              <div className="mt-1 text-[length:var(--text-small)] text-[var(--color-warning-text-on-subtle)]">
-                OSF app not configured on this server (set OSF_OAUTH_CLIENT_ID / OSF_OAUTH_CLIENT_SECRET / OSF_OAUTH_REDIRECT_URI).
+        <div className="flex flex-col gap-3 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">
+                OSF
               </div>
+              <div className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                {connection.connected
+                  ? `Connected${connection.connectedAt ? ` · since ${formatDate(connection.connectedAt)}` : ""}`
+                  : "Push preregistrations to the Open Science Framework."}
+              </div>
+            </div>
+
+            {connection.connected ? (
+              <form action={disconnectOsfAction}>
+                <button
+                  type="submit"
+                  className="shrink-0 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-1.5 text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
+                >
+                  Disconnect
+                </button>
+              </form>
             ) : null}
           </div>
 
-          {connection.connected ? (
-            <form action={disconnectOsfAction}>
-              <button
-                type="submit"
-                className="shrink-0 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-1.5 text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
-              >
-                Disconnect
-              </button>
-            </form>
-          ) : (
-            <Link
-              href="/api/auth/osf/connect"
-              className={cn(
-                "shrink-0 rounded-[var(--radius-md)] px-3 py-1.5 text-[length:var(--text-body-emphasis)] font-medium text-white",
-                osfConfigured
-                  ? "bg-[var(--color-primary)] hover:opacity-90"
-                  : "pointer-events-none bg-[var(--color-primary)] opacity-50",
-              )}
-            >
-              + Connect
-            </Link>
-          )}
+          {!connection.connected ? (
+            <div className="flex flex-col gap-3 border-t border-[var(--color-border-subtle)] pt-3">
+              <form action={connectOsfTokenAction} className="flex flex-col gap-2">
+                <label
+                  htmlFor="osf-token"
+                  className="text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)]"
+                >
+                  Personal Access Token
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    id="osf-token"
+                    name="token"
+                    type="password"
+                    required
+                    autoComplete="off"
+                    placeholder="Paste your OSF token"
+                    className="min-w-0 flex-1 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-3 py-1.5 text-[length:var(--text-body)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)]"
+                  />
+                  <button
+                    type="submit"
+                    className="shrink-0 rounded-[var(--radius-md)] bg-[var(--color-primary)] px-3 py-1.5 text-[length:var(--text-body-emphasis)] font-medium text-white hover:opacity-90"
+                  >
+                    Connect
+                  </button>
+                </div>
+                <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                  Generate one at{" "}
+                  <a
+                    href="https://osf.io/settings/tokens"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline hover:text-[var(--color-text-secondary)]"
+                  >
+                    osf.io/settings/tokens
+                  </a>{" "}
+                  with the{" "}
+                  <code className="font-mono text-[var(--color-text-secondary)]">osf.full_write</code>{" "}
+                  scope. Stored encrypted; never shown again.
+                </p>
+              </form>
+
+              {osfConfigured ? (
+                <Link
+                  href="/api/auth/osf/connect"
+                  className="text-[length:var(--text-small)] text-[var(--color-text-secondary)] underline hover:opacity-80"
+                >
+                  Or connect with OSF login (OAuth)
+                </Link>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </section>
     </main>

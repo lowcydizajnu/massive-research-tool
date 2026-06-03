@@ -30,3 +30,6 @@ next-env.d.ts
 
 # editor
 .cursor
+
+# Local TLS certs for dev:https (never commit private keys)
+certificates/

@@ -47,3 +47,36 @@ describe("osfRegistry.getAuthorizeUrl", () => {
     ).rejects.toThrow(/Preregister stage/);
   });
 });
+
+describe("osfRegistry.connectWithToken (PAT path)", () => {
+  const prev = { ...process.env };
+  beforeEach(() => {
+    process.env.OSF_API_BASE = "https://api.osf.io/v2";
+  });
+  afterEach(() => {
+    process.env = { ...prev };
+    vi.restoreAllMocks();
+  });
+
+  it("rejects an empty token before hitting the network", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    await expect(
+      osfRegistry.connectWithToken({ userId: "u1", token: "   " }),
+    ).rejects.toThrow(/Paste a Personal Access Token/);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("validates the token against OSF /users/me with a Bearer header and rejects a bad token", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("nope", { status: 401 }));
+    await expect(
+      osfRegistry.connectWithToken({ userId: "u1", token: "bad-token" }),
+    ).rejects.toThrow(/OSF rejected the token \(401\)/);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchSpy.mock.calls[0]!;
+    expect(url).toBe("https://api.osf.io/v2/users/me/");
+    expect((init?.headers as Record<string, string>).Authorization).toBe("Bearer bad-token");
+  });
+});
