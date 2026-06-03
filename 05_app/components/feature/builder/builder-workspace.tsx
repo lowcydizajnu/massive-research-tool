@@ -14,6 +14,7 @@ import { BlockVisibilityField } from "./block-visibility-field";
 import { ConditionsSection } from "./conditions-section";
 import { ConfigureForm } from "./configure-form";
 import { ModulePicker } from "./module-picker";
+import { ForkableControl, ReplicateButton, ReplicationsPanel } from "./replications-panel";
 import { SaveVersionDialog } from "./save-version-dialog";
 import { TagsSection } from "./tags-section";
 
@@ -37,6 +38,25 @@ function formatEdited(iso: string): string {
   }).format(new Date(iso));
 }
 
+const tabActiveCls =
+  "rounded-[var(--radius-sm)] bg-[var(--color-primary-subtle)] px-2 py-0.5 text-[length:var(--text-small)] font-medium text-[var(--color-primary-text-on-subtle)]";
+const tabIdleCls =
+  "rounded-[var(--radius-sm)] px-2 py-0.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]";
+
+/** A not-yet-built right-panel tab (shown for IA legibility, inert). */
+function TabSoon({ label }: { label: string }) {
+  return (
+    <span
+      role="tab"
+      aria-disabled="true"
+      title="Coming soon"
+      className="cursor-default px-2 py-0.5 text-[length:var(--text-small)] text-[var(--color-text-muted)] opacity-60"
+    >
+      {label}
+    </span>
+  );
+}
+
 export function BuilderWorkspace({
   study: initial,
   currentUserId = null,
@@ -49,6 +69,7 @@ export function BuilderWorkspace({
   const study = data ?? initial;
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [panelTab, setPanelTab] = useState<"details" | "replications">("details");
   const [pickerOpen, setPickerOpen] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
@@ -170,39 +191,46 @@ export function BuilderWorkspace({
               <button
                 type="button"
                 role="tab"
-                onClick={() => setSelectedId(null)}
+                onClick={() => {
+                  setSelectedId(null);
+                  setPanelTab("details");
+                }}
                 className="rounded-[var(--radius-sm)] px-2 py-0.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
               >
                 Details
               </button>
-              <span
-                role="tab"
-                aria-current="page"
-                className="rounded-[var(--radius-sm)] bg-[var(--color-primary-subtle)] px-2 py-0.5 text-[length:var(--text-small)] font-medium text-[var(--color-primary-text-on-subtle)]"
-              >
+              <span role="tab" aria-current="page" className={tabActiveCls}>
                 Configure
               </span>
+              {["History", "Replications", "Comments", "Validation"].map((t) => (
+                <TabSoon key={t} label={t} />
+              ))}
             </>
           ) : (
-            <span
-              role="tab"
-              aria-current="page"
-              className="rounded-[var(--radius-sm)] bg-[var(--color-primary-subtle)] px-2 py-0.5 text-[length:var(--text-small)] font-medium text-[var(--color-primary-text-on-subtle)]"
-            >
-              Details
-            </span>
+            <>
+              <button
+                type="button"
+                role="tab"
+                aria-current={panelTab === "details" ? "page" : undefined}
+                onClick={() => setPanelTab("details")}
+                className={panelTab === "details" ? tabActiveCls : tabIdleCls}
+              >
+                Details
+              </button>
+              <TabSoon label="History" />
+              <button
+                type="button"
+                role="tab"
+                aria-current={panelTab === "replications" ? "page" : undefined}
+                onClick={() => setPanelTab("replications")}
+                className={panelTab === "replications" ? tabActiveCls : tabIdleCls}
+              >
+                Replications
+              </button>
+              <TabSoon label="Comments" />
+              <TabSoon label="Validation" />
+            </>
           )}
-          {["History", "Replications", "Comments", "Validation"].map((t) => (
-            <span
-              key={t}
-              role="tab"
-              aria-disabled="true"
-              title="Coming soon"
-              className="cursor-default px-2 py-0.5 text-[length:var(--text-small)] text-[var(--color-text-muted)] opacity-60"
-            >
-              {t}
-            </span>
-          ))}
         </nav>
 
         {selected ? (
@@ -225,6 +253,8 @@ export function BuilderWorkspace({
               current={selected.showIfCondition}
             />
           </>
+        ) : panelTab === "replications" ? (
+          <ReplicationsPanel studyId={study.id} />
         ) : (
           <div className="flex flex-col gap-3">
             <h2 className="font-serif text-[17px] font-medium text-[var(--color-text-primary)]">
@@ -263,6 +293,16 @@ export function BuilderWorkspace({
             ) : null}
 
             <TagsSection studyId={study.id} tags={study.tags} />
+
+            {/* Replication (ADR-0018, replications-tab.md): forkability is owner-only; anyone who can open the study can replicate it. */}
+            <DetailRow label="Replication">
+              <div className="flex flex-col gap-2">
+                {currentUserId === study.ownerId ? (
+                  <ForkableControl studyId={study.id} value={study.forkableBy} />
+                ) : null}
+                <ReplicateButton studyId={study.id} />
+              </div>
+            </DetailRow>
 
             <ConditionsSection studyId={study.id} />
           </div>
