@@ -23,6 +23,19 @@ export type CoreModuleDef = {
   /** JSON-Schema mirror stored in module_version.schema. */
   jsonSchema: Record<string, unknown>;
   /**
+   * Whether this module collects a participant answer (a "question") or is a
+   * pure stimulus (no response_item is written for it). ADR-0014.
+   */
+  collectsResponse: boolean;
+  /**
+   * Shape a participant's answer must match — validated server-side at the
+   * participant runtime before a `response_item.answer` is written (same
+   * registry-is-source-of-truth pattern as configSchema). `null` for pure
+   * stimuli. The "required" decision is config-driven and enforced separately
+   * by the runtime (an empty answer to a required question is rejected).
+   */
+  responseSchema: z.ZodType<Record<string, unknown>> | null;
+  /**
    * Completeness for the "valid / missing field" badge — a block can be
    * structurally valid (Zod-OK) but still missing a required value while the
    * researcher fills it in. Distinct from structural validity on purpose.
@@ -64,6 +77,9 @@ const socialPost: CoreModuleDef = {
     required: ["headline"],
     additionalProperties: false,
   },
+  // Pure stimulus — participants read it; it collects no answer.
+  collectsResponse: false,
+  responseSchema: null,
   isComplete: (c) => typeof c.headline === "string" && c.headline.trim().length > 0,
 };
 
@@ -98,6 +114,9 @@ const likert7: CoreModuleDef = {
     required: ["prompt"],
     additionalProperties: false,
   },
+  // A 7-point scale collects a single integer 1..7.
+  collectsResponse: true,
+  responseSchema: z.object({ value: z.number().int().min(1).max(7) }),
   isComplete: (c) => typeof c.prompt === "string" && c.prompt.trim().length > 0,
 };
 
