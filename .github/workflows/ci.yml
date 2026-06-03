@@ -1,0 +1,60 @@
+# CI gate (ADR-0016). Vercel's project setting "Only build if the GitHub check
+# passes" (Ignored Build Step, wired by scripts/deploy-bootstrap.ts) hooks off
+# the status check this workflow publishes — so a red CI blocks the deploy.
+#
+# The Next app lives in 05_app/, so every step runs there.
+#
+# Required GitHub repo secrets (Settings → Secrets and variables → Actions):
+#   NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY  — a Clerk TEST instance publishable key
+#   CLERK_SECRET_KEY                   — the matching Clerk test secret
+#   DATABASE_URL                       — a disposable Postgres (a Neon CI branch)
+#   E2E_CLERK_IDENTIFIER / E2E_CLERK_PASSWORD — only if you enable the gated
+#       auth e2e here; the default chromium suite below does not need them.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    name: typecheck · test · build · e2e
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: 05_app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: 05_app/package-lock.json
+
+      # The repo installs some deps with relaxed peers (inngest, upstash, etc.).
+      - run: npm ci --legacy-peer-deps
+
+      - run: npm run typecheck
+
+      - run: npm run test
+
+      - name: Build
+        run: npm run build
+        env:
+          # Lazy DB init (server/db/client.ts) means the build no longer needs
+          # DATABASE_URL; Clerk's provider still needs a publishable key to mount
+          # during prerender, so source it from the test-instance secret.
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+
+      - name: Install Playwright (chromium)
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E (default surface suite — gated auth specs excluded)
+        run: npm run test:e2e
+        env:
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
