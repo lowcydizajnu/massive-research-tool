@@ -64,6 +64,7 @@ function Likert7Input({ config }: { config: Record<string, unknown> }) {
               type="radio"
               name="value"
               value={n}
+              aria-label={`${n} of 7${n === 1 ? ` — ${left}` : n === 7 ? ` — ${right}` : ""}`}
               className="size-4 accent-[var(--color-primary)]"
             />
             <span aria-hidden>{n}</span>
