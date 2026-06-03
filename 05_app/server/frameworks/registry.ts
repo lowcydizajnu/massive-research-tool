@@ -30,12 +30,15 @@ const misinformation: FrameworkDef = {
     {
       source: "core",
       key: "social-post",
-      version: "1.0.0",
-      // Stimulus — the researcher supplies the post content.
+      version: "2.0.0",
+      // Stimulus — the researcher supplies the post content + veracity ground
+      // truth + topic tags (researcher metadata, not shown to participants).
       config: {
         headline: "",
         body: "",
         source: "",
+        veracityGroundTruth: "unverified",
+        topicTags: [],
         imageUrl: "",
         shareCountVisible: true,
       },

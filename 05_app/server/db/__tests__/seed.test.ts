@@ -26,31 +26,33 @@ beforeEach(async () => {
 });
 
 describe("seedCoreModules", () => {
-  it("seeds the two core modules with their versions", async () => {
+  it("seeds the core modules with their versions (social-post has v1 + v2)", async () => {
     await seedCoreModules();
 
     const mods = await db.select().from(module);
     expect(mods.map((m) => `${m.source}/${m.key}`).sort()).toEqual([
+      "core/free-text",
       "core/likert-7",
+      "core/multiple-choice",
       "core/social-post",
     ]);
 
     const versions = await db.select().from(moduleVersion);
-    expect(versions).toHaveLength(2);
+    expect(versions).toHaveLength(5); // social-post ×2 + likert-7 + multiple-choice + free-text
 
     const social = mods.find((m) => m.key === "social-post")!;
-    const socialVersion = versions.find((v) => v.moduleId === social.id)!;
-    expect(socialVersion.version).toBe("1.0.0");
-    expect((socialVersion.defaultConfig as Record<string, unknown>).shareCountVisible).toBe(
-      false,
-    );
-    expect((socialVersion.schema as Record<string, unknown>).type).toBe("object");
+    const socialVersions = versions
+      .filter((v) => v.moduleId === social.id)
+      .map((v) => v.version)
+      .sort();
+    expect(socialVersions).toEqual(["1.0.0", "2.0.0"]);
+    expect((versions[0].schema as Record<string, unknown>).type).toBe("object");
   });
 
   it("is idempotent across repeated runs", async () => {
     await seedCoreModules();
     await seedCoreModules();
-    expect(await db.select().from(module)).toHaveLength(2);
-    expect(await db.select().from(moduleVersion)).toHaveLength(2);
+    expect(await db.select().from(module)).toHaveLength(4);
+    expect(await db.select().from(moduleVersion)).toHaveLength(5);
   });
 });
