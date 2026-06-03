@@ -36,6 +36,13 @@ export type CoreModuleDef = {
    */
   responseSchema: z.ZodType<Record<string, unknown>> | null;
   /**
+   * Whether a (shape-valid) answer counts as "blank" for the required check —
+   * the participant runtime rejects a blank answer to a required question.
+   * Defaults to null/empty-object when omitted; modules with their own notion of
+   * empty (e.g. `{selected: []}`, `{text: "  "}`) provide this. ADR-0014.
+   */
+  isAnswerEmpty?: (answer: unknown) => boolean;
+  /**
    * Completeness for the "valid / missing field" badge — a block can be
    * structurally valid (Zod-OK) but still missing a required value while the
    * researcher fills it in. Distinct from structural validity on purpose.
@@ -117,10 +124,149 @@ const likert7: CoreModuleDef = {
   // A 7-point scale collects a single integer 1..7.
   collectsResponse: true,
   responseSchema: z.object({ value: z.number().int().min(1).max(7) }),
+  isAnswerEmpty: (a) =>
+    !a || typeof (a as { value?: unknown }).value !== "number",
   isComplete: (c) => typeof c.prompt === "string" && c.prompt.trim().length > 0,
 };
 
-export const MODULE_REGISTRY: CoreModuleDef[] = [socialPost, likert7];
+// social-post v2.0.0 — promotes the v1 placeholder to a real misinformation
+// stimulus with veracity ground-truth + topic tags (researcher metadata, NOT
+// shown to participants). v1.0.0 stays in the registry for studies pinned to it
+// (ModuleVersion immutability, ADR-0001/0012).
+const socialPostV2: CoreModuleDef = {
+  source: "core",
+  key: "social-post",
+  version: "2.0.0",
+  name: "Social post",
+  description:
+    "A simulated social-media post used as a misinformation stimulus, with veracity ground-truth and topic tags for analysis.",
+  categoryTags: ["misinformation", "stimulus", "social"],
+  configSchema: z.object({
+    headline: z.string(),
+    body: z.string(),
+    source: z.string(),
+    veracityGroundTruth: z.enum(["true", "false", "misleading", "unverified"]),
+    topicTags: z.array(z.string()),
+    imageUrl: z.union([z.string().url(), z.literal("")]),
+    shareCountVisible: z.boolean(),
+  }),
+  defaultConfig: {
+    headline: "",
+    body: "",
+    source: "",
+    veracityGroundTruth: "unverified",
+    topicTags: [],
+    imageUrl: "",
+    shareCountVisible: false,
+  },
+  jsonSchema: {
+    type: "object",
+    properties: {
+      headline: { type: "string" },
+      body: { type: "string" },
+      source: { type: "string" },
+      veracityGroundTruth: { enum: ["true", "false", "misleading", "unverified"] },
+      topicTags: { type: "array", items: { type: "string" } },
+      imageUrl: { type: "string" },
+      shareCountVisible: { type: "boolean" },
+    },
+    required: ["headline", "source", "veracityGroundTruth"],
+    additionalProperties: false,
+  },
+  collectsResponse: false,
+  responseSchema: null,
+  isComplete: (c) =>
+    typeof c.headline === "string" &&
+    c.headline.trim().length > 0 &&
+    typeof c.source === "string" &&
+    c.source.trim().length > 0,
+};
+
+// Single- or multi-select choice question.
+const multipleChoice: CoreModuleDef = {
+  source: "core",
+  key: "multiple-choice",
+  version: "1.0.0",
+  name: "Multiple choice",
+  description: "A single-select or multi-select choice question with researcher-defined options.",
+  categoryTags: ["measurement", "choice"],
+  configSchema: z.object({
+    prompt: z.string(),
+    options: z.array(z.string()),
+    multiple: z.boolean(),
+    required: z.boolean(),
+    randomizeOrder: z.boolean(),
+  }),
+  defaultConfig: {
+    prompt: "",
+    options: ["Option 1", "Option 2"],
+    multiple: false,
+    required: true,
+    randomizeOrder: false,
+  },
+  jsonSchema: {
+    type: "object",
+    properties: {
+      prompt: { type: "string" },
+      options: { type: "array", items: { type: "string" } },
+      multiple: { type: "boolean" },
+      required: { type: "boolean" },
+      randomizeOrder: { type: "boolean" },
+    },
+    required: ["prompt", "options"],
+    additionalProperties: false,
+  },
+  collectsResponse: true,
+  // Shape only — the participant UI constrains values to the options + single
+  // vs multi; server-side option-membership validation is a hardening follow-up.
+  responseSchema: z.object({ selected: z.array(z.string()) }),
+  isAnswerEmpty: (a) => !Array.isArray((a as { selected?: unknown })?.selected) || (a as { selected: unknown[] }).selected.length === 0,
+  isComplete: (c) =>
+    typeof c.prompt === "string" &&
+    c.prompt.trim().length > 0 &&
+    Array.isArray(c.options) &&
+    c.options.length >= 2,
+};
+
+// Free-text response (short input or long textarea).
+const freeText: CoreModuleDef = {
+  source: "core",
+  key: "free-text",
+  version: "1.0.0",
+  name: "Free text",
+  description: "An open-ended text response — a short line or a long paragraph.",
+  categoryTags: ["measurement", "open-ended"],
+  configSchema: z.object({
+    prompt: z.string(),
+    longForm: z.boolean(),
+    required: z.boolean(),
+    maxLength: z.number().int().min(1).max(10000),
+  }),
+  defaultConfig: { prompt: "", longForm: false, required: true, maxLength: 500 },
+  jsonSchema: {
+    type: "object",
+    properties: {
+      prompt: { type: "string" },
+      longForm: { type: "boolean" },
+      required: { type: "boolean" },
+      maxLength: { type: "integer", minimum: 1, maximum: 10000 },
+    },
+    required: ["prompt"],
+    additionalProperties: false,
+  },
+  collectsResponse: true,
+  responseSchema: z.object({ text: z.string() }),
+  isAnswerEmpty: (a) => typeof (a as { text?: unknown })?.text !== "string" || (a as { text: string }).text.trim().length === 0,
+  isComplete: (c) => typeof c.prompt === "string" && c.prompt.trim().length > 0,
+};
+
+export const MODULE_REGISTRY: CoreModuleDef[] = [
+  socialPost,
+  socialPostV2,
+  likert7,
+  multipleChoice,
+  freeText,
+];
 
 /** Canonical display id: `core/social-post@1.0.0`. */
 export function moduleRef(source: string, key: string, version: string): string {

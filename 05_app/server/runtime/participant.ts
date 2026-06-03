@@ -291,9 +291,10 @@ export async function recordAnswer(input: {
   // Validate + store the answer for question modules; stimuli store nothing.
   if (def?.collectsResponse && def.responseSchema) {
     const required = block.config?.required !== false;
-    const empty =
-      input.answer == null ||
-      (typeof input.answer === "object" && Object.keys(input.answer).length === 0);
+    const empty = def.isAnswerEmpty
+      ? def.isAnswerEmpty(input.answer)
+      : input.answer == null ||
+        (typeof input.answer === "object" && Object.keys(input.answer).length === 0);
     if (empty) {
       if (required) return { ok: false, error: "answer_required" };
     } else {
