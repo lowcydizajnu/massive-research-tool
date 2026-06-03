@@ -114,7 +114,13 @@ export function ReplicateButton({ studyId }: { studyId: string }) {
   );
 }
 
-/** Private ↔ Public-replicable toggle (owner-workspace; ADR-0002/0018). */
+/**
+ * Private ↔ Public-replicable, as a real labelled on/off switch (owner-workspace;
+ * ADR-0002/0018). The switch *looks* like a toggle (track + sliding knob) and the
+ * adjacent text states the current value — so flipping is expected, not a
+ * surprise (the old single-pill control read like a status you happened to
+ * click). On = public-replicable.
+ */
 export function ForkableControl({
   studyId,
   value,
@@ -128,21 +134,30 @@ export function ForkableControl({
   });
   const isPublic = value === "public";
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={isPublic}
-      disabled={set.isPending}
-      onClick={() => set.mutate({ studyId, forkableBy: isPublic ? "private" : "public" })}
-      className={cn(
-        "w-fit rounded-[var(--radius-md)] px-2.5 py-1 text-[length:var(--text-small)] font-medium",
-        isPublic
-          ? "bg-[var(--color-primary-subtle)] text-[var(--color-primary-text-on-subtle)]"
-          : "border border-[var(--color-border-subtle)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]",
-        set.isPending && "opacity-60",
-      )}
-    >
-      {isPublic ? "Public-replicable" : "Private"}
-    </button>
+    <div className="flex items-center gap-2">
+      <button
+        type="button"
+        role="switch"
+        aria-checked={isPublic}
+        aria-label="Public-replicable"
+        disabled={set.isPending}
+        onClick={() => set.mutate({ studyId, forkableBy: isPublic ? "private" : "public" })}
+        className={cn(
+          "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors",
+          isPublic ? "bg-[var(--color-primary)]" : "bg-[var(--color-border-medium)]",
+          set.isPending && "opacity-60",
+        )}
+      >
+        <span
+          className={cn(
+            "inline-block size-4 transform rounded-full bg-white shadow-sm transition-transform",
+            isPublic ? "translate-x-[18px]" : "translate-x-[2px]",
+          )}
+        />
+      </button>
+      <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+        {isPublic ? "Public-replicable" : "Private"}
+      </span>
+    </div>
   );
 }
