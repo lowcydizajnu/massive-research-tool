@@ -113,6 +113,24 @@ export type StudyDetail = {
   blocks: StudyBlock[];
 };
 
+export type RegistryPushStatus =
+  | "not_pushed"
+  | "pending"
+  | "pushed"
+  | "failed"
+  | "no_credentials"
+  | "opted_out";
+
+/** The latest preregistered version of a study + its registry-push state. */
+export type PreregistrationStatus = {
+  versionNumber: number;
+  name: string;
+  pushStatus: RegistryPushStatus;
+  url: string | null;
+  doi: string | null;
+  lastError: string | null;
+};
+
 export const studiesRouter = router({
   list: workspaceProcedure
     .input(z.object({ filter: z.enum(STUDY_FILTERS).default("all") }).optional())
@@ -413,6 +431,50 @@ export const studiesRouter = router({
         return { versionNumber: pre.versionNumber, pushStatus };
       },
     ),
+
+  /**
+   * The latest preregistered version of a study + its registry-push status
+   * (drives the Preregister-stage receipt/banner). Null when never
+   * preregistered. Tenant-scoped: NOT_FOUND outside the active workspace.
+   */
+  getPreregistration: workspaceProcedure
+    .input(z.object({ studyId: z.string().uuid() }))
+    .query(async ({ ctx, input }): Promise<PreregistrationStatus | null> => {
+      const [exp] = await db
+        .select({ id: experiment.id })
+        .from(experiment)
+        .where(and(eq(experiment.id, input.studyId), eq(experiment.tenantId, ctx.workspace.id)))
+        .limit(1);
+      if (!exp) throw new TRPCError({ code: "NOT_FOUND", message: "Study not found." });
+
+      const [pre] = await db
+        .select({
+          versionNumber: experimentVersion.versionNumber,
+          name: experimentVersion.name,
+          pushStatus: experimentVersion.registryPushStatus,
+          url: experimentVersion.externalRegistrationUrl,
+          doi: experimentVersion.externalRegistrationDoi,
+          lastError: experimentVersion.registryPushLastError,
+        })
+        .from(experimentVersion)
+        .where(
+          and(
+            eq(experimentVersion.experimentId, input.studyId),
+            eq(experimentVersion.kind, "preregistered"),
+          ),
+        )
+        .orderBy(desc(experimentVersion.versionNumber))
+        .limit(1);
+      if (!pre) return null;
+      return {
+        versionNumber: pre.versionNumber,
+        name: pre.name ?? `Preregistration v${pre.versionNumber}`,
+        pushStatus: pre.pushStatus,
+        url: pre.url,
+        doi: pre.doi,
+        lastError: pre.lastError,
+      };
+    }),
 
   /**
    * Create a new study in the active workspace. Inserts the Experiment + its

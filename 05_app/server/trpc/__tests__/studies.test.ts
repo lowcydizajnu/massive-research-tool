@@ -394,6 +394,24 @@ describe("studies.preregister", () => {
     });
   });
 
+  it("getPreregistration returns null before, then the latest status after", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+
+    expect(await caller.studies.getPreregistration({ studyId: id })).toBeNull();
+
+    await caller.studies.preregister({ studyId: id });
+    const status = await caller.studies.getPreregistration({ studyId: id });
+    expect(status).toMatchObject({
+      versionNumber: expect.any(Number),
+      name: expect.stringContaining("Preregistration"),
+      pushStatus: "no_credentials",
+      url: null,
+      doi: null,
+    });
+  });
+
   it("requires write permission (a viewer cannot preregister)", async () => {
     const owner = await seedUserWithWorkspace("ext_owner", "Alpha");
     const [viewer] = await db
