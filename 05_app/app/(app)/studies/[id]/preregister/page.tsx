@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { StageTabs } from "@/components/chrome/stage-tabs";
 import { PreregisterButton } from "@/components/feature/preregister/preregister-button";
+import { RetryPushButton } from "@/components/feature/preregister/retry-push-button";
 import { registry } from "@/server/adapters/registry";
 import { getCurrentDbUser } from "@/server/auth/current-db-user";
 import { getServerApi } from "@/server/trpc/server";
@@ -176,6 +177,9 @@ export default async function PreregisterStagePage({
               >
                 Connect OSF in Settings →
               </Link>
+            ) : null}
+            {pre.pushStatus === "failed" || pre.pushStatus === "no_credentials" ? (
+              <RetryPushButton studyId={study.id} />
             ) : null}
           </section>
         )}

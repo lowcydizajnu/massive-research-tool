@@ -412,6 +412,51 @@ describe("studies.preregister", () => {
     });
   });
 
+  it("retryPush re-enqueues the same frozen version once connected", async () => {
+    const { user: u } = await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+
+    // Preregister while disconnected → parks as no_credentials, no enqueue.
+    await caller.studies.preregister({ studyId: id });
+    expect(enqueue).not.toHaveBeenCalled();
+    const [pre] = await db
+      .select()
+      .from(experimentVersion)
+      .where(eq(experimentVersion.kind, "preregistered"));
+
+    // Now connect, then retry — re-pushes the SAME version, no new version.
+    // The 'osf' registry row already exists (preregister's getConnection
+    // ensured it), so reuse it rather than insert a duplicate.
+    const [reg] = await db.select({ id: registry.id }).from(registry).where(eq(registry.key, "osf")).limit(1);
+    await db
+      .insert(registryConnection)
+      .values({ id: ulid(), userId: u.id, registryId: reg.id, accessToken: "enc:tok", scopes: ["osf.full_write"] });
+
+    const res = await caller.studies.retryPush({ studyId: id });
+    expect(res.pushStatus).toBe("pending");
+    expect(enqueue).toHaveBeenCalledTimes(1);
+    expect(enqueue).toHaveBeenCalledWith("registry.push", {
+      experimentVersionId: pre.id,
+      registryKey: "osf",
+      userId: u.id,
+      isAmendment: false,
+    });
+
+    const all = await db.select().from(experimentVersion).where(eq(experimentVersion.kind, "preregistered"));
+    expect(all).toHaveLength(1); // no new version created
+    expect(all[0].registryPushStatus).toBe("pending");
+  });
+
+  it("retryPush errors when there is no preregistration yet", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    await expect(caller.studies.retryPush({ studyId: id })).rejects.toMatchObject({
+      code: "PRECONDITION_FAILED",
+    });
+  });
+
   it("requires write permission (a viewer cannot preregister)", async () => {
     const owner = await seedUserWithWorkspace("ext_owner", "Alpha");
     const [viewer] = await db
