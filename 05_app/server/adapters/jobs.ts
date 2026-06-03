@@ -16,6 +16,18 @@ export type JobCatalog = {
     isAmendment: boolean;
     priorDoi?: string; // required when isAmendment (ADR-0004 / ADR-0005)
   };
+  // V1.7 (ADR-0015): notification fan-out. emit() enqueues this per event; the
+  // job resolves recipients + bulk-inserts idempotent notification rows. The
+  // payload is the EmitInput plus the source activity_event id (idempotency anchor).
+  "notification.fanout": {
+    sourceEventId: string;
+    input: import("@/server/events/types").EmitInput;
+  };
+  // V1.7: email digest — STUB until V1.8. Events enqueue it; the handler no-ops.
+  "email.digest": {
+    sourceEventId: string;
+    recipientUserIds: string[];
+  };
 };
 
 export type JobName = keyof JobCatalog;

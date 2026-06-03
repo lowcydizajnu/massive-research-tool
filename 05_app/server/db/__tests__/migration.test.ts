@@ -52,9 +52,42 @@ describe("first migration — forward apply", () => {
       "registry",
       "registry_connection",
       "registry_push",
+      "comment",
+      "mention",
+      "notification",
+      "activity_event",
+      "follow",
     ]) {
       expect(tables).toContain(t);
     }
+  });
+
+  it("creates the V1.7 notification idempotency + GIN tag indexes", async () => {
+    await applyMigrations();
+    const { rows } = await pg.query<{ indexname: string }>(
+      `select indexname from pg_indexes where schemaname = 'public'`,
+    );
+    const indexes = rows.map((r) => r.indexname);
+    expect(indexes).toContain("notification_recipient_event_unique"); // idempotency
+    expect(indexes).toContain("idx_notification_recipient_unread"); // partial unread
+    expect(indexes).toContain("idx_activity_event_tag"); // GIN on tag slugs
+  });
+
+  it("the notification idempotency index rejects a duplicate (recipient, source_event)", async () => {
+    await applyMigrations();
+    // Seed a user to satisfy the FK.
+    const { rows: u } = await pg.query<{ id: string }>(
+      `insert into "user" (external_id, email, display_name) values ('ext_n', 'n@e.com', 'N') returning id`,
+    );
+    const uid = u[0].id;
+    const ins = (id: string) =>
+      pg.query(
+        `insert into notification (id, recipient_user_id, type, source_event_id, target_type, target_id)
+         values ($1, $2, 'mention', 'evt_1', 'comment', 'c_1')`,
+        [id, uid],
+      );
+    await expect(ins("n_1")).resolves.toBeDefined();
+    await expect(ins("n_2")).rejects.toThrow(); // same (recipient, source_event) → unique violation
   });
 
   it("creates every enum type", async () => {
