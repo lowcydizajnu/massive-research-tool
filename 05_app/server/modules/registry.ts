@@ -260,12 +260,167 @@ const freeText: CoreModuleDef = {
   isComplete: (c) => typeof c.prompt === "string" && c.prompt.trim().length > 0,
 };
 
+// Numeric slider over a researcher-defined range.
+const slider: CoreModuleDef = {
+  source: "core",
+  key: "slider",
+  version: "1.0.0",
+  name: "Slider",
+  description: "A numeric slider over a researcher-defined min/max range.",
+  categoryTags: ["measurement", "scale"],
+  configSchema: z.object({
+    prompt: z.string(),
+    min: z.number(),
+    max: z.number(),
+    step: z.number().positive(),
+    required: z.boolean(),
+  }),
+  defaultConfig: { prompt: "", min: 0, max: 100, step: 1, required: true },
+  jsonSchema: {
+    type: "object",
+    properties: {
+      prompt: { type: "string" },
+      min: { type: "number" },
+      max: { type: "number" },
+      step: { type: "number" },
+      required: { type: "boolean" },
+    },
+    required: ["prompt"],
+    additionalProperties: false,
+  },
+  collectsResponse: true,
+  responseSchema: z.object({ value: z.number() }),
+  isAnswerEmpty: (a) => typeof (a as { value?: unknown })?.value !== "number",
+  isComplete: (c) => typeof c.prompt === "string" && c.prompt.trim().length > 0,
+};
+
+// Rank a set of items into an order.
+const ranking: CoreModuleDef = {
+  source: "core",
+  key: "ranking",
+  version: "1.0.0",
+  name: "Ranking",
+  description: "Order a set of items by preference / priority.",
+  categoryTags: ["measurement", "ranking"],
+  configSchema: z.object({
+    prompt: z.string(),
+    items: z.array(z.string()),
+    required: z.boolean(),
+  }),
+  defaultConfig: { prompt: "", items: ["Item 1", "Item 2", "Item 3"], required: true },
+  jsonSchema: {
+    type: "object",
+    properties: {
+      prompt: { type: "string" },
+      items: { type: "array", items: { type: "string" } },
+      required: { type: "boolean" },
+    },
+    required: ["prompt", "items"],
+    additionalProperties: false,
+  },
+  collectsResponse: true,
+  responseSchema: z.object({ order: z.array(z.string()) }),
+  isAnswerEmpty: (a) => !Array.isArray((a as { order?: unknown })?.order) || (a as { order: unknown[] }).order.length === 0,
+  isComplete: (c) =>
+    typeof c.prompt === "string" && c.prompt.trim().length > 0 && Array.isArray(c.items) && c.items.length >= 2,
+};
+
+// Prolific-style attention check — a single-select with a known correct answer.
+const attentionCheck: CoreModuleDef = {
+  source: "core",
+  key: "attention-check",
+  version: "1.0.0",
+  name: "Attention check",
+  description:
+    "An instructed-response attention check (single-select with a known correct option) for data-quality screening.",
+  categoryTags: ["quality", "attention-check"],
+  configSchema: z.object({
+    prompt: z.string(),
+    options: z.array(z.string()),
+    correctAnswer: z.string(),
+    required: z.boolean(),
+  }),
+  defaultConfig: {
+    prompt: "To show you are paying attention, select “Strongly agree”.",
+    options: ["Strongly disagree", "Neutral", "Strongly agree"],
+    correctAnswer: "Strongly agree",
+    required: true,
+  },
+  jsonSchema: {
+    type: "object",
+    properties: {
+      prompt: { type: "string" },
+      options: { type: "array", items: { type: "string" } },
+      correctAnswer: { type: "string" },
+      required: { type: "boolean" },
+    },
+    required: ["prompt", "options", "correctAnswer"],
+    additionalProperties: false,
+  },
+  collectsResponse: true,
+  // Reuses the multiple-choice answer shape (single selection) so Results can
+  // count per option; pass = selected === config.correctAnswer.
+  responseSchema: z.object({ selected: z.array(z.string()) }),
+  isAnswerEmpty: (a) => !Array.isArray((a as { selected?: unknown })?.selected) || (a as { selected: unknown[] }).selected.length === 0,
+  isComplete: (c) =>
+    typeof c.prompt === "string" &&
+    c.prompt.trim().length > 0 &&
+    Array.isArray(c.options) &&
+    c.options.length >= 2 &&
+    typeof c.correctAnswer === "string" &&
+    c.correctAnswer.length > 0,
+};
+
+// Standard demographics — a compact, i18n-friendly fixed set of optional fields.
+const demographics: CoreModuleDef = {
+  source: "core",
+  key: "demographics",
+  version: "1.0.0",
+  name: "Demographics",
+  description:
+    "A standard demographics block (age, gender, country) with inclusive, i18n-friendly defaults. Toggle fields on/off.",
+  categoryTags: ["demographics"],
+  configSchema: z.object({
+    askAge: z.boolean(),
+    askGender: z.boolean(),
+    askCountry: z.boolean(),
+    required: z.boolean(),
+  }),
+  defaultConfig: { askAge: true, askGender: true, askCountry: true, required: false },
+  jsonSchema: {
+    type: "object",
+    properties: {
+      askAge: { type: "boolean" },
+      askGender: { type: "boolean" },
+      askCountry: { type: "boolean" },
+      required: { type: "boolean" },
+    },
+    required: [],
+    additionalProperties: false,
+  },
+  collectsResponse: true,
+  responseSchema: z.object({
+    age: z.string().optional(),
+    gender: z.string().optional(),
+    country: z.string().optional(),
+  }),
+  isAnswerEmpty: (a) => {
+    const o = (a ?? {}) as Record<string, unknown>;
+    return ![o.age, o.gender, o.country].some((v) => typeof v === "string" && v.trim().length > 0);
+  },
+  isComplete: () => true, // toggles only; always structurally complete
+};
+
 export const MODULE_REGISTRY: CoreModuleDef[] = [
   socialPost,
   socialPostV2,
   likert7,
   multipleChoice,
   freeText,
+  slider,
+  ranking,
+  attentionCheck,
+  demographics,
 ];
 
 /** Canonical display id: `core/social-post@1.0.0`. */

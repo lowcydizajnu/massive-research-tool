@@ -59,4 +59,33 @@ describe("module response schemas (ADR-0014 answer validation)", () => {
     expect(m.isAnswerEmpty!({ text: "   " })).toBe(true);
     expect(m.isAnswerEmpty!({ text: "x" })).toBe(false);
   });
+
+  it("slider: numeric value shape", () => {
+    const m = getModuleDef("core", "slider", "1.0.0")!;
+    expect(m.responseSchema!.safeParse({ value: 42 }).success).toBe(true);
+    expect(m.responseSchema!.safeParse({ value: "42" }).success).toBe(false);
+    expect(m.isAnswerEmpty!({ value: 0 })).toBe(false);
+    expect(m.isAnswerEmpty!({})).toBe(true);
+  });
+
+  it("ranking: order[] shape; empty order is blank", () => {
+    const m = getModuleDef("core", "ranking", "1.0.0")!;
+    expect(m.responseSchema!.safeParse({ order: ["b", "a"] }).success).toBe(true);
+    expect(m.isAnswerEmpty!({ order: [] })).toBe(true);
+    expect(m.isAnswerEmpty!({ order: ["a"] })).toBe(false);
+  });
+
+  it("attention-check: single selection shape + a correct answer in config", () => {
+    const m = getModuleDef("core", "attention-check", "1.0.0")!;
+    expect(m.responseSchema!.safeParse({ selected: ["Strongly agree"] }).success).toBe(true);
+    expect((m.defaultConfig as { correctAnswer: string }).correctAnswer).toBe("Strongly agree");
+    expect(m.isAnswerEmpty!({ selected: [] })).toBe(true);
+  });
+
+  it("demographics: optional fields; blank when none filled", () => {
+    const m = getModuleDef("core", "demographics", "1.0.0")!;
+    expect(m.responseSchema!.safeParse({ age: "30", country: "PL" }).success).toBe(true);
+    expect(m.isAnswerEmpty!({})).toBe(true);
+    expect(m.isAnswerEmpty!({ gender: "Woman" })).toBe(false);
+  });
 });
