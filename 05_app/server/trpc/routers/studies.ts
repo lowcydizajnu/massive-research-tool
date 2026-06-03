@@ -33,6 +33,20 @@ import { router, workspaceProcedure, writeProcedure } from "@/server/trpc/trpc";
  * workspace. NOT_FOUND outside the workspace; PRECONDITION_FAILED if it somehow
  * has no working version.
  */
+/** Normalize free-form tag labels to deduped lowercase-hyphenated slugs (ADR-0017). */
+function normalizeTags(raw: string[]): string[] {
+  const slugs = raw
+    .map((t) =>
+      t
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, ""),
+    )
+    .filter((t) => t.length > 0 && t.length <= 40);
+  return [...new Set(slugs)].slice(0, 20);
+}
+
 async function loadWorkingTip(studyId: string, workspaceId: string) {
   const [row] = await db
     .select({ experiment, version: experimentVersion })
@@ -210,6 +224,7 @@ export type StudyDetail = {
   lastEditedAt: string;
   ownerId: string;
   ownerName: string;
+  tags: string[];
   isReplication: boolean;
   blocks: StudyBlock[];
 };
@@ -385,6 +400,7 @@ export const studiesRouter = router({
         lastEditedAt: row.experiment.updatedAt.toISOString(),
         ownerId: row.experiment.ownerId,
         ownerName: row.ownerName ?? "",
+        tags: row.experiment.tags ?? [],
         isReplication: row.experiment.forkOfExperimentId !== null,
         blocks,
       };
@@ -405,6 +421,26 @@ export const studiesRouter = router({
         .returning();
       if (!row) throw new TRPCError({ code: "NOT_FOUND" });
       return { id: row.id, title: row.title };
+    }),
+
+  /**
+   * Set a study's research-area tags (ADR-0017). Free-form labels normalized to
+   * lowercase-hyphenated slugs, deduped, capped — the followable unit + the
+   * source for activity_event.related_tag_slugs.
+   */
+  setTags: writeProcedure
+    .input(z.object({ studyId: z.string().uuid(), tags: z.array(z.string()).max(20) }))
+    .mutation(async ({ ctx, input }): Promise<{ tags: string[] }> => {
+      const slugs = normalizeTags(input.tags);
+      const [row] = await db
+        .update(experiment)
+        .set({ tags: slugs, updatedAt: new Date() })
+        .where(
+          and(eq(experiment.id, input.studyId), eq(experiment.tenantId, ctx.workspace.id)),
+        )
+        .returning({ tags: experiment.tags });
+      if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+      return { tags: row.tags ?? [] };
     }),
 
   /** Append a block (from the module catalogue) to the study's working tip. */
@@ -669,7 +705,11 @@ export const studiesRouter = router({
         workspaceId: ctx.workspace.id,
         targetType: "study",
         targetId: input.studyId,
-        related: { authorUserId: tip.experiment.ownerId, studyId: input.studyId },
+        related: {
+          authorUserId: tip.experiment.ownerId,
+          studyId: input.studyId,
+          tagSlugs: tip.experiment.tags ?? undefined,
+        },
         data: {
           studyTitle: tip.experiment.title,
           versionName: named.name,
@@ -764,7 +804,11 @@ export const studiesRouter = router({
           workspaceId: ctx.workspace.id,
           targetType: "study",
           targetId: input.studyId,
-          related: { authorUserId: tip.experiment.ownerId, studyId: input.studyId },
+          related: {
+            authorUserId: tip.experiment.ownerId,
+            studyId: input.studyId,
+            tagSlugs: tip.experiment.tags ?? undefined,
+          },
           data: {
             studyTitle: tip.experiment.title,
             versionName: pre.name,

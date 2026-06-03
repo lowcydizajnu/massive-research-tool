@@ -15,6 +15,7 @@ import { ConditionsSection } from "./conditions-section";
 import { ConfigureForm } from "./configure-form";
 import { ModulePicker } from "./module-picker";
 import { SaveVersionDialog } from "./save-version-dialog";
+import { TagsSection } from "./tags-section";
 
 /**
  * Builder mode — the interactive three-zone body (build-stage-builder-mode.md).
@@ -260,6 +261,8 @@ export function BuilderWorkspace({
                 className="self-start"
               />
             ) : null}
+
+            <TagsSection studyId={study.id} tags={study.tags} />
 
             <ConditionsSection studyId={study.id} />
           </div>
