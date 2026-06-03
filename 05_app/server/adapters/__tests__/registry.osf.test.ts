@@ -1,8 +1,33 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// getAuthorizeUrl + the NOT_IMPLEMENTED push don't touch the DB; stub the client
-// so importing the adapter doesn't trip db/client's missing-DATABASE_URL guard.
-vi.mock("@/server/db/client", () => ({ db: {} }));
+// Stub the DB client with a chainable mock so the adapter imports without a real
+// DATABASE_URL. select().…​.limit() resolves to a single row that doubles as both
+// the registry row (.id) and the connection row (.accessToken) — enough for the
+// push flow's ensureOsfRegistry + osfAccessToken. (The no-credentials path is
+// covered at the job level against a real PGlite db.)
+vi.mock("@/server/db/client", () => {
+  const chain: Record<string, unknown> = {};
+  Object.assign(chain, {
+    select: () => chain,
+    from: () => chain,
+    where: () => chain,
+    limit: async () => [{ id: "reg-1", accessToken: "enc:osf-access-token" }],
+    insert: () => chain,
+    values: () => chain,
+    onConflictDoNothing: async () => undefined,
+    onConflictDoUpdate: async () => undefined,
+    update: () => chain,
+    set: () => chain,
+  });
+  return { db: chain };
+});
+
+// Pass-through crypto so we don't need a real key here (round-trip is tested in
+// crypto/__tests__/tokens.test.ts).
+vi.mock("@/server/crypto/tokens", () => ({
+  encryptSecret: (s: string) => `enc:${s}`,
+  decryptSecret: (s: string) => s.replace(/^enc:/, ""),
+}));
 
 import { osfRegistry } from "@/server/adapters/registry.osf";
 
@@ -36,15 +61,91 @@ describe("osfRegistry.getAuthorizeUrl", () => {
     expect(url.searchParams.get("state")).toBe("abc");
   });
 
-  it("throws NOT_IMPLEMENTED for the registration push (step 3)", async () => {
-    await expect(
-      osfRegistry.pushRegistration("u1", {
-        experimentVersionId: "v1",
-        title: "t",
-        snapshot: {},
-        templateFields: {},
-      }),
-    ).rejects.toThrow(/Preregister stage/);
+  it("still defers amendment + withdrawal to V1.6", async () => {
+    await expect(osfRegistry.pushAmendment("u1", {} as never, "doi")).rejects.toThrow(
+      /V1\.6/,
+    );
+    await expect(osfRegistry.withdraw("u1", "doi", "reason")).rejects.toThrow(/V1\.6/);
+  });
+});
+
+describe("osfRegistry.pushRegistration (verified OSF flow)", () => {
+  const prev = { ...process.env };
+  beforeEach(() => {
+    process.env.OSF_API_BASE = "https://api.osf.io/v2";
+    process.env.OSF_REGISTRATION_SCHEMA = "Open-Ended Registration";
+  });
+  afterEach(() => {
+    process.env = { ...prev };
+    vi.restoreAllMocks();
+  });
+
+  it("runs node → schema → draft → PATCH responses → register and returns the registration", async () => {
+    const calls: Array<{ method: string; url: string; body: unknown }> = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      const body = init?.body ? JSON.parse(String(init.body)) : undefined;
+      calls.push({ method, url, body });
+
+      if (method === "GET" && url.includes("/schemas/registrations/")) {
+        return new Response(
+          JSON.stringify({
+            data: [{ id: "schema-oe", attributes: { name: "Open-Ended Registration" } }],
+          }),
+          { status: 200 },
+        );
+      }
+      if (method === "POST" && url.endsWith("/nodes/")) {
+        return new Response(JSON.stringify({ data: { id: "node-1" } }), { status: 201 });
+      }
+      if (method === "POST" && url.includes("/draft_registrations/")) {
+        return new Response(JSON.stringify({ data: { id: "draft-1" } }), { status: 201 });
+      }
+      if (method === "PATCH" && url.includes("/draft_registrations/draft-1/")) {
+        return new Response(JSON.stringify({ data: { id: "draft-1" } }), { status: 200 });
+      }
+      if (method === "POST" && url.includes("/nodes/node-1/registrations/")) {
+        return new Response(
+          JSON.stringify({
+            data: { id: "reg-xyz", links: { html: "https://osf.io/reg-xyz/" } },
+          }),
+          { status: 201 },
+        );
+      }
+      throw new Error(`unexpected OSF call: ${method} ${url}`);
+    });
+
+    const result = await osfRegistry.pushRegistration("user-1", {
+      experimentVersionId: "v-1",
+      title: "Misinformation susceptibility",
+      snapshot: { blocks: [{ key: "social-post" }] },
+      templateFields: {},
+    });
+
+    expect(result).toEqual({
+      registrationId: "reg-xyz",
+      url: "https://osf.io/reg-xyz/",
+      doi: null, // pending approval on OSF
+    });
+
+    // The draft was bound to the resolved schema id…
+    const draftCreate = calls.find(
+      (c) => c.method === "POST" && c.url.includes("/nodes/node-1/draft_registrations/"),
+    )!;
+    expect((draftCreate.body as any).data.relationships.registration_schema.data.id).toBe(
+      "schema-oe",
+    );
+    // …and the register call used the verified attributes.
+    const register = calls.find((c) =>
+      c.url.includes("/nodes/node-1/registrations/"),
+    )!;
+    expect((register.body as any).data.attributes).toMatchObject({
+      draft_registration: "draft-1",
+      registration_choice: "immediate",
+    });
+    // JSON:API content type on writes.
+    expect(calls.every((c) => c.url.startsWith("https://api.osf.io/v2"))).toBe(true);
   });
 });
 

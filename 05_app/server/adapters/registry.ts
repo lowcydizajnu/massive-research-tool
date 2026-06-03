@@ -26,7 +26,16 @@ export type RegistrationPayload = {
   templateFields: Record<string, unknown>;
 };
 
-export type PushResult = { doi: string; url: string };
+export type PushResult = {
+  /** The registry's identifier for the registration (OSF: the registration GUID). */
+  registrationId: string;
+  /** Public registration URL (OSF: https://osf.io/{guid}/). Available immediately. */
+  url: string;
+  /** DOI — NULL at push time on OSF: a freshly-registered registration enters
+   *  pending-approval and OSF mints the DOI only on approval. Backfilled later
+   *  by polling the registration's identifiers (ADR-0005 amendment 2026-06-03). */
+  doi: string | null;
+};
 
 export interface RegistryAdapter {
   /** OAuth: the URL a user visits to authorize their registry account. The
