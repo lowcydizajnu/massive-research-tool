@@ -12,15 +12,7 @@ import { api } from "@/lib/trpc/react";
  * freezes a citable version; the push just parks as no_credentials when
  * disconnected.
  */
-export function PreregisterButton({
-  studyId,
-  label = "Preregister",
-  variant = "primary",
-}: {
-  studyId: string;
-  label?: string;
-  variant?: "primary" | "secondary";
-}) {
+export function PreregisterButton({ studyId }: { studyId: string }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const mutation = api.studies.preregister.useMutation({
@@ -31,11 +23,6 @@ export function PreregisterButton({
     onError: () => setError("Couldn’t preregister. Try again."),
   });
 
-  const cls =
-    variant === "primary"
-      ? "bg-[var(--color-primary)] text-white hover:opacity-90"
-      : "border border-[var(--color-border-subtle)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]";
-
   return (
     <div className="flex flex-col gap-2">
       <button
@@ -43,9 +30,9 @@ export function PreregisterButton({
         onClick={() => mutation.mutate({ studyId })}
         disabled={mutation.isPending}
         aria-busy={mutation.isPending}
-        className={`w-fit rounded-[var(--radius-md)] px-4 py-2 text-[length:var(--text-body-emphasis)] font-medium disabled:opacity-60 ${cls}`}
+        className="w-fit rounded-[var(--radius-md)] bg-[var(--color-primary)] px-4 py-2 text-[length:var(--text-body-emphasis)] font-medium text-white hover:opacity-90 disabled:opacity-60"
       >
-        {mutation.isPending ? "Preregistering…" : label}
+        {mutation.isPending ? "Preregistering…" : "Preregister"}
       </button>
       {error ? (
         <p
