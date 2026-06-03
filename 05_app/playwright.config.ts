@@ -23,14 +23,15 @@ export default defineConfig({
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
-      testIgnore: "**/hanna-*.spec.ts",
+      testIgnore: ["**/hanna-*.spec.ts", "**/a11y-*.spec.ts"],
     },
     // Opt-in authenticated suite — needs a reachable Clerk + a test user.
     // Run with `npm run test:e2e:auth` (sets RUN_AUTH_E2E + Clerk creds).
+    // Includes the researcher-surface axe pass (a11y-*), which also needs auth.
     {
       name: "auth",
       use: { ...devices["Desktop Chrome"] },
-      testMatch: "**/hanna-*.spec.ts",
+      testMatch: ["**/hanna-*.spec.ts", "**/a11y-*.spec.ts"],
     },
   ],
   webServer: {
