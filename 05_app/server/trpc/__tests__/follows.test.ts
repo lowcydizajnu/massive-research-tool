@@ -101,6 +101,23 @@ describe("follows.feed (activity_event × follow)", () => {
     expect(byStudy["study-h"].actorName).toBe("hanna");
   });
 
+  it("labels an author-follow with the AUTHOR's name, not the actor's (fork case)", async () => {
+    const me = await seedUser("maya");
+    const hanna = await seedUser("hanna");
+    const sofia = await seedUser("sofia");
+    const caller = createCaller({ authUser: authUser("maya") });
+    await caller.follows.follow({ targetType: "author", targetId: hanna });
+
+    // Sofia (actor) replicated Hanna's study (related author) — Maya follows Hanna.
+    await event({ type: "fork", actorUserId: sofia, authorId: hanna, studyId: "study-h", studyTitle: "Source cues" });
+
+    const [row] = await caller.follows.feed();
+    expect(row.reason).toEqual({ type: "author", value: hanna });
+    expect(row.actorName).toBe("sofia"); // who did it
+    expect(row.reasonLabel).toBe("hanna"); // who you follow — NOT "sofia"
+    expect(me).toBeTruthy();
+  });
+
   it("returns [] when the user follows nothing", async () => {
     await seedUser("maya");
     const caller = createCaller({ authUser: authUser("maya") });

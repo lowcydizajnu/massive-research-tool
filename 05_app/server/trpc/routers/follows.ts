@@ -1,4 +1,5 @@
 import { and, arrayOverlaps, desc, eq, inArray, ne, or, type SQL } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { ulid } from "ulid";
 import { z } from "zod";
 
@@ -111,11 +112,16 @@ export const followsRouter = router({
       if (tags.length) matchers.push(arrayOverlaps(activityEvent.relatedTagSlugs, tags));
       if (matchers.length === 0) return [];
 
+      // Two user joins: the actor (who did it) and the related author (the
+      // study's owner) — they differ for a `fork` (replicator ≠ source author),
+      // so the "Following X" label must name the AUTHOR, not the actor.
+      const authorUser = alias(user, "author_user");
       const rows = await db
         .select({
           id: activityEvent.id,
           type: activityEvent.type,
           actorName: user.displayName,
+          authorName: authorUser.displayName,
           relatedTagSlugs: activityEvent.relatedTagSlugs,
           relatedAuthorUserId: activityEvent.relatedAuthorUserId,
           relatedFrameworkId: activityEvent.relatedFrameworkId,
@@ -125,6 +131,7 @@ export const followsRouter = router({
         })
         .from(activityEvent)
         .leftJoin(user, eq(activityEvent.actorUserId, user.id))
+        .leftJoin(authorUser, eq(activityEvent.relatedAuthorUserId, authorUser.id))
         // Match a follow, but never surface the user's own actions.
         .where(and(or(...matchers), ne(activityEvent.actorUserId, ctx.dbUser.id)))
         .orderBy(desc(activityEvent.createdAt))
@@ -143,8 +150,8 @@ export const followsRouter = router({
         let reasonLabel: string | null = null;
         if (r.relatedAuthorUserId && authorSet.has(r.relatedAuthorUserId)) {
           reason = { type: "author", value: r.relatedAuthorUserId };
-          // For our author-authored events actor === author, so actorName labels it.
-          reasonLabel = r.actorName ?? "an author you follow";
+          // Label with the followed AUTHOR's name (not the actor — they differ on a fork).
+          reasonLabel = r.authorName ?? "an author you follow";
         } else if (r.relatedStudyId && studySet.has(r.relatedStudyId)) {
           reason = { type: "study", value: r.relatedStudyId };
           reasonLabel = studyTitle ?? "a study you follow";
