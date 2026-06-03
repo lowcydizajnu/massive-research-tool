@@ -3,6 +3,8 @@ import { and, desc, eq, isNotNull, isNull } from "drizzle-orm";
 import { ulid } from "ulid";
 import { z } from "zod";
 
+import { jobs } from "@/server/adapters/jobs";
+import { registry } from "@/server/adapters/registry";
 import { db } from "@/server/db/client";
 import { experiment, experimentVersion, user } from "@/server/db/schema";
 import { getFrameworkDef } from "@/server/frameworks/registry";
@@ -351,6 +353,66 @@ export const studiesRouter = router({
 
       return { versionNumber: named.versionNumber, name: named.name! };
     }),
+
+  /**
+   * Preregister — snapshot the autosave working tip into an immutable
+   * `preregistered` version (ADR-0002/0012) and, if the researcher has a
+   * registry connection, enqueue the async OSF push (ADR-0005). The push
+   * itself runs in the `registry.push` background job; this mutation only
+   * creates the frozen version + sets its initial push status. Returns the new
+   * version number + the push status the UI banner reflects.
+   */
+  preregister: writeProcedure
+    .input(z.object({ studyId: z.string().uuid() }))
+    .mutation(
+      async ({
+        ctx,
+        input,
+      }): Promise<{ versionNumber: number; pushStatus: "pending" | "no_credentials" }> => {
+        const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+
+        const [latest] = await db
+          .select({ n: experimentVersion.versionNumber })
+          .from(experimentVersion)
+          .where(eq(experimentVersion.experimentId, input.studyId))
+          .orderBy(desc(experimentVersion.versionNumber))
+          .limit(1);
+        const nextNumber = (latest?.n ?? 0) + 1;
+
+        // Connected? Decides whether we enqueue a push or park as no_credentials.
+        const connection = await registry.getConnection(ctx.dbUser.id);
+        const pushStatus = connection.connected ? "pending" : "no_credentials";
+
+        const [pre] = await db
+          .insert(experimentVersion)
+          .values({
+            experimentId: input.studyId,
+            versionNumber: nextNumber,
+            kind: "preregistered",
+            name: `Preregistration v${nextNumber}`,
+            definitionSnapshot: tip.version.definitionSnapshot,
+            moduleVersionLocks: tip.version.moduleVersionLocks,
+            createdBy: ctx.dbUser.id,
+            registryPushStatus: pushStatus,
+          })
+          .returning();
+        await db
+          .update(experiment)
+          .set({ updatedAt: new Date() })
+          .where(eq(experiment.id, input.studyId));
+
+        if (connection.connected) {
+          await jobs.enqueue("registry.push", {
+            experimentVersionId: pre.id,
+            registryKey: "osf",
+            userId: ctx.dbUser.id,
+            isAmendment: false,
+          });
+        }
+
+        return { versionNumber: pre.versionNumber, pushStatus };
+      },
+    ),
 
   /**
    * Create a new study in the active workspace. Inserts the Experiment + its

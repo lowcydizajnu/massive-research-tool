@@ -18,13 +18,28 @@ vi.mock("@/server/db/client", async () => {
   return { db, schema };
 });
 
+// Background-job enqueue is mocked so preregister doesn't reach Inngest.
+vi.mock("@/server/adapters/jobs", () => ({ jobs: { enqueue: vi.fn() } }));
+
+import { ulid } from "ulid";
+
 import type { AuthUser } from "@/server/adapters/auth";
+import { jobs } from "@/server/adapters/jobs";
 import { db } from "@/server/db/client";
-import { experiment, experimentVersion, member, user, workspace } from "@/server/db/schema";
+import {
+  experiment,
+  experimentVersion,
+  member,
+  registry,
+  registryConnection,
+  user,
+  workspace,
+} from "@/server/db/schema";
 import { appRouter } from "@/server/trpc/root";
 import { createCallerFactory } from "@/server/trpc/trpc";
 
 const createCaller = createCallerFactory(appRouter);
+const enqueue = vi.mocked(jobs.enqueue);
 
 function authUser(externalId: string): AuthUser {
   return {
@@ -55,8 +70,11 @@ async function seedUserWithWorkspace(externalId: string, wsName: string) {
 }
 
 beforeEach(async () => {
+  vi.clearAllMocks();
   // Break the experiment <-> experiment_version circular FK before deleting.
   await db.update(experiment).set({ currentVersionId: null });
+  await db.delete(registryConnection);
+  await db.delete(registry);
   await db.delete(experimentVersion);
   await db.delete(experiment);
   await db.delete(member);
@@ -319,6 +337,82 @@ describe("studies.saveAsNamed", () => {
     await expect(
       caller.studies.saveAsNamed({ studyId: id, name: "v1" }),
     ).rejects.toMatchObject({ code: "CONFLICT" });
+  });
+});
+
+describe("studies.preregister", () => {
+  it("freezes a preregistered version and parks as no_credentials with no push when disconnected", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    await caller.studies.addBlock({ studyId: id, source: "core", key: "social-post", version: "1.0.0" });
+
+    const res = await caller.studies.preregister({ studyId: id });
+    expect(res.pushStatus).toBe("no_credentials");
+
+    const [pre] = await db
+      .select()
+      .from(experimentVersion)
+      .where(eq(experimentVersion.kind, "preregistered"));
+    expect(pre.experimentId).toBe(id);
+    expect(pre.registryPushStatus).toBe("no_credentials");
+    expect(enqueue).not.toHaveBeenCalled();
+
+    // The autosave working tip is untouched (still draft, still has the block).
+    const detail = await caller.studies.get({ id });
+    expect(detail.stage).toBe("draft");
+    expect(detail.blocks).toHaveLength(1);
+  });
+
+  it("enqueues the OSF push and marks pending when the researcher is connected", async () => {
+    const { user: u } = await seedUserWithWorkspace("ext_a", "Alpha");
+    // Seed an active OSF connection for this user.
+    const registryId = ulid();
+    await db.insert(registry).values({ id: registryId, key: "osf", name: "OSF", oauthConfig: {}, pushConfig: {} });
+    await db
+      .insert(registryConnection)
+      .values({ id: ulid(), userId: u.id, registryId, accessToken: "enc:tok", scopes: ["osf.full_write"] });
+
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+
+    const res = await caller.studies.preregister({ studyId: id });
+    expect(res.pushStatus).toBe("pending");
+
+    const [pre] = await db
+      .select()
+      .from(experimentVersion)
+      .where(eq(experimentVersion.kind, "preregistered"));
+    expect(pre.registryPushStatus).toBe("pending");
+
+    expect(enqueue).toHaveBeenCalledTimes(1);
+    expect(enqueue).toHaveBeenCalledWith("registry.push", {
+      experimentVersionId: pre.id,
+      registryKey: "osf",
+      userId: u.id,
+      isAmendment: false,
+    });
+  });
+
+  it("requires write permission (a viewer cannot preregister)", async () => {
+    const owner = await seedUserWithWorkspace("ext_owner", "Alpha");
+    const [viewer] = await db
+      .insert(user)
+      .values({ externalId: "ext_v", email: "ext_v@example.com", displayName: "V" })
+      .returning();
+    await db.insert(member).values({
+      workspaceId: owner.workspace.id,
+      userId: viewer.id,
+      role: "viewer",
+      status: "active",
+    });
+    const ownerCaller = createCaller({ authUser: authUser("ext_owner") });
+    const { id } = await ownerCaller.studies.create({ kind: "blank", title: "S" });
+
+    const viewerCaller = createCaller({ authUser: authUser("ext_v") });
+    await expect(viewerCaller.studies.preregister({ studyId: id })).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
   });
 });
 
