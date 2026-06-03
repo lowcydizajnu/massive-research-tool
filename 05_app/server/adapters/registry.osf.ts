@@ -141,18 +141,26 @@ async function osfApi(
   return (await res.json()) as { data: { id?: string } };
 }
 
-/** Resolve the registration-schema id by name (e.g. "Open-Ended Registration"). */
+/** Resolve the registration-schema id by name (e.g. "Open-Ended Registration").
+ *  OSF does NOT support filter[name] on this collection (returns 400), so we
+ *  page through the list and match on attributes.name client-side. */
 async function resolveSchemaId(token: string): Promise<string> {
   const name = osfConfig().registrationSchemaName;
-  const res = await fetch(
-    `${osfConfig().apiBase}/schemas/registrations/?filter[name]=${encodeURIComponent(name)}`,
-    { headers: { Authorization: `Bearer ${token}`, Accept: JSON_API } },
-  );
-  if (!res.ok) throw new Error(`OSF schema lookup failed: ${res.status} ${await res.text()}`);
-  const json = (await res.json()) as { data: Array<{ id: string; attributes?: { name?: string } }> };
-  const match = json.data.find((s) => s.attributes?.name === name) ?? json.data[0];
-  if (!match) throw new Error(`OSF registration schema not found: ${name}`);
-  return match.id;
+  let url: string | null = `${osfConfig().apiBase}/schemas/registrations/?page[size]=100`;
+  while (url) {
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}`, Accept: JSON_API },
+    });
+    if (!res.ok) throw new Error(`OSF schema lookup failed: ${res.status} ${await res.text()}`);
+    const json = (await res.json()) as {
+      data: Array<{ id: string; attributes?: { name?: string } }>;
+      links?: { next?: string | null };
+    };
+    const match = json.data.find((s) => s.attributes?.name === name);
+    if (match) return match.id;
+    url = json.links?.next ?? null;
+  }
+  throw new Error(`OSF registration schema not found: ${name}`);
 }
 
 /** A human-readable summary of the snapshot for the Open-Ended `summary` response.
@@ -310,7 +318,11 @@ export const osfRegistry: RegistryAdapter = {
   async pushRegistration(userId, payload): Promise<PushResult> {
     const token = await osfAccessToken(userId);
 
-    // 1. Project node to register from.
+    // 1. Resolve the schema FIRST — it's a read, and doing it before any write
+    //    means a lookup failure can't leave an orphan project node behind.
+    const schemaId = await resolveSchemaId(token);
+
+    // 2. Project node to register from.
     const node = await osfApi(token, "POST", "/nodes/", {
       data: {
         type: "nodes",
@@ -319,8 +331,7 @@ export const osfRegistry: RegistryAdapter = {
     });
     const nodeId = node.data.id!;
 
-    // 2. Draft registration under that node, bound to the chosen schema.
-    const schemaId = await resolveSchemaId(token);
+    // 3. Draft registration under that node, bound to the chosen schema.
     const draft = await osfApi(token, "POST", `/nodes/${nodeId}/draft_registrations/`, {
       data: {
         type: "draft_registrations",
@@ -333,7 +344,7 @@ export const osfRegistry: RegistryAdapter = {
     });
     const draftId = draft.data.id!;
 
-    // 3. Fill the draft's registration_responses (Open-Ended: a single summary).
+    // 4. Fill the draft's registration_responses (Open-Ended: a single summary).
     await osfApi(token, "PATCH", `/draft_registrations/${draftId}/`, {
       data: {
         id: draftId,
@@ -345,7 +356,7 @@ export const osfRegistry: RegistryAdapter = {
       },
     });
 
-    // 4. Register the draft immediately (enters pending-approval on OSF).
+    // 5. Register the draft immediately (enters pending-approval on OSF).
     const reg = await osfApi(token, "POST", `/nodes/${nodeId}/registrations/`, {
       data: {
         type: "registrations",
