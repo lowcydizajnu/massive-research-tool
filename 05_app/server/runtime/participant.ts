@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { ulid } from "ulid";
 
 import { db } from "@/server/db/client";
@@ -24,7 +24,7 @@ import { getModuleDef } from "@/server/modules/registry";
 export type ResponseMode = "run" | "preview";
 
 /** A block plus its optional condition-visibility rule (ADR-0014). */
-type RuntimeBlock = BlockInstance & {
+export type RuntimeBlock = BlockInstance & {
   visibility?: { showIfCondition?: string[] };
 };
 
@@ -110,6 +110,49 @@ export async function openRecruitment(experimentVersionId: string): Promise<{ id
   const id = ulid();
   await db.insert(recruitmentSession).values({ id, experimentVersionId, status: "open" });
   return { id };
+}
+
+/**
+ * Resolve the open recruitment for a study (its latest preregistered version's
+ * open session) — what the public `/take/[studyId]/start` URL points at. Null
+ * when the study isn't preregistered or recruitment isn't open.
+ */
+export async function resolveOpenRecruitment(studyId: string): Promise<
+  { recruitmentSessionId: string; versionId: string; studyTitle: string } | null
+> {
+  const [study] = await db
+    .select({ title: experiment.title })
+    .from(experiment)
+    .where(eq(experiment.id, studyId))
+    .limit(1);
+  if (!study) return null;
+
+  const [ver] = await db
+    .select({ id: experimentVersion.id })
+    .from(experimentVersion)
+    .where(
+      and(
+        eq(experimentVersion.experimentId, studyId),
+        eq(experimentVersion.kind, "preregistered"),
+      ),
+    )
+    .orderBy(desc(experimentVersion.versionNumber))
+    .limit(1);
+  if (!ver) return null;
+
+  const [rs] = await db
+    .select({ id: recruitmentSession.id })
+    .from(recruitmentSession)
+    .where(
+      and(
+        eq(recruitmentSession.experimentVersionId, ver.id),
+        eq(recruitmentSession.status, "open"),
+      ),
+    )
+    .limit(1);
+  if (!rs) return null;
+
+  return { recruitmentSessionId: rs.id, versionId: ver.id, studyTitle: study.title };
 }
 
 /**
@@ -313,12 +356,15 @@ export async function completeResponse(responseId: string): Promise<void> {
   }
 }
 
-/** Has this participant already finished (terminal page guard). */
-export async function isComplete(responseId: string): Promise<boolean> {
+/** Mode + completion for the terminal page (null if the response is unknown). */
+export async function getCompletionInfo(
+  responseId: string,
+): Promise<{ mode: ResponseMode; completed: boolean } | null> {
   const [resp] = await db
     .select({ status: response.status, mode: response.mode })
     .from(response)
     .where(eq(response.id, responseId))
     .limit(1);
-  return resp?.status === "completed";
+  if (!resp) return null;
+  return { mode: resp.mode as ResponseMode, completed: resp.status === "completed" };
 }
