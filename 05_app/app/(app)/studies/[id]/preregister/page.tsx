@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { StageTabs } from "@/components/chrome/stage-tabs";
 import { PreregisterButton } from "@/components/feature/preregister/preregister-button";
+import { PushStatusPoller } from "@/components/feature/preregister/push-status-poller";
 import { RetryPushButton } from "@/components/feature/preregister/retry-push-button";
 import { registry } from "@/server/adapters/registry";
 import { getCurrentDbUser } from "@/server/auth/current-db-user";
@@ -150,6 +151,7 @@ export default async function PreregisterStagePage({
                 </div>
               );
             })()}
+            {pre.pushStatus === "pending" ? <PushStatusPoller studyId={study.id} /> : null}
             {pre.url ? (
               <a
                 href={pre.url}

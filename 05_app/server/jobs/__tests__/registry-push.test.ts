@@ -133,6 +133,27 @@ describe("runRegistryPush", () => {
     expect(push.status).toBe("failed");
   });
 
+  it("does NOT downgrade an already-pushed version when a concurrent job fails", async () => {
+    const { versionId, userId } = await seed();
+    // Simulate an earlier successful push having already landed.
+    await db
+      .update(experimentVersion)
+      .set({ registryPushStatus: "pushed", externalRegistrationUrl: "https://osf.io/win/" })
+      .where(eq(experimentVersion.id, versionId));
+    pushRegistration.mockRejectedValue(new Error("OSF 502 (slow loser)"));
+
+    await expect(
+      runRegistryPush({ experimentVersionId: versionId, registryKey: "osf", userId, isAmendment: false }),
+    ).rejects.toThrow(/502/);
+
+    const [ver] = await db
+      .select()
+      .from(experimentVersion)
+      .where(eq(experimentVersion.id, versionId));
+    expect(ver.registryPushStatus).toBe("pushed"); // not clobbered to failed
+    expect(ver.externalRegistrationUrl).toBe("https://osf.io/win/");
+  });
+
   it("marks failed + rethrows on a transient adapter error (so the runner retries)", async () => {
     const { versionId, userId } = await seed();
     pushRegistration.mockRejectedValue(new Error("OSF 502 Bad Gateway"));

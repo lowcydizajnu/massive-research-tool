@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { ulid } from "ulid";
 
 import type { JobCatalog } from "@/server/adapters/jobs";
@@ -106,6 +106,8 @@ export async function runRegistryPush(data: JobCatalog["registry.push"]): Promis
       .update(registryPush)
       .set({ status: "failed", errorText: message, completedAt: new Date() })
       .where(eq(registryPush.id, pushId));
+    // Never downgrade an already-pushed version: a slower, failing concurrent
+    // job (e.g. a duplicate retry) must not clobber a successful push.
     await db
       .update(experimentVersion)
       .set({
@@ -113,7 +115,12 @@ export async function runRegistryPush(data: JobCatalog["registry.push"]): Promis
         registryPushLastError: message,
         registryPushAttempts: (version.registryPushAttempts ?? 0) + 1,
       })
-      .where(eq(experimentVersion.id, version.id));
+      .where(
+        and(
+          eq(experimentVersion.id, version.id),
+          ne(experimentVersion.registryPushStatus, "pushed"),
+        ),
+      );
     // No connection is terminal; let other (transient) failures retry.
     if (!notConnected) throw err;
   }
