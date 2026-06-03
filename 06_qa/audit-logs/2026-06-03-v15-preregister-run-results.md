@@ -56,8 +56,8 @@ All items below verified in code on 2026-06-03.
 ## Manual exploratory notes
 
 - **Owner-verified live (2026-06-03):** the full preregister → run → results loop end-to-end — "manually tested and works." Hanna preregistered a real study against real OSF, opened recruitment, took the study as a participant in an incognito browser through all questions, saw the response in Results, and the OSF push reached real OSF (a real registration was created; semantics are *submitted, pending approval* per OSF `require_approval()` — the banner says so).
-  - **OSF DOI / URL of the verified preregistration:** _{owner to provide — requested in chat}_
-  - **Anything surprising during the live walkthrough:** _{owner to provide — requested in chat}_
+  - **OSF DOI / URL of the verified preregistration:** **10.17605/OSF.IO/NVX9H** (https://osf.io/nvx9h/). Note: the DOI resolved means the owner approved the registration on OSF — the full submit → approve → DOI-minted cycle completed in practice, even though the app only performs the one-way *submit* step (two-way DOI backfill is V1.6).
+  - **Anything surprising during the live walkthrough:** Nothing surprising.
 - **Test-covered but not necessarily clicked live:**
   - Multiple conditions (V1.5 ships a single implicit `control`; the condition-builder UI is V1.6 — but the weighted assignment + per-condition aggregation **are** in V1.5 and are exercised by the runtime tests, incl. a 90/10 split and a 3-block condition-visibility case).
   - The `Retry` push button on a failed OSF push (commit `15eadaa`) — observed live during the OSF debugging (the 403 scope failures were recovered via Retry).
@@ -79,8 +79,8 @@ I have read the above. V1.5 is **code-complete and live-verified by the owner**:
 **Risk accepted for continued development to V1.6.** Specifically:
 
 - **Test discipline:** 92 vitest green (incl. the server-side wedge e2e), 4 default Playwright e2e (0 skipped), typecheck + build + validator (52 instances) clean.
-- **Live verification:** owner manually preregistered + ran + read results 2026-06-03 (OSF DOI/URL + surprises: _owner to fill above_).
+- **Live verification:** owner manually preregistered + ran + read results 2026-06-03; the preregistration is public on OSF at **DOI 10.17605/OSF.IO/NVX9H** (https://osf.io/nvx9h/); no surprises during the walkthrough.
 - **a11y:** participant runtime green (axe WCAG 2A/2AA, 0 violations; likert-radio naming fixed in `bd1792f`); researcher surfaces code-reviewed, DevTools pass carried.
 - **Open follow-ups carried to V1.6:** condition-builder UI; two-way OSF sync (DOI backfill + withdrawal) + `pushAmendment`/`withdraw`; per-version OSF node idempotency; connect-time OSF write-scope check; recruitment pause/close + provider integrations; likert distribution bars; editable consent + third-party-analytics config; **researcher-surface axe DevTools pass** (with the carried MVP authenticated-surface pass); **focused participant-runtime security review** (rate-limit/CSRF on `/take` POSTs).
 
-**Signed:** {project owner name + date} — sign by editing this line, removing the brace placeholders.
+**Signed:** Paweł Rosner — 2026-06-03.
