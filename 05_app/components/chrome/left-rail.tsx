@@ -14,6 +14,7 @@ import Link from "next/link";
 import type { Route } from "next";
 import { usePathname } from "next/navigation";
 
+import { api } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -32,13 +33,17 @@ const DESTINATIONS: Destination[] = [
   { label: "Library", icon: Library },
   { label: "Frameworks", icon: Boxes },
   { label: "Participants", icon: Users },
-  { label: "Activity", icon: Activity },
+  { label: "Activity", icon: Activity, href: "/activity" as Route },
   { label: "Team", icon: UsersRound },
   { label: "Settings", icon: Settings, href: "/settings/account" },
 ];
 
 export function LeftRail() {
   const pathname = usePathname();
+  // The Activity rail item carries the unread badge (IA v0.3 — no bell).
+  const { data: unread } = api.notifications.unreadCount.useQuery(undefined, {
+    refetchOnWindowFocus: true,
+  });
 
   return (
     <nav
@@ -56,10 +61,19 @@ export function LeftRail() {
               ? "text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
               : "cursor-default text-[var(--color-text-muted)] opacity-60",
         );
+        const showBadge = d.label === "Activity" && !!unread && unread > 0;
         const inner = (
           <>
             <Icon className="size-4 shrink-0" aria-hidden />
             <span>{d.label}</span>
+            {showBadge ? (
+              <span
+                className="ml-auto inline-flex min-w-[18px] items-center justify-center rounded-full bg-[var(--color-primary)] px-1.5 text-[length:var(--text-small)] font-medium leading-tight text-white"
+                aria-label={`${unread} unread`}
+              >
+                {unread > 99 ? "99+" : unread}
+              </span>
+            ) : null}
           </>
         );
         return d.href ? (
