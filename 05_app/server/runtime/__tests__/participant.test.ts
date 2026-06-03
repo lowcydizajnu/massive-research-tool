@@ -1,0 +1,266 @@
+import { eq } from "drizzle-orm";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("@/server/db/client", async () => {
+  const { PGlite } = await import("@electric-sql/pglite");
+  const { drizzle } = await import("drizzle-orm/pglite");
+  const { migrate } = await import("drizzle-orm/pglite/migrator");
+  const schema = await import("@/server/db/schema");
+  const pg = new PGlite();
+  const db = drizzle(pg, { schema });
+  await migrate(db, { migrationsFolder: "./server/db/migrations" });
+  return { db, schema };
+});
+
+import { db } from "@/server/db/client";
+import {
+  condition as conditionTable,
+  experiment,
+  experimentVersion,
+  member,
+  recruitmentSession,
+  response,
+  responseItem,
+  user,
+  workspace,
+} from "@/server/db/schema";
+import {
+  completeResponse,
+  ensureConditions,
+  getRuntimeQuestion,
+  openRecruitment,
+  pickCondition,
+  recordAnswer,
+  startResponse,
+  visibleBlocks,
+} from "@/server/runtime/participant";
+
+function blocks() {
+  return {
+    blocks: [
+      {
+        instanceId: "blk_stim",
+        source: "core",
+        key: "social-post",
+        version: "1.0.0",
+        config: { headline: "Vaccines", body: "b", source: "s", imageUrl: "", shareCountVisible: false },
+      },
+      {
+        instanceId: "blk_q",
+        source: "core",
+        key: "likert-7",
+        version: "1.0.0",
+        config: { prompt: "Believable?", leftAnchor: "No", rightAnchor: "Yes", required: true },
+      },
+      {
+        instanceId: "blk_hidden",
+        source: "core",
+        key: "likert-7",
+        version: "1.0.0",
+        config: { prompt: "Only treatment", leftAnchor: "No", rightAnchor: "Yes", required: true },
+        visibility: { showIfCondition: ["treatment"] },
+      },
+    ],
+  };
+}
+
+/** Seed an owner + a preregistered version; returns ids. */
+async function seedPreregistered(): Promise<{ studyId: string; versionId: string }> {
+  const [u] = await db
+    .insert(user)
+    .values({ externalId: "ext", email: "h@e.com", displayName: "Hanna" })
+    .returning();
+  const [ws] = await db.insert(workspace).values({ name: "Lab", slug: "lab", ownerId: u.id }).returning();
+  await db.insert(member).values({ workspaceId: ws.id, userId: u.id, role: "owner", status: "active" });
+  const [exp] = await db
+    .insert(experiment)
+    .values({ tenantId: ws.id, ownerId: u.id, title: "Misinfo study" })
+    .returning();
+  const [ver] = await db
+    .insert(experimentVersion)
+    .values({
+      experimentId: exp.id,
+      versionNumber: 1,
+      kind: "preregistered",
+      name: "Preregistration v1",
+      definitionSnapshot: blocks(),
+      moduleVersionLocks: {},
+      createdBy: u.id,
+    })
+    .returning();
+  return { studyId: exp.id, versionId: ver.id };
+}
+
+beforeEach(async () => {
+  await db.update(experiment).set({ currentVersionId: null });
+  await db.delete(responseItem);
+  await db.delete(response);
+  await db.delete(recruitmentSession);
+  await db.delete(conditionTable);
+  await db.delete(experimentVersion);
+  await db.delete(experiment);
+  await db.delete(member);
+  await db.delete(workspace);
+  await db.delete(user);
+});
+
+describe("pickCondition (weighted random)", () => {
+  const conds = [
+    { id: "a", allocationWeight: "1.0" },
+    { id: "b", allocationWeight: "1.0" },
+  ] as never[];
+  it("is deterministic given an rng", () => {
+    expect(pickCondition(conds, () => 0).id).toBe("a");
+    expect(pickCondition(conds, () => 0.99).id).toBe("b");
+  });
+  it("respects weights (90/10 split)", () => {
+    const weighted = [
+      { id: "big", allocationWeight: "9" },
+      { id: "small", allocationWeight: "1" },
+    ] as never[];
+    expect(pickCondition(weighted, () => 0.5).id).toBe("big"); // 0.5*10=5 < 9
+    expect(pickCondition(weighted, () => 0.95).id).toBe("small"); // 9.5 → small
+  });
+});
+
+describe("ensureConditions", () => {
+  it("creates a default control condition when none exist", async () => {
+    const { versionId } = await seedPreregistered();
+    const conds = await ensureConditions(versionId);
+    expect(conds).toHaveLength(1);
+    expect(conds[0].slug).toBe("control");
+  });
+});
+
+describe("openRecruitment", () => {
+  it("opens a session and is idempotent", async () => {
+    const { versionId } = await seedPreregistered();
+    const a = await openRecruitment(versionId);
+    const b = await openRecruitment(versionId);
+    expect(a.id).toBe(b.id);
+    const rows = await db.select().from(recruitmentSession);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].status).toBe("open");
+  });
+});
+
+describe("startResponse + getRuntimeQuestion", () => {
+  it("assigns a condition, starts at 0, and resumes the same PID", async () => {
+    const { versionId } = await seedPreregistered();
+    const { id: rsId } = await openRecruitment(versionId);
+
+    const first = await startResponse({ recruitmentSessionId: rsId, mode: "run", externalPid: "P1" });
+    const second = await startResponse({ recruitmentSessionId: rsId, mode: "run", externalPid: "P1" });
+    expect("responseId" in first && "responseId" in second).toBe(true);
+    if ("responseId" in first && "responseId" in second) {
+      expect(first.responseId).toBe(second.responseId); // resumed, not duplicated
+    }
+    const rows = await db.select().from(response);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].conditionId).toBeTruthy();
+    expect(rows[0].currentQuestionIndex).toBe(0);
+  });
+
+  it("rejects a closed recruitment", async () => {
+    const { versionId } = await seedPreregistered();
+    const { id: rsId } = await openRecruitment(versionId);
+    await db.update(recruitmentSession).set({ status: "closed" }).where(eq(recruitmentSession.id, rsId));
+    const r = await startResponse({ recruitmentSessionId: rsId, mode: "run", externalPid: null });
+    expect(r).toEqual({ error: "closed" });
+  });
+
+  it("hides condition-gated blocks (control sees 2 of 3)", async () => {
+    const { studyId, versionId } = await seedPreregistered();
+    const { id: rsId } = await openRecruitment(versionId);
+    const started = await startResponse({ recruitmentSessionId: rsId, mode: "run", externalPid: null });
+    const responseId = (started as { responseId: string }).responseId;
+
+    const q0 = await getRuntimeQuestion({ studyId, responseId, questionIndex: 0 });
+    expect("block" in q0 && q0.total).toBe(2); // blk_hidden (treatment-only) excluded for control
+    if ("block" in q0) expect(q0.block.instanceId).toBe("blk_stim");
+
+    const q2 = await getRuntimeQuestion({ studyId, responseId, questionIndex: 2 });
+    expect(q2).toEqual({ done: true }); // only 2 visible blocks
+  });
+
+  it("404s when the response doesn't belong to the study", async () => {
+    const { versionId } = await seedPreregistered();
+    const { id: rsId } = await openRecruitment(versionId);
+    const started = await startResponse({ recruitmentSessionId: rsId, mode: "run", externalPid: null });
+    const responseId = (started as { responseId: string }).responseId;
+    const q = await getRuntimeQuestion({ studyId: "11111111-1111-1111-1111-111111111111", responseId, questionIndex: 0 });
+    expect(q).toEqual({ error: "not_found" });
+  });
+});
+
+describe("recordAnswer", () => {
+  async function start() {
+    const { studyId, versionId } = await seedPreregistered();
+    const { id: rsId } = await openRecruitment(versionId);
+    const started = await startResponse({ recruitmentSessionId: rsId, mode: "run", externalPid: null });
+    return { studyId, rsId, responseId: (started as { responseId: string }).responseId };
+  }
+
+  it("advances past a stimulus without writing a response_item", async () => {
+    const { responseId } = await start();
+    const r = await recordAnswer({ responseId, questionIndex: 0, answer: null }); // blk_stim
+    expect(r).toEqual({ ok: true, done: false, nextIndex: 1 });
+    const items = await db.select().from(responseItem).where(eq(responseItem.responseId, responseId));
+    expect(items).toHaveLength(0);
+  });
+
+  it("validates a likert answer, stores it, and completes on the last block", async () => {
+    const { rsId, responseId } = await start();
+    await recordAnswer({ responseId, questionIndex: 0, answer: null }); // stimulus
+
+    const bad = await recordAnswer({ responseId, questionIndex: 1, answer: { value: 9 } });
+    expect(bad).toEqual({ ok: false, error: "invalid_answer" });
+
+    const good = await recordAnswer({ responseId, questionIndex: 1, answer: { value: 5 } });
+    expect(good).toEqual({ ok: true, done: true, nextIndex: 2 }); // last visible block
+
+    const items = await db.select().from(responseItem).where(eq(responseItem.responseId, responseId));
+    expect(items).toHaveLength(1);
+    expect(items[0].answer).toEqual({ value: 5 });
+    expect(items[0].blockInstanceId).toBe("blk_q");
+
+    const [resp] = await db.select().from(response).where(eq(response.id, responseId));
+    expect(resp.status).toBe("completed");
+    const [rs] = await db.select().from(recruitmentSession).where(eq(recruitmentSession.id, rsId));
+    expect(rs.currentN).toBe(1); // run mode bumps the completed count
+  });
+
+  it("rejects an empty answer to a required question", async () => {
+    const { responseId } = await start();
+    const r = await recordAnswer({ responseId, questionIndex: 1, answer: {} });
+    expect(r).toEqual({ ok: false, error: "answer_required" });
+  });
+
+  it("upserts on re-answer (overwrites, no duplicate item)", async () => {
+    const { responseId } = await start();
+    await recordAnswer({ responseId, questionIndex: 1, answer: { value: 3 } });
+    await recordAnswer({ responseId, questionIndex: 1, answer: { value: 6 } });
+    const items = await db.select().from(responseItem).where(eq(responseItem.responseId, responseId));
+    expect(items).toHaveLength(1);
+    expect(items[0].answer).toEqual({ value: 6 });
+  });
+});
+
+describe("preview mode", () => {
+  it("does not bump the recruitment count on completion", async () => {
+    const { versionId } = await seedPreregistered();
+    const { id: rsId } = await openRecruitment(versionId);
+    const started = await startResponse({ recruitmentSessionId: rsId, mode: "preview", externalPid: null });
+    const responseId = (started as { responseId: string }).responseId;
+    await completeResponse(responseId);
+    const [rs] = await db.select().from(recruitmentSession).where(eq(recruitmentSession.id, rsId));
+    expect(rs.currentN).toBe(0);
+  });
+});
+
+describe("visibleBlocks", () => {
+  it("treatment sees all three, control sees two", () => {
+    expect(visibleBlocks(blocks(), "treatment")).toHaveLength(3);
+    expect(visibleBlocks(blocks(), "control")).toHaveLength(2);
+  });
+});
