@@ -112,6 +112,17 @@ function uniqueSlug(base: string, taken: Set<string>): string {
   }
 }
 
+/** A module-answer as a CSV cell: likert value / joined selections / free text. */
+function stringifyAnswer(answer: unknown): string {
+  if (answer && typeof answer === "object") {
+    const a = answer as Record<string, unknown>;
+    if (typeof a.value === "number") return String(a.value);
+    if (Array.isArray(a.selected)) return a.selected.map(String).join("; ");
+    if (typeof a.text === "string") return a.text;
+  }
+  return "";
+}
+
 /**
  * How a new study begins (new-study-modal wireframe). Framework + Template
  * require the Framework entity + seeded data (ADR-0011 item 9), so V1 ships
@@ -221,14 +232,24 @@ export type ResultsSummary = {
   totalCompleted: number;
   includesPreview: boolean;
   conditions: { slug: string; name: string; completed: number }[];
-  questions: { instanceId: string; prompt: string; moduleKey: string; n: number; mean: number | null }[];
+  questions: {
+    instanceId: string;
+    prompt: string;
+    moduleKey: string;
+    n: number;
+    /** numeric → mean+n; categorical → per-option counts; text → n only. */
+    kind: "numeric" | "categorical" | "text";
+    mean: number | null;
+    optionCounts: { value: string; count: number }[];
+  }[];
   rows: {
     responseId: string;
     conditionSlug: string;
     externalPid: string | null;
     startedAt: string;
     completedAt: string | null;
-    answers: Record<string, number | null>;
+    /** Per-block answer, stringified for CSV (number / joined selections / text). */
+    answers: Record<string, string>;
   }[];
 };
 
@@ -940,38 +961,72 @@ export const studiesRouter = router({
         completedByCondition.set(r.conditionId, (completedByCondition.get(r.conditionId) ?? 0) + 1);
       }
 
-      // Per-question summary: numeric mean + n over answer.value (likert etc.).
+      // Per-question summary by answer shape (numeric / categorical / text) +
+      // a stringified per-response value for the CSV.
       const blocks = readBlocks(ver.snapshot);
-      const questionBlocks = blocks.filter((b) => getModuleDef(b.source, b.key, b.version)?.collectsResponse);
-      const itemsByBlock = new Map<string, number[]>();
-      const answersByResponse = new Map<string, Record<string, number | null>>();
+      const questionBlocks = blocks.filter(
+        (b) => getModuleDef(b.source, b.key, b.version)?.collectsResponse,
+      );
+      const kindOf = (key: string): "numeric" | "categorical" | "text" =>
+        key === "multiple-choice" ? "categorical" : key === "free-text" ? "text" : "numeric";
+
+      const itemsByBlock = new Map<string, unknown[]>();
+      const answersByResponse = new Map<string, Record<string, string>>();
       for (const it of items) {
-        const value =
-          it.answer && typeof it.answer === "object" && "value" in it.answer
-            ? Number((it.answer as { value: unknown }).value)
-            : NaN;
-        const v = Number.isFinite(value) ? value : null;
-        if (v !== null) {
-          const arr = itemsByBlock.get(it.blockInstanceId) ?? [];
-          arr.push(v);
-          itemsByBlock.set(it.blockInstanceId, arr);
-        }
+        const arr = itemsByBlock.get(it.blockInstanceId) ?? [];
+        arr.push(it.answer);
+        itemsByBlock.set(it.blockInstanceId, arr);
         const row = answersByResponse.get(it.responseId) ?? {};
-        row[it.blockInstanceId] = v;
+        row[it.blockInstanceId] = stringifyAnswer(it.answer);
         answersByResponse.set(it.responseId, row);
       }
 
       const questions = questionBlocks.map((b) => {
-        const vals = itemsByBlock.get(b.instanceId) ?? [];
-        const n = vals.length;
-        const mean = n > 0 ? vals.reduce((a, c) => a + c, 0) / n : null;
-        return {
-          instanceId: b.instanceId,
-          prompt: typeof b.config?.prompt === "string" && b.config.prompt ? b.config.prompt : b.key,
-          moduleKey: b.key,
-          n,
-          mean,
-        };
+        const kind = kindOf(b.key);
+        const answers = itemsByBlock.get(b.instanceId) ?? [];
+        const prompt =
+          typeof b.config?.prompt === "string" && b.config.prompt ? b.config.prompt : b.key;
+
+        if (kind === "numeric") {
+          const vals = answers
+            .map((a) => Number((a as { value?: unknown })?.value))
+            .filter((v) => Number.isFinite(v));
+          const n = vals.length;
+          return {
+            instanceId: b.instanceId,
+            prompt,
+            moduleKey: b.key,
+            n,
+            kind,
+            mean: n > 0 ? vals.reduce((x, y) => x + y, 0) / n : null,
+            optionCounts: [],
+          };
+        }
+        if (kind === "categorical") {
+          const counts = new Map<string, number>();
+          let n = 0;
+          for (const a of answers) {
+            const selected = (a as { selected?: unknown })?.selected;
+            if (Array.isArray(selected) && selected.length) {
+              n++;
+              for (const s of selected) counts.set(String(s), (counts.get(String(s)) ?? 0) + 1);
+            }
+          }
+          return {
+            instanceId: b.instanceId,
+            prompt,
+            moduleKey: b.key,
+            n,
+            kind,
+            mean: null,
+            optionCounts: [...counts.entries()].map(([value, count]) => ({ value, count })),
+          };
+        }
+        // text
+        const n = answers.filter(
+          (a) => typeof (a as { text?: unknown })?.text === "string" && (a as { text: string }).text.trim(),
+        ).length;
+        return { instanceId: b.instanceId, prompt, moduleKey: b.key, n, kind, mean: null, optionCounts: [] };
       });
 
       return {

@@ -1,5 +1,6 @@
 "use client";
 
+import { X } from "lucide-react";
 import { useState } from "react";
 
 import type { StudyBlock } from "@/server/trpc/routers/studies";
@@ -44,37 +45,109 @@ export function ConfigureForm({
       </div>
 
       <div className="flex flex-col gap-3">
-        {Object.entries(draft).map(([key, value]) =>
-          typeof value === "boolean" ? (
-            <label key={key} className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={value}
-                onChange={(e) => {
-                  const next = { ...draft, [key]: e.target.checked };
-                  setDraft(next);
-                  onChange(next);
-                }}
-              />
-              <span className="text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
-                {humanize(key)}
-              </span>
-            </label>
-          ) : (
+        {Object.entries(draft).map(([key, value]) => {
+          const fieldCls =
+            "rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-1 text-[length:var(--text-body)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]";
+          const labelCls =
+            "text-[length:var(--text-label)] uppercase tracking-wide text-[var(--color-text-muted)]";
+
+          if (typeof value === "boolean") {
+            return (
+              <label key={key} className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={value}
+                  onChange={(e) => {
+                    const next = { ...draft, [key]: e.target.checked };
+                    setDraft(next);
+                    onChange(next);
+                  }}
+                />
+                <span className="text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
+                  {humanize(key)}
+                </span>
+              </label>
+            );
+          }
+
+          if (typeof value === "number") {
+            return (
+              <label key={key} className="flex flex-col gap-1">
+                <span className={labelCls}>{humanize(key)}</span>
+                <input
+                  type="number"
+                  value={String(value)}
+                  onChange={(e) =>
+                    setDraft({ ...draft, [key]: e.target.value === "" ? 0 : Number(e.target.value) })
+                  }
+                  onBlur={() => onChange(draft)}
+                  className={fieldCls}
+                />
+              </label>
+            );
+          }
+
+          // string[] → option-list editor (multiple-choice options, etc.)
+          if (Array.isArray(value)) {
+            const arr = value as string[];
+            const commit = (next: string[]) => {
+              const nextDraft = { ...draft, [key]: next };
+              setDraft(nextDraft);
+              onChange(nextDraft);
+            };
+            return (
+              <div key={key} className="flex flex-col gap-1">
+                <span className={labelCls}>{humanize(key)}</span>
+                <ul className="flex flex-col gap-1">
+                  {arr.map((opt, i) => (
+                    <li key={i} className="flex items-center gap-1">
+                      <input
+                        type="text"
+                        aria-label={`${humanize(key)} ${i + 1}`}
+                        value={opt}
+                        onChange={(e) => {
+                          const copy = [...arr];
+                          copy[i] = e.target.value;
+                          setDraft({ ...draft, [key]: copy });
+                        }}
+                        onBlur={() => onChange(draft)}
+                        className={`min-w-0 flex-1 ${fieldCls}`}
+                      />
+                      <button
+                        type="button"
+                        aria-label={`Remove ${humanize(key)} ${i + 1}`}
+                        onClick={() => commit(arr.filter((_, j) => j !== i))}
+                        className="shrink-0 rounded-[var(--radius-sm)] p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)] hover:text-[var(--color-danger-text-on-subtle)]"
+                      >
+                        <X className="size-3.5" aria-hidden />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  type="button"
+                  onClick={() => commit([...arr, `Option ${arr.length + 1}`])}
+                  className="self-start rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-2 py-0.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
+                >
+                  + Add option
+                </button>
+              </div>
+            );
+          }
+
+          return (
             <label key={key} className="flex flex-col gap-1">
-              <span className="text-[length:var(--text-label)] uppercase tracking-wide text-[var(--color-text-muted)]">
-                {humanize(key)}
-              </span>
+              <span className={labelCls}>{humanize(key)}</span>
               <input
                 type="text"
                 value={String(value ?? "")}
                 onChange={(e) => setDraft({ ...draft, [key]: e.target.value })}
                 onBlur={() => onChange(draft)}
-                className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-1 text-[length:var(--text-body)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+                className={fieldCls}
               />
             </label>
-          ),
-        )}
+          );
+        })}
       </div>
 
       <button

@@ -29,10 +29,20 @@ export async function answerAction(formData: FormData): Promise<void> {
   const studyId = String(formData.get("studyId") ?? "");
   const responseId = String(formData.get("responseId") ?? "");
   const questionIndex = Number(formData.get("questionIndex") ?? 0);
+  const moduleKey = String(formData.get("moduleKey") ?? "");
 
-  // V1.5's only answer field is `value` (likert); stimuli submit none → null.
-  const raw = formData.get("value");
-  const answer = raw != null && String(raw) !== "" ? { value: Number(raw) } : null;
+  // Build the module-specific answer shape from the form fields. recordAnswer
+  // re-validates against the block's responseSchema server-side, so trusting
+  // the client's moduleKey here only selects extraction, not correctness.
+  let answer: unknown = null;
+  if (moduleKey === "likert-7") {
+    const raw = formData.get("value");
+    answer = raw != null && String(raw) !== "" ? { value: Number(raw) } : null;
+  } else if (moduleKey === "multiple-choice") {
+    answer = { selected: formData.getAll("mc").map(String) };
+  } else if (moduleKey === "free-text") {
+    answer = { text: String(formData.get("text") ?? "") };
+  }
 
   const result = await recordAnswer({ responseId, questionIndex, answer });
   if (!result.ok) {
