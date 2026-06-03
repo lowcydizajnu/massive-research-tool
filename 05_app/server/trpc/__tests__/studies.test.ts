@@ -448,6 +448,21 @@ describe("studies.preregister", () => {
     expect(all[0].registryPushStatus).toBe("pending");
   });
 
+  it("lists a preregistered study under the Preregistered filter, not Drafts", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    await caller.studies.preregister({ studyId: id });
+
+    const prereg = await caller.studies.list({ filter: "preregistered" });
+    expect(prereg.map((s) => s.id)).toContain(id);
+    expect(prereg.find((s) => s.id === id)?.stage).toBe("preregistered");
+
+    // The working tip is still an editable autosave, but the study has left Drafts.
+    const drafts = await caller.studies.list({ filter: "drafts" });
+    expect(drafts.map((s) => s.id)).not.toContain(id);
+  });
+
   it("retryPush errors when there is no preregistration yet", async () => {
     await seedUserWithWorkspace("ext_a", "Alpha");
     const caller = createCaller({ authUser: authUser("ext_a") });
