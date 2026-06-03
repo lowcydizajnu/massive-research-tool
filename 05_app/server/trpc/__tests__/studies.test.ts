@@ -371,9 +371,10 @@ describe("studies.preregister", () => {
     expect(pre.registryPushStatus).toBe("no_credentials");
     expect(enqueue).not.toHaveBeenCalled();
 
-    // The autosave working tip is untouched (still draft, still has the block).
+    // The working tip is still the editable autosave (block intact), but the
+    // study's reported stage is now its FURTHEST milestone: preregistered.
     const detail = await caller.studies.get({ id });
-    expect(detail.stage).toBe("draft");
+    expect(detail.stage).toBe("preregistered");
     expect(detail.blocks).toHaveLength(1);
   });
 

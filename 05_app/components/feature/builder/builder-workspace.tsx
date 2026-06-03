@@ -156,13 +156,34 @@ export function BuilderWorkspace({ study: initial }: { study: StudyDetail }) {
       {/* Right context panel */}
       <aside className="flex w-[250px] shrink-0 flex-col gap-4 self-start rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-panel)] p-4">
         <nav role="tablist" aria-label="Context" className="flex flex-wrap gap-1">
-          <span
-            role="tab"
-            aria-current="page"
-            className="rounded-[var(--radius-sm)] bg-[var(--color-primary-subtle)] px-2 py-0.5 text-[length:var(--text-small)] font-medium text-[var(--color-primary-text-on-subtle)]"
-          >
-            {selected ? "Configure" : "Details"}
-          </span>
+          {selected ? (
+            <>
+              {/* Clickable: returns to the study Details by deselecting the block. */}
+              <button
+                type="button"
+                role="tab"
+                onClick={() => setSelectedId(null)}
+                className="rounded-[var(--radius-sm)] px-2 py-0.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
+              >
+                Details
+              </button>
+              <span
+                role="tab"
+                aria-current="page"
+                className="rounded-[var(--radius-sm)] bg-[var(--color-primary-subtle)] px-2 py-0.5 text-[length:var(--text-small)] font-medium text-[var(--color-primary-text-on-subtle)]"
+              >
+                Configure
+              </span>
+            </>
+          ) : (
+            <span
+              role="tab"
+              aria-current="page"
+              className="rounded-[var(--radius-sm)] bg-[var(--color-primary-subtle)] px-2 py-0.5 text-[length:var(--text-small)] font-medium text-[var(--color-primary-text-on-subtle)]"
+            >
+              Details
+            </span>
+          )}
           {["History", "Replications", "Comments", "Validation"].map((t) => (
             <span
               key={t}
