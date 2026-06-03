@@ -53,11 +53,11 @@ export default async function ResultsStagePage({
 
         {results === null ? (
           <Empty>
-            This study isn’t preregistered yet.{" "}
-            <Link href={`/studies/${study.id}/preregister`} className="underline">
-              Preregister it
+            This study isn’t running yet — freeze a version to collect responses from the{" "}
+            <Link href={`/studies/${study.id}/run`} className="underline">
+              Run stage
             </Link>{" "}
-            to run it.
+            (Preregister to OSF, or Publish &amp; run without OSF).
           </Empty>
         ) : results.totalCompleted === 0 ? (
           <>
