@@ -27,11 +27,15 @@ import type { AuthUser } from "@/server/adapters/auth";
 import { jobs } from "@/server/adapters/jobs";
 import { db } from "@/server/db/client";
 import {
+  condition,
   experiment,
   experimentVersion,
   member,
+  recruitmentSession,
   registry,
   registryConnection,
+  response,
+  responseItem,
   user,
   workspace,
 } from "@/server/db/schema";
@@ -73,6 +77,10 @@ beforeEach(async () => {
   vi.clearAllMocks();
   // Break the experiment <-> experiment_version circular FK before deleting.
   await db.update(experiment).set({ currentVersionId: null });
+  await db.delete(responseItem);
+  await db.delete(response);
+  await db.delete(recruitmentSession);
+  await db.delete(condition);
   await db.delete(registryConnection);
   await db.delete(registry);
   await db.delete(experimentVersion);
@@ -491,6 +499,51 @@ describe("studies.preregister", () => {
     await expect(viewerCaller.studies.preregister({ studyId: id })).rejects.toMatchObject({
       code: "FORBIDDEN",
     });
+  });
+});
+
+describe("studies.getRunInfo + openRecruitment", () => {
+  it("reports not-preregistered, then preregistered-without-recruitment, then recruiting", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+
+    expect(await caller.studies.getRunInfo({ studyId: id })).toEqual({
+      isPreregistered: false,
+      recruitment: null,
+    });
+
+    await caller.studies.preregister({ studyId: id });
+    expect(await caller.studies.getRunInfo({ studyId: id })).toEqual({
+      isPreregistered: true,
+      recruitment: null,
+    });
+
+    await caller.studies.openRecruitment({ studyId: id });
+    expect(await caller.studies.getRunInfo({ studyId: id })).toEqual({
+      isPreregistered: true,
+      recruitment: { status: "open", currentN: 0 },
+    });
+  });
+
+  it("openRecruitment refuses a study that isn't preregistered", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    await expect(caller.studies.openRecruitment({ studyId: id })).rejects.toMatchObject({
+      code: "PRECONDITION_FAILED",
+    });
+  });
+
+  it("openRecruitment is idempotent (one open session)", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    await caller.studies.preregister({ studyId: id });
+    await caller.studies.openRecruitment({ studyId: id });
+    await caller.studies.openRecruitment({ studyId: id });
+    const info = await caller.studies.getRunInfo({ studyId: id });
+    expect(info.recruitment?.status).toBe("open");
   });
 });
 

@@ -6,7 +6,8 @@ import { z } from "zod";
 import { jobs } from "@/server/adapters/jobs";
 import { registry } from "@/server/adapters/registry";
 import { db } from "@/server/db/client";
-import { experiment, experimentVersion, user } from "@/server/db/schema";
+import { experiment, experimentVersion, recruitmentSession, user } from "@/server/db/schema";
+import { openRecruitment as runtimeOpenRecruitment } from "@/server/runtime/participant";
 import { getFrameworkDef } from "@/server/frameworks/registry";
 import {
   type BlockInstance,
@@ -129,6 +130,12 @@ export type PreregistrationStatus = {
   url: string | null;
   doi: string | null;
   lastError: string | null;
+};
+
+/** Run-stage state: whether the study can run + its recruitment status. */
+export type RunInfo = {
+  isPreregistered: boolean;
+  recruitment: { status: "open" | "paused" | "closed"; currentN: number } | null;
 };
 
 export const studiesRouter = router({
@@ -550,6 +557,70 @@ export const studiesRouter = router({
         doi: pre.doi,
         lastError: pre.lastError,
       };
+    }),
+
+  /**
+   * Run-stage state: is the study preregistered (runnable), and is recruitment
+   * open? Tenant-scoped. Drives the Run stage UI + recruitment link.
+   */
+  getRunInfo: workspaceProcedure
+    .input(z.object({ studyId: z.string().uuid() }))
+    .query(async ({ ctx, input }): Promise<RunInfo> => {
+      const [ver] = await db
+        .select({ id: experimentVersion.id })
+        .from(experimentVersion)
+        .innerJoin(experiment, eq(experimentVersion.experimentId, experiment.id))
+        .where(
+          and(
+            eq(experimentVersion.experimentId, input.studyId),
+            eq(experiment.tenantId, ctx.workspace.id),
+            eq(experimentVersion.kind, "preregistered"),
+          ),
+        )
+        .orderBy(desc(experimentVersion.versionNumber))
+        .limit(1);
+      if (!ver) return { isPreregistered: false, recruitment: null };
+
+      const [rs] = await db
+        .select({ status: recruitmentSession.status, currentN: recruitmentSession.currentN })
+        .from(recruitmentSession)
+        .where(eq(recruitmentSession.experimentVersionId, ver.id))
+        .orderBy(desc(recruitmentSession.openedAt))
+        .limit(1);
+      return {
+        isPreregistered: true,
+        recruitment: rs ? { status: rs.status, currentN: rs.currentN } : null,
+      };
+    }),
+
+  /**
+   * Open recruitment for the study's latest preregistered version (Run stage).
+   * Ensures a default condition + an open recruitment_session (idempotent).
+   */
+  openRecruitment: writeProcedure
+    .input(z.object({ studyId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      const [ver] = await db
+        .select({ id: experimentVersion.id })
+        .from(experimentVersion)
+        .innerJoin(experiment, eq(experimentVersion.experimentId, experiment.id))
+        .where(
+          and(
+            eq(experimentVersion.experimentId, input.studyId),
+            eq(experiment.tenantId, ctx.workspace.id),
+            eq(experimentVersion.kind, "preregistered"),
+          ),
+        )
+        .orderBy(desc(experimentVersion.versionNumber))
+        .limit(1);
+      if (!ver) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Preregister this study before opening recruitment.",
+        });
+      }
+      await runtimeOpenRecruitment(ver.id);
+      return { ok: true };
     }),
 
   /**
