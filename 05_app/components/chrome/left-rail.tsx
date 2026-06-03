@@ -34,7 +34,7 @@ const DESTINATIONS: Destination[] = [
   { label: "Participants", icon: Users },
   { label: "Activity", icon: Activity },
   { label: "Team", icon: UsersRound },
-  { label: "Settings", icon: Settings },
+  { label: "Settings", icon: Settings, href: "/settings/account" },
 ];
 
 export function LeftRail() {
