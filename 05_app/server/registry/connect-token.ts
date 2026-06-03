@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { registry } from "@/server/adapters/registry";
@@ -23,5 +24,8 @@ export async function connectOsfTokenAction(formData: FormData): Promise<void> {
     // generic "couldn't connect" message.
     redirect("/settings/account?osf=error");
   }
+  // Bust the RSC cache so the card re-renders in its connected state (otherwise
+  // the success banner shows over a stale "paste a token" form).
+  revalidatePath("/settings/account");
   redirect("/settings/account?osf=connected");
 }
