@@ -118,7 +118,13 @@ function stringifyAnswer(answer: unknown): string {
     const a = answer as Record<string, unknown>;
     if (typeof a.value === "number") return String(a.value);
     if (Array.isArray(a.selected)) return a.selected.map(String).join("; ");
+    if (Array.isArray(a.order)) return a.order.map(String).join(" > ");
     if (typeof a.text === "string") return a.text;
+    // demographics / generic object → compact key=value
+    const parts = Object.entries(a)
+      .filter(([, v]) => v !== undefined && v !== null && String(v).length > 0)
+      .map(([k, v]) => `${k}=${v}`);
+    if (parts.length) return parts.join("; ");
   }
   return "";
 }
@@ -968,7 +974,11 @@ export const studiesRouter = router({
         (b) => getModuleDef(b.source, b.key, b.version)?.collectsResponse,
       );
       const kindOf = (key: string): "numeric" | "categorical" | "text" =>
-        key === "multiple-choice" ? "categorical" : key === "free-text" ? "text" : "numeric";
+        key === "multiple-choice" || key === "attention-check"
+          ? "categorical"
+          : key === "free-text" || key === "ranking" || key === "demographics"
+            ? "text"
+            : "numeric"; // likert-7, slider
 
       const itemsByBlock = new Map<string, unknown[]>();
       const answersByResponse = new Map<string, Record<string, string>>();
@@ -1022,10 +1032,8 @@ export const studiesRouter = router({
             optionCounts: [...counts.entries()].map(([value, count]) => ({ value, count })),
           };
         }
-        // text
-        const n = answers.filter(
-          (a) => typeof (a as { text?: unknown })?.text === "string" && (a as { text: string }).text.trim(),
-        ).length;
+        // text (free-text / ranking / demographics) — count any non-empty answer
+        const n = answers.filter((a) => stringifyAnswer(a).trim().length > 0).length;
         return { instanceId: b.instanceId, prompt, moduleKey: b.key, n, kind, mean: null, optionCounts: [] };
       });
 

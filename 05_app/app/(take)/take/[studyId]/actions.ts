@@ -35,13 +35,34 @@ export async function answerAction(formData: FormData): Promise<void> {
   // re-validates against the block's responseSchema server-side, so trusting
   // the client's moduleKey here only selects extraction, not correctness.
   let answer: unknown = null;
-  if (moduleKey === "likert-7") {
+  if (moduleKey === "likert-7" || moduleKey === "slider") {
     const raw = formData.get("value");
     answer = raw != null && String(raw) !== "" ? { value: Number(raw) } : null;
   } else if (moduleKey === "multiple-choice") {
     answer = { selected: formData.getAll("mc").map(String) };
+  } else if (moduleKey === "attention-check") {
+    const raw = formData.get("value");
+    answer = { selected: raw != null && String(raw) !== "" ? [String(raw)] : [] };
   } else if (moduleKey === "free-text") {
     answer = { text: String(formData.get("text") ?? "") };
+  } else if (moduleKey === "ranking") {
+    // Pair each item with its chosen rank, then order by rank (ties → input order).
+    const pairs: { item: string; rank: number }[] = [];
+    for (let i = 0; formData.has(`item_${i}`); i++) {
+      pairs.push({
+        item: String(formData.get(`item_${i}`)),
+        rank: Number(formData.get(`rank_${i}`) ?? i + 1),
+      });
+    }
+    pairs.sort((a, b) => a.rank - b.rank);
+    answer = { order: pairs.map((p) => p.item) };
+  } else if (moduleKey === "demographics") {
+    const o: Record<string, string> = {};
+    for (const f of ["age", "gender", "country"] as const) {
+      const v = formData.get(f);
+      if (v != null && String(v).trim() !== "") o[f] = String(v);
+    }
+    answer = o;
   }
 
   const result = await recordAnswer({ responseId, questionIndex, answer });

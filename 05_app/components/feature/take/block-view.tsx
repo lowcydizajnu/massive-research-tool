@@ -12,6 +12,10 @@ export function BlockView({ block, seed }: { block: RuntimeBlock; seed?: string 
   if (block.key === "multiple-choice")
     return <MultipleChoiceInput config={block.config} seed={seed} />;
   if (block.key === "free-text") return <FreeTextInput config={block.config} />;
+  if (block.key === "slider") return <SliderInput config={block.config} />;
+  if (block.key === "ranking") return <RankingInput config={block.config} />;
+  if (block.key === "attention-check") return <AttentionCheckInput config={block.config} />;
+  if (block.key === "demographics") return <DemographicsInput config={block.config} />;
   // Unknown module — render nothing rather than crash the runtime.
   return (
     <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
@@ -152,6 +156,144 @@ function FreeTextInput({ config }: { config: Record<string, unknown> }) {
       ) : (
         <input id="ft" type="text" name="text" maxLength={maxLength} className={cls} />
       )}
+    </div>
+  );
+}
+
+function num(v: unknown, fallback: number): number {
+  return typeof v === "number" && Number.isFinite(v) ? v : fallback;
+}
+
+function SliderInput({ config }: { config: Record<string, unknown> }) {
+  const prompt = str(config.prompt);
+  const min = num(config.min, 0);
+  const max = num(config.max, 100);
+  const step = num(config.step, 1);
+  return (
+    <div className="flex flex-col gap-2">
+      <label
+        htmlFor="sl"
+        className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]"
+      >
+        {prompt}
+      </label>
+      <input
+        id="sl"
+        type="range"
+        name="value"
+        min={min}
+        max={max}
+        step={step}
+        defaultValue={Math.round((min + max) / 2)}
+        className="w-full accent-[var(--color-primary)]"
+      />
+      <div className="flex justify-between text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+        <span>{min}</span>
+        <span>{max}</span>
+      </div>
+    </div>
+  );
+}
+
+function RankingInput({ config }: { config: Record<string, unknown> }) {
+  const prompt = str(config.prompt);
+  const items = Array.isArray(config.items) ? (config.items as unknown[]).map(str) : [];
+  const positions = items.map((_, i) => i + 1);
+  return (
+    <fieldset className="flex flex-col gap-2">
+      <legend className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">
+        {prompt}
+      </legend>
+      <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+        Assign a rank to each item (1 = highest).
+      </p>
+      {items.map((item, i) => (
+        <div key={`${i}-${item}`} className="flex items-center justify-between gap-2">
+          <input type="hidden" name={`item_${i}`} value={item} />
+          <span className="min-w-0 truncate text-[length:var(--text-body)] text-[var(--color-text-primary)]">
+            {item}
+          </span>
+          <select
+            name={`rank_${i}`}
+            aria-label={`Rank for ${item}`}
+            defaultValue={i + 1}
+            className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-1 text-[length:var(--text-body)]"
+          >
+            {positions.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </select>
+        </div>
+      ))}
+    </fieldset>
+  );
+}
+
+function AttentionCheckInput({ config }: { config: Record<string, unknown> }) {
+  const prompt = str(config.prompt);
+  const options = Array.isArray(config.options) ? (config.options as unknown[]).map(str) : [];
+  return (
+    <fieldset className="flex flex-col gap-2">
+      <legend className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">
+        {prompt}
+      </legend>
+      {options.map((opt, i) => (
+        <label
+          key={`${i}-${opt}`}
+          className="flex items-center gap-2 text-[length:var(--text-body)] text-[var(--color-text-primary)]"
+        >
+          <input type="radio" name="value" value={opt} className="size-4 accent-[var(--color-primary)]" />
+          <span>{opt}</span>
+        </label>
+      ))}
+    </fieldset>
+  );
+}
+
+function DemographicsInput({ config }: { config: Record<string, unknown> }) {
+  const cls =
+    "rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-3 py-2 text-[length:var(--text-body)] text-[var(--color-text-primary)]";
+  const genderOptions = [
+    "Woman",
+    "Man",
+    "Non-binary",
+    "Prefer to self-describe",
+    "Prefer not to say",
+  ];
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">
+        About you
+      </div>
+      {config.askAge !== false ? (
+        <label className="flex flex-col gap-1">
+          <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">Age</span>
+          <input type="number" name="age" min={0} max={120} className={cls} />
+        </label>
+      ) : null}
+      {config.askGender !== false ? (
+        <label className="flex flex-col gap-1">
+          <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">Gender</span>
+          <select name="gender" defaultValue="" className={cls}>
+            <option value="">Select…</option>
+            {genderOptions.map((g) => (
+              <option key={g} value={g}>
+                {g}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+      {config.askCountry !== false ? (
+        <label className="flex flex-col gap-1">
+          <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+            Country of residence
+          </span>
+          <input type="text" name="country" autoComplete="country-name" className={cls} />
+        </label>
+      ) : null}
     </div>
   );
 }
