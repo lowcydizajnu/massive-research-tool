@@ -13,6 +13,9 @@ node_modules
 # environment
 .env
 .env*.local
+# Deploy bootstrap secrets (ADR-0016). The .example variant stays tracked;
+# the real .env.production (API keys owner pastes) must never be committed.
+.env.production
 
 # testing
 coverage
