@@ -82,8 +82,11 @@ async function seedUserWithWorkspace(externalId: string, wsName: string) {
 
 beforeEach(async () => {
   vi.clearAllMocks();
-  // Break the experiment <-> experiment_version circular FK before deleting.
-  await db.update(experiment).set({ currentVersionId: null });
+  // Break the experiment <-> experiment_version circular FKs (current tip +
+  // fork lineage) before deleting versions.
+  await db
+    .update(experiment)
+    .set({ currentVersionId: null, forkOfVersionId: null, forkOfExperimentId: null });
   // Event tables FK to workspace/user — clear them before their parents.
   await db.delete(notification);
   await db.delete(activityEvent);
@@ -838,5 +841,59 @@ describe("studies.setTags (ADR-0017)", () => {
       .from(activityEvent)
       .where(eq(activityEvent.type, "preregister_complete"));
     expect(ev.relatedTagSlugs).toEqual(["misinformation-research", "source-cues"]);
+  });
+});
+
+describe("studies.fork + getReplications (ADR-0018)", () => {
+  it("same-workspace fork copies blocks (instanceIds preserved); getReplications shows the diff", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id: src } = await caller.studies.create({ kind: "blank", title: "Source" });
+    const b = await caller.studies.addBlock({
+      studyId: src,
+      source: "core",
+      key: "likert-7",
+      version: "1.0.0",
+    });
+
+    const { id: fork } = await caller.studies.fork({ studyId: src });
+    const forkDetail = await caller.studies.get({ id: fork });
+    expect(forkDetail.isReplication).toBe(true);
+    expect(forkDetail.blocks.map((x) => x.instanceId)).toEqual([b.instanceId]); // preserved
+
+    const reps = await caller.studies.getReplications({ studyId: src });
+    expect(reps.children).toHaveLength(1);
+    expect(reps.children[0]).toMatchObject({ studyId: fork, canSeeDetail: true });
+    expect(reps.children[0].diff).toMatchObject({ unchangedCount: 1, changed: [], added: [], removed: [] });
+
+    // The fork's view shows its parent.
+    const forkReps = await caller.studies.getReplications({ studyId: fork });
+    expect(forkReps.parent?.studyId).toBe(src);
+  });
+
+  it("cross-workspace fork: FORBIDDEN when private, allowed + emits fork when public (diff withheld)", async () => {
+    const a = await seedUserWithWorkspace("ext_a", "Alpha");
+    const beta = await seedUserWithWorkspace("ext_s", "Beta");
+    const hanna = createCaller({ authUser: authUser("ext_a") });
+    const sofia = createCaller({ authUser: authUser("ext_s") });
+    const { id: src } = await hanna.studies.create({ kind: "blank", title: "Public source" });
+
+    await expect(sofia.studies.fork({ studyId: src })).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    await hanna.studies.setForkable({ studyId: src, forkableBy: "public" });
+    const { id: fork } = await sofia.studies.fork({ studyId: src });
+    const [exp] = await db.select().from(experiment).where(eq(experiment.id, fork));
+    expect(exp.tenantId).toBe(beta.workspace.id); // lands in Sofia's workspace
+    expect(exp.forkOfExperimentId).toBe(src);
+
+    const events = await db.select().from(activityEvent).where(eq(activityEvent.type, "fork"));
+    expect(events).toHaveLength(1);
+    expect(events[0].relatedStudyId).toBe(src);
+    expect(events[0].relatedAuthorUserId).toBe(a.user.id); // notifies Hanna
+
+    // Hanna sees the replication counted, but its diff is withheld (private + other workspace).
+    const reps = await hanna.studies.getReplications({ studyId: src });
+    expect(reps.children).toHaveLength(1);
+    expect(reps.children[0]).toMatchObject({ studyId: fork, canSeeDetail: false, diff: null });
   });
 });
