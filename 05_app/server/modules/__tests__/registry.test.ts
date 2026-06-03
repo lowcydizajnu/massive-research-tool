@@ -89,3 +89,40 @@ describe("module response schemas (ADR-0014 answer validation)", () => {
     expect(m.isAnswerEmpty!({ gender: "Woman" })).toBe(false);
   });
 });
+
+describe("config-membership / range validation (PR-2 hardening)", () => {
+  it("multiple-choice: selections must be among options; single-select caps at 1", () => {
+    const m = getModuleDef("core", "multiple-choice", "1.0.0")!;
+    const cfg = { options: ["A", "B", "C"], multiple: false };
+    expect(m.validateAnswer!({ selected: ["B"] }, cfg)).toBe(true);
+    expect(m.validateAnswer!({ selected: ["Z"] }, cfg)).toBe(false); // not an option
+    expect(m.validateAnswer!({ selected: ["A", "B"] }, cfg)).toBe(false); // >1 on single
+    expect(m.validateAnswer!({ selected: ["A", "B"] }, { options: ["A", "B"], multiple: true })).toBe(true);
+  });
+
+  it("slider: value must be within [min, max]", () => {
+    const m = getModuleDef("core", "slider", "1.0.0")!;
+    expect(m.validateAnswer!({ value: 50 }, { min: 0, max: 100 })).toBe(true);
+    expect(m.validateAnswer!({ value: 150 }, { min: 0, max: 100 })).toBe(false);
+  });
+
+  it("ranking: ranked entries must be among the items", () => {
+    const m = getModuleDef("core", "ranking", "1.0.0")!;
+    expect(m.validateAnswer!({ order: ["b", "a"] }, { items: ["a", "b"] })).toBe(true);
+    expect(m.validateAnswer!({ order: ["x"] }, { items: ["a", "b"] })).toBe(false);
+  });
+
+  it("attention-check: the selection must be one of the options", () => {
+    const m = getModuleDef("core", "attention-check", "1.0.0")!;
+    const cfg = { options: ["Disagree", "Agree"], correctAnswer: "Agree" };
+    expect(m.validateAnswer!({ selected: ["Agree"] }, cfg)).toBe(true);
+    expect(m.validateAnswer!({ selected: ["Maybe"] }, cfg)).toBe(false);
+  });
+
+  it("bounds: free-text caps at 10k chars; mc selection strings cap at 500", () => {
+    const ft = getModuleDef("core", "free-text", "1.0.0")!;
+    expect(ft.responseSchema!.safeParse({ text: "x".repeat(10001) }).success).toBe(false);
+    const mc = getModuleDef("core", "multiple-choice", "1.0.0")!;
+    expect(mc.responseSchema!.safeParse({ selected: ["x".repeat(501)] }).success).toBe(false);
+  });
+});

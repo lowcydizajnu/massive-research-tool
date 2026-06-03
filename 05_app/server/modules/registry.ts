@@ -43,6 +43,14 @@ export type CoreModuleDef = {
    */
   isAnswerEmpty?: (answer: unknown) => boolean;
   /**
+   * Config-dependent answer validation the static Zod responseSchema can't
+   * express — e.g. a selection must be one of the block's options, a ranking
+   * must be over the block's items, a slider value must be in range. Runs
+   * server-side after the shape check (a crafted /take POST can't bypass the
+   * UI). Returns false → the runtime rejects the answer (invalid_answer).
+   */
+  validateAnswer?: (answer: unknown, config: Record<string, unknown>) => boolean;
+  /**
    * Completeness for the "valid / missing field" badge — a block can be
    * structurally valid (Zod-OK) but still missing a required value while the
    * researcher fills it in. Distinct from structural validity on purpose.
@@ -217,10 +225,16 @@ const multipleChoice: CoreModuleDef = {
     additionalProperties: false,
   },
   collectsResponse: true,
-  // Shape only — the participant UI constrains values to the options + single
-  // vs multi; server-side option-membership validation is a hardening follow-up.
-  responseSchema: z.object({ selected: z.array(z.string()) }),
+  responseSchema: z.object({ selected: z.array(z.string().max(500)).max(50) }),
   isAnswerEmpty: (a) => !Array.isArray((a as { selected?: unknown })?.selected) || (a as { selected: unknown[] }).selected.length === 0,
+  // Selections must be among the block's options; single-select allows ≤1.
+  validateAnswer: (a, config) => {
+    const selected = (a as { selected?: unknown })?.selected;
+    if (!Array.isArray(selected)) return false;
+    const options = Array.isArray(config.options) ? config.options.map(String) : [];
+    if (config.multiple !== true && selected.length > 1) return false;
+    return selected.every((s) => options.includes(String(s)));
+  },
   isComplete: (c) =>
     typeof c.prompt === "string" &&
     c.prompt.trim().length > 0 &&
@@ -255,7 +269,8 @@ const freeText: CoreModuleDef = {
     additionalProperties: false,
   },
   collectsResponse: true,
-  responseSchema: z.object({ text: z.string() }),
+  // Hard 10k ceiling on stored text regardless of the config maxLength.
+  responseSchema: z.object({ text: z.string().max(10000) }),
   isAnswerEmpty: (a) => typeof (a as { text?: unknown })?.text !== "string" || (a as { text: string }).text.trim().length === 0,
   isComplete: (c) => typeof c.prompt === "string" && c.prompt.trim().length > 0,
 };
@@ -291,6 +306,13 @@ const slider: CoreModuleDef = {
   collectsResponse: true,
   responseSchema: z.object({ value: z.number() }),
   isAnswerEmpty: (a) => typeof (a as { value?: unknown })?.value !== "number",
+  // Value must fall within the configured [min, max] range.
+  validateAnswer: (a, config) => {
+    const v = (a as { value?: unknown })?.value;
+    const min = typeof config.min === "number" ? config.min : -Infinity;
+    const max = typeof config.max === "number" ? config.max : Infinity;
+    return typeof v === "number" && v >= min && v <= max;
+  },
   isComplete: (c) => typeof c.prompt === "string" && c.prompt.trim().length > 0,
 };
 
@@ -319,7 +341,14 @@ const ranking: CoreModuleDef = {
     additionalProperties: false,
   },
   collectsResponse: true,
-  responseSchema: z.object({ order: z.array(z.string()) }),
+  responseSchema: z.object({ order: z.array(z.string().max(500)).max(100) }),
+  // Every ranked entry must be one of the block's items.
+  validateAnswer: (a, config) => {
+    const order = (a as { order?: unknown })?.order;
+    if (!Array.isArray(order)) return false;
+    const items = Array.isArray(config.items) ? config.items.map(String) : [];
+    return order.every((o) => items.includes(String(o)));
+  },
   isAnswerEmpty: (a) => !Array.isArray((a as { order?: unknown })?.order) || (a as { order: unknown[] }).order.length === 0,
   isComplete: (c) =>
     typeof c.prompt === "string" && c.prompt.trim().length > 0 && Array.isArray(c.items) && c.items.length >= 2,
@@ -360,7 +389,14 @@ const attentionCheck: CoreModuleDef = {
   collectsResponse: true,
   // Reuses the multiple-choice answer shape (single selection) so Results can
   // count per option; pass = selected === config.correctAnswer.
-  responseSchema: z.object({ selected: z.array(z.string()) }),
+  responseSchema: z.object({ selected: z.array(z.string().max(500)).max(1) }),
+  // The single selection must be one of the options.
+  validateAnswer: (a, config) => {
+    const selected = (a as { selected?: unknown })?.selected;
+    if (!Array.isArray(selected) || selected.length > 1) return false;
+    const options = Array.isArray(config.options) ? config.options.map(String) : [];
+    return selected.every((s) => options.includes(String(s)));
+  },
   isAnswerEmpty: (a) => !Array.isArray((a as { selected?: unknown })?.selected) || (a as { selected: unknown[] }).selected.length === 0,
   isComplete: (c) =>
     typeof c.prompt === "string" &&

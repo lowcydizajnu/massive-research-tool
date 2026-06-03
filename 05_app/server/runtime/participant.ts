@@ -301,6 +301,11 @@ export async function recordAnswer(input: {
     } else {
       const parsed = def.responseSchema.safeParse(input.answer);
       if (!parsed.success) return { ok: false, error: "invalid_answer" };
+      // Config-dependent validation (option membership, slider range, …) that
+      // the static schema can't express — a crafted POST can't bypass it.
+      if (def.validateAnswer && !def.validateAnswer(parsed.data, block.config)) {
+        return { ok: false, error: "invalid_answer" };
+      }
       await db
         .insert(responseItem)
         .values({
