@@ -58,6 +58,16 @@ For each vendor:
 | **Migration target** | BullMQ + a Redis instance. Standard Node.js queue stack; runs anywhere. |
 | **Cost-ceiling trigger** | Inngest free tier covers most early-stage usage; ~$50–$150/mo at moderate scale. Trigger when monthly cost > $200/mo OR when we hit the job-execution-rate ceiling. |
 
+## Upstash (Redis — rate limiting, per ADR-0016)
+
+| | |
+| --- | --- |
+| **What we use it for** | A hosted, cross-instance counter for rate-limiting the public `/take/*` participant Server Actions (closes participant-runtime security review #9). A shared store is the point — serverless instances + regions each have their own memory, so an in-process limiter can't enforce a global cap. |
+| **Behind an adapter** | `RateLimitAdapter` (`05_app/server/adapters/ratelimit.ts`) — feature code calls `rateLimit.limit(key, rule)`; all `@upstash/*` imports confined to `ratelimit.upstash.ts`. A per-instance in-memory fallback runs in dev/test when the REST creds are absent (parallel to the Inngest dev fallback); a missing cred in production is fatal, never a silent no-op. |
+| **Deliberate exceptions** | (none — the adapter is the only `@upstash/*` importer; no Upstash types leak into feature code.) |
+| **Migration target** | Self-managed Redis (Railway / Fly.io / a container) behind the same `RateLimitAdapter`. The fixed-window INCR + EXPIRE logic is plain Redis, not Upstash-specific; only the REST client construction changes. |
+| **Cost-ceiling trigger** | Upstash free tier covers low request volumes (pay-per-request); ~$10–$50/mo at moderate `/take` traffic. Trigger when monthly cost > $100/mo OR when request latency from the REST API materially affects participant flow. |
+
 ## OSF (registry — per ADR-0005)
 
 | | |
