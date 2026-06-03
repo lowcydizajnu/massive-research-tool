@@ -149,7 +149,8 @@ function FollowsStream() {
 function FollowRow({ f }: { f: FollowsFeedItem }) {
   const actor = f.actorName ?? "Someone";
   const named = f.studyTitle ? `“${f.studyTitle}”` : "a study";
-  const href = f.studyId ? (`/studies/${f.studyId}` as Route) : null;
+  // Studies have stage routes (no index) — link to Build, the canonical entry.
+  const href = f.studyId ? (`/studies/${f.studyId}/build` as Route) : null;
   const text =
     f.type === "preregister_complete"
       ? `${actor} preregistered ${named}`
@@ -250,8 +251,9 @@ function describe(n: NotificationDTO): {
   const studyId = typeof p.studyId === "string" ? p.studyId : null;
   const title = typeof p.studyTitle === "string" ? p.studyTitle : null;
   const named = title ? `“${title}”` : "your study";
-  const reviewHref = (studyId ? (`/studies/${studyId}/share` as Route) : null);
-  const studyHref = (studyId ? (`/studies/${studyId}` as Route) : null);
+  const reviewHref = studyId ? (`/studies/${studyId}/share` as Route) : null;
+  // Studies have stage routes (no index) — link to Build, the canonical entry.
+  const studyHref = studyId ? (`/studies/${studyId}/build` as Route) : null;
 
   switch (n.type) {
     case "comment_on_your_study":
