@@ -14,7 +14,9 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: "list",
   use: {
-    baseURL: "http://localhost:3100",
+    // deploy-verify sets BASE_URL to the live production domain; locally we
+    // build + serve on :3100 via the webServer below.
+    baseURL: process.env.BASE_URL ?? "http://localhost:3100",
     trace: "on-first-retry",
   },
   projects: [
