@@ -4,7 +4,7 @@
  * The router is exercised through a directly-constructed caller (no HTTP) over
  * a real migrated PGlite DB. Deterministic, no network.
  */
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/server/db/client", async () => {
@@ -895,5 +895,42 @@ describe("studies.fork + getReplications (ADR-0018)", () => {
     const reps = await hanna.studies.getReplications({ studyId: src });
     expect(reps.children).toHaveLength(1);
     expect(reps.children[0]).toMatchObject({ studyId: fork, canSeeDetail: false, diff: null });
+  });
+});
+
+describe("studies.saveAndRequestReview (ADR-0015 review_request)", () => {
+  it("creates a named version + emits review_request to an active member", async () => {
+    const { workspace: ws } = await seedUserWithWorkspace("ext_a", "Alpha");
+    // A second member to review.
+    const [maya] = await db
+      .insert(user)
+      .values({ externalId: "ext_m", email: "m@example.com", displayName: "Maya" })
+      .returning();
+    await db.insert(member).values({ workspaceId: ws.id, userId: maya.id, role: "editor", status: "active" });
+
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+
+    await caller.studies.saveAndRequestReview({ studyId: id, name: "v1 for review", reviewerUserId: maya.id });
+
+    const events = await db.select().from(activityEvent).where(eq(activityEvent.type, "review_request"));
+    expect(events).toHaveLength(1);
+    expect((events[0].payload as Record<string, unknown>).reviewerUserId).toBe(maya.id);
+    // The named version exists.
+    const named = await db
+      .select()
+      .from(experimentVersion)
+      .where(and(eq(experimentVersion.experimentId, id), eq(experimentVersion.kind, "named")));
+    expect(named).toHaveLength(1);
+  });
+
+  it("rejects a reviewer who isn't a workspace member", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const outsider = await seedUserWithWorkspace("ext_o", "Other");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    await expect(
+      caller.studies.saveAndRequestReview({ studyId: id, name: "v1", reviewerUserId: outsider.user.id }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 });
