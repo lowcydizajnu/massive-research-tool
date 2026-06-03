@@ -25,4 +25,14 @@ describe("token encryption", () => {
     const tampered = [iv, tag, Buffer.from("evil").toString("base64")].join(".");
     expect(() => decryptSecret(tampered)).toThrow();
   });
+
+  it("accepts a 64-char hex key (openssl rand -hex 32)", () => {
+    const orig = process.env.TOKEN_ENCRYPTION_KEY;
+    process.env.TOKEN_ENCRYPTION_KEY = "ab".repeat(32); // 64 hex chars = 32 bytes
+    try {
+      expect(decryptSecret(encryptSecret("hello"))).toBe("hello");
+    } finally {
+      process.env.TOKEN_ENCRYPTION_KEY = orig;
+    }
+  });
 });
