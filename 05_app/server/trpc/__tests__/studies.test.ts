@@ -39,6 +39,11 @@ import {
   user,
   workspace,
 } from "@/server/db/schema";
+import {
+  recordAnswer,
+  resolveOpenRecruitment,
+  startResponse,
+} from "@/server/runtime/participant";
 import { appRouter } from "@/server/trpc/root";
 import { createCallerFactory } from "@/server/trpc/trpc";
 
@@ -544,6 +549,44 @@ describe("studies.getRunInfo + openRecruitment", () => {
     await caller.studies.openRecruitment({ studyId: id });
     const info = await caller.studies.getRunInfo({ studyId: id });
     expect(info.recruitment?.status).toBe("open");
+  });
+});
+
+describe("studies.getResults (end-to-end)", () => {
+  it("aggregates a completed run: per-condition count + likert mean + a CSV row", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    await caller.studies.addBlock({ studyId: id, source: "core", key: "likert-7", version: "1.0.0" });
+    await caller.studies.preregister({ studyId: id });
+    await caller.studies.openRecruitment({ studyId: id });
+
+    // A participant completes (single likert question, answer 6).
+    const open = await resolveOpenRecruitment(id);
+    const started = await startResponse({
+      recruitmentSessionId: open!.recruitmentSessionId,
+      mode: "run",
+      externalPid: "P1",
+    });
+    const responseId = (started as { responseId: string }).responseId;
+    const done = await recordAnswer({ responseId, questionIndex: 0, answer: { value: 6 } });
+    expect(done).toMatchObject({ ok: true, done: true });
+
+    const results = await caller.studies.getResults({ studyId: id });
+    expect(results).not.toBeNull();
+    expect(results!.totalCompleted).toBe(1);
+    expect(results!.conditions).toEqual([{ slug: "control", name: "Control", completed: 1 }]);
+    expect(results!.questions).toHaveLength(1);
+    expect(results!.questions[0]).toMatchObject({ moduleKey: "likert-7", n: 1, mean: 6 });
+    expect(results!.rows).toHaveLength(1);
+    expect(results!.rows[0]).toMatchObject({ conditionSlug: "control", externalPid: "P1" });
+  });
+
+  it("returns null when the study isn't preregistered", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    expect(await caller.studies.getResults({ studyId: id })).toBeNull();
   });
 });
 
