@@ -175,6 +175,15 @@ Hanna sees aggregate-per-condition + per-anon-id rows showing `response.id`, `co
 - Re-using the same `response.id` across recruitment_sessions (the partial unique index on `external_pid` prevents this for external-PID-using providers; for direct recruitment Hanna just shares the URL again and gets a new response row).
 - Treating Preview responses as Run responses without an explicit flag. Results queries default-exclude Preview.
 
+## Amendment 2026-06-03 (V1.6 PR-0) — authoring conditions on the working tip + snapshot copy
+
+V1.5 shipped the `condition` table but no authoring path (the runtime auto-created a single `control`). V1.6 PR-0 adds the condition-builder UI (`03_design/wireframes/builder-conditions.md`). Two implementation decisions this surfaced, recorded here because they're load-bearing and not obvious from the original DDL:
+
+- **Conditions are authored on the autosave working-tip version, then COPIED into the immutable snapshot on preregister.** `condition.experiment_version_id` FK'd conditions to a version, but the Builder edits the mutable autosave tip while preregistration creates a *new* immutable version. So `studies.preregister` now copies the working-tip's conditions onto the new `kind: preregistered` version (fresh ULIDs, identical `slug`/`name`/`allocation_weight`/`position`). This mirrors how `definition_snapshot` is copied — conditions are part of the frozen design. Without this, a multi-condition study would lose its conditions at preregistration.
+- **Block visibility stores condition *slugs*, not ids (already implied by the DDL), and the slug locks once a block references it.** Because `visibility.showIfCondition` holds slugs, the slug must stay stable across the snapshot copy — so a condition's slug is editable only while no block gates on it (`studies.updateCondition` rejects a slug change once referenced; the display `name` is always editable). Removing a condition strips its slug from every block's `visibility` server-side.
+
+No schema change; this is purely the authoring + snapshot semantics layered on the existing tables.
+
 ## Revisit triggers
 
 - Branching logic (V1.6) requires extending the block config schema with `nextBlock` rules and a per-path response model. Likely a new ADR (call it 0015 candidate) rather than reopening this one.

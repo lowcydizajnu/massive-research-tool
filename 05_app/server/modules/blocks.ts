@@ -10,6 +10,12 @@ export type BlockInstance = {
   key: string;
   version: string;
   config: Record<string, unknown>;
+  /**
+   * Optional condition-visibility rule (ADR-0014). Absent / empty = shown to
+   * every condition. Values are condition *slugs* (stable across the preregister
+   * snapshot copy). The participant runtime enforces this server-side.
+   */
+  visibility?: { showIfCondition?: string[] };
 };
 
 export type ModuleLock = { source: string; key: string; version: string };

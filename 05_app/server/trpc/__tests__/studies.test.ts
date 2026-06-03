@@ -552,6 +552,102 @@ describe("studies.getRunInfo + openRecruitment", () => {
   });
 });
 
+describe("studies.conditions (builder-conditions.md)", () => {
+  async function studyWithBlock() {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    await caller.studies.addBlock({ studyId: id, source: "core", key: "likert-7", version: "1.0.0" });
+    return { caller, id };
+  }
+
+  it("adds conditions with auto, unique slugs and lists them in order", async () => {
+    const { caller, id } = await studyWithBlock();
+    const c1 = await caller.studies.addCondition({ studyId: id, name: "Control group" });
+    const c2 = await caller.studies.addCondition({ studyId: id, name: "Control group" });
+    expect(c1.slug).toBe("control-group");
+    expect(c2.slug).toBe("control-group-2");
+    const list = await caller.studies.listConditions({ studyId: id });
+    expect(list.map((c) => c.slug)).toEqual(["control-group", "control-group-2"]);
+    expect(list[0].allocationWeight).toBe(1);
+  });
+
+  it("updates weight + name, and locks the slug once a block references it", async () => {
+    const { caller, id } = await studyWithBlock();
+    const c = await caller.studies.addCondition({ studyId: id, name: "Treatment" });
+    const updated = await caller.studies.updateCondition({
+      studyId: id,
+      conditionId: c.id,
+      name: "Treatment A",
+      allocationWeight: 3,
+    });
+    expect(updated).toMatchObject({ name: "Treatment A", allocationWeight: 3, slug: "treatment" });
+
+    // Slug is free to change while unreferenced…
+    const reslug = await caller.studies.updateCondition({ studyId: id, conditionId: c.id, slug: "treat-a" });
+    expect(reslug.slug).toBe("treat-a");
+
+    // …but locks once a block shows only to it.
+    const [blk] = await db.select().from(experimentVersion).where(eq(experimentVersion.kind, "autosave"));
+    const instanceId = (blk.definitionSnapshot as { blocks: { instanceId: string }[] }).blocks[0].instanceId;
+    await caller.studies.setBlockVisibility({ studyId: id, instanceId, showIfCondition: ["treat-a"] });
+    await expect(
+      caller.studies.updateCondition({ studyId: id, conditionId: c.id, slug: "treat-b" }),
+    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+  });
+
+  it("setBlockVisibility validates slugs and clears on empty", async () => {
+    const { caller, id } = await studyWithBlock();
+    await caller.studies.addCondition({ studyId: id, name: "Control" });
+    const [blk] = await db.select().from(experimentVersion).where(eq(experimentVersion.kind, "autosave"));
+    const instanceId = (blk.definitionSnapshot as { blocks: { instanceId: string }[] }).blocks[0].instanceId;
+
+    await expect(
+      caller.studies.setBlockVisibility({ studyId: id, instanceId, showIfCondition: ["ghost"] }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+    await caller.studies.setBlockVisibility({ studyId: id, instanceId, showIfCondition: ["control"] });
+    let detail = await caller.studies.get({ id });
+    // The block now carries visibility in the snapshot.
+    const [v1] = await db.select().from(experimentVersion).where(eq(experimentVersion.kind, "autosave"));
+    expect((v1.definitionSnapshot as { blocks: { visibility?: unknown }[] }).blocks[0].visibility).toEqual({
+      showIfCondition: ["control"],
+    });
+
+    await caller.studies.setBlockVisibility({ studyId: id, instanceId, showIfCondition: [] });
+    const [v2] = await db.select().from(experimentVersion).where(eq(experimentVersion.kind, "autosave"));
+    expect((v2.definitionSnapshot as { blocks: { visibility?: unknown }[] }).blocks[0].visibility).toBeUndefined();
+    expect(detail.id).toBe(id); // sanity
+  });
+
+  it("removeCondition deletes it and strips it from block visibility", async () => {
+    const { caller, id } = await studyWithBlock();
+    const c = await caller.studies.addCondition({ studyId: id, name: "Control" });
+    const [blk] = await db.select().from(experimentVersion).where(eq(experimentVersion.kind, "autosave"));
+    const instanceId = (blk.definitionSnapshot as { blocks: { instanceId: string }[] }).blocks[0].instanceId;
+    await caller.studies.setBlockVisibility({ studyId: id, instanceId, showIfCondition: ["control"] });
+
+    await caller.studies.removeCondition({ studyId: id, conditionId: c.id });
+    expect(await caller.studies.listConditions({ studyId: id })).toHaveLength(0);
+    const [v] = await db.select().from(experimentVersion).where(eq(experimentVersion.kind, "autosave"));
+    expect((v.definitionSnapshot as { blocks: { visibility?: unknown }[] }).blocks[0].visibility).toBeUndefined();
+  });
+
+  it("preregister copies the working-tip conditions onto the immutable version", async () => {
+    const { caller, id } = await studyWithBlock();
+    await caller.studies.addCondition({ studyId: id, name: "Control" });
+    await caller.studies.addCondition({ studyId: id, name: "Treatment" });
+    await caller.studies.preregister({ studyId: id });
+
+    const [pre] = await db
+      .select()
+      .from(experimentVersion)
+      .where(eq(experimentVersion.kind, "preregistered"));
+    const copied = await db.select().from(condition).where(eq(condition.experimentVersionId, pre.id));
+    expect(copied.map((c) => c.slug).sort()).toEqual(["control", "treatment"]);
+  });
+});
+
 describe("studies.getResults (end-to-end)", () => {
   it("aggregates a completed run: per-condition count + likert mean + a CSV row", async () => {
     await seedUserWithWorkspace("ext_a", "Alpha");
