@@ -1,3 +1,4 @@
+import { commentsRouter } from "@/server/trpc/routers/comments";
 import { frameworksRouter } from "@/server/trpc/routers/frameworks";
 import { modulesRouter } from "@/server/trpc/routers/modules";
 import { studiesRouter } from "@/server/trpc/routers/studies";
@@ -9,6 +10,7 @@ export const appRouter = router({
   studies: studiesRouter,
   modules: modulesRouter,
   frameworks: frameworksRouter,
+  comments: commentsRouter,
 });
 
 export type AppRouter = typeof appRouter;
