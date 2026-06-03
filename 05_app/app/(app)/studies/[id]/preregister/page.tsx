@@ -180,7 +180,9 @@ export default async function PreregisterStagePage({
                 Connect OSF in Settings →
               </Link>
             ) : null}
-            {pre.pushStatus === "failed" || pre.pushStatus === "no_credentials" ? (
+            {pre.pushStatus === "failed" ||
+            pre.pushStatus === "no_credentials" ||
+            pre.pushStatus === "pending" ? (
               <RetryPushButton studyId={study.id} />
             ) : null}
           </section>

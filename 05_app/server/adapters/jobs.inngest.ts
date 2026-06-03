@@ -1,6 +1,6 @@
 import { Inngest } from "inngest";
 
-import type { BackgroundJobAdapter } from "./jobs";
+import type { BackgroundJobAdapter, JobCatalog } from "./jobs";
 
 /**
  * Inngest implementation of BackgroundJobAdapter (the only file importing the
@@ -13,6 +13,23 @@ export const inngest = new Inngest({ id: "massive-research-tool" });
 export const inngestJobs: BackgroundJobAdapter = {
   async enqueue(name, data) {
     // Our JobName maps 1:1 to the Inngest event name; payload is our typed shape.
-    await inngest.send({ name, data });
+    try {
+      await inngest.send({ name, data });
+    } catch (err) {
+      // Dev fallback: if no Inngest server is reachable (e.g. `inngest-cli dev`
+      // isn't running locally), run the job inline so the work still happens and
+      // a connected push doesn't get stuck "pending" forever. In production the
+      // send goes to Inngest Cloud, where it succeeds — so this never fires.
+      if (process.env.NODE_ENV === "production") throw err;
+      if (name === "registry.push") {
+        const { runRegistryPush } = await import("@/server/jobs/registry-push");
+        // runRegistryPush persists its own outcome (pushed/failed/no_credentials)
+        // to the version + attempt row, so a push error here shouldn't 500 the
+        // caller — the status reflects reality and Retry re-runs it.
+        await runRegistryPush(data as JobCatalog["registry.push"]).catch(() => undefined);
+        return;
+      }
+      throw err;
+    }
   },
 };
