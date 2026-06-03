@@ -140,6 +140,24 @@ function stageFromKind(kind: string | null | undefined): StudyStage {
   return "draft"; // autosave / named / none
 }
 
+const STAGE_RANK: Record<StudyStage, number> = { draft: 0, preregistered: 1, published: 2 };
+
+/** A study's stage = the FURTHEST milestone any of its versions reached (the
+ *  autosave working tip is always 'draft', so the tip's kind under-reports a
+ *  preregistered/published study). */
+async function furthestStage(studyId: string): Promise<StudyStage> {
+  const rows = await db
+    .select({ kind: experimentVersion.kind })
+    .from(experimentVersion)
+    .where(eq(experimentVersion.experimentId, studyId));
+  let best: StudyStage = "draft";
+  for (const r of rows) {
+    const s = stageFromKind(r.kind);
+    if (STAGE_RANK[s] > STAGE_RANK[best]) best = s;
+  }
+  return best;
+}
+
 export type StudyListItem = {
   id: string;
   title: string;
@@ -327,7 +345,7 @@ export const studiesRouter = router({
       return {
         id: row.experiment.id,
         title: row.experiment.title,
-        stage: stageFromKind(row.version?.kind),
+        stage: await furthestStage(input.id),
         versionNumber: row.version?.versionNumber ?? 1,
         lastEditedAt: row.experiment.updatedAt.toISOString(),
         ownerName: row.ownerName ?? "",
