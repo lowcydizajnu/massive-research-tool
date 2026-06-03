@@ -1,4 +1,5 @@
 import { commentsRouter } from "@/server/trpc/routers/comments";
+import { followsRouter } from "@/server/trpc/routers/follows";
 import { frameworksRouter } from "@/server/trpc/routers/frameworks";
 import { modulesRouter } from "@/server/trpc/routers/modules";
 import { notificationsRouter } from "@/server/trpc/routers/notifications";
@@ -13,6 +14,7 @@ export const appRouter = router({
   frameworks: frameworksRouter,
   comments: commentsRouter,
   notifications: notificationsRouter,
+  follows: followsRouter,
 });
 
 export type AppRouter = typeof appRouter;
