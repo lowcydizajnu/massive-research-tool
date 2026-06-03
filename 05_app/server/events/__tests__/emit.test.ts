@@ -108,6 +108,20 @@ describe("resolveRecipients()", () => {
       await resolveRecipients({ type: "preregister_complete", targetType: "study", targetId: "s" }),
     ).toEqual([]);
   });
+
+  it("osf_push_complete (system event, actor null) → the initiator is NOT excluded", async () => {
+    const initiator = await seedUser("hanna");
+    // Emitted with actorUserId:null so the initiator (the recipient) survives
+    // the actor-exclusion filter — the whole point of the system-event framing.
+    const r = await resolveRecipients({
+      type: "osf_push_complete",
+      actorUserId: null,
+      targetType: "study",
+      targetId: "study-1",
+      data: { userId: initiator },
+    });
+    expect(r).toEqual([initiator]);
+  });
 });
 
 describe("runNotificationFanout()", () => {

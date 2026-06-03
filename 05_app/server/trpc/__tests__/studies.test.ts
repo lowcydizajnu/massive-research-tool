@@ -27,10 +27,12 @@ import type { AuthUser } from "@/server/adapters/auth";
 import { jobs } from "@/server/adapters/jobs";
 import { db } from "@/server/db/client";
 import {
+  activityEvent,
   condition,
   experiment,
   experimentVersion,
   member,
+  notification,
   recruitmentSession,
   registry,
   registryConnection,
@@ -82,6 +84,9 @@ beforeEach(async () => {
   vi.clearAllMocks();
   // Break the experiment <-> experiment_version circular FK before deleting.
   await db.update(experiment).set({ currentVersionId: null });
+  // Event tables FK to workspace/user — clear them before their parents.
+  await db.delete(notification);
+  await db.delete(activityEvent);
   await db.delete(responseItem);
   await db.delete(response);
   await db.delete(recruitmentSession);
@@ -369,7 +374,8 @@ describe("studies.preregister", () => {
       .where(eq(experimentVersion.kind, "preregistered"));
     expect(pre.experimentId).toBe(id);
     expect(pre.registryPushStatus).toBe("no_credentials");
-    expect(enqueue).not.toHaveBeenCalled();
+    // Scoped to registry.push — preregister also enqueues notification.fanout (emit).
+    expect(enqueue.mock.calls.filter((c) => c[0] === "registry.push")).toHaveLength(0);
 
     // The working tip is still the editable autosave (block intact), but the
     // study's reported stage is now its FURTHEST milestone: preregistered.
@@ -399,7 +405,7 @@ describe("studies.preregister", () => {
       .where(eq(experimentVersion.kind, "preregistered"));
     expect(pre.registryPushStatus).toBe("pending");
 
-    expect(enqueue).toHaveBeenCalledTimes(1);
+    expect(enqueue.mock.calls.filter((c) => c[0] === "registry.push")).toHaveLength(1);
     expect(enqueue).toHaveBeenCalledWith("registry.push", {
       experimentVersionId: pre.id,
       registryKey: "osf",
@@ -433,7 +439,8 @@ describe("studies.preregister", () => {
 
     // Preregister while disconnected → parks as no_credentials, no enqueue.
     await caller.studies.preregister({ studyId: id });
-    expect(enqueue).not.toHaveBeenCalled();
+    // Scoped to registry.push — preregister also enqueues notification.fanout (emit).
+    expect(enqueue.mock.calls.filter((c) => c[0] === "registry.push")).toHaveLength(0);
     const [pre] = await db
       .select()
       .from(experimentVersion)
@@ -449,7 +456,7 @@ describe("studies.preregister", () => {
 
     const res = await caller.studies.retryPush({ studyId: id });
     expect(res.pushStatus).toBe("pending");
-    expect(enqueue).toHaveBeenCalledTimes(1);
+    expect(enqueue.mock.calls.filter((c) => c[0] === "registry.push")).toHaveLength(1);
     expect(enqueue).toHaveBeenCalledWith("registry.push", {
       experimentVersionId: pre.id,
       registryKey: "osf",
@@ -555,7 +562,8 @@ describe("studies.getRunInfo + openRecruitment", () => {
     expect(info).toMatchObject({ runnable: true, versionKind: "published" });
 
     // No OSF push happened (publish doesn't preregister).
-    expect(enqueue).not.toHaveBeenCalled();
+    // Scoped to registry.push — preregister also enqueues notification.fanout (emit).
+    expect(enqueue.mock.calls.filter((c) => c[0] === "registry.push")).toHaveLength(0);
 
     // The published version froze the conditions, and recruitment can open on it.
     const [pub] = await db
