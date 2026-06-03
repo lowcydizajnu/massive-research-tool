@@ -29,7 +29,7 @@ function banner(pre: PreregistrationStatus): {
     pushed: {
       role: "status",
       cls: "bg-[var(--color-success-subtle)] text-[var(--color-success-text-on-subtle)]",
-      msg: "Preregistered on OSF.",
+      msg: "Submitted to OSF — pending your approval there to finalize.",
     },
     no_credentials: {
       role: "status",
@@ -164,7 +164,7 @@ export default async function PreregisterStagePage({
             ) : null}
             {pre.pushStatus === "pushed" ? (
               <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-                {pre.doi ? `DOI: ${pre.doi}` : "DOI: pending approval"}
+                {pre.doi ? `DOI: ${pre.doi}` : "DOI: minted by OSF once you approve the registration there."}
               </p>
             ) : null}
             {pre.pushStatus === "failed" && pre.lastError ? (
