@@ -29,6 +29,13 @@
       "when": 1780495451728,
       "tag": "0003_panoramic_purple_man",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1780511301465,
+      "tag": "0004_open_manta",
+      "breakpoints": true
     }
   ]
 }

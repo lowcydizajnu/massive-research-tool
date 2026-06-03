@@ -880,6 +880,108 @@ export const studiesRouter = router({
     }),
 
   /**
+   * Save as a named version AND request review from a workspace teammate
+   * (ADR-0015 review_request). Mirrors saveAsNamed, then emits review_request to
+   * the chosen reviewer (validated as an active member). The reviewer reads it
+   * in Activity·Yours and reviews on the Share stage.
+   */
+  saveAndRequestReview: writeProcedure
+    .input(
+      z.object({
+        studyId: z.string().uuid(),
+        name: z.string().trim().min(1).max(64),
+        reviewerUserId: z.string().uuid(),
+      }),
+    )
+    .mutation(async ({ ctx, input }): Promise<{ versionNumber: number; name: string }> => {
+      const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+
+      // The reviewer must be an active member of this workspace (V1.7 internal).
+      const [reviewer] = await db
+        .select({ id: member.id })
+        .from(member)
+        .where(
+          and(
+            eq(member.workspaceId, ctx.workspace.id),
+            eq(member.userId, input.reviewerUserId),
+            eq(member.status, "active"),
+          ),
+        )
+        .limit(1);
+      if (!reviewer) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Reviewer isn't a workspace member." });
+      }
+
+      const existing = await db
+        .select({ id: experimentVersion.id })
+        .from(experimentVersion)
+        .where(
+          and(
+            eq(experimentVersion.experimentId, input.studyId),
+            eq(experimentVersion.name, input.name),
+          ),
+        )
+        .limit(1);
+      if (existing.length > 0) {
+        throw new TRPCError({ code: "CONFLICT", message: "A version with this label already exists." });
+      }
+
+      const [latest] = await db
+        .select({ n: experimentVersion.versionNumber })
+        .from(experimentVersion)
+        .where(eq(experimentVersion.experimentId, input.studyId))
+        .orderBy(desc(experimentVersion.versionNumber))
+        .limit(1);
+      const nextNumber = (latest?.n ?? 0) + 1;
+
+      const [named] = await db
+        .insert(experimentVersion)
+        .values({
+          experimentId: input.studyId,
+          versionNumber: nextNumber,
+          kind: "named",
+          name: input.name,
+          definitionSnapshot: tip.version.definitionSnapshot,
+          moduleVersionLocks: tip.version.moduleVersionLocks,
+          createdBy: ctx.dbUser.id,
+        })
+        .returning();
+      await db.update(experiment).set({ updatedAt: new Date() }).where(eq(experiment.id, input.studyId));
+
+      // Notify the reviewer (review_request → data.reviewerUserId).
+      await emit({
+        type: "review_request",
+        actorUserId: ctx.dbUser.id,
+        workspaceId: ctx.workspace.id,
+        targetType: "study",
+        targetId: input.studyId,
+        related: { authorUserId: tip.experiment.ownerId, studyId: input.studyId },
+        data: {
+          reviewerUserId: input.reviewerUserId,
+          studyId: input.studyId,
+          studyTitle: tip.experiment.title,
+          versionName: named.name,
+        },
+      });
+      // And the Follows-only new-version event.
+      await emit({
+        type: "new_named_version",
+        actorUserId: ctx.dbUser.id,
+        workspaceId: ctx.workspace.id,
+        targetType: "study",
+        targetId: input.studyId,
+        related: {
+          authorUserId: tip.experiment.ownerId,
+          studyId: input.studyId,
+          tagSlugs: tip.experiment.tags ?? undefined,
+        },
+        data: { studyTitle: tip.experiment.title, versionName: named.name, versionNumber: named.versionNumber },
+      });
+
+      return { versionNumber: named.versionNumber, name: named.name! };
+    }),
+
+  /**
    * Preregister — snapshot the autosave working tip into an immutable
    * `preregistered` version (ADR-0002/0012) and, if the researcher has a
    * registry connection, enqueue the async OSF push (ADR-0005). The push

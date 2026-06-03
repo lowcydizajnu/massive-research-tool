@@ -31,20 +31,27 @@ export function SaveVersionDialog({
 }) {
   const [option, setOption] = useState<Option>("named");
   const [label, setLabel] = useState("");
+  const [reviewerId, setReviewerId] = useState("");
 
+  const members = api.workspace.members.useQuery();
   const saveAsNamed = api.studies.saveAsNamed.useMutation({
     onSuccess: (res) => onSaved(res.name, res.versionNumber),
   });
+  const saveReview = api.studies.saveAndRequestReview.useMutation({
+    onSuccess: (res) => onSaved(res.name, res.versionNumber),
+  });
+  const pending = saveAsNamed.isPending || saveReview.isPending;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !saveAsNamed.isPending) onClose();
+      if (e.key === "Escape" && !pending) onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, saveAsNamed.isPending]);
+  }, [onClose, pending]);
 
-  const conflict = saveAsNamed.error?.data?.code === "CONFLICT";
+  const conflict =
+    saveAsNamed.error?.data?.code === "CONFLICT" || saveReview.error?.data?.code === "CONFLICT";
 
   function primary() {
     if (option === "autosave") {
@@ -53,6 +60,9 @@ export function SaveVersionDialog({
     }
     if (option === "named" && label.trim()) {
       saveAsNamed.mutate({ studyId, name: label.trim() });
+    }
+    if (option === "review" && label.trim() && reviewerId) {
+      saveReview.mutate({ studyId, name: label.trim(), reviewerUserId: reviewerId });
     }
   }
 
@@ -63,16 +73,16 @@ export function SaveVersionDialog({
         ? "Save & request review"
         : "Save as named version";
   const primaryDisabled =
-    saveAsNamed.isPending ||
-    option === "review" ||
-    (option === "named" && label.trim().length === 0);
+    pending ||
+    (option === "named" && label.trim().length === 0) ||
+    (option === "review" && (label.trim().length === 0 || !reviewerId));
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ backgroundColor: "rgba(0,0,0,0.45)" }}
       onMouseDown={(e) => {
-        if (e.target === e.currentTarget && !saveAsNamed.isPending) onClose();
+        if (e.target === e.currentTarget && !pending) onClose();
       }}
     >
       <div
@@ -126,11 +136,38 @@ export function SaveVersionDialog({
           <OptionRow
             icon={MessageCircle}
             label="Save & request review"
-            description="Named version + mention a collaborator. Needs the Share stage (coming soon)."
+            description="A named version plus a review request to a teammate."
             selected={option === "review"}
             onSelect={() => setOption("review")}
-            disabled
-          />
+          >
+            <input
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              maxLength={64}
+              placeholder="Version label (e.g., 'v1 for review')"
+              className="mt-2 w-full rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-1 text-[length:var(--text-body)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+            />
+            <label className="mt-2 block text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+              Reviewer
+              <select
+                value={reviewerId}
+                onChange={(e) => setReviewerId(e.target.value)}
+                className="mt-1 w-full rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-1 text-[length:var(--text-body)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+              >
+                <option value="">Choose a teammate…</option>
+                {(members.data ?? []).map((m) => (
+                  <option key={m.userId} value={m.userId}>
+                    {m.displayName}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {members.data && members.data.length <= 1 ? (
+              <p className="mt-1 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                Invite a teammate to your workspace to request a review.
+              </p>
+            ) : null}
+          </OptionRow>
         </div>
 
         {incompleteCount > 0 && option !== "autosave" ? (
@@ -143,7 +180,7 @@ export function SaveVersionDialog({
           </p>
         ) : null}
 
-        {saveAsNamed.error && !conflict ? (
+        {(saveAsNamed.error || saveReview.error) && !conflict ? (
           <p
             role="alert"
             className="rounded-[var(--radius-md)] bg-[var(--color-danger-subtle)] px-3 py-2 text-[length:var(--text-small)] text-[var(--color-danger-text-on-subtle)]"
@@ -155,7 +192,7 @@ export function SaveVersionDialog({
         <div className="flex items-center justify-end gap-3">
           <button
             type="button"
-            onClick={() => !saveAsNamed.isPending && onClose()}
+            onClick={() => !pending && onClose()}
             className="rounded-[var(--radius-md)] px-3 py-2 text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
           >
             Cancel
@@ -166,7 +203,7 @@ export function SaveVersionDialog({
             disabled={primaryDisabled}
             className="rounded-[var(--radius-md)] bg-[var(--color-primary)] px-4 py-2 text-[length:var(--text-body-emphasis)] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-60"
           >
-            {saveAsNamed.isPending ? "Saving…" : primaryLabel}
+            {pending ? "Saving…" : primaryLabel}
           </button>
         </div>
       </div>
