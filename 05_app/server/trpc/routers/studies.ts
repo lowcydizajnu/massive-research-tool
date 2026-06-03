@@ -6,6 +6,7 @@ import { z } from "zod";
 import { jobs } from "@/server/adapters/jobs";
 import { registry } from "@/server/adapters/registry";
 import { db } from "@/server/db/client";
+import { emit } from "@/server/events/emit";
 import {
   condition as conditionTable,
   experiment,
@@ -658,6 +659,22 @@ export const studiesRouter = router({
         .set({ updatedAt: new Date() })
         .where(eq(experiment.id, input.studyId));
 
+      // Follows-only event (ADR-0015): no notification rows, but it lands in
+      // activity_event so followers of this author/study see the new version.
+      await emit({
+        type: "new_named_version",
+        actorUserId: ctx.dbUser.id,
+        workspaceId: ctx.workspace.id,
+        targetType: "study",
+        targetId: input.studyId,
+        related: { authorUserId: tip.experiment.ownerId, studyId: input.studyId },
+        data: {
+          studyTitle: tip.experiment.title,
+          versionName: named.name,
+          versionNumber: named.versionNumber,
+        },
+      });
+
       return { versionNumber: named.versionNumber, name: named.name! };
     }),
 
@@ -735,6 +752,23 @@ export const studiesRouter = router({
             isAmendment: false,
           });
         }
+
+        // Follows-only event (ADR-0015): preregistration freezes an open-science
+        // version — surfaced to followers via activity_event (no notifications).
+        // The OSF push completion (with DOI) emits its own event from the job.
+        await emit({
+          type: "preregister_complete",
+          actorUserId: ctx.dbUser.id,
+          workspaceId: ctx.workspace.id,
+          targetType: "study",
+          targetId: input.studyId,
+          related: { authorUserId: tip.experiment.ownerId, studyId: input.studyId },
+          data: {
+            studyTitle: tip.experiment.title,
+            versionName: pre.name,
+            versionNumber: pre.versionNumber,
+          },
+        });
 
         return { versionNumber: pre.versionNumber, pushStatus };
       },

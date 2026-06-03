@@ -6,6 +6,7 @@ import { registry } from "@/server/adapters/registry";
 import { OsfNotConnectedError } from "@/server/adapters/registry.osf";
 import type { RegistrationPayload } from "@/server/adapters/registry";
 import { db } from "@/server/db/client";
+import { emit } from "@/server/events/emit";
 import {
   experiment,
   experimentVersion,
@@ -49,7 +50,11 @@ export async function runRegistryPush(data: JobCatalog["registry.push"]): Promis
   }
 
   const [exp] = await db
-    .select({ title: experiment.title })
+    .select({
+      title: experiment.title,
+      tenantId: experiment.tenantId,
+      ownerId: experiment.ownerId,
+    })
     .from(experiment)
     .where(eq(experiment.id, version.experimentId))
     .limit(1);
@@ -99,6 +104,30 @@ export async function runRegistryPush(data: JobCatalog["registry.push"]): Promis
         registryPushLastError: null,
       })
       .where(eq(experimentVersion.id, version.id));
+
+    // ADR-0015: notify the researcher their OSF push finished (with the DOI).
+    // Emitted as a SYSTEM event (actorUserId: null) so the initiator — who is
+    // the recipient (resolveRecipients → data.userId) — isn't excluded as the
+    // actor. Best-effort: a notification failure must not fail the push job.
+    try {
+      await emit({
+        type: "osf_push_complete",
+        actorUserId: null,
+        workspaceId: exp?.tenantId ?? null,
+        targetType: "study",
+        targetId: version.experimentId,
+        related: { authorUserId: exp?.ownerId ?? data.userId, studyId: version.experimentId },
+        data: {
+          userId: data.userId,
+          studyId: version.experimentId,
+          studyTitle: exp?.title ?? version.name ?? "your study",
+          doi: result.doi,
+          url: result.url,
+        },
+      });
+    } catch {
+      // swallow — the push itself succeeded; the notification is non-critical.
+    }
   } catch (err) {
     const notConnected = err instanceof OsfNotConnectedError;
     const message = err instanceof Error ? err.message : String(err);

@@ -35,7 +35,12 @@ export type CommentDTO = {
 /** The study (scoped to the active workspace) + its tenant/owner, or NOT_FOUND. */
 async function studyInWorkspace(experimentId: string, workspaceId: string) {
   const [exp] = await db
-    .select({ id: experiment.id, tenantId: experiment.tenantId, ownerId: experiment.ownerId })
+    .select({
+      id: experiment.id,
+      tenantId: experiment.tenantId,
+      ownerId: experiment.ownerId,
+      title: experiment.title,
+    })
     .from(experiment)
     .where(and(eq(experiment.id, experimentId), eq(experiment.tenantId, workspaceId)))
     .limit(1);
@@ -116,7 +121,7 @@ export const commentsRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }): Promise<{ id: string }> => {
-      await studyInWorkspace(input.experimentId, ctx.workspace.id);
+      const study = await studyInWorkspace(input.experimentId, ctx.workspace.id);
 
       const id = ulid();
       await db.insert(comment).values({
@@ -149,7 +154,9 @@ export const commentsRouter = router({
         targetType: input.targetType,
         targetId: input.targetId,
         related: { studyId: input.experimentId },
-        data: { commentId: id },
+        // Denormalize study id + title so the Activity row can link + name the
+        // study (the notification row only stores `data`, not `related`).
+        data: { commentId: id, studyId: input.experimentId, studyTitle: study.title },
       });
       if (mentioned.length) {
         await emit({
@@ -159,7 +166,12 @@ export const commentsRouter = router({
           targetType: "comment",
           targetId: id,
           related: { studyId: input.experimentId },
-          data: { commentId: id, mentionedUserIds: mentioned },
+          data: {
+            commentId: id,
+            mentionedUserIds: mentioned,
+            studyId: input.experimentId,
+            studyTitle: study.title,
+          },
         });
       }
       return { id };
@@ -193,7 +205,7 @@ export const commentsRouter = router({
           targetType: "comment",
           targetId: c.id,
           related: { studyId: c.experimentId },
-          data: { commentId: c.id, commentAuthorId: c.authorUserId },
+          data: { commentId: c.id, commentAuthorId: c.authorUserId, studyId: c.experimentId },
         });
       }
       return { ok: true };

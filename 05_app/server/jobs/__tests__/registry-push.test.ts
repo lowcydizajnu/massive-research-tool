@@ -20,13 +20,20 @@ vi.mock("@/server/adapters/registry", () => ({
   registry: { pushRegistration: vi.fn(), pushAmendment: vi.fn() },
 }));
 
+// Mock the job adapter so the osf_push_complete emit()'s fan-out enqueue is
+// observable (and never reaches the real Inngest adapter / network).
+vi.mock("@/server/adapters/jobs", () => ({ jobs: { enqueue: vi.fn() } }));
+
+import { jobs } from "@/server/adapters/jobs";
 import { registry } from "@/server/adapters/registry";
 import { OsfNotConnectedError } from "@/server/adapters/registry.osf";
 import { db } from "@/server/db/client";
 import {
+  activityEvent,
   experiment,
   experimentVersion,
   member,
+  notification,
   registry as registryTable,
   registryPush,
   user,
@@ -70,6 +77,8 @@ async function seed(): Promise<{ versionId: string; userId: string }> {
 beforeEach(async () => {
   vi.clearAllMocks();
   await db.update(experiment).set({ currentVersionId: null });
+  await db.delete(notification);
+  await db.delete(activityEvent);
   await db.delete(registryPush);
   await db.delete(experimentVersion);
   await db.delete(experiment);
@@ -110,6 +119,20 @@ describe("runRegistryPush", () => {
     expect(push.status).toBe("pushed");
     expect(push.pushedUrl).toBe("https://osf.io/abc12/");
     expect(push.completedAt).not.toBeNull();
+
+    // ADR-0015: a successful push emits osf_push_complete as a SYSTEM event
+    // (actorUserId null) so the initiator isn't filtered out as the actor.
+    const events = await db
+      .select()
+      .from(activityEvent)
+      .where(eq(activityEvent.type, "osf_push_complete"));
+    expect(events).toHaveLength(1);
+    expect(events[0].actorUserId).toBeNull();
+    expect((events[0].payload as Record<string, unknown>).userId).toBe(userId);
+    expect(vi.mocked(jobs.enqueue)).toHaveBeenCalledWith(
+      "notification.fanout",
+      expect.objectContaining({ input: expect.objectContaining({ type: "osf_push_complete" }) }),
+    );
   });
 
   it("marks no_credentials (terminal, no throw) when the adapter reports no connection", async () => {
