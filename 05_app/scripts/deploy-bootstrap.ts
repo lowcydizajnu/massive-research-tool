@@ -140,21 +140,25 @@ async function main() {
     redisRestToken = existingRedis.rest_token;
     note("Upstash: database mrt-production exists — reusing.");
   } else {
-    // Upstash deprecated regional databases in 2024; use Global with a single
-    // primary region (empty read_regions = behaves like single-region).
-    const r = (await api("https://api.upstash.com/v2/redis/database/global", {
+    // Upstash deprecated regional db creation in 2024 — use the Global shape
+    // on the same /v2/redis/database endpoint. Field is `database_name` (matches
+    // the GET response shape); `platform: "aws"` is required; `read_regions: []`
+    // = behaves like single-region at the same free-tier cost.
+    const r = (await api("https://api.upstash.com/v2/redis/database", {
       method: "POST",
       headers: upstashHeaders,
       body: {
-        name: "mrt-production",
+        database_name: "mrt-production",
+        platform: "aws",
         primary_region: env.UPSTASH_REGION || "us-east-1",
         read_regions: [],
         tls: true,
+        eviction: true,
       },
     })) as { endpoint?: string; rest_token?: string };
     redisRestUrl = r.endpoint ? `https://${r.endpoint}` : "";
     redisRestToken = r.rest_token ?? "";
-    note("Upstash: created Global database mrt-production (single primary region).");
+    note("Upstash: created Global database mrt-production (single primary region, allkeys-lru eviction).");
   }
 
   // Step 4 — Vercel project (idempotent).
