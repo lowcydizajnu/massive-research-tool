@@ -1,0 +1,16 @@
+{
+  "extends": "next/core-web-vitals",
+  "rules": {
+    "no-restricted-syntax": [
+      "error",
+      {
+        "selector": "ImportSpecifier[local.name='module'], ImportDefaultSpecifier[local.name='module'], ImportNamespaceSpecifier[local.name='module']",
+        "message": "Don't bind an import to `module` — webpack passes the CommonJS module-wrapper object as a parameter to every bundled module, which shadows this binding in the minified production build (so `module.id` becomes a numeric chunk id, not your value). Alias it, e.g. `import { module as moduleTable }`. See 06_qa/audit-logs/2026-06-04-v171-polish-deploy.md."
+      },
+      {
+        "selector": "ImportSpecifier[local.name=/^(exports|require|__dirname|__filename)$/], ImportDefaultSpecifier[local.name=/^(exports|require|__dirname|__filename)$/], ImportNamespaceSpecifier[local.name=/^(exports|require|__dirname|__filename)$/]",
+        "message": "Don't bind an import to a CommonJS global (`exports`/`require`/`__dirname`/`__filename`) — it collides with the bundler's module wrapper at runtime. Alias the import."
+      }
+    ]
+  }
+}
