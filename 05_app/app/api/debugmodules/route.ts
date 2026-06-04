@@ -68,7 +68,19 @@ export async function GET() {
       out.callerModulesCount = Array.isArray(list) ? list.length : "non-array";
     } catch (e) {
       out.callerError = String(e).slice(0, 200);
-      out.callerStack = (e as Error)?.stack?.split("\n").slice(0, 8).join(" | ");
+      // Dig the postgres.js error out of the TRPCError cause chain — it carries
+      // the exact SQL + bound parameters that triggered "12589".
+      let cur: unknown = e;
+      for (let i = 0; i < 5 && cur; i++) {
+        const c = cur as Record<string, unknown>;
+        if (c.query || c.parameters || c.routine) {
+          out.pgQuery = String(c.query ?? "").slice(0, 400);
+          out.pgParameters = c.parameters;
+          out.pgWhere = c.where ?? c.detail ?? c.routine;
+          break;
+        }
+        cur = c.cause;
+      }
     }
 
     // Step C3: reproduce the builder's BATCH — fire the same workspace-scoped
