@@ -74,9 +74,18 @@ export async function GET() {
       for (let i = 0; i < 5 && cur; i++) {
         const c = cur as Record<string, unknown>;
         if (c.query || c.parameters || c.routine) {
-          out.pgQuery = String(c.query ?? "").slice(0, 400);
+          out.pgQuery = String(c.query ?? "");
           out.pgParameters = c.parameters;
-          out.pgWhere = c.where ?? c.detail ?? c.routine;
+          out.pgInfo = {
+            code: c.code,
+            position: c.position,
+            routine: c.routine,
+            severity: c.severity,
+            where: c.where,
+            file: c.file,
+            line: c.line,
+            message: c.message,
+          };
           break;
         }
         cur = c.cause;
