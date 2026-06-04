@@ -64,7 +64,9 @@ export default function SigninPage() {
     try {
       await signIn.authenticateWithRedirect({
         strategy: "oauth_google",
-        redirectUrl: "/signup/sso-callback",
+        // Dedicated sign-IN callback (item 5a) — completes to /studies, never
+        // bounces back to the login screen.
+        redirectUrl: "/sso-callback",
         redirectUrlComplete: "/studies",
       });
     } catch (err) {
