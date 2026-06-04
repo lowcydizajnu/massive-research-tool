@@ -960,21 +960,32 @@ describe("versionNumber semantics (ADR-0012 amendment 2026-06-04)", () => {
 });
 
 describe("studies.listVersions (V1.7.1 item 3)", () => {
-  it("returns the Draft + each conscious version, oldest→newest, with the current flag", async () => {
+  it("returns the Draft + each conscious version, oldest→newest, with working-copy / latest-saved flags", async () => {
     await seedUserWithWorkspace("ext_a", "Alpha");
     const caller = createCaller({ authUser: authUser("ext_a") });
     const { id } = await caller.studies.create({ kind: "blank", title: "S" });
 
     let versions = await caller.studies.listVersions({ studyId: id });
     expect(versions).toHaveLength(1);
-    expect(versions[0]).toMatchObject({ kind: "autosave", versionNumber: 0, isCurrent: true });
+    expect(versions[0]).toMatchObject({
+      kind: "autosave",
+      versionNumber: 0,
+      isWorkingCopy: true,
+      hasUnsavedChanges: false,
+    });
 
     await caller.studies.saveAsNamed({ studyId: id, name: "Pilot" });
     versions = await caller.studies.listVersions({ studyId: id });
     expect(versions.map((v) => v.kind)).toEqual(["autosave", "named"]);
     expect(versions[1]).toMatchObject({ kind: "named", versionNumber: 1, name: "Pilot" });
-    // The autosave tip stays current; the named snapshot is frozen history.
-    expect(versions[0].isCurrent).toBe(true);
-    expect(versions[1].isCurrent).toBe(false);
+    // The autosave tip is the working copy; the named snapshot is the latest saved.
+    // Right after saving, the working copy matches it → no unsaved changes.
+    expect(versions[0]).toMatchObject({ isWorkingCopy: true, hasUnsavedChanges: false });
+    expect(versions[1]).toMatchObject({ isWorkingCopy: false, isLatestSaved: true });
+
+    // Edit the working copy → it now diverges from the latest saved snapshot.
+    await caller.studies.addBlock({ studyId: id, source: "core", key: "likert-7", version: "1.0.0" });
+    versions = await caller.studies.listVersions({ studyId: id });
+    expect(versions[0]).toMatchObject({ isWorkingCopy: true, hasUnsavedChanges: true });
   });
 });
