@@ -262,3 +262,11 @@ When the owner is ready to execute the deploy, the work is mechanical clicks plu
 | **Owner total** | **~3-4h** | **~30-40 min** |
 
 **Revisit trigger added:** if the bootstrap script's API surface ever drifts (a vendor deprecates an endpoint, changes auth shape, etc.), the script's tests should fail in CI before the next deploy attempt. If a vendor adds management-API surface for previously-manual steps (e.g., Clerk ships an Application-create API), amend further.
+
+---
+
+## 2026-06-04 amendment — CI gate fix + deploy:verify procedure (V1.7.1)
+
+**CI gate (item 2).** The V1.7.0 bootstrap set Vercel's `commandForIgnoringBuildStep` to `if [ "$VERCEL_GIT_COMMIT_REF" = "main" ]; then exit 1; else exit 0; fi` — a branch-only gate that (a) let a **red `.github/workflows/ci.yml` ship to production** (it never consulted the check) and (b) **disabled preview deploys** for PR branches. Fixed: the bootstrap now **clears** that override (`commandForIgnoringBuildStep: ""`), so every push builds and PRs get previews. The real gate is the **GitHub status check**: the owner enables Vercel → Project → Settings → Git → *"Only deploy when checks pass"* (an owner dashboard toggle — Vercel exposes no stable API for binding a specific required check, so it stays a documented manual step like the Clerk app shell). A failing `ci.yml` then blocks the Production deploy; a passing one lets it through; previews are always built and gated per-PR by the same check.
+
+**deploy:verify (item 7).** V1.7.0 skipped `npm run deploy:verify` (owner ran a manual smoke). For the **V1.7.1 ship** and every deploy after, the procedure is: after the Production build goes green, run `npm run deploy:verify` from `05_app/` (it reads `.env.production` for `PRODUCTION_DOMAIN` + the `+clerk_test` creds). It chains the HTTP smoke probe (`/`, `/signin`, `/api/health` SHA) + the researcher-surface axe spec + the network/publish-and-run e2e against the live domain, prints a one-screen pass/fail summary, and writes `06_qa/audit-logs/{date}-v17x-production-deploy.md` for the owner to review + sign. **If the axe spec reports violations, fix them in the same PR before tagging.** (The gated specs need the live Clerk + the three `+clerk_test` users; account-linking from `handoffs/clerk-oauth-identity-linking.md` should be enabled first so the OAuth path completes.)
