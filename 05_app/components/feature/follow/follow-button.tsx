@@ -1,5 +1,6 @@
 "use client";
 
+import { Spinner } from "@/components/ui/pending-button";
 import { api } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
 import type { FollowTargetType } from "@/server/trpc/routers/follows";
@@ -49,7 +50,7 @@ export function FollowButton({
           : follow.mutate({ targetType, targetId })
       }
       className={cn(
-        "inline-flex shrink-0 items-center rounded-[var(--radius-md)] px-2 py-0.5 text-[length:var(--text-small)] font-medium",
+        "inline-flex shrink-0 items-center gap-1 rounded-[var(--radius-md)] px-2 py-0.5 text-[length:var(--text-small)] font-medium",
         following
           ? "bg-[var(--color-primary-subtle)] text-[var(--color-primary-text-on-subtle)]"
           : "border border-[var(--color-border-subtle)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]",
@@ -57,6 +58,7 @@ export function FollowButton({
         className,
       )}
     >
+      {pending ? <Spinner className="size-3" /> : null}
       {following ? "Following" : "+ Follow"}
     </button>
   );
