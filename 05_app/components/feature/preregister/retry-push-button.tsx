@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { PendingButton } from "@/components/ui/pending-button";
 import { api } from "@/lib/trpc/react";
 
 /**
@@ -23,15 +24,14 @@ export function RetryPushButton({ studyId }: { studyId: string }) {
 
   return (
     <div className="flex flex-col gap-2">
-      <button
-        type="button"
+      <PendingButton
+        variant="secondary"
         onClick={() => mutation.mutate({ studyId })}
-        disabled={mutation.isPending}
-        aria-busy={mutation.isPending}
-        className="w-fit rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-1.5 text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)] disabled:opacity-60"
-      >
-        {mutation.isPending ? "Retrying…" : "Retry push"}
-      </button>
+        pending={mutation.isPending}
+        idleLabel="Retry push"
+        pendingLabel="Retrying…"
+        className="w-fit px-3 py-1.5"
+      />
       {error ? (
         <p
           role="alert"
