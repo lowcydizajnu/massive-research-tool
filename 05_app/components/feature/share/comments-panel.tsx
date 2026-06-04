@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 
+import { PendingButton } from "@/components/ui/pending-button";
 import { renderCommentMarkdown } from "@/lib/comment-markdown";
 import { api } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
@@ -161,14 +162,14 @@ export function CommentsPanel({
             ))}
           </ul>
         ) : null}
-        <button
-          type="button"
+        <PendingButton
           onClick={submit}
-          disabled={create.isPending || !body.trim()}
-          className="w-fit rounded-[var(--radius-md)] bg-[var(--color-primary)] px-4 py-1.5 text-[length:var(--text-body-emphasis)] font-medium text-white hover:opacity-90 disabled:opacity-60"
-        >
-          {create.isPending ? "Posting…" : "Comment"}
-        </button>
+          disabled={!body.trim()}
+          pending={create.isPending}
+          idleLabel="Comment"
+          pendingLabel="Posting…"
+          className="w-fit px-4 py-1.5"
+        />
       </div>
     </div>
   );

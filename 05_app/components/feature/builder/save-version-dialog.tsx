@@ -3,6 +3,7 @@
 import { Bookmark, History, MessageCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { PendingButton } from "@/components/ui/pending-button";
 import { api } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
 
@@ -197,14 +198,13 @@ export function SaveVersionDialog({
           >
             Cancel
           </button>
-          <button
-            type="button"
+          <PendingButton
             onClick={primary}
             disabled={primaryDisabled}
-            className="rounded-[var(--radius-md)] bg-[var(--color-primary)] px-4 py-2 text-[length:var(--text-body-emphasis)] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-60"
-          >
-            {pending ? "Saving…" : primaryLabel}
-          </button>
+            pending={pending}
+            idleLabel={primaryLabel}
+            pendingLabel="Saving…"
+          />
         </div>
       </div>
     </div>
