@@ -26,6 +26,16 @@ export default function SigninPage() {
     if (userLoaded && isSignedIn) router.replace("/studies");
   }, [userLoaded, isSignedIn, router]);
 
+  // Hint when redirected here from a Google signup that conflicted with an
+  // existing account (window.location avoids a useSearchParams Suspense wrap).
+  useEffect(() => {
+    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("from") === "oauth-exists") {
+      setError(
+        "That email already has an account — sign in with the email magic-link below (the method you first used).",
+      );
+    }
+  }, []);
+
   async function handleEmail(e: React.FormEvent) {
     e.preventDefault();
     if (!isLoaded || !signIn) return;

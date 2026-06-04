@@ -3,7 +3,7 @@
 import { useSignUp, useUser } from "@clerk/nextjs";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useTheme } from "@/components/theme-provider";
@@ -70,11 +70,15 @@ function SignupFlow() {
 
   // 5d: pick up a PENDING OAuth signUp (Google returned but no session yet —
   // status "missing_requirements") so the user continues onboarding instead of
-  // landing on the empty email form (the "login screen again" dead-end). The
-  // session is finalized at the profile step (handleProfileContinue).
+  // landing on the empty email form. ONE-SHOT (a ref guard): it advances to the
+  // profile step at most once, so it can never fight a later setStep("identify")
+  // / redirect — that mutual yanking is what trapped the user when the signUp
+  // couldn't complete (e.g. email already registered + account-linking off).
+  const oauthPickedUp = useRef(false);
   useEffect(() => {
-    if (!isLoaded || !signUp || isSignedIn) return;
+    if (!isLoaded || !signUp || isSignedIn || oauthPickedUp.current) return;
     if (signUp.status === "missing_requirements" && step === "identify") {
+      oauthPickedUp.current = true;
       const name = [signUp.firstName, signUp.lastName].filter(Boolean).join(" ").trim();
       setDisplayName((prev) => prev || name);
       setEmail((prev) => prev || signUp.emailAddress || "");
@@ -134,24 +138,16 @@ function SignupFlow() {
         if (res.status === "complete" && res.createdSessionId) {
           await setActive({ session: res.createdSessionId });
         } else {
-          // 5c: a requirement we don't collect, or the email is already on
-          // another Clerk user — surface it instead of silently bouncing.
-          setStep("identify");
-          setIdentifyState("error");
-          setError(
-            "This email is already registered, or Google didn't share everything we need. Use the email magic-link, or sign in with the method you first used.",
-          );
+          // 5c: the OAuth signUp can't complete (email already registered, or a
+          // missing requirement). Route OUT to /signin — the working path for an
+          // existing account — rather than back to the /signup email form, which
+          // the one-shot pickup or a fresh signUp.create would just conflict on
+          // again. A `from=oauth` flag lets /signin show a hint.
+          router.replace("/signin?from=oauth-exists");
           return;
         }
-      } catch (err) {
-        setStep("identify");
-        setIdentifyState("error");
-        setError(
-          messageFrom(
-            err,
-            "This email may already be registered — try the email magic-link, or sign in instead.",
-          ),
-        );
+      } catch {
+        router.replace("/signin?from=oauth-exists");
         return;
       }
     }
