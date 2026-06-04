@@ -128,22 +128,53 @@ Bootstrap created/configured the project but the LAST build (from the day you co
 
 ---
 
-## Phase 4 — Clerk dashboard manual configuration (~10 min) ⚠️ Gotcha #1
+## Phase 4 — Clerk Production dashboard manual configuration (~15-30 min including DNS wait) ⚠️ Gotcha #1
 
-**The bootstrap doesn't configure most of Clerk's Production app settings.** It only sets `allowed_origins`. Owner finishes the rest in [dashboard.clerk.com](https://dashboard.clerk.com) → your PROD app:
+**Per Clerk's own docs:** "SSO connections, Integrations, and Paths settings do not copy over when cloning from development to production." So the Production app you created in Phase 1 needs to be configured from scratch. The bootstrap script only set `allowed_origins`; everything else is owner-side in the Clerk dashboard.
 
-- [ ] **Paths** → set:
-  - Sign-in URL: `/signin`
-  - Sign-up URL: `/signup`
-  - After sign-in URL: `/studies`
-  - After sign-up URL: `/studies`
-- [ ] **Email + Password** → enable.
-- [ ] **Email Magic-Link** → enable (mirror dev).
-- [ ] **Google OAuth** → enable. Clerk will give you a Redirect URI to paste into Google Cloud Console; create a Google OAuth Client over there if you haven't (or reuse your dev one with the new redirect URI added). Paste the Google Client ID + Secret back into Clerk.
-- [ ] **Authorized redirect URLs** for SSO:
-  - `https://<your-domain>/sso-callback`
-  - `https://<your-domain>/signup/sso-callback`
-- [ ] **Webhooks** (optional): if you ever wire post-signup hooks, configure here.
+> **The most important step is the Domains page — without it Production Clerk literally does nothing.** Sign-in fails, magic-link emails won't send. Earlier drafts of this checklist missed this; the correction below is the right shape.
+
+Open [dashboard.clerk.com](https://dashboard.clerk.com) → your **Production** app (the one named "Massive Research Tool — Production"). The sidebar's exact wording shifts between Clerk releases; the section names below are the load-bearing concepts to look for.
+
+### 4a. Domains (the critical step) — ~5 min + DNS wait
+
+- [ ] Find **Domains** in the sidebar (usually under "Configure" or as a top-level item). For Production instances this is the *production domain* setup.
+- [ ] Add your production domain (e.g., `myresearchlab.app` — whatever resolved at Vercel in Phase 3c).
+- [ ] **Clerk will display ~3-5 DNS records you must add at your domain registrar** (the place you bought the domain — Namecheap, Cloudflare, etc.). Typically:
+  - `CNAME clerk.<your-domain>` → some Clerk endpoint
+  - `CNAME accounts.<your-domain>` → another Clerk endpoint
+  - `TXT` records on the root for email-sender verification (`clk._domainkey...`, etc.)
+- [ ] Add each record at your DNS provider.
+- [ ] Wait for propagation. Clerk auto-detects when DNS resolves (refresh the Domains page; it goes from amber → green).
+
+These DNS records co-exist with the Vercel `CNAME` you set in Phase 3c — they're on different subdomains, no conflict.
+
+### 4b. Social Connections — Google OAuth (~5 min)
+
+Clerk's dev instances share a "Clerk-managed" Google OAuth app for convenience. **Production instances must use your own Google OAuth credentials** (security: each production app gets its own ID/secret + redirect URI you control).
+
+- [ ] In the Clerk sidebar, find **SSO Connections** (sometimes labelled "Social Connections" or under "Authentication"). Click into Google.
+- [ ] Toggle **Enable** on. Clerk will surface an **Authorized Redirect URI** that looks like `https://clerk.<your-domain>/v1/oauth_callback`. **Copy it.**
+- [ ] Open [console.cloud.google.com](https://console.cloud.google.com) → APIs & Services → Credentials → **Create OAuth Client ID** → Web application:
+  - Name: "Massive Research Tool — Production"
+  - Authorized redirect URI: paste what Clerk gave you
+  - (You can also add the redirect URI to your existing dev Google OAuth app instead of creating a separate one — but a separate prod app is cleaner.)
+- [ ] Google returns a Client ID + Client Secret. **Paste them back into Clerk's Google connection page.** Save.
+
+### 4c. Verify email + password + magic-link are enabled (~1 min)
+
+- [ ] Find **User & Authentication** → **Email, Phone, Username** (sidebar wording may vary).
+- [ ] Confirm **Email address** is on as an identifier.
+- [ ] Confirm **Password** is enabled as a sign-in factor.
+- [ ] Confirm **Email magic-link** is enabled.
+
+These are usually on by default for a new app. Just sanity-check.
+
+### What you DON'T need to find
+
+- **"Paths" page** — doesn't exist in modern Clerk dashboards the way an earlier draft of this checklist implied. Your Next.js app's routes (`(auth)/signin`, `(auth)/signup`, etc.) are configured in your code + middleware; the Clerk dashboard doesn't need to know them. The bootstrap already set `allowed_origins` via the Backend API.
+- **SSO callback URLs as a separate setting** — Clerk auto-handles these based on what's in your code (`<SignIn>` component, `handleEmailLinkVerification`, etc.). Nothing to configure in the dashboard.
+- **Webhooks** — only if you've explicitly wired post-signup hooks (you haven't in V1.7.0). Skip.
 
 ### Gotcha #2 — Production Clerk might require email verification for the 3 test users
 
