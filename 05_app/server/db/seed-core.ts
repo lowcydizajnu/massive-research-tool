@@ -1,5 +1,5 @@
 import { db } from "@/server/db/client";
-import { module, moduleVersion } from "@/server/db/schema";
+import { moduleTable, moduleVersion } from "@/server/db/schema";
 import { MODULE_REGISTRY } from "@/server/modules/registry";
 
 /**
@@ -9,7 +9,7 @@ import { MODULE_REGISTRY } from "@/server/modules/registry";
 export async function seedCoreModules(): Promise<void> {
   for (const def of MODULE_REGISTRY) {
     const [m] = await db
-      .insert(module)
+      .insert(moduleTable)
       .values({
         source: def.source,
         key: def.key,
@@ -18,7 +18,7 @@ export async function seedCoreModules(): Promise<void> {
         categoryTags: def.categoryTags,
       })
       .onConflictDoUpdate({
-        target: [module.source, module.key],
+        target: [moduleTable.source, moduleTable.key],
         set: {
           name: def.name,
           description: def.description,

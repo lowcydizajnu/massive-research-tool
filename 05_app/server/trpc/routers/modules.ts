@@ -1,7 +1,7 @@
 import { eq, isNull } from "drizzle-orm";
 
 import { db } from "@/server/db/client";
-import { module, moduleVersion } from "@/server/db/schema";
+import { moduleTable, moduleVersion } from "@/server/db/schema";
 import { router, workspaceProcedure } from "@/server/trpc/trpc";
 
 export type CatalogueModule = {
@@ -17,9 +17,9 @@ export const modulesRouter = router({
   /** The module catalogue the Builder's picker lists (non-deprecated versions). */
   list: workspaceProcedure.query(async (): Promise<CatalogueModule[]> => {
     const rows = await db
-      .select({ m: module, v: moduleVersion })
+      .select({ m: moduleTable, v: moduleVersion })
       .from(moduleVersion)
-      .innerJoin(module, eq(moduleVersion.moduleId, module.id))
+      .innerJoin(moduleTable, eq(moduleVersion.moduleId, moduleTable.id))
       .where(isNull(moduleVersion.deprecatedAt));
 
     return rows.map(({ m, v }) => ({
