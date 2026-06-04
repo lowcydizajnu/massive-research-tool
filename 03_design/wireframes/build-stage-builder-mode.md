@@ -70,6 +70,9 @@ Builder/Whiteboard toggle lives in the top-right of the work surface card, pinne
 - **Builder/Whiteboard toggle** — switches modes; ⌘\ keyboard shortcut.
 - **Right panel tab click** — switches tab; preserves the rest of the panel state.
 - **`Save`** — opens the Save as version dialog.
+- **Versions sub-tab — version labels (ADR-0012 amendment, 2026-06-04)** — the autosave tip shows a `Working copy` chip (primary-subtle), or `Unsaved changes` when its blocks differ from the latest frozen save; the newest conscious save shows a neutral `Latest saved` chip. No `current` chip (it read as "this snapshot is the live one", which is backwards — the working copy is the only editable thing).
+- **Versions sub-tab — preview a version (ADR-0019)** — clicking a version row reveals an inline **read-only preview** of that version's blocks (block name + `source/key@version` ref, no Configure controls). The working copy row, when previewed, links back to the live Builder rather than a frozen snapshot. Preview never mutates anything.
+- **Versions sub-tab — restore a frozen version (ADR-0019)** — a frozen (named/preregistered/published) version's preview carries a **`Restore as working copy`** button. It opens a confirm (it overwrites the current working copy and can discard unsaved edits — the `Unsaved changes` chip warns when there is something to lose), then copies that version's blocks into the autosave tip and refreshes the Builder. The frozen version is unchanged; `current_version_id` still points at the working copy. The working-copy row itself has no Restore (you're already on it).
 
 ## Edge cases
 
