@@ -247,13 +247,21 @@ async function main() {
   }).catch((e) => note(`Vercel domain ${domain}: ${String(e).slice(0, 80)} (may be attached — ok)`));
   note(`Vercel: attached ${domain} (Let's Encrypt SSL provisions async).`);
 
-  // Step 10 — Vercel: tie builds to the CI status check.
+  // Step 10 — Vercel: gate builds on the GitHub Actions CI check, not the branch.
+  // The earlier branch-only ignored-build-step (exit 1 on main) disabled preview
+  // deploys and let a red CI ship to production (V1.7.1 item 2 fix). Clear it so
+  // every push builds + previews work; the CI gate is enforced by the GitHub
+  // integration's required status check — an owner dashboard toggle (no stable
+  // API): Vercel → Project → Settings → Git → "Only deploy when checks pass".
   await api(`https://api.vercel.com/v9/projects/${project.id}${vercelQs}`, {
     method: "PATCH",
     headers: vercelHeaders,
-    body: { commandForIgnoringBuildStep: 'if [ "$VERCEL_GIT_COMMIT_REF" = "main" ]; then exit 1; else exit 0; fi' },
-  }).catch((e) => note(`Vercel ignored-build-step: ${String(e).slice(0, 80)}`));
-  note("Vercel: configured the ignored-build-step (CI status check gates the build).");
+    body: { commandForIgnoringBuildStep: "" },
+  }).catch((e) => note(`Vercel ignored-build-step clear: ${String(e).slice(0, 80)}`));
+  note(
+    "Vercel: cleared the branch-only ignored-build-step (previews restored).\n" +
+      "ACTION: Vercel → Project → Settings → Git → enable \"Only deploy when the CI check passes\" so a red ci.yml blocks Production.",
+  );
 
   // Step 11 — summary.
   note("\n=== Bootstrap summary ===");
