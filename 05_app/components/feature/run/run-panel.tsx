@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { PendingButton } from "@/components/ui/pending-button";
 import { api } from "@/lib/trpc/react";
 import type { RunInfo } from "@/server/trpc/routers/studies";
 
@@ -43,14 +44,13 @@ export function RunPanel({
           >
             Preregister (to OSF) →
           </Link>
-          <button
-            type="button"
+          <PendingButton
+            variant="secondary"
             onClick={() => publish.mutate({ studyId })}
-            disabled={publish.isPending}
-            className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-4 py-2 text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)] disabled:opacity-60"
-          >
-            {publish.isPending ? "Publishing…" : "Publish & run (no OSF)"}
-          </button>
+            pending={publish.isPending}
+            idleLabel="Publish & run (no OSF)"
+            pendingLabel="Publishing…"
+          />
         </div>
         <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
           Preregister is the open-science path; Publish &amp; run is for pilots and exploratory work.
@@ -67,14 +67,12 @@ export function RunPanel({
           You can preview the study yourself first.
         </p>
         <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
+          <PendingButton
             onClick={() => open.mutate({ studyId })}
-            disabled={open.isPending}
-            className="rounded-[var(--radius-md)] bg-[var(--color-primary)] px-4 py-2 text-[length:var(--text-body-emphasis)] font-medium text-white hover:opacity-90 disabled:opacity-60"
-          >
-            {open.isPending ? "Opening…" : "Open recruitment"}
-          </button>
+            pending={open.isPending}
+            idleLabel="Open recruitment"
+            pendingLabel="Opening…"
+          />
           <a
             href={previewUrl}
             target="_blank"

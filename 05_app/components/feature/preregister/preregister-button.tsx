@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { PendingButton } from "@/components/ui/pending-button";
 import { api } from "@/lib/trpc/react";
 
 /**
@@ -25,15 +26,13 @@ export function PreregisterButton({ studyId }: { studyId: string }) {
 
   return (
     <div className="flex flex-col gap-2">
-      <button
-        type="button"
+      <PendingButton
         onClick={() => mutation.mutate({ studyId })}
-        disabled={mutation.isPending}
-        aria-busy={mutation.isPending}
-        className="w-fit rounded-[var(--radius-md)] bg-[var(--color-primary)] px-4 py-2 text-[length:var(--text-body-emphasis)] font-medium text-white hover:opacity-90 disabled:opacity-60"
-      >
-        {mutation.isPending ? "Preregistering…" : "Preregister"}
-      </button>
+        pending={mutation.isPending}
+        idleLabel="Preregister"
+        pendingLabel="Preregistering…"
+        className="w-fit"
+      />
       {error ? (
         <p
           role="alert"

@@ -3,6 +3,7 @@
 import { Plus, X } from "lucide-react";
 import { useState } from "react";
 
+import { PendingButton } from "@/components/ui/pending-button";
 import { api } from "@/lib/trpc/react";
 
 /**
@@ -108,15 +109,19 @@ export function ConditionsSection({ studyId }: { studyId: string }) {
         </ul>
       )}
 
-      <button
-        type="button"
+      <PendingButton
+        variant="secondary"
         onClick={() => add.mutate({ studyId, name: `Condition ${list.length + 1}` })}
-        disabled={add.isPending}
-        className="flex items-center gap-1 self-start rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-2.5 py-1 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)] disabled:opacity-60"
-      >
-        <Plus className="size-3.5" aria-hidden />
-        Add condition
-      </button>
+        pending={add.isPending}
+        idleLabel={
+          <>
+            <Plus className="size-3.5" aria-hidden />
+            Add condition
+          </>
+        }
+        pendingLabel="Adding…"
+        className="self-start px-2.5 py-1 text-[length:var(--text-small)]"
+      />
 
       {list.length > 0 && totalWeight === 0 ? (
         <p className="text-[length:var(--text-small)] text-[var(--color-warning-text-on-subtle)]">

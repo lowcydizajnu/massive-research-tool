@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { FormSubmitButton } from "@/components/ui/form-submit-button";
 import { cn } from "@/lib/utils";
 import { registry } from "@/server/adapters/registry";
 import { isOsfConfigured } from "@/server/adapters/registry.osf";
@@ -94,12 +95,12 @@ export default async function AccountSettingsPage({
 
             {connection.connected ? (
               <form action={disconnectOsfAction}>
-                <button
-                  type="submit"
-                  className="shrink-0 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-1.5 text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
-                >
-                  Disconnect
-                </button>
+                <FormSubmitButton
+                  variant="secondary"
+                  idleLabel="Disconnect"
+                  pendingLabel="Disconnecting…"
+                  className="shrink-0 px-3 py-1.5"
+                />
               </form>
             ) : null}
           </div>
@@ -123,12 +124,11 @@ export default async function AccountSettingsPage({
                     placeholder="Paste your OSF token"
                     className="min-w-0 flex-1 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-3 py-1.5 text-[length:var(--text-body)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)]"
                   />
-                  <button
-                    type="submit"
-                    className="shrink-0 rounded-[var(--radius-md)] bg-[var(--color-primary)] px-3 py-1.5 text-[length:var(--text-body-emphasis)] font-medium text-white hover:opacity-90"
-                  >
-                    Connect
-                  </button>
+                  <FormSubmitButton
+                    idleLabel="Connect"
+                    pendingLabel="Connecting…"
+                    className="shrink-0 px-3 py-1.5"
+                  />
                 </div>
                 <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
                   Generate one at{" "}
