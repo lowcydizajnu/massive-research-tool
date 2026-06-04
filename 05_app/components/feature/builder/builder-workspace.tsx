@@ -106,8 +106,9 @@ export function BuilderWorkspace({
             <div className="min-w-0">
               <EditableStudyTitle studyId={study.id} initialTitle={study.title} />
               <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-                v{study.versionNumber} · {STAGE_LABEL[study.stage]} · Edited{" "}
-                {formatEdited(study.lastEditedAt)}
+                {/* Autosave tip is the unnumbered Draft (ADR-0012 amendment); v1+ are conscious saves. */}
+                {study.versionNumber > 0 ? `v${study.versionNumber}` : "Draft"} ·{" "}
+                {STAGE_LABEL[study.stage]} · Edited {formatEdited(study.lastEditedAt)}
                 {study.isReplication ? " · replicating an upstream study" : ""}
               </p>
             </div>

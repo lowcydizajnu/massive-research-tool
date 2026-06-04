@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import { ulid } from "ulid";
 import { z } from "zod";
 
@@ -98,6 +98,27 @@ function toConditionRow(row: typeof conditionTable.$inferSelect): ConditionRow {
     allocationWeight: Number(row.allocationWeight),
     position: row.position,
   };
+}
+
+/**
+ * The number to stamp on the next CONSCIOUS save (ADR-0012 amendment 2026-06-04).
+ * Autosave is the unnumbered "Draft" (versionNumber 0); v1 is the first
+ * named/preregistered/published snapshot. Count-not-max so a future deletion
+ * can't leave a gap that skips a number (none are deleted today; the semantics
+ * are just cleaner). This is why a researcher's first Preregister reads "v1",
+ * not "v3".
+ */
+async function nextVersionNumber(experimentId: string): Promise<number> {
+  const [c] = await db
+    .select({ c: count() })
+    .from(experimentVersion)
+    .where(
+      and(
+        eq(experimentVersion.experimentId, experimentId),
+        inArray(experimentVersion.kind, ["named", "preregistered", "published"]),
+      ),
+    );
+  return (c?.c ?? 0) + 1;
 }
 
 async function conditionsForVersion(versionId: string): Promise<ConditionRow[]> {
@@ -831,13 +852,7 @@ export const studiesRouter = router({
         });
       }
 
-      const [latest] = await db
-        .select({ n: experimentVersion.versionNumber })
-        .from(experimentVersion)
-        .where(eq(experimentVersion.experimentId, input.studyId))
-        .orderBy(desc(experimentVersion.versionNumber))
-        .limit(1);
-      const nextNumber = (latest?.n ?? 0) + 1;
+      const nextNumber = await nextVersionNumber(input.studyId);
 
       const [named] = await db
         .insert(experimentVersion)
@@ -926,13 +941,7 @@ export const studiesRouter = router({
         throw new TRPCError({ code: "CONFLICT", message: "A version with this label already exists." });
       }
 
-      const [latest] = await db
-        .select({ n: experimentVersion.versionNumber })
-        .from(experimentVersion)
-        .where(eq(experimentVersion.experimentId, input.studyId))
-        .orderBy(desc(experimentVersion.versionNumber))
-        .limit(1);
-      const nextNumber = (latest?.n ?? 0) + 1;
+      const nextNumber = await nextVersionNumber(input.studyId);
 
       const [named] = await db
         .insert(experimentVersion)
@@ -998,13 +1007,7 @@ export const studiesRouter = router({
       }): Promise<{ versionNumber: number; pushStatus: "pending" | "no_credentials" }> => {
         const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
 
-        const [latest] = await db
-          .select({ n: experimentVersion.versionNumber })
-          .from(experimentVersion)
-          .where(eq(experimentVersion.experimentId, input.studyId))
-          .orderBy(desc(experimentVersion.versionNumber))
-          .limit(1);
-        const nextNumber = (latest?.n ?? 0) + 1;
+        const nextNumber = await nextVersionNumber(input.studyId);
 
         // Connected? Decides whether we enqueue a push or park as no_credentials.
         const connection = await registry.getConnection(ctx.dbUser.id);
@@ -1093,13 +1096,7 @@ export const studiesRouter = router({
     .mutation(async ({ ctx, input }): Promise<{ versionNumber: number }> => {
       const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
 
-      const [latest] = await db
-        .select({ n: experimentVersion.versionNumber })
-        .from(experimentVersion)
-        .where(eq(experimentVersion.experimentId, input.studyId))
-        .orderBy(desc(experimentVersion.versionNumber))
-        .limit(1);
-      const nextNumber = (latest?.n ?? 0) + 1;
+      const nextNumber = await nextVersionNumber(input.studyId);
 
       const [pub] = await db
         .insert(experimentVersion)
@@ -1499,7 +1496,7 @@ export const studiesRouter = router({
           .insert(experimentVersion)
           .values({
             experimentId: exp.id,
-            versionNumber: 1,
+            versionNumber: 0, // autosave is the unnumbered "Draft" (ADR-0012 amendment)
             kind: "autosave",
             definitionSnapshot: { blocks },
             moduleVersionLocks: locksFromBlocks(blocks),
@@ -1546,7 +1543,7 @@ export const studiesRouter = router({
           .insert(experimentVersion)
           .values({
             experimentId: exp.id,
-            versionNumber: 1,
+            versionNumber: 0, // autosave is the unnumbered "Draft" (ADR-0012 amendment)
             kind: "autosave",
             definitionSnapshot: { blocks },
             moduleVersionLocks: locksFromBlocks(blocks),

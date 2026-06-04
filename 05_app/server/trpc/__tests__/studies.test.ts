@@ -221,7 +221,7 @@ describe("studies.get", () => {
       id,
       title: "Source cues",
       stage: "draft",
-      versionNumber: 1,
+      versionNumber: 0, // autosave is the unnumbered Draft (ADR-0012 amendment)
       ownerName: "ext_a",
       blocks: [],
     });
@@ -342,7 +342,8 @@ describe("studies.saveAsNamed", () => {
 
     const res = await caller.studies.saveAsNamed({ studyId: id, name: "v1 for review" });
     expect(res).toMatchObject({ name: "v1 for review" });
-    expect(res.versionNumber).toBeGreaterThan(1);
+    // First conscious save on a fresh study is v1 (autosave is the unnumbered Draft).
+    expect(res.versionNumber).toBe(1);
 
     // The working tip (autosave) is still what studies.get reads, with its block.
     const detail = await caller.studies.get({ id });
@@ -932,5 +933,28 @@ describe("studies.saveAndRequestReview (ADR-0015 review_request)", () => {
     await expect(
       caller.studies.saveAndRequestReview({ studyId: id, name: "v1", reviewerUserId: outsider.user.id }),
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+});
+
+describe("versionNumber semantics (ADR-0012 amendment 2026-06-04)", () => {
+  it("autosave is Draft (0); conscious saves count 1, 2, … and autosaves never bump", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+
+    // Fresh study: the autosave tip is the unnumbered Draft.
+    expect((await caller.studies.get({ id })).versionNumber).toBe(0);
+
+    // An autosave edit (rename) must NOT create a numbered version.
+    await caller.studies.updateTitle({ id, title: "S2" });
+    expect((await caller.studies.get({ id })).versionNumber).toBe(0);
+
+    // First conscious save → v1.
+    const named = await caller.studies.saveAsNamed({ studyId: id, name: "Pilot" });
+    expect(named.versionNumber).toBe(1);
+
+    // Next conscious save (publish) → v2 — counts conscious kinds, not max+1.
+    const published = await caller.studies.publish({ studyId: id });
+    expect(published.versionNumber).toBe(2);
   });
 });
