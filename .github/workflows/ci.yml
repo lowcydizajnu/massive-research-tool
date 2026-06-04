@@ -37,6 +37,8 @@ jobs:
       # The repo installs some deps with relaxed peers (inngest, upstash, etc.).
       - run: npm ci --legacy-peer-deps
 
+      - run: npm run lint
+
       - run: npm run typecheck
 
       - run: npm run test
