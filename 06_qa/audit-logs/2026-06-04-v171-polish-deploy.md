@@ -31,3 +31,11 @@
 
 - [x] Agent: V1.7.1 deployed (`1cbcee7`), smoke-verified, tagged `v1.7.1`. Code complete; CI/unit green.
 - [ ] **Owner:** enable Clerk account-linking + verify the Google flow → then this release is fully closed.
+
+## Post-deploy hotfix — production module catalogue was empty (2026-06-04)
+
+Owner opened the Builder on production and the "Add block" picker showed **"No modules match."** Diagnosis: the dev DB had the full catalogue (8 modules / 9 versions) and the `modules.list` query + picker code were correct + unchanged — but the **production** `module`/`module_version` tables were empty. The bootstrap's `db:seed` step never landed on prod (lost during the hotfix-heavy deploy where the Neon/Upstash API shapes kept shifting; the seed likely ran before a connection hotfix or didn't complete against the prod project).
+
+**Fix (owner-approved):** derived the `mrt-production` pooled connection string from the Neon API (the bootstrap's step-2 logic) and ran `npm run db:seed` against it — catalogue only, no user data, idempotent. Confirmed: **PROD → modules=8, module_versions=9.** The picker fills on refresh. No code change; throwaway diagnostic scripts removed.
+
+**Follow-up for future deploys:** `deploy:verify` should add a catalogue-count assertion (modules > 0) so an unseeded prod catalogue is caught automatically rather than by a user hitting the empty picker.
