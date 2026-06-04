@@ -343,6 +343,18 @@ export type ReplicationNode = {
 };
 export type ReplicationsView = { parent: ReplicationNode | null; children: ReplicationNode[] };
 
+/** One row in a study's version history (ADR-0012 amendment) — the Versions sub-tab. */
+export type StudyVersion = {
+  id: string;
+  kind: "autosave" | "named" | "preregistered" | "published";
+  versionNumber: number;
+  name: string | null;
+  createdAt: string;
+  isCurrent: boolean;
+  pushStatus: string | null;
+  doi: string | null;
+};
+
 export type RegistryPushStatus =
   | "not_pushed"
   | "pending"
@@ -584,6 +596,48 @@ export const studiesRouter = router({
         });
       }
       return { parent, children };
+    }),
+
+  /**
+   * Every version of a study, oldest→newest (ADR-0012 amendment / V1.7.1 item 3).
+   * Surfaces the full history behind the Builder's Versions sub-tab so "why does
+   * it say v3?" is answerable: the Draft (autosave) + each conscious snapshot
+   * with its kind, number, freeze status, and OSF DOI/status.
+   */
+  listVersions: workspaceProcedure
+    .input(z.object({ studyId: z.string().uuid() }))
+    .query(async ({ ctx, input }): Promise<StudyVersion[]> => {
+      const [exp] = await db
+        .select({ id: experiment.id, currentVersionId: experiment.currentVersionId })
+        .from(experiment)
+        .where(and(eq(experiment.id, input.studyId), eq(experiment.tenantId, ctx.workspace.id)))
+        .limit(1);
+      if (!exp) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const rows = await db
+        .select({
+          id: experimentVersion.id,
+          kind: experimentVersion.kind,
+          versionNumber: experimentVersion.versionNumber,
+          name: experimentVersion.name,
+          createdAt: experimentVersion.createdAt,
+          pushStatus: experimentVersion.registryPushStatus,
+          doi: experimentVersion.externalRegistrationDoi,
+        })
+        .from(experimentVersion)
+        .where(eq(experimentVersion.experimentId, input.studyId))
+        .orderBy(experimentVersion.createdAt);
+
+      return rows.map((r) => ({
+        id: r.id,
+        kind: r.kind,
+        versionNumber: r.versionNumber,
+        name: r.name,
+        createdAt: r.createdAt.toISOString(),
+        isCurrent: r.id === exp.currentVersionId,
+        pushStatus: r.pushStatus ?? null,
+        doi: r.doi ?? null,
+      }));
     }),
 
   /** Rename a study (autosaves the title; the title lives on Experiment, not a version). */

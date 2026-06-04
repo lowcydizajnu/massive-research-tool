@@ -17,6 +17,7 @@ import { ModulePicker } from "./module-picker";
 import { ForkableControl, ReplicateButton, ReplicationsPanel } from "./replications-panel";
 import { SaveVersionDialog } from "./save-version-dialog";
 import { TagsSection } from "./tags-section";
+import { VersionsPanel } from "./versions-panel";
 
 /**
  * Builder mode — the interactive three-zone body (build-stage-builder-mode.md).
@@ -69,7 +70,7 @@ export function BuilderWorkspace({
   const study = data ?? initial;
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [panelTab, setPanelTab] = useState<"details" | "replications">("details");
+  const [panelTab, setPanelTab] = useState<"details" | "replications" | "versions">("details");
   const [pickerOpen, setPickerOpen] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
@@ -218,7 +219,15 @@ export function BuilderWorkspace({
               >
                 Details
               </button>
-              <TabSoon label="History" />
+              <button
+                type="button"
+                role="tab"
+                aria-current={panelTab === "versions" ? "page" : undefined}
+                onClick={() => setPanelTab("versions")}
+                className={panelTab === "versions" ? tabActiveCls : tabIdleCls}
+              >
+                Versions
+              </button>
               <button
                 type="button"
                 role="tab"
@@ -254,6 +263,8 @@ export function BuilderWorkspace({
               current={selected.showIfCondition}
             />
           </>
+        ) : panelTab === "versions" ? (
+          <VersionsPanel studyId={study.id} />
         ) : panelTab === "replications" ? (
           <ReplicationsPanel studyId={study.id} />
         ) : (
