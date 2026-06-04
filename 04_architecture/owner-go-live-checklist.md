@@ -21,6 +21,7 @@ Do these in any order. End this phase with one Phase 2 paste list.
 
 ### 3. Neon
 - You already have an account. Generate API key: [console.neon.tech/app/settings/api-keys](https://console.neon.tech/app/settings/api-keys) → scope: read+write projects.
+- **Also grab your Organization ID** at [console.neon.tech/app/organization/settings](https://console.neon.tech/app/organization/settings) → copy "Organization ID". Required since Neon migrated all accounts to organizations late 2024; the projects API rejects calls without it.
 - The bootstrap creates a fresh `mrt-production` project; you don't need to do anything in the Neon UI beforehand. The dev project stays untouched.
 
 ### 4. Clerk PRODUCTION application shell (do this in dashboard.clerk.com)

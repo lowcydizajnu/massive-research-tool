@@ -25,6 +25,7 @@ const REQUIRED = [
   "VERCEL_TOKEN",
   "GITHUB_REPO",
   "NEON_API_KEY",
+  "NEON_ORG_ID",
   "UPSTASH_API_KEY",
   "UPSTASH_EMAIL",
   "CLERK_PROD_SECRET_KEY",
@@ -86,8 +87,11 @@ async function main() {
   note(`# V1.7.0 deploy bootstrap — ${domain}`);
 
   // Step 2 — Neon: a FRESH mrt-production project (clean dev/prod isolation).
+  // Neon migrated to organizations late 2024; org_id is required on the
+  // projects endpoints. Find yours at console.neon.tech/app/organization/settings.
   const neonHeaders = { authorization: `Bearer ${env.NEON_API_KEY}` };
-  const neonList = (await api("https://console.neon.tech/api/v2/projects", { headers: neonHeaders }))
+  const neonOrgQs = `?org_id=${encodeURIComponent(env.NEON_ORG_ID)}`;
+  const neonList = (await api(`https://console.neon.tech/api/v2/projects${neonOrgQs}`, { headers: neonHeaders }))
     .projects as Array<{ id: string; name: string }> | undefined;
   let neon = neonList?.find((p) => p.name === "mrt-production");
   let databaseUrl: string;
@@ -99,7 +103,7 @@ async function main() {
     const created = await api("https://console.neon.tech/api/v2/projects", {
       method: "POST",
       headers: neonHeaders,
-      body: { project: { name: "mrt-production" } },
+      body: { project: { name: "mrt-production", org_id: env.NEON_ORG_ID } },
     });
     neon = (created.project as { id: string; name: string });
     const conns = (created.connection_uris as Array<{ connection_uri: string }> | undefined) ?? [];
