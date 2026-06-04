@@ -989,3 +989,67 @@ describe("studies.listVersions (V1.7.1 item 3)", () => {
     expect(versions[0]).toMatchObject({ isWorkingCopy: true, hasUnsavedChanges: true });
   });
 });
+
+describe("studies.getVersion + restoreVersion (ADR-0019)", () => {
+  it("previews a frozen version's blocks read-only", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    await caller.studies.addBlock({ studyId: id, source: "core", key: "likert-7", version: "1.0.0" });
+    await caller.studies.saveAsNamed({ studyId: id, name: "Pilot" });
+
+    const versions = await caller.studies.listVersions({ studyId: id });
+    const named = versions.find((v) => v.kind === "named")!;
+    const preview = await caller.studies.getVersion({ studyId: id, versionId: named.id });
+    expect(preview.kind).toBe("named");
+    expect(preview.blocks.map((b) => b.ref)).toEqual(["core/likert-7@1.0.0"]);
+  });
+
+  it("restores a frozen version's blocks into the working copy without mutating the frozen version", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    const added = await caller.studies.addBlock({
+      studyId: id,
+      source: "core",
+      key: "likert-7",
+      version: "1.0.0",
+    });
+    await caller.studies.saveAsNamed({ studyId: id, name: "Pilot" });
+    const named = (await caller.studies.listVersions({ studyId: id })).find((v) => v.kind === "named")!;
+
+    // Diverge the working copy: remove the block.
+    await caller.studies.removeBlock({ studyId: id, instanceId: added.instanceId });
+    expect((await caller.studies.get({ id })).blocks).toHaveLength(0);
+
+    // Restore the named version → the block comes back to the working copy.
+    const result = await caller.studies.restoreVersion({ studyId: id, versionId: named.id });
+    expect(result).toMatchObject({ restoredFromNumber: 1, restoredFromKind: "named", blockCount: 1 });
+    expect((await caller.studies.get({ id })).blocks.map((b) => b.ref)).toEqual(["core/likert-7@1.0.0"]);
+
+    // The frozen version still has its original (single) block — unmutated.
+    const stillFrozen = await caller.studies.getVersion({ studyId: id, versionId: named.id });
+    expect(stillFrozen.blocks.map((b) => b.ref)).toEqual(["core/likert-7@1.0.0"]);
+  });
+
+  it("refuses to restore the working copy onto itself", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    const autosave = (await caller.studies.listVersions({ studyId: id }))[0];
+    await expect(
+      caller.studies.restoreVersion({ studyId: id, versionId: autosave.id }),
+    ).rejects.toThrow(/already the working copy/);
+  });
+
+  it("is tenant-scoped — another workspace's version is NOT_FOUND", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    await seedUserWithWorkspace("ext_b", "Bravo");
+    const a = createCaller({ authUser: authUser("ext_a") });
+    const b = createCaller({ authUser: authUser("ext_b") });
+    const { id } = await a.studies.create({ kind: "blank", title: "S" });
+    const ver = (await a.studies.listVersions({ studyId: id }))[0];
+    await expect(b.studies.getVersion({ studyId: id, versionId: ver.id })).rejects.toThrow();
+    await expect(b.studies.restoreVersion({ studyId: id, versionId: ver.id })).rejects.toThrow();
+  });
+});

@@ -360,6 +360,23 @@ export type StudyVersion = {
   doi: string | null;
 };
 
+/** A read-only block of a specific (often frozen) version, for the preview pane. */
+export type VersionPreviewBlock = {
+  instanceId: string;
+  name: string;
+  ref: string;
+  complete: boolean;
+};
+
+/** A single version rendered read-only for preview (ADR-0019). */
+export type VersionPreview = {
+  id: string;
+  kind: "autosave" | "named" | "preregistered" | "published";
+  versionNumber: number;
+  name: string | null;
+  blocks: VersionPreviewBlock[];
+};
+
 export type RegistryPushStatus =
   | "not_pushed"
   | "pending"
@@ -657,6 +674,100 @@ export const studiesRouter = router({
         doi: r.doi ?? null,
       }));
     }),
+
+  /**
+   * Read one version's blocks read-only for the Versions-tab preview (ADR-0019).
+   * Any version (working copy or frozen) in the active workspace is previewable;
+   * this never mutates anything.
+   */
+  getVersion: workspaceProcedure
+    .input(z.object({ studyId: z.string().uuid(), versionId: z.string().uuid() }))
+    .query(async ({ ctx, input }): Promise<VersionPreview> => {
+      const [exp] = await db
+        .select({ id: experiment.id })
+        .from(experiment)
+        .where(and(eq(experiment.id, input.studyId), eq(experiment.tenantId, ctx.workspace.id)))
+        .limit(1);
+      if (!exp) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const [ver] = await db
+        .select({
+          id: experimentVersion.id,
+          kind: experimentVersion.kind,
+          versionNumber: experimentVersion.versionNumber,
+          name: experimentVersion.name,
+          snapshot: experimentVersion.definitionSnapshot,
+        })
+        .from(experimentVersion)
+        .where(
+          and(
+            eq(experimentVersion.id, input.versionId),
+            eq(experimentVersion.experimentId, input.studyId),
+          ),
+        )
+        .limit(1);
+      if (!ver) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const blocks: VersionPreviewBlock[] = readBlocks(ver.snapshot).map((b) => {
+        const d = blockDisplay(b);
+        return { instanceId: b.instanceId, name: d.name, ref: d.ref, complete: d.complete };
+      });
+
+      return { id: ver.id, kind: ver.kind, versionNumber: ver.versionNumber, name: ver.name, blocks };
+    }),
+
+  /**
+   * Restore a frozen version into the working copy (ADR-0019): copy its blocks
+   * onto the autosave tip via writeBlocks. The frozen version is never mutated
+   * and current_version_id keeps pointing at the tip — restore is an ordinary
+   * edit. Overwrites the current working copy (the UI confirms first). Does not
+   * emit an activity event (it is a private working-copy edit, not a save).
+   */
+  restoreVersion: writeProcedure
+    .input(z.object({ studyId: z.string().uuid(), versionId: z.string().uuid() }))
+    .mutation(
+      async ({
+        ctx,
+        input,
+      }): Promise<{ restoredFromNumber: number; restoredFromKind: string; blockCount: number }> => {
+        const [exp] = await db
+          .select({ id: experiment.id, currentVersionId: experiment.currentVersionId })
+          .from(experiment)
+          .where(and(eq(experiment.id, input.studyId), eq(experiment.tenantId, ctx.workspace.id)))
+          .limit(1);
+        if (!exp || !exp.currentVersionId) throw new TRPCError({ code: "NOT_FOUND" });
+
+        const [src] = await db
+          .select({
+            kind: experimentVersion.kind,
+            versionNumber: experimentVersion.versionNumber,
+            snapshot: experimentVersion.definitionSnapshot,
+          })
+          .from(experimentVersion)
+          .where(
+            and(
+              eq(experimentVersion.id, input.versionId),
+              eq(experimentVersion.experimentId, input.studyId),
+            ),
+          )
+          .limit(1);
+        if (!src) throw new TRPCError({ code: "NOT_FOUND" });
+        if (src.kind === "autosave") {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "That version is already the working copy.",
+          });
+        }
+
+        const blocks = readBlocks(src.snapshot);
+        await writeBlocks(exp.currentVersionId, input.studyId, blocks);
+        return {
+          restoredFromNumber: src.versionNumber,
+          restoredFromKind: src.kind,
+          blockCount: blocks.length,
+        };
+      },
+    ),
 
   /** Rename a study (autosaves the title; the title lives on Experiment, not a version). */
   updateTitle: writeProcedure

@@ -264,7 +264,13 @@ export function BuilderWorkspace({
             />
           </>
         ) : panelTab === "versions" ? (
-          <VersionsPanel studyId={study.id} />
+          <VersionsPanel
+            studyId={study.id}
+            onRestored={(message) => {
+              void invalidate();
+              setSavedMsg(message);
+            }}
+          />
         ) : panelTab === "replications" ? (
           <ReplicationsPanel studyId={study.id} />
         ) : (
