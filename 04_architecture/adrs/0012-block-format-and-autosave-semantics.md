@@ -121,3 +121,19 @@ Seeding these means the forthcoming failing Hanna-loop e2e ("add 2 blocks") has 
 - `02-module-entities.md` — Module/ModuleVersion data-model entry, landing in the same change.
 - `03_design/wireframes/build-stage-builder-mode.md` — the Builder surface that renders blocks.
 - `02_product/user-flows/hanna-build-a-study.md` — single-author flow + failure modes informing the LWW trade-off.
+
+---
+
+## 2026-06-04 amendment — `versionNumber` semantics
+
+V1.7.0's first real session surfaced a confusion: a researcher's first Preregister showed "v3", because `versionNumber` was `max(existing) + 1` across **all** kinds — so the autosave working tip was v1, and any prior conscious save bumped from there. "v3" was technically "the 3rd ExperimentVersion row of any kind", which doesn't match the user's mental model of "my versions".
+
+**Amendment:** version numbering counts **conscious saves only**.
+
+- The **autosave** working tip is the unnumbered **Draft** — `versionNumber = 0` (chosen over `null` for simpler ordering + `> 0` checks; semantically "before v1").
+- `named` / `preregistered` / `published` snapshots number from **1**, computed as `count(versions WHERE kind IN (named, preregistered, published)) + 1` — **count, not max+1**, so a future deletion can't leave a gap that skips a number (nothing is deleted today; the semantics are just cleaner).
+- UI labels by kind: Draft (no number) · `v{n} — {name}` (named) · `Preregistration v{n}` · `Published v{n}`. The Builder header renders "Draft" when `versionNumber === 0`; a Versions sub-tab lists the full history.
+
+**Migration:** existing production rows are **not** backfilled — a handful of pre-amendment studies keep their old numbers (autosave=1, first conscious save=2, …). The Versions sub-tab labels every row by kind, so the one-off offset reads clearly rather than as a mystery. New studies number cleanly from the Draft.
+
+Implemented in V1.7.1: `server/trpc/routers/studies.ts` (`nextVersionNumber()` helper at `saveAsNamed` / `saveAndRequestReview` / `preregister` / `publish`; autosave init `versionNumber: 0` in `create` + `fork`).
