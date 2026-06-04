@@ -80,6 +80,8 @@ Three fixes (do all):
 
 **5c. Diagnostic shim:** in the sign-up callback (`/signup/sso-callback`), if `handleRedirectCallback` decides "continue signup" but the user's email already exists on a different Clerk user, surface a clear error ("This email is already registered — use email magic-link, or sign in with the matching method") instead of silently bouncing to `/signup`. The error gets logged to Vercel + shown to user.
 
+**5d. /signup pending-OAuth pickup (owner-confirmed scenario, 2026-06-04):** owner reproduced exactly this — signed up originally via magic-link with email A, then tried Google sign-in with email B; OAuth completed successfully, `handleRedirectCallback` correctly routed to `/signup` (continueSignUpUrl), but `/signup` loaded the empty email-entry form instead of picking up the pending signUp state and continuing into onboarding (display name → workspace). The page's mount effect should check `signUp.status` (Clerk's signUp object exposes status after a pending OAuth completion) — when status is `missing_requirements` AND we have an OAuth identity, render the next required step in the onboarding flow rather than the email entry form. Reference: Clerk's docs on custom sign-up flow + OAuth — `signUp.unsafeMetadata` / `signUp.firstName` / `signUp.create({ strategy: 'oauth_google', ... })` continuation pattern. Owner sees "login screen again" today and gives up; the fix routes them properly through display-name → workspace → /studies.
+
 Test additions: a Playwright spec in the gated `auth` project that signs in via Google with an existing test user → asserts landing on `/studies`, not `/signin`.
 
 ### 6. Rework versioning so autosave is "Draft" not v1 (owner-reported, 2026-06-04)
