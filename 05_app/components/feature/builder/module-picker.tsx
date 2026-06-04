@@ -19,7 +19,11 @@ export function ModulePicker({
   onClose: () => void;
   pending: boolean;
 }) {
-  const { data: modules, isLoading } = api.modules.list.useQuery();
+  // Always refetch on open so a stale (e.g. pre-seed empty) cache can't persist.
+  const { data: modules, isLoading } = api.modules.list.useQuery(undefined, {
+    refetchOnMount: "always",
+    staleTime: 0,
+  });
   const [q, setQ] = useState("");
   const [selectedRef, setSelectedRef] = useState<string | null>(null);
 
