@@ -17,19 +17,19 @@ vi.mock("@/server/db/client", async () => {
 });
 
 import { db } from "@/server/db/client";
-import { module, moduleVersion } from "@/server/db/schema";
+import { moduleTable, moduleVersion } from "@/server/db/schema";
 import { seedCoreModules } from "@/server/db/seed-core";
 
 beforeEach(async () => {
   await db.delete(moduleVersion);
-  await db.delete(module);
+  await db.delete(moduleTable);
 });
 
 describe("seedCoreModules", () => {
   it("seeds the core modules with their versions (social-post has v1 + v2)", async () => {
     await seedCoreModules();
 
-    const mods = await db.select().from(module);
+    const mods = await db.select().from(moduleTable);
     expect(mods.map((m) => `${m.source}/${m.key}`).sort()).toEqual([
       "core/attention-check",
       "core/demographics",
@@ -56,7 +56,7 @@ describe("seedCoreModules", () => {
   it("is idempotent across repeated runs", async () => {
     await seedCoreModules();
     await seedCoreModules();
-    expect(await db.select().from(module)).toHaveLength(8);
+    expect(await db.select().from(moduleTable)).toHaveLength(8);
     expect(await db.select().from(moduleVersion)).toHaveLength(9);
   });
 });

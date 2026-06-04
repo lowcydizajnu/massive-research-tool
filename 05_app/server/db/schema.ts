@@ -147,7 +147,13 @@ export const member = pgTable(
 
 /* ---------- module catalogue (data-model 02 / ADR-0012) ---------- */
 
-export const module = pgTable(
+// NB: exported as `moduleTable`, NOT `module` — `module` is the CommonJS module
+// wrapper object, which webpack passes as a parameter to every bundled module
+// factory. A bare imported `module` gets shadowed by that param at runtime, so
+// `module.id` resolves to the numeric webpack module id instead of this table's
+// column (manifested in prod as `module_version.module_id = $1` with $1 = a
+// chunk id, breaking the catalogue query). Always import as `moduleTable`.
+export const moduleTable = pgTable(
   "module",
   {
     id: uuid("id").primaryKey().defaultRandom(),
@@ -170,7 +176,7 @@ export const moduleVersion = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     moduleId: uuid("module_id")
       .notNull()
-      .references(() => module.id),
+      .references(() => moduleTable.id),
     /** Semver, e.g. "1.0.0". */
     version: text("version").notNull(),
     name: text("name").notNull(),
@@ -552,8 +558,8 @@ export type Member = typeof member.$inferSelect;
 export type NewMember = typeof member.$inferInsert;
 export type Experiment = typeof experiment.$inferSelect;
 export type ExperimentVersion = typeof experimentVersion.$inferSelect;
-export type Module = typeof module.$inferSelect;
-export type NewModule = typeof module.$inferInsert;
+export type Module = typeof moduleTable.$inferSelect;
+export type NewModule = typeof moduleTable.$inferInsert;
 export type ModuleVersion = typeof moduleVersion.$inferSelect;
 export type NewModuleVersion = typeof moduleVersion.$inferInsert;
 export type Condition = typeof condition.$inferSelect;
