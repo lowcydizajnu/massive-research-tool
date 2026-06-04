@@ -68,6 +68,20 @@ function SignupFlow() {
     }
   }, [userLoaded, isSignedIn, user, step, router]);
 
+  // 5d: pick up a PENDING OAuth signUp (Google returned but no session yet —
+  // status "missing_requirements") so the user continues onboarding instead of
+  // landing on the empty email form (the "login screen again" dead-end). The
+  // session is finalized at the profile step (handleProfileContinue).
+  useEffect(() => {
+    if (!isLoaded || !signUp || isSignedIn) return;
+    if (signUp.status === "missing_requirements" && step === "identify") {
+      const name = [signUp.firstName, signUp.lastName].filter(Boolean).join(" ").trim();
+      setDisplayName((prev) => prev || name);
+      setEmail((prev) => prev || signUp.emailAddress || "");
+      setStep("profile");
+    }
+  }, [isLoaded, signUp, isSignedIn, step]);
+
   async function handleEmail(e: React.FormEvent) {
     e.preventDefault();
     if (!isLoaded || !signUp) return;
@@ -106,6 +120,42 @@ function SignupFlow() {
       setIdentifyState("error");
       setError(messageFrom(err, "Couldn't start Google sign-in."));
     }
+  }
+
+  // Profile step "Continue". If we arrived via a pending OAuth signUp (no
+  // session yet), finalize the Clerk signUp here so the workspace step runs
+  // with an authenticated session; otherwise just advance.
+  async function handleProfileContinue(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (isLoaded && signUp && !isSignedIn && signUp.status !== "complete") {
+      try {
+        const res = await signUp.update({ firstName: displayName || undefined });
+        if (res.status === "complete" && res.createdSessionId) {
+          await setActive({ session: res.createdSessionId });
+        } else {
+          // 5c: a requirement we don't collect, or the email is already on
+          // another Clerk user — surface it instead of silently bouncing.
+          setStep("identify");
+          setIdentifyState("error");
+          setError(
+            "This email is already registered, or Google didn't share everything we need. Use the email magic-link, or sign in with the method you first used.",
+          );
+          return;
+        }
+      } catch (err) {
+        setStep("identify");
+        setIdentifyState("error");
+        setError(
+          messageFrom(
+            err,
+            "This email may already be registered — try the email magic-link, or sign in instead.",
+          ),
+        );
+        return;
+      }
+    }
+    setStep("workspace");
   }
 
   async function handleFinalize(e: React.FormEvent) {
@@ -220,13 +270,7 @@ function SignupFlow() {
       ) : null}
 
       {step === "profile" ? (
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            setStep("workspace");
-          }}
-          className="flex flex-col gap-5"
-        >
+        <form onSubmit={handleProfileContinue} className="flex flex-col gap-5">
           <label className="flex flex-col gap-1">
             <span className="text-[length:var(--text-label)] uppercase tracking-wide text-[var(--color-text-muted)]">
               Display name
