@@ -2,7 +2,9 @@
 
 V1.7.0 is shipped to production (`https://myresearchlab.app`). Owner's first real session surfaced one concrete UX gap + several known carry-forwards from the deploy audit ([`2026-06-04-v170-production-deploy.md`](../../06_qa/audit-logs/2026-06-04-v170-production-deploy.md)). This handoff bundles them into a V1.7.1 polish PR — small, focused, no new ADRs.
 
-## Scope (4 items; one PR titled `V1.7.1 polish — loading spinners + CI gate fix + version history`)
+## Scope (6 items; one PR titled `V1.7.1 polish — OAuth fix + versioning + spinners + CI + Versions tab`)
+
+> **Two new items added 2026-06-04** after owner's first real session post-V1.7.0 ship surfaced: a Google OAuth sign-in dead-end loop (item 5) + a versioning model intuition gap (item 6 — owner is right; fixing).
 
 ### 1. Loading spinners on primary mutation buttons (highest priority — owner explicitly flagged)
 
@@ -62,7 +64,67 @@ v3 — preregistered (frozen, immutable, submitted to OSF) — 2026-06-04 — DO
 
 Each row links to either the live editing surface (autosave) or the read-only frozen snapshot view. Resolves the "v3 mystery" + provides the version-history affordance per ADR-0002.
 
-### 4. `npm run deploy:verify` smoke against production
+### 5. Fix Google OAuth sign-in dead-end (owner-reported, 2026-06-04)
+
+**Owner reproduced:** "I can go through Google sign-in but at the end I end up at login screen again — no error, nothing." This happens because:
+
+- The only OAuth callback route is `app/(auth)/signup/sso-callback/page.tsx`. Both sign-IN (`/signin` page line 67 → `redirectUrl: "/signup/sso-callback"`) and sign-UP (`/signup` page → same callback) point at it.
+- That callback runs `handleRedirectCallback({ continueSignUpUrl: "/signup" })`. When Clerk decides the OAuth identity needs to "continue signup" (because the user signed up earlier via email magic-link with a Clerk identity that isn't linked to their Google identity, OR Google OAuth consent is in Testing mode and returns insufficient identity), it routes to `/signup`.
+- `/signup` is now the post-commit-`5fcda09` redirect target for unauth visits to `/` — so any user not already in a Clerk session ends up at the signup form. Loop closed.
+
+Three fixes (do all):
+
+**5a. Create a dedicated sign-IN callback route** at `app/(auth)/sso-callback/page.tsx` that uses `handleRedirectCallback` with NO `continueSignUpUrl` (so an existing-session OAuth completion goes to the original `redirectUrlComplete` = `/studies` and doesn't bounce). Update the sign-in page's `redirectUrl` from `"/signup/sso-callback"` to `"/sso-callback"`.
+
+**5b. Enable identity linking** so signing in via Google with the same email as an existing magic-link user merges the identities rather than creating a separate Clerk user. In Clerk Dashboard → User & Authentication → "Identity verification" (or wherever account-linking lives in the current Clerk UI) → enable "Use email as a verified factor for existing accounts." Document the dashboard step in `04_architecture/handoffs/` so future deploys remember it.
+
+**5c. Diagnostic shim:** in the sign-up callback (`/signup/sso-callback`), if `handleRedirectCallback` decides "continue signup" but the user's email already exists on a different Clerk user, surface a clear error ("This email is already registered — use email magic-link, or sign in with the matching method") instead of silently bouncing to `/signup`. The error gets logged to Vercel + shown to user.
+
+Test additions: a Playwright spec in the gated `auth` project that signs in via Google with an existing test user → asserts landing on `/studies`, not `/signin`.
+
+### 6. Rework versioning so autosave is "Draft" not v1 (owner-reported, 2026-06-04)
+
+**Owner-reported:** "versioning should be conscious user decision not automatically like now, it is easy to end up with something like v425 with autosave."
+
+Owner's intuition is right + the current behavior is mildly worse than the design implies. The code bumps `versionNumber = max+1` across ALL kinds (autosave + named + preregistered + published). So v1 is the autosave (mutable working tip, never gets a "name"), and v2+ are conscious saves. Owner's first Preregister was v3 because she had v1 autosave + v2 (likely from her earlier stuck-pending preregister retry) + v3 current.
+
+**The fix — version_number bumps only on conscious save actions (named / preregistered / published); autosave stays unnumbered.**
+
+Code change in `server/trpc/routers/studies.ts` — currently 3 sites do `(latest?.n ?? 0) + 1`:
+- Line ~840 in `saveAsNamed`
+- Line ~935 in `publish`
+- Line ~1007 in `preregister`
+
+Replace each with a `count()` over conscious kinds only:
+
+```ts
+import { count, inArray } from "drizzle-orm";
+
+const [counted] = await ctx.db
+  .select({ c: count() })
+  .from(experimentVersion)
+  .where(and(
+    eq(experimentVersion.experimentId, exp.id),
+    inArray(experimentVersion.kind, ["named", "preregistered", "published"]),
+  ));
+const nextNumber = (counted?.c ?? 0) + 1;
+```
+
+Autosave initialization (lines ~1503, ~1550 in `studies.create` + the fork path) should set `versionNumber: 0` (or null — pick one; 0 is simpler and matches "before v1" semantics) instead of 1.
+
+UI labels in the Versions sub-tab (item 3 of this PR) + the Preregister/Publish/Save dialogs:
+- Autosave row: **"Draft"** (no number)
+- Named: **"v1 — {name}"**, **"v2 — {name}"**, …
+- Preregistered: **"Preregistration v1"**, **"v2"**, …
+- Published: **"Published v1"**, **"v2"**, …
+
+ADR-0012 amendment: append a "2026-06-04 amendment — versionNumber semantics" section recording: autosave's `versionNumber` is 0 (or null), bumping starts at 1 with the first conscious snapshot, count-not-max protects against accidental skips if a snapshot is ever deleted (none currently are, but the semantics are cleaner).
+
+Migration: existing production data (the few studies owner has created) has v1 = autosave with versionNumber=1, v2/v3 = preregister/publish/named with versionNumber=2,3. After this change, EXISTING rows keep their numbers (we don't backfill) but NEW studies start cleanly. Add a one-paragraph note to the V1.7.1 audit log about the inconsistency for owner's existing studies (cosmetic; the version-history sub-tab labels each by kind so the gap isn't confusing).
+
+Test additions: a unit test asserting that for a fresh study, `saveAsNamed` first → versionNumber=1; then preregister → versionNumber=2; autosave updates between never bump.
+
+### 7. `npm run deploy:verify` smoke against production
 
 Skipped this deploy turn (owner ran manual smoke instead). Document the procedure for next deploy (V1.7.1 ship) — run `deploy:verify` after the build is green; aggregate axe + e2e + smoke into a one-screen report.
 
