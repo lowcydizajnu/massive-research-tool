@@ -58,16 +58,20 @@ export function VersionsPanel({ studyId }: { studyId: string }) {
             key={v.id}
             className={cn(
               "flex flex-col gap-0.5 rounded-[var(--radius-md)] border p-3",
-              v.isCurrent
+              v.isWorkingCopy
                 ? "border-l-2 border-l-[var(--color-primary)] border-[var(--color-border-subtle)]"
                 : "border-[var(--color-border-subtle)]",
             )}
           >
             <span className="flex items-center gap-2 text-[length:var(--text-body)] text-[var(--color-text-primary)]">
               {label(v)}
-              {v.isCurrent ? (
+              {v.isWorkingCopy ? (
                 <span className="rounded-full bg-[var(--color-primary-subtle)] px-1.5 py-0.5 text-[length:var(--text-small)] text-[var(--color-primary-text-on-subtle)]">
-                  current
+                  {v.hasUnsavedChanges ? "Unsaved changes" : "Working copy"}
+                </span>
+              ) : v.isLatestSaved ? (
+                <span className="rounded-full bg-[var(--color-surface-subtle)] px-1.5 py-0.5 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+                  Latest saved
                 </span>
               ) : null}
             </span>

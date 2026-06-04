@@ -350,7 +350,12 @@ export type StudyVersion = {
   versionNumber: number;
   name: string | null;
   createdAt: string;
-  isCurrent: boolean;
+  /** True for the autosave row — the live, editable working copy (the tip). */
+  isWorkingCopy: boolean;
+  /** True for the most recent conscious (frozen) save, if any. */
+  isLatestSaved: boolean;
+  /** True when the working copy's blocks differ from the latest frozen save. */
+  hasUnsavedChanges: boolean;
   pushStatus: string | null;
   doi: string | null;
 };
@@ -621,6 +626,7 @@ export const studiesRouter = router({
           versionNumber: experimentVersion.versionNumber,
           name: experimentVersion.name,
           createdAt: experimentVersion.createdAt,
+          snapshot: experimentVersion.definitionSnapshot,
           pushStatus: experimentVersion.registryPushStatus,
           doi: experimentVersion.externalRegistrationDoi,
         })
@@ -628,13 +634,25 @@ export const studiesRouter = router({
         .where(eq(experimentVersion.experimentId, input.studyId))
         .orderBy(experimentVersion.createdAt);
 
+      // The working copy is the autosave tip; the latest saved is the newest
+      // frozen (conscious) save. "Unsaved changes" = the tip's blocks differ
+      // from that latest frozen snapshot.
+      const working = rows.find((r) => r.kind === "autosave");
+      const frozen = rows.filter((r) => r.kind !== "autosave");
+      const latestSaved = frozen.length ? frozen[frozen.length - 1] : undefined;
+      const blocksKey = (snap: unknown) => JSON.stringify(readBlocks(snap));
+      const hasUnsavedChanges =
+        !!working && !!latestSaved && blocksKey(working.snapshot) !== blocksKey(latestSaved.snapshot);
+
       return rows.map((r) => ({
         id: r.id,
         kind: r.kind,
         versionNumber: r.versionNumber,
         name: r.name,
         createdAt: r.createdAt.toISOString(),
-        isCurrent: r.id === exp.currentVersionId,
+        isWorkingCopy: r.kind === "autosave",
+        isLatestSaved: !!latestSaved && r.id === latestSaved.id,
+        hasUnsavedChanges: r.kind === "autosave" ? hasUnsavedChanges : false,
         pushStatus: r.pushStatus ?? null,
         doi: r.doi ?? null,
       }));
