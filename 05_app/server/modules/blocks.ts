@@ -11,6 +11,12 @@ export type BlockInstance = {
   version: string;
   config: Record<string, unknown>;
   /**
+   * Optional researcher-set label for this block instance (distinct from the
+   * module type). Absent = fall back to the module's display name. Stored in the
+   * blocks JSON (no migration); never shown to participants.
+   */
+  title?: string;
+  /**
    * Optional condition-visibility rule (ADR-0014). Absent / empty = shown to
    * every condition. Values are condition *slugs* (stable across the preregister
    * snapshot copy). The participant runtime enforces this server-side.

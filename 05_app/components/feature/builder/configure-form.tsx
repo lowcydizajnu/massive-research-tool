@@ -23,24 +23,39 @@ function humanize(key: string): string {
 export function ConfigureForm({
   block,
   onChange,
+  onRename,
   onRemove,
   pending,
 }: {
   block: StudyBlock;
   onChange: (config: Record<string, unknown>) => void;
+  /** Commit a researcher-set block title (blank clears it → falls back to the type name). */
+  onRename?: (title: string) => void;
   onRemove: () => void;
   pending: boolean;
 }) {
   const [draft, setDraft] = useState<Record<string, unknown>>(block.config);
+  const [title, setTitle] = useState<string>(block.title ?? "");
 
   return (
     <div className="flex flex-col gap-4">
-      <div>
-        <h2 className="font-serif text-[17px] font-medium text-[var(--color-text-primary)]">
-          Configure
-        </h2>
+      <div className="flex flex-col gap-1">
+        <span className="text-[length:var(--text-label)] uppercase tracking-wide text-[var(--color-text-muted)]">
+          Block title
+        </span>
+        <input
+          type="text"
+          value={title}
+          placeholder={block.name}
+          onChange={(e) => setTitle(e.target.value)}
+          onBlur={() => {
+            const next = title.trim();
+            if (next !== (block.title ?? "")) onRename?.(next);
+          }}
+          className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-1 font-serif text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+        />
         <p className="font-mono text-[length:var(--text-mono)] text-[var(--color-text-muted)]">
-          {block.ref}
+          {block.key} · {block.version}
         </p>
       </div>
 
