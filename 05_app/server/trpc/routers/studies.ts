@@ -446,6 +446,19 @@ export type BrowseStudyCard = {
 
 export type BrowsePage = { items: BrowseStudyCard[]; nextCursor: string | null };
 
+/** Read-only public study detail for `/browse/[studyId]` (ADR-0018). */
+export type PublicStudyDetail = {
+  studyId: string;
+  title: string;
+  authorId: string;
+  authorName: string;
+  tags: string[];
+  latestKind: "published" | "preregistered";
+  latestVersionNumber: number;
+  replicationCount: number;
+  blocks: VersionPreviewBlock[];
+};
+
 /** Tag + usage count for the Browse filter sidebar. */
 export type BrowseTag = { tag: string; count: number };
 
@@ -566,6 +579,73 @@ export const studiesRouter = router({
           createdAt: r.createdAt.toISOString(),
         })),
         nextCursor,
+      };
+    }),
+
+  /**
+   * Read-only detail for one public study (the `/browse/[studyId]` page). Public
+   * — cross-tenant, so it can't reuse the workspace-scoped `getVersion`. Returns
+   * the latest published/preregistered version's blocks read-only. NOT_FOUND if
+   * the study isn't public or has no frozen version.
+   */
+  getPublicStudy: publicProcedure
+    .input(z.object({ studyId: z.string().uuid() }))
+    .query(async ({ input }): Promise<PublicStudyDetail> => {
+      const [exp] = await db
+        .select({
+          id: experiment.id,
+          title: experiment.title,
+          authorId: experiment.ownerId,
+          authorName: user.displayName,
+          tags: experiment.tags,
+        })
+        .from(experiment)
+        .innerJoin(user, eq(user.id, experiment.ownerId))
+        .where(
+          and(
+            eq(experiment.id, input.studyId),
+            eq(experiment.forkableBy, "public"),
+            isNull(experiment.archivedAt),
+          ),
+        )
+        .limit(1);
+      if (!exp) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const [ver] = await db
+        .select({
+          kind: experimentVersion.kind,
+          versionNumber: experimentVersion.versionNumber,
+          snapshot: experimentVersion.definitionSnapshot,
+        })
+        .from(experimentVersion)
+        .where(
+          and(
+            eq(experimentVersion.experimentId, input.studyId),
+            inArray(experimentVersion.kind, ["published", "preregistered"]),
+          ),
+        )
+        .orderBy(desc(experimentVersion.versionNumber))
+        .limit(1);
+      if (!ver) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const [reps] = await db
+        .select({ c: count() })
+        .from(experiment)
+        .where(eq(experiment.forkOfExperimentId, input.studyId));
+
+      return {
+        studyId: exp.id,
+        title: exp.title,
+        authorId: exp.authorId,
+        authorName: exp.authorName ?? "",
+        tags: exp.tags ?? [],
+        latestKind: ver.kind as "published" | "preregistered",
+        latestVersionNumber: ver.versionNumber,
+        replicationCount: reps?.c ?? 0,
+        blocks: readBlocks(ver.snapshot).map((b) => {
+          const d = blockDisplay(b);
+          return { instanceId: b.instanceId, name: d.name, ref: d.ref, complete: d.complete };
+        }),
       };
     }),
 
