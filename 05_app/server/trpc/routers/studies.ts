@@ -340,6 +340,8 @@ export type WhiteboardViewport = {
   x?: number;
   y?: number;
   zoom?: number;
+  /** Per-node canvas positions keyed by node id (block instanceId or `cond:slug`). */
+  nodePositions?: Record<string, { x: number; y: number }>;
 };
 
 /** A node in a study's replication family (ADR-0018). `diff` is withheld (null) when the caller can't see the other study's protocol. */
@@ -844,23 +846,38 @@ export const studiesRouter = router({
     .input(
       z.object({
         studyId: z.string().uuid(),
-        viewport: z.object({
-          x: z.number(),
-          y: z.number(),
-          zoom: z.number(),
-        }),
+        viewport: z.object({ x: z.number(), y: z.number(), zoom: z.number() }).optional(),
+        // Per-node positions to merge (drag-to-move persistence). Keyed by node id.
+        nodePositions: z
+          .record(z.string(), z.object({ x: z.number(), y: z.number() }))
+          .optional(),
       }),
     )
     .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
       const [exp] = await db
-        .select({ currentVersionId: experiment.currentVersionId })
+        .select({
+          currentVersionId: experiment.currentVersionId,
+        })
         .from(experiment)
         .where(and(eq(experiment.id, input.studyId), eq(experiment.tenantId, ctx.workspace.id)))
         .limit(1);
       if (!exp?.currentVersionId) throw new TRPCError({ code: "NOT_FOUND" });
+
+      // Read-modify-write so pan/zoom and node positions persist independently.
+      const [cur] = await db
+        .select({ vp: experimentVersion.whiteboardViewport })
+        .from(experimentVersion)
+        .where(eq(experimentVersion.id, exp.currentVersionId))
+        .limit(1);
+      const prev = (cur?.vp as WhiteboardViewport | null) ?? {};
+      const next: WhiteboardViewport = {
+        ...prev,
+        ...(input.viewport ?? {}),
+        nodePositions: { ...(prev.nodePositions ?? {}), ...(input.nodePositions ?? {}) },
+      };
       await db
         .update(experimentVersion)
-        .set({ whiteboardViewport: input.viewport })
+        .set({ whiteboardViewport: next })
         .where(eq(experimentVersion.id, exp.currentVersionId));
       return { ok: true };
     }),
