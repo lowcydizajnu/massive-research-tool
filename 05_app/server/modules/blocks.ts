@@ -23,12 +23,18 @@ export type BlockInstance = {
    */
   visibility?: { showIfCondition?: string[] };
   /**
-   * Optional answer-based branching rules (ADR-0021). Absent / empty = shown
-   * regardless of answers. Present = shown only if AT LEAST ONE rule matches —
-   * the participant's recorded answer to `fromInstanceId` equals `equals`. Rules
-   * reference *earlier* blocks. Combines with `visibility` (both must pass).
+   * Legacy equality branch rules (ADR-0021, pre-amendment). Superseded by
+   * `showIf`; still read for back-compat (converted to an OR group). New writes
+   * use `showIf`.
    */
   branchRules?: { fromInstanceId: string; equals: string }[];
+  /**
+   * Answer-based visibility condition (ADR-0021 amendment) — a type-aware AND/OR
+   * tree over earlier blocks' answers. Absent = shown regardless (flat).
+   * Combines with `visibility` arm rules (both must pass). The model + evaluator
+   * live in `lib/whiteboard/conditions.ts`.
+   */
+  showIf?: import("@/lib/whiteboard/conditions").ConditionGroup;
 };
 
 export type ModuleLock = { source: string; key: string; version: string };

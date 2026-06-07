@@ -10,6 +10,7 @@ import {
   response,
   responseItem,
 } from "@/server/db/schema";
+import { evaluateCondition, normalizeCondition } from "@/lib/whiteboard/conditions";
 import { readBlocks, type BlockInstance } from "@/server/modules/blocks";
 import { getModuleDef } from "@/server/modules/registry";
 
@@ -72,17 +73,13 @@ export function answerMatches(answer: unknown, equals: string): boolean {
 }
 
 /**
- * Answer-based branch visibility (ADR-0021): no rules → always; otherwise shown
- * only if AT LEAST ONE rule's source block has a recorded answer equal to the
- * rule value. Rules reference earlier blocks, so their answers exist by the time
- * the dependent block is reached.
+ * Answer-based visibility (ADR-0021 + amendment): evaluate the block's `showIf`
+ * condition tree (or legacy `branchRules`, converted) against the answers
+ * recorded so far. Flat / absent → always visible. Rules reference earlier
+ * blocks, so their answers exist by the time the dependent block is reached.
  */
 function branchVisible(block: RuntimeBlock, answers: Record<string, unknown>): boolean {
-  const rules = block.branchRules;
-  if (!rules || rules.length === 0) return true;
-  return rules.some(
-    (r) => r.fromInstanceId in answers && answerMatches(answers[r.fromInstanceId], r.equals),
-  );
+  return evaluateCondition(normalizeCondition(block.showIf, block.branchRules), answers);
 }
 
 /**
