@@ -1,0 +1,1 @@
+ALTER TABLE "experiment_version" ADD COLUMN "whiteboard_viewport" jsonb DEFAULT '{}'::jsonb NOT NULL;
