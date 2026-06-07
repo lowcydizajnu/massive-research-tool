@@ -45,6 +45,22 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
   const removeBlock = api.studies.removeBlock.useMutation({ onSuccess: () => void invalidate() });
   const updateConfig = api.studies.updateBlockConfig.useMutation({ onSuccess: () => void invalidate() });
 
+  // Conditions drive the canvas wires (drag a Condition node → a block to gate it).
+  const conditions = api.studies.listConditions.useQuery({ studyId: study.id });
+  const setVisibility = api.studies.setBlockVisibility.useMutation({ onSuccess: () => void invalidate() });
+  const setBlockConditions = (instanceId: string, showIfCondition: string[]) =>
+    setVisibility.mutate({ studyId: study.id, instanceId, showIfCondition });
+  const connectCondition = (blockId: string, slug: string) => {
+    const b = study.blocks.find((x) => x.instanceId === blockId);
+    if (!b || b.showIfCondition.includes(slug)) return;
+    setBlockConditions(blockId, [...b.showIfCondition, slug]);
+  };
+  const disconnectCondition = (blockId: string, slug: string) => {
+    const b = study.blocks.find((x) => x.instanceId === blockId);
+    if (!b) return;
+    setBlockConditions(blockId, b.showIfCondition.filter((s) => s !== slug));
+  };
+
   const selected = study.blocks.find((b) => b.instanceId === selectedId) ?? null;
 
   // Keep selection valid if a block disappears (e.g. removed).
@@ -115,11 +131,21 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
           </div>
 
           {view === "canvas" ? (
-            <WhiteboardCanvas
-              study={study}
-              selectedId={selectedId}
-              onSelectBlock={setSelectedId}
-            />
+            <>
+              <WhiteboardCanvas
+                study={study}
+                conditions={(conditions.data ?? []).map((c) => ({ slug: c.slug, name: c.name }))}
+                selectedId={selectedId}
+                onSelectBlock={setSelectedId}
+                onConnectCondition={connectCondition}
+                onDisconnectCondition={disconnectCondition}
+              />
+              <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                {(conditions.data ?? []).length === 0
+                  ? "Tip: add conditions in Builder’s Conditions section to wire visibility rules here."
+                  : "Drag a wire from a Condition node to a block to show it only for that condition; select a wire and press Delete to remove it."}
+              </p>
+            </>
           ) : (
             <WhiteboardList
               blocks={study.blocks}
