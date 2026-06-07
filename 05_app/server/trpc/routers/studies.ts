@@ -320,6 +320,8 @@ export type StudyBlock = {
   complete: boolean;
   /** Condition slugs this block is gated to; empty = shown to everyone. */
   showIfCondition: string[];
+  /** Answer-based branch rules (ADR-0021): show only if a prior answer matches. */
+  branchRules: { fromInstanceId: string; equals: string }[];
 };
 
 export type StudyDetail = {
@@ -821,6 +823,7 @@ export const studiesRouter = router({
           config: b.config,
           complete: d.complete,
           showIfCondition: b.visibility?.showIfCondition ?? [],
+          branchRules: b.branchRules ?? [],
         };
       });
 
@@ -1293,6 +1296,44 @@ export const studiesRouter = router({
       const next = { ...blocks[idx] };
       if (input.title) next.title = input.title;
       else delete next.title;
+      blocks[idx] = next;
+      await writeBlocks(tip.version.id, input.studyId, blocks);
+      return { ok: true };
+    }),
+
+  /**
+   * Set a block's answer-based branch rules (ADR-0021). Each rule shows this
+   * block when the participant's answer to `fromInstanceId` equals `equals`
+   * (OR across rules). Sources must be other existing blocks (no self-ref).
+   * Empty array clears branching.
+   */
+  setBlockBranching: writeProcedure
+    .input(
+      z.object({
+        studyId: z.string().uuid(),
+        instanceId: z.string(),
+        branchRules: z
+          .array(z.object({ fromInstanceId: z.string(), equals: z.string() }))
+          .max(50),
+      }),
+    )
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+      const blocks = readBlocks(tip.version.definitionSnapshot);
+      const idx = blocks.findIndex((b) => b.instanceId === input.instanceId);
+      if (idx === -1) throw new TRPCError({ code: "NOT_FOUND" });
+      const ids = new Set(blocks.map((b) => b.instanceId));
+      for (const r of input.branchRules) {
+        if (r.fromInstanceId === input.instanceId) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "A block can't branch from itself." });
+        }
+        if (!ids.has(r.fromInstanceId)) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Unknown source block." });
+        }
+      }
+      const next = { ...blocks[idx] };
+      if (input.branchRules.length) next.branchRules = input.branchRules;
+      else delete next.branchRules;
       blocks[idx] = next;
       await writeBlocks(tip.version.id, input.studyId, blocks);
       return { ok: true };
