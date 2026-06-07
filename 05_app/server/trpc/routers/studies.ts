@@ -1252,6 +1252,30 @@ export const studiesRouter = router({
       return { ok: true };
     }),
 
+  /**
+   * Reorder the blocks to match `order` (a permutation of the study's block
+   * instanceIds). Drives drag-to-reorder in the Builder + whiteboard list. The
+   * block sequence is the participant path's spine (ADR-0021 amendment).
+   */
+  reorderBlocks: writeProcedure
+    .input(z.object({ studyId: z.string().uuid(), order: z.array(z.string()) }))
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+      const blocks = readBlocks(tip.version.definitionSnapshot);
+      const byId = new Map(blocks.map((b) => [b.instanceId, b]));
+      // Must be a permutation — same id set, no dupes/unknowns — else reject.
+      if (
+        input.order.length !== blocks.length ||
+        new Set(input.order).size !== input.order.length ||
+        input.order.some((id) => !byId.has(id))
+      ) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid block order." });
+      }
+      const reordered = input.order.map((id) => byId.get(id)!);
+      await writeBlocks(tip.version.id, input.studyId, reordered);
+      return { ok: true };
+    }),
+
   /** Update a block's config (validated against its module schema, ADR-0012). */
   updateBlockConfig: writeProcedure
     .input(

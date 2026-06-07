@@ -1,7 +1,9 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { GripVertical, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
+
+import { move } from "@/lib/whiteboard/reorder";
 
 import { StageTabs } from "@/components/chrome/stage-tabs";
 import { ModeToggle } from "./mode-toggle";
@@ -89,6 +91,16 @@ export function BuilderWorkspace({
     onSuccess: () => void invalidate(),
   });
   const renameBlock = api.studies.setBlockTitle.useMutation({ onSuccess: () => void invalidate() });
+  const reorderBlocks = api.studies.reorderBlocks.useMutation({ onSuccess: () => void invalidate() });
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const dropAt = (to: number) => {
+    if (dragIdx === null || dragIdx === to) return setDragIdx(null);
+    reorderBlocks.mutate({
+      studyId: study.id,
+      order: move(study.blocks, dragIdx, to).map((b) => b.instanceId),
+    });
+    setDragIdx(null);
+  };
 
   const selected = study.blocks.find((b) => b.instanceId === selectedId) ?? null;
 
@@ -139,13 +151,29 @@ export function BuilderWorkspace({
               </p>
             ) : (
               <ul className="flex flex-col gap-2">
-                {study.blocks.map((b) => (
-                  <li key={b.instanceId}>
-                    <BlockCard
-                      block={b}
-                      selected={b.instanceId === selectedId}
-                      onSelect={() => setSelectedId(b.instanceId)}
-                    />
+                {study.blocks.map((b, i) => (
+                  <li
+                    key={b.instanceId}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={() => dropAt(i)}
+                    className={cn("flex items-stretch gap-1", dragIdx === i && "opacity-50")}
+                  >
+                    <span
+                      draggable
+                      onDragStart={() => setDragIdx(i)}
+                      onDragEnd={() => setDragIdx(null)}
+                      aria-label="Drag to reorder"
+                      className="flex shrink-0 cursor-grab items-center rounded-[var(--radius-md)] px-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)] active:cursor-grabbing"
+                    >
+                      <GripVertical className="size-4" aria-hidden />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <BlockCard
+                        block={b}
+                        selected={b.instanceId === selectedId}
+                        onSelect={() => setSelectedId(b.instanceId)}
+                      />
+                    </div>
                   </li>
                 ))}
               </ul>

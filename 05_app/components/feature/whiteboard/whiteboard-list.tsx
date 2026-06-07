@@ -1,5 +1,9 @@
 "use client";
 
+import { GripVertical } from "lucide-react";
+import { useState } from "react";
+
+import { move } from "@/lib/whiteboard/reorder";
 import { cn } from "@/lib/utils";
 import type { StudyBlock } from "@/server/trpc/routers/studies";
 
@@ -13,11 +17,20 @@ export function WhiteboardList({
   blocks,
   selectedId,
   onSelect,
+  onReorder,
 }: {
   blocks: StudyBlock[];
   selectedId: string | null;
   onSelect: (instanceId: string) => void;
+  /** Commit a new block order (drag-to-reorder). */
+  onReorder?: (order: string[]) => void;
 }) {
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const drop = (to: number) => {
+    if (dragIdx === null || dragIdx === to) return setDragIdx(null);
+    onReorder?.(move(blocks, dragIdx, to).map((b) => b.instanceId));
+    setDragIdx(null);
+  };
   if (blocks.length === 0) {
     return (
       <div className="flex h-[60vh] items-center justify-center rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)]">
@@ -32,22 +45,39 @@ export function WhiteboardList({
       {blocks.map((b, i) => {
         const active = b.instanceId === selectedId;
         return (
-          <li key={b.instanceId}>
-            <button
-              type="button"
-              aria-current={active ? "true" : undefined}
-              onClick={() => onSelect(b.instanceId)}
+          <li
+            key={b.instanceId}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={() => drop(i)}
+            className={cn("rounded-[var(--radius-md)]", dragIdx === i && "opacity-50")}
+          >
+            <div
               className={cn(
-                "flex w-full flex-col items-start gap-0.5 rounded-[var(--radius-md)] border p-3 text-left",
+                "flex items-stretch gap-1 rounded-[var(--radius-md)] border",
                 active
                   ? "border-l-2 border-l-[var(--color-primary)] border-[var(--color-border-subtle)] bg-[var(--color-primary-subtle)]"
                   : "border-[var(--color-border-subtle)] hover:bg-[var(--color-surface-subtle)]",
               )}
             >
-              <span className="flex items-center gap-2">
-                <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-                  {i + 1}.
-                </span>
+              <span
+                draggable
+                onDragStart={() => setDragIdx(i)}
+                onDragEnd={() => setDragIdx(null)}
+                aria-label="Drag to reorder"
+                className="flex cursor-grab items-center px-1 text-[var(--color-text-muted)] active:cursor-grabbing"
+              >
+                <GripVertical className="size-4" aria-hidden />
+              </span>
+              <button
+                type="button"
+                aria-current={active ? "true" : undefined}
+                onClick={() => onSelect(b.instanceId)}
+                className="flex w-full flex-col items-start gap-0.5 p-3 text-left"
+              >
+                <span className="flex items-center gap-2">
+                  <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                    {i + 1}.
+                  </span>
                 <span className="font-serif text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">
                   {b.title?.trim() || b.name}
                 </span>
@@ -65,7 +95,8 @@ export function WhiteboardList({
                   Shown only if: {b.showIfCondition.join(", ")}
                 </span>
               ) : null}
-            </button>
+              </button>
+            </div>
           </li>
         );
       })}
