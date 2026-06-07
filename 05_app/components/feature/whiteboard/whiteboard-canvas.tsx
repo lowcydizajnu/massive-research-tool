@@ -42,6 +42,8 @@ export function WhiteboardCanvas({
   onSelectBlock,
   onConnectCondition,
   onDisconnectCondition,
+  onConnectBranch,
+  onDisconnectBranch,
 }: {
   study: StudyDetail;
   conditions: WhiteboardCondition[];
@@ -49,6 +51,9 @@ export function WhiteboardCanvas({
   onSelectBlock?: (instanceId: string | null) => void;
   onConnectCondition?: (blockId: string, slug: string) => void;
   onDisconnectCondition?: (blockId: string, slug: string) => void;
+  /** Wire block→block: show `targetId` only if `sourceId`'s answer matches (ADR-0021). */
+  onConnectBranch?: (targetId: string, sourceId: string) => void;
+  onDisconnectBranch?: (targetId: string, sourceId: string) => void;
 }) {
   const saved = study.whiteboardViewport.nodePositions ?? {};
   const condName = useMemo(() => {
@@ -84,8 +89,9 @@ export function WhiteboardCanvas({
   }, [study.blocks, conditions, selectedId, JSON.stringify(saved), condName]);
 
   const computedEdges = useMemo<Edge[]>(
-    () =>
-      study.blocks.flatMap((b) =>
+    () => [
+      // Condition-arm wires (Condition node → block).
+      ...study.blocks.flatMap((b) =>
         b.showIfCondition.map((slug) => ({
           id: `e:${slug}->${b.instanceId}`,
           source: conditionNodeId(slug),
@@ -93,6 +99,18 @@ export function WhiteboardCanvas({
           markerEnd: { type: MarkerType.ArrowClosed },
         })),
       ),
+      // Answer-based branch wires (block → block), labelled with the trigger value.
+      ...study.blocks.flatMap((b) =>
+        (b.branchRules ?? []).map((r) => ({
+          id: `b:${r.fromInstanceId}->${b.instanceId}`,
+          source: r.fromInstanceId,
+          target: b.instanceId,
+          label: `= ${r.equals}`,
+          markerEnd: { type: MarkerType.ArrowClosed },
+          style: { stroke: "var(--color-primary)" },
+        })),
+      ),
+    ],
     [study.blocks],
   );
 
@@ -123,26 +141,33 @@ export function WhiteboardCanvas({
     (c: Connection | Edge) =>
       typeof c.source === "string" &&
       typeof c.target === "string" &&
-      c.source.startsWith(COND_PREFIX) &&
-      !c.target.startsWith(COND_PREFIX),
+      // Target is always a block; source is a Condition (arm) or another block (branch).
+      !c.target.startsWith(COND_PREFIX) &&
+      c.source !== c.target,
     [],
   );
   const onConnect = useCallback(
     (c: Connection) => {
-      if (!c.source || !c.target || !c.source.startsWith(COND_PREFIX)) return;
-      onConnectCondition?.(c.target, c.source.slice(COND_PREFIX.length));
+      if (!c.source || !c.target || c.target.startsWith(COND_PREFIX)) return;
+      if (c.source.startsWith(COND_PREFIX)) {
+        onConnectCondition?.(c.target, c.source.slice(COND_PREFIX.length));
+      } else if (c.source !== c.target) {
+        onConnectBranch?.(c.target, c.source); // block → block
+      }
     },
-    [onConnectCondition],
+    [onConnectCondition, onConnectBranch],
   );
   const onEdgesDelete = useCallback(
     (deleted: Edge[]) => {
       for (const e of deleted) {
         if (e.source.startsWith(COND_PREFIX)) {
           onDisconnectCondition?.(e.target, e.source.slice(COND_PREFIX.length));
+        } else {
+          onDisconnectBranch?.(e.target, e.source); // block → block branch wire
         }
       }
     },
-    [onDisconnectCondition],
+    [onDisconnectCondition, onDisconnectBranch],
   );
 
   const vp = study.whiteboardViewport;

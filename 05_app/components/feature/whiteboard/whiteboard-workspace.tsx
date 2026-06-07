@@ -62,6 +62,35 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
     setBlockConditions(blockId, b.showIfCondition.filter((s) => s !== slug));
   };
 
+  // Answer-based branching (ADR-0021): wire source-block → target-block, gated
+  // on the source's answer value (captured via a prompt at connect time).
+  const setBranching = api.studies.setBlockBranching.useMutation({ onSuccess: () => void invalidate() });
+  const connectBranch = (targetId: string, sourceId: string) => {
+    const target = study.blocks.find((x) => x.instanceId === targetId);
+    const source = study.blocks.find((x) => x.instanceId === sourceId);
+    if (!target || !source) return;
+    const value = window
+      .prompt(`Show "${target.title?.trim() || target.name}" only if the answer to "${source.title?.trim() || source.name}" equals:`)
+      ?.trim();
+    if (!value) return;
+    const existing = target.branchRules ?? [];
+    if (existing.some((r) => r.fromInstanceId === sourceId && r.equals === value)) return;
+    setBranching.mutate({
+      studyId: study.id,
+      instanceId: targetId,
+      branchRules: [...existing, { fromInstanceId: sourceId, equals: value }],
+    });
+  };
+  const disconnectBranch = (targetId: string, sourceId: string) => {
+    const target = study.blocks.find((x) => x.instanceId === targetId);
+    if (!target) return;
+    setBranching.mutate({
+      studyId: study.id,
+      instanceId: targetId,
+      branchRules: (target.branchRules ?? []).filter((r) => r.fromInstanceId !== sourceId),
+    });
+  };
+
   const selected = study.blocks.find((b) => b.instanceId === selectedId) ?? null;
 
   // Keep selection valid if a block disappears (e.g. removed).
@@ -140,11 +169,14 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
                 onSelectBlock={setSelectedId}
                 onConnectCondition={connectCondition}
                 onDisconnectCondition={disconnectCondition}
+                onConnectBranch={connectBranch}
+                onDisconnectBranch={disconnectBranch}
               />
               <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                {"Drag a wire from one block to another to branch on its answer (you’ll set the trigger value); or from a Condition node to a block to gate it by arm. Select a wire and press Delete to remove it."}
                 {(conditions.data ?? []).length === 0
-                  ? "Tip: add conditions in Builder’s Conditions section to wire visibility rules here."
-                  : "Drag a wire from a Condition node to a block to show it only for that condition; select a wire and press Delete to remove it."}
+                  ? " Add conditions in Builder’s Conditions section to wire arm-visibility too."
+                  : ""}
               </p>
             </>
           ) : (
