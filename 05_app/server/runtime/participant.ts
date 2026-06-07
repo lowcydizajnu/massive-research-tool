@@ -34,9 +34,80 @@ function isVisible(block: RuntimeBlock, conditionSlug: string): boolean {
   return !gate || gate.length === 0 || gate.includes(conditionSlug);
 }
 
-/** The blocks a participant in `conditionSlug` actually sees, in order. */
+/** The blocks a participant in `conditionSlug` actually sees, in order (arm only). */
 export function visibleBlocks(snapshot: unknown, conditionSlug: string): RuntimeBlock[] {
   return (readBlocks(snapshot) as RuntimeBlock[]).filter((b) => isVisible(b, conditionSlug));
+}
+
+/**
+ * The comparable string value(s) of a recorded answer, normalized across module
+ * shapes (likert/slider `{value}`, free-text `{text}`, multi-select `{selected:[]}`
+ * or a bare array, scalars). Used for branch-rule equality (ADR-0021).
+ */
+export function answerValues(answer: unknown): string[] {
+  if (answer == null) return [];
+  if (Array.isArray(answer)) return answer.map((a) => String(a));
+  if (typeof answer === "object") {
+    const o = answer as Record<string, unknown>;
+    const out: string[] = [];
+    for (const k of ["value", "text", "selected", "choice", "rank", "options"]) {
+      const v = o[k];
+      if (Array.isArray(v)) out.push(...v.map((x) => String(x)));
+      else if (v != null && typeof v !== "object") out.push(String(v));
+    }
+    if (out.length === 0) {
+      for (const v of Object.values(o)) {
+        if (v != null && typeof v !== "object") out.push(String(v));
+        else if (Array.isArray(v)) out.push(...v.map((x) => String(x)));
+      }
+    }
+    return out;
+  }
+  return [String(answer)];
+}
+
+/** Does a recorded answer satisfy a branch rule's equality (ADR-0021)? */
+export function answerMatches(answer: unknown, equals: string): boolean {
+  return answerValues(answer).includes(equals);
+}
+
+/**
+ * Answer-based branch visibility (ADR-0021): no rules → always; otherwise shown
+ * only if AT LEAST ONE rule's source block has a recorded answer equal to the
+ * rule value. Rules reference earlier blocks, so their answers exist by the time
+ * the dependent block is reached.
+ */
+function branchVisible(block: RuntimeBlock, answers: Record<string, unknown>): boolean {
+  const rules = block.branchRules;
+  if (!rules || rules.length === 0) return true;
+  return rules.some(
+    (r) => r.fromInstanceId in answers && answerMatches(answers[r.fromInstanceId], r.equals),
+  );
+}
+
+/**
+ * The blocks a participant actually sees given their arm AND the answers
+ * recorded so far (ADR-0021). The path is dynamic — recompute after each answer.
+ */
+export function resolveVisibleBlocks(
+  snapshot: unknown,
+  conditionSlug: string,
+  answers: Record<string, unknown>,
+): RuntimeBlock[] {
+  return (readBlocks(snapshot) as RuntimeBlock[]).filter(
+    (b) => isVisible(b, conditionSlug) && branchVisible(b, answers),
+  );
+}
+
+/** Recorded answers for a response, keyed by block instanceId (for branching). */
+async function answersFor(responseId: string): Promise<Record<string, unknown>> {
+  const rows = await db
+    .select({ block: responseItem.blockInstanceId, answer: responseItem.answer })
+    .from(responseItem)
+    .where(eq(responseItem.responseId, responseId));
+  const map: Record<string, unknown> = {};
+  for (const r of rows) map[r.block] = r.answer;
+  return map;
 }
 
 /**
@@ -238,7 +309,8 @@ export async function getRuntimeQuestion(input: {
     .limit(1);
   if (!row || row.versionExperimentId !== input.studyId) return { error: "not_found" };
 
-  const blocks = visibleBlocks(row.snapshot, row.conditionSlug);
+  const answers = await answersFor(input.responseId);
+  const blocks = resolveVisibleBlocks(row.snapshot, row.conditionSlug, answers);
   if (input.questionIndex >= blocks.length) return { done: true };
   if (input.questionIndex < 0) return { error: "not_found" };
 
@@ -283,11 +355,16 @@ export async function recordAnswer(input: {
     .limit(1);
   if (!ver) return { ok: false, error: "not_found" };
 
-  const blocks = visibleBlocks(ver.snapshot, ver.slug);
+  // Resolve the path against answers recorded so far (ADR-0021 branching).
+  const answersBefore = await answersFor(input.responseId);
+  const blocks = resolveVisibleBlocks(ver.snapshot, ver.slug, answersBefore);
   const block = blocks[input.questionIndex];
   if (!block) return { ok: false, error: "not_found" };
 
   const def = getModuleDef(block.source, block.key, block.version);
+  // Track the value recorded this call so we can re-resolve the (possibly
+  // branched) path for the done/next decision.
+  let recordedValue: unknown | undefined;
 
   // Validate + store the answer for question modules; stimuli store nothing.
   if (def?.collectsResponse && def.responseSchema) {
@@ -322,11 +399,19 @@ export async function recordAnswer(input: {
           target: [responseItem.responseId, responseItem.blockInstanceId],
           set: { answer: parsed.data, blockPosition: input.questionIndex, answeredAt: new Date() },
         });
+      recordedValue = parsed.data;
     }
   }
 
   const nextIndex = input.questionIndex + 1;
-  const done = nextIndex >= blocks.length;
+  // Re-resolve with the answer just recorded — it may unlock or skip later
+  // blocks (ADR-0021), so completion is decided against the updated path.
+  const answersAfter =
+    recordedValue === undefined
+      ? answersBefore
+      : { ...answersBefore, [block.instanceId]: recordedValue };
+  const blocksAfter = resolveVisibleBlocks(ver.snapshot, ver.slug, answersAfter);
+  const done = nextIndex >= blocksAfter.length;
 
   // Advance the pointer (monotonic — never rewind on a re-answered earlier page).
   const advancedIndex = Math.max(resp.currentQuestionIndex, nextIndex);

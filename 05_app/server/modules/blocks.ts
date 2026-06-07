@@ -22,6 +22,13 @@ export type BlockInstance = {
    * snapshot copy). The participant runtime enforces this server-side.
    */
   visibility?: { showIfCondition?: string[] };
+  /**
+   * Optional answer-based branching rules (ADR-0021). Absent / empty = shown
+   * regardless of answers. Present = shown only if AT LEAST ONE rule matches —
+   * the participant's recorded answer to `fromInstanceId` equals `equals`. Rules
+   * reference *earlier* blocks. Combines with `visibility` (both must pass).
+   */
+  branchRules?: { fromInstanceId: string; equals: string }[];
 };
 
 export type ModuleLock = { source: string; key: string; version: string };
