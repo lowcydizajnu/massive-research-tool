@@ -49,7 +49,7 @@ export function WhiteboardList({
                   {i + 1}.
                 </span>
                 <span className="font-serif text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">
-                  {b.name}
+                  {b.title?.trim() || b.name}
                 </span>
                 {b.complete === false ? (
                   <span className="rounded-full bg-[var(--color-danger-subtle)] px-1.5 py-0.5 text-[length:var(--text-small)] text-[var(--color-danger-text-on-subtle)]">
@@ -58,7 +58,7 @@ export function WhiteboardList({
                 ) : null}
               </span>
               <span className="font-mono text-[length:var(--text-mono)] text-[var(--color-text-muted)]">
-                {b.ref}
+                {b.key} · {b.version}
               </span>
               {b.showIfCondition.length > 0 ? (
                 <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
