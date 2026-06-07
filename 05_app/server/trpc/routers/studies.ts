@@ -311,7 +311,10 @@ export type StudyBlock = {
   source: string;
   key: string;
   version: string;
+  /** The module's display name (e.g. "Likert (7-point)"). */
   name: string;
+  /** Researcher-set instance title; null = fall back to `name`. */
+  title: string | null;
   ref: string;
   config: Record<string, unknown>;
   complete: boolean;
@@ -813,6 +816,7 @@ export const studiesRouter = router({
           key: b.key,
           version: b.version,
           name: d.name,
+          title: b.title ?? null,
           ref: d.ref,
           config: b.config,
           complete: d.complete,
@@ -1264,6 +1268,32 @@ export const studiesRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid block config." });
       }
       blocks[idx] = { ...target, config: validated };
+      await writeBlocks(tip.version.id, input.studyId, blocks);
+      return { ok: true };
+    }),
+
+  /**
+   * Rename a block instance — a researcher-set title distinct from the module
+   * type. Empty/blank clears it (falls back to the module's display name).
+   * Stored in the blocks JSON (no migration); never shown to participants.
+   */
+  setBlockTitle: writeProcedure
+    .input(
+      z.object({
+        studyId: z.string().uuid(),
+        instanceId: z.string(),
+        title: z.string().trim().max(120),
+      }),
+    )
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+      const blocks = readBlocks(tip.version.definitionSnapshot);
+      const idx = blocks.findIndex((b) => b.instanceId === input.instanceId);
+      if (idx === -1) throw new TRPCError({ code: "NOT_FOUND" });
+      const next = { ...blocks[idx] };
+      if (input.title) next.title = input.title;
+      else delete next.title;
+      blocks[idx] = next;
       await writeBlocks(tip.version.id, input.studyId, blocks);
       return { ok: true };
     }),

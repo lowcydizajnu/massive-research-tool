@@ -88,6 +88,7 @@ export function BuilderWorkspace({
   const updateConfig = api.studies.updateBlockConfig.useMutation({
     onSuccess: () => void invalidate(),
   });
+  const renameBlock = api.studies.setBlockTitle.useMutation({ onSuccess: () => void invalidate() });
 
   const selected = study.blocks.find((b) => b.instanceId === selectedId) ?? null;
 
@@ -239,6 +240,9 @@ export function BuilderWorkspace({
               onChange={(config) =>
                 updateConfig.mutate({ studyId: study.id, instanceId: selected.instanceId, config })
               }
+              onRename={(title) =>
+                renameBlock.mutate({ studyId: study.id, instanceId: selected.instanceId, title })
+              }
               onRemove={() => {
                 removeBlock.mutate({ studyId: study.id, instanceId: selected.instanceId });
                 setSelectedId(null);
@@ -363,10 +367,10 @@ function BlockCard({
     >
       <div className="min-w-0">
         <div className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">
-          {block.name}
+          {block.title?.trim() || block.name}
         </div>
         <div className="font-mono text-[length:var(--text-mono)] text-[var(--color-text-muted)]">
-          {block.ref}
+          {block.key} · {block.version}
         </div>
       </div>
       <span

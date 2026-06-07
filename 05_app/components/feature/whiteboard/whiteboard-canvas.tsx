@@ -77,7 +77,7 @@ export function WhiteboardCanvas({
       type: "block",
       position: saved[b.instanceId] ?? { x: 320, y: i * 120 },
       selected: b.instanceId === selectedId,
-      data: { label: b.name, ref: b.ref, complete: b.complete },
+      data: { label: b.title?.trim() || b.name, ref: `${b.key} · ${b.version}`, complete: b.complete },
     }));
     return [...condNodes, ...blockNodes];
     // eslint-disable-next-line react-hooks/exhaustive-deps

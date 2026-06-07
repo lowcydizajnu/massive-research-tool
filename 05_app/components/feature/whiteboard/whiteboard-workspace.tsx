@@ -44,6 +44,7 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
   });
   const removeBlock = api.studies.removeBlock.useMutation({ onSuccess: () => void invalidate() });
   const updateConfig = api.studies.updateBlockConfig.useMutation({ onSuccess: () => void invalidate() });
+  const renameBlock = api.studies.setBlockTitle.useMutation({ onSuccess: () => void invalidate() });
 
   // Conditions drive the canvas wires (drag a Condition node → a block to gate it).
   const conditions = api.studies.listConditions.useQuery({ studyId: study.id });
@@ -165,6 +166,9 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
                 pending={updateConfig.isPending || removeBlock.isPending}
                 onChange={(config) =>
                   updateConfig.mutate({ studyId: study.id, instanceId: selected.instanceId, config })
+                }
+                onRename={(title) =>
+                  renameBlock.mutate({ studyId: study.id, instanceId: selected.instanceId, title })
                 }
                 onRemove={() => {
                   removeBlock.mutate({ studyId: study.id, instanceId: selected.instanceId });
