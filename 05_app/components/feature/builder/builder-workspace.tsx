@@ -4,6 +4,7 @@ import { Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { StageTabs } from "@/components/chrome/stage-tabs";
+import { ModeToggle } from "./mode-toggle";
 import { EditableStudyTitle } from "@/components/feature/editable-study-title";
 import { FollowButton } from "@/components/feature/follow/follow-button";
 import { api } from "@/lib/trpc/react";
@@ -114,21 +115,7 @@ export function BuilderWorkspace({
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              <div
-                role="group"
-                aria-label="Editor mode"
-                className="flex items-center gap-1 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-0.5 text-[length:var(--text-small)]"
-              >
-                <span className="rounded-[var(--radius-sm)] bg-[var(--color-primary-subtle)] px-2 py-1 font-medium text-[var(--color-primary-text-on-subtle)]">
-                  Builder
-                </span>
-                <span
-                  title="Whiteboard — coming soon"
-                  className="cursor-default px-2 py-1 text-[var(--color-text-muted)] opacity-60"
-                >
-                  Whiteboard
-                </span>
-              </div>
+              <ModeToggle studyId={study.id} mode="builder" />
               <button
                 type="button"
                 onClick={() => setSaveOpen(true)}

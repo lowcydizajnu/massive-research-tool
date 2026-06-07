@@ -1,0 +1,44 @@
+/*
+ * Whiteboard theme overrides (ADR-0020 §A8 + ADR-0007 vendor-styling discipline).
+ * React Flow's defaults (light-blue selection, gray edges, white canvas) clash
+ * with the warm-parchment + Plex Serif design language. We keep these overrides
+ * isolated to the whiteboard wrapper; the rest of the app never imports them.
+ * Everything keys off our existing CSS variables, so light/dark follow [data-theme].
+ */
+.wb-canvas .react-flow {
+  background: var(--color-surface-canvas);
+}
+
+.wb-canvas .react-flow__edge-path {
+  stroke: var(--color-ink-deep);
+  stroke-width: 1.5;
+}
+
+.wb-canvas .react-flow__edge.selected .react-flow__edge-path,
+.wb-canvas .react-flow__edge:focus .react-flow__edge-path {
+  stroke: var(--color-primary);
+}
+
+.wb-canvas .react-flow__arrowhead {
+  fill: var(--color-ink-deep);
+}
+
+.wb-canvas .react-flow__controls {
+  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.wb-canvas .react-flow__controls-button {
+  background: var(--color-surface-raised);
+  border-bottom-color: var(--color-border-subtle);
+  color: var(--color-text-secondary);
+}
+
+.wb-canvas .react-flow__controls-button:hover {
+  background: var(--color-surface-subtle);
+}
+
+.wb-canvas .react-flow__attribution {
+  display: none;
+}
