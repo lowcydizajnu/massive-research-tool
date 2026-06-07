@@ -31,6 +31,8 @@ import {
   openRecruitment,
   pickCondition,
   recordAnswer,
+  resolveVisibleBlocks,
+  answerMatches,
   startResponse,
   visibleBlocks,
 } from "@/server/runtime/participant";
@@ -262,5 +264,71 @@ describe("visibleBlocks", () => {
   it("treatment sees all three, control sees two", () => {
     expect(visibleBlocks(blocks(), "treatment")).toHaveLength(3);
     expect(visibleBlocks(blocks(), "control")).toHaveLength(2);
+  });
+});
+
+describe("answer-based branching (ADR-0021)", () => {
+  const snap = {
+    blocks: [
+      { instanceId: "a", source: "core", key: "likert-7", version: "1.0.0", config: {} },
+      {
+        instanceId: "b",
+        source: "core",
+        key: "free-text",
+        version: "1.0.0",
+        config: {},
+        branchRules: [{ fromInstanceId: "a", equals: "5" }],
+      },
+      { instanceId: "c", source: "core", key: "likert-7", version: "1.0.0", config: {} },
+    ],
+  };
+
+  it("hides a branched block until its source answer matches", () => {
+    // No answers yet → b is hidden.
+    expect(resolveVisibleBlocks(snap, "control", {}).map((x) => x.instanceId)).toEqual(["a", "c"]);
+    // a answered 5 → b appears between a and c.
+    expect(
+      resolveVisibleBlocks(snap, "control", { a: { value: 5 } }).map((x) => x.instanceId),
+    ).toEqual(["a", "b", "c"]);
+    // a answered something else → b stays hidden.
+    expect(
+      resolveVisibleBlocks(snap, "control", { a: { value: 3 } }).map((x) => x.instanceId),
+    ).toEqual(["a", "c"]);
+  });
+
+  it("answerMatches normalizes module answer shapes", () => {
+    expect(answerMatches({ value: 5 }, "5")).toBe(true); // likert/slider
+    expect(answerMatches({ value: "Yes" }, "Yes")).toBe(true); // single-select
+    expect(answerMatches({ selected: ["x", "y"] }, "y")).toBe(true); // multi-select
+    expect(answerMatches({ text: "hello" }, "hello")).toBe(true); // free-text
+    expect(answerMatches(["p", "q"], "q")).toBe(true); // bare array
+    expect(answerMatches({ value: 3 }, "5")).toBe(false);
+    expect(answerMatches(null, "5")).toBe(false);
+  });
+
+  it("OR across multiple rules; AND with arm conditions", () => {
+    const s = {
+      blocks: [
+        { instanceId: "a", source: "core", key: "likert-7", version: "1.0.0", config: {} },
+        {
+          instanceId: "b",
+          source: "core",
+          key: "free-text",
+          version: "1.0.0",
+          config: {},
+          visibility: { showIfCondition: ["treatment"] },
+          branchRules: [
+            { fromInstanceId: "a", equals: "5" },
+            { fromInstanceId: "a", equals: "6" },
+          ],
+        },
+      ],
+    };
+    // Matches a rule (6) but wrong arm → hidden (AND with arm).
+    expect(resolveVisibleBlocks(s, "control", { a: { value: 6 } }).map((x) => x.instanceId)).toEqual(["a"]);
+    // Right arm + matches the OTHER rule (5) → visible.
+    expect(resolveVisibleBlocks(s, "treatment", { a: { value: 5 } }).map((x) => x.instanceId)).toEqual(["a", "b"]);
+    // Right arm but no rule matches → hidden.
+    expect(resolveVisibleBlocks(s, "treatment", { a: { value: 1 } }).map((x) => x.instanceId)).toEqual(["a"]);
   });
 });
