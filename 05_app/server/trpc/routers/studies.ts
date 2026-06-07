@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { and, count, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
+import { and, arrayContains, count, desc, eq, ilike, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { ulid } from "ulid";
 import { z } from "zod";
 
@@ -29,7 +29,7 @@ import {
   validateConfig,
 } from "@/server/modules/blocks";
 import { getModuleDef } from "@/server/modules/registry";
-import { router, workspaceProcedure, writeProcedure } from "@/server/trpc/trpc";
+import { publicProcedure, router, workspaceProcedure, writeProcedure } from "@/server/trpc/trpc";
 
 /**
  * Load a study's working tip (its current autosave version), scoped to the
@@ -331,6 +331,15 @@ export type StudyDetail = {
   forkableBy: "public" | "link-only" | "private";
   isReplication: boolean;
   blocks: StudyBlock[];
+  /** Whiteboard pan/zoom (ADR-0020); {} = fit-to-screen on first render. */
+  whiteboardViewport: WhiteboardViewport;
+};
+
+/** Whiteboard canvas viewport state (ADR-0020). Empty object = fit-to-screen. */
+export type WhiteboardViewport = {
+  x?: number;
+  y?: number;
+  zoom?: number;
 };
 
 /** A node in a study's replication family (ADR-0018). `diff` is withheld (null) when the caller can't see the other study's protocol. */
@@ -366,6 +375,25 @@ export type VersionPreviewBlock = {
   name: string;
   ref: string;
   complete: boolean;
+};
+
+/** Per-block diff status for the Whiteboard multi-version compare (ADR-0020 §A6). */
+export type CompareStatus = "added" | "removed" | "modified" | "unchanged";
+
+export type CompareNode = {
+  instanceId: string;
+  name: string;
+  ref: string;
+  status: CompareStatus;
+  showIfCondition: string[];
+};
+
+/** Side-by-side compare of the working copy (left) vs a chosen version (right). */
+export type VersionCompare = {
+  leftLabel: string;
+  rightLabel: string;
+  left: CompareNode[];
+  right: CompareNode[];
 };
 
 /** A single version rendered read-only for preview (ADR-0019). */
@@ -430,7 +458,257 @@ export type ResultsSummary = {
   }[];
 };
 
+/** One card in the Browse-public-studies grid (ADR-0018 + browse wireframe). */
+export type BrowseStudyCard = {
+  studyId: string;
+  title: string;
+  authorId: string;
+  authorName: string;
+  tags: string[];
+  /** Latest discoverable (frozen) version's kind + number. */
+  latestKind: "published" | "preregistered";
+  latestVersionNumber: number;
+  replicationCount: number;
+  createdAt: string;
+};
+
+export type BrowsePage = { items: BrowseStudyCard[]; nextCursor: string | null };
+
+/** Read-only public study detail for `/browse/[studyId]` (ADR-0018). */
+export type PublicStudyDetail = {
+  studyId: string;
+  title: string;
+  authorId: string;
+  authorName: string;
+  tags: string[];
+  latestKind: "published" | "preregistered";
+  latestVersionNumber: number;
+  replicationCount: number;
+  blocks: VersionPreviewBlock[];
+};
+
+/** Tag + usage count for the Browse filter sidebar. */
+export type BrowseTag = { tag: string; count: number };
+
+type BrowseCursor = { c: string; i: string; r?: number };
+
+function encodeCursor(cur: BrowseCursor): string {
+  return Buffer.from(JSON.stringify(cur), "utf8").toString("base64url");
+}
+
+function decodeCursor(raw: string): BrowseCursor | null {
+  try {
+    const v = JSON.parse(Buffer.from(raw, "base64url").toString("utf8")) as BrowseCursor;
+    if (typeof v.c === "string" && typeof v.i === "string") return v;
+  } catch {
+    // fall through
+  }
+  return null;
+}
+
 export const studiesRouter = router({
+  /**
+   * Browse public studies (ADR-0018 + browse-public-studies wireframe). Public
+   * — no workspace context needed to read the listing. The discoverable set is
+   * `forkable_by = 'public'`, not archived, with at least one published or
+   * preregistered (frozen) version. Filters: tag intersection + author name.
+   * Sort: most recent or most replicated. Keyset (cursor) pagination.
+   * Framework filtering is DEFERRED (no study→framework provenance in the
+   * schema; owner decision 2026-06-07).
+   */
+  browsePublic: publicProcedure
+    .input(
+      z.object({
+        tags: z.array(z.string()).optional(),
+        authorQuery: z.string().trim().max(120).optional(),
+        sort: z.enum(["recent", "replicated"]).default("recent"),
+        cursor: z.string().optional(),
+        limit: z.number().int().min(1).max(48).default(24),
+      }),
+    )
+    .query(async ({ input }): Promise<BrowsePage> => {
+      const repCount = sql<number>`(select count(*)::int from ${experiment} c where c.fork_of_experiment_id = ${experiment.id})`;
+      const latestNum = sql<number>`(select max(v.version_number) from ${experimentVersion} v where v.experiment_id = ${experiment.id} and v.kind in ('published','preregistered'))`;
+      const latestKind = sql<"published" | "preregistered">`(select v.kind from ${experimentVersion} v where v.experiment_id = ${experiment.id} and v.kind in ('published','preregistered') order by v.version_number desc limit 1)`;
+
+      const filters = [
+        eq(experiment.forkableBy, "public"),
+        isNull(experiment.archivedAt),
+        // Discoverable = has at least one frozen, citable version.
+        sql`exists (select 1 from ${experimentVersion} v where v.experiment_id = ${experiment.id} and v.kind in ('published','preregistered'))`,
+      ];
+      if (input.tags?.length) {
+        // Intersection: the study must carry every selected tag (@> contains).
+        filters.push(arrayContains(experiment.tags, input.tags));
+      }
+      if (input.authorQuery) {
+        filters.push(ilike(user.displayName, `%${input.authorQuery}%`));
+      }
+
+      // Keyset cursor — rows strictly "after" the cursor in the sort order.
+      const cur = input.cursor ? decodeCursor(input.cursor) : null;
+      if (cur) {
+        if (input.sort === "replicated") {
+          filters.push(
+            sql`(${repCount}, ${experiment.createdAt}, ${experiment.id}) < (${cur.r ?? 0}, ${cur.c}::timestamptz, ${cur.i}::uuid)`,
+          );
+        } else {
+          filters.push(
+            sql`(${experiment.createdAt}, ${experiment.id}) < (${cur.c}::timestamptz, ${cur.i}::uuid)`,
+          );
+        }
+      }
+
+      const order =
+        input.sort === "replicated"
+          ? [desc(repCount), desc(experiment.createdAt), desc(experiment.id)]
+          : [desc(experiment.createdAt), desc(experiment.id)];
+
+      const rows = await db
+        .select({
+          studyId: experiment.id,
+          title: experiment.title,
+          authorId: experiment.ownerId,
+          authorName: user.displayName,
+          tags: experiment.tags,
+          createdAt: experiment.createdAt,
+          replicationCount: repCount,
+          latestVersionNumber: latestNum,
+          latestKind: latestKind,
+        })
+        .from(experiment)
+        .innerJoin(user, eq(user.id, experiment.ownerId))
+        .where(and(...filters))
+        .orderBy(...order)
+        .limit(input.limit + 1);
+
+      const hasMore = rows.length > input.limit;
+      const page = rows.slice(0, input.limit);
+      const last = page[page.length - 1];
+      const nextCursor =
+        hasMore && last
+          ? encodeCursor({
+              c: last.createdAt.toISOString(),
+              i: last.studyId,
+              r: input.sort === "replicated" ? Number(last.replicationCount) : undefined,
+            })
+          : null;
+
+      return {
+        items: page.map((r) => ({
+          studyId: r.studyId,
+          title: r.title,
+          authorId: r.authorId,
+          authorName: r.authorName ?? "",
+          tags: r.tags ?? [],
+          latestKind: r.latestKind,
+          latestVersionNumber: Number(r.latestVersionNumber),
+          replicationCount: Number(r.replicationCount),
+          createdAt: r.createdAt.toISOString(),
+        })),
+        nextCursor,
+      };
+    }),
+
+  /**
+   * Read-only detail for one public study (the `/browse/[studyId]` page). Public
+   * — cross-tenant, so it can't reuse the workspace-scoped `getVersion`. Returns
+   * the latest published/preregistered version's blocks read-only. NOT_FOUND if
+   * the study isn't public or has no frozen version.
+   */
+  getPublicStudy: publicProcedure
+    .input(z.object({ studyId: z.string().uuid() }))
+    .query(async ({ input }): Promise<PublicStudyDetail> => {
+      const [exp] = await db
+        .select({
+          id: experiment.id,
+          title: experiment.title,
+          authorId: experiment.ownerId,
+          authorName: user.displayName,
+          tags: experiment.tags,
+        })
+        .from(experiment)
+        .innerJoin(user, eq(user.id, experiment.ownerId))
+        .where(
+          and(
+            eq(experiment.id, input.studyId),
+            eq(experiment.forkableBy, "public"),
+            isNull(experiment.archivedAt),
+          ),
+        )
+        .limit(1);
+      if (!exp) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const [ver] = await db
+        .select({
+          kind: experimentVersion.kind,
+          versionNumber: experimentVersion.versionNumber,
+          snapshot: experimentVersion.definitionSnapshot,
+        })
+        .from(experimentVersion)
+        .where(
+          and(
+            eq(experimentVersion.experimentId, input.studyId),
+            inArray(experimentVersion.kind, ["published", "preregistered"]),
+          ),
+        )
+        .orderBy(desc(experimentVersion.versionNumber))
+        .limit(1);
+      if (!ver) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const [reps] = await db
+        .select({ c: count() })
+        .from(experiment)
+        .where(eq(experiment.forkOfExperimentId, input.studyId));
+
+      return {
+        studyId: exp.id,
+        title: exp.title,
+        authorId: exp.authorId,
+        authorName: exp.authorName ?? "",
+        tags: exp.tags ?? [],
+        latestKind: ver.kind as "published" | "preregistered",
+        latestVersionNumber: ver.versionNumber,
+        replicationCount: reps?.c ?? 0,
+        blocks: readBlocks(ver.snapshot).map((b) => {
+          const d = blockDisplay(b);
+          return { instanceId: b.instanceId, name: d.name, ref: d.ref, complete: d.complete };
+        }),
+      };
+    }),
+
+  /**
+   * Tags (with usage counts) across the discoverable public set, for the Browse
+   * filter sidebar's autocomplete. Optional prefix query `q`.
+   */
+  browseTags: publicProcedure
+    .input(z.object({ q: z.string().trim().max(60).optional() }).optional())
+    .query(async ({ input }): Promise<BrowseTag[]> => {
+      const rows = await db
+        .select({ tags: experiment.tags })
+        .from(experiment)
+        .where(
+          and(
+            eq(experiment.forkableBy, "public"),
+            isNull(experiment.archivedAt),
+            sql`exists (select 1 from ${experimentVersion} v where v.experiment_id = ${experiment.id} and v.kind in ('published','preregistered'))`,
+          ),
+        );
+
+      const q = input?.q?.toLowerCase();
+      const counts = new Map<string, number>();
+      for (const r of rows) {
+        for (const tag of r.tags ?? []) {
+          if (q && !tag.toLowerCase().startsWith(q)) continue;
+          counts.set(tag, (counts.get(tag) ?? 0) + 1);
+        }
+      }
+      return [...counts.entries()]
+        .map(([tag, c]) => ({ tag, count: c }))
+        .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag))
+        .slice(0, 50);
+    }),
+
   list: workspaceProcedure
     .input(z.object({ filter: z.enum(STUDY_FILTERS).default("all") }).optional())
     .query(async ({ ctx, input }): Promise<StudyListItem[]> => {
@@ -552,7 +830,39 @@ export const studiesRouter = router({
         forkableBy: row.experiment.forkableBy,
         isReplication: row.experiment.forkOfExperimentId !== null,
         blocks,
+        whiteboardViewport: (row.version?.whiteboardViewport as WhiteboardViewport | null) ?? {},
       };
+    }),
+
+  /**
+   * Persist the Whiteboard canvas viewport (ADR-0020) onto the autosave tip.
+   * The only new server endpoint the Whiteboard needs — all block edits reuse
+   * the Builder mutations. Viewport is UX state, not part of the immutable
+   * snapshot, so it writes the current (autosave) version in place.
+   */
+  updateWhiteboardViewport: writeProcedure
+    .input(
+      z.object({
+        studyId: z.string().uuid(),
+        viewport: z.object({
+          x: z.number(),
+          y: z.number(),
+          zoom: z.number(),
+        }),
+      }),
+    )
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      const [exp] = await db
+        .select({ currentVersionId: experiment.currentVersionId })
+        .from(experiment)
+        .where(and(eq(experiment.id, input.studyId), eq(experiment.tenantId, ctx.workspace.id)))
+        .limit(1);
+      if (!exp?.currentVersionId) throw new TRPCError({ code: "NOT_FOUND" });
+      await db
+        .update(experimentVersion)
+        .set({ whiteboardViewport: input.viewport })
+        .where(eq(experimentVersion.id, exp.currentVersionId));
+      return { ok: true };
     }),
 
   /**
@@ -768,6 +1078,76 @@ export const studiesRouter = router({
         };
       },
     ),
+
+  /**
+   * Side-by-side compare of the working copy vs a chosen frozen version for the
+   * Whiteboard multi-version view (ADR-0020 §A6). Reuses the shared `diffBlocks`
+   * (by instanceId): blocks only in the working copy = added (green), only in
+   * the version = removed (red), present in both but ref/config differs =
+   * modified (amber). Read-only; tenant-scoped.
+   */
+  compareVersions: workspaceProcedure
+    .input(z.object({ studyId: z.string().uuid(), vs: z.string().uuid() }))
+    .query(async ({ ctx, input }): Promise<VersionCompare> => {
+      const [exp] = await db
+        .select()
+        .from(experiment)
+        .where(and(eq(experiment.id, input.studyId), eq(experiment.tenantId, ctx.workspace.id)))
+        .limit(1);
+      if (!exp) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const [ver] = await db
+        .select({
+          kind: experimentVersion.kind,
+          versionNumber: experimentVersion.versionNumber,
+          name: experimentVersion.name,
+          snapshot: experimentVersion.definitionSnapshot,
+        })
+        .from(experimentVersion)
+        .where(
+          and(eq(experimentVersion.id, input.vs), eq(experimentVersion.experimentId, input.studyId)),
+        )
+        .limit(1);
+      if (!ver) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const leftBlocks = await studyTipBlocks(exp); // working copy (child)
+      const rightBlocks = readBlocks(ver.snapshot); // chosen version (parent)
+      const diff = diffBlocks(rightBlocks, leftBlocks);
+      const addedIds = new Set(diff.added.map((b) => b.instanceId));
+      const removedIds = new Set(diff.removed.map((b) => b.instanceId));
+      const changedIds = new Set(diff.changed.map((b) => b.instanceId));
+
+      const toNode = (b: BlockInstance, side: "left" | "right"): CompareNode => {
+        const d = blockDisplay(b);
+        let status: CompareStatus = "unchanged";
+        if (changedIds.has(b.instanceId)) status = "modified";
+        else if (side === "left" && addedIds.has(b.instanceId)) status = "added";
+        else if (side === "right" && removedIds.has(b.instanceId)) status = "removed";
+        return {
+          instanceId: b.instanceId,
+          name: d.name,
+          ref: d.ref,
+          status,
+          showIfCondition: b.visibility?.showIfCondition ?? [],
+        };
+      };
+
+      const verLabel =
+        ver.kind === "autosave"
+          ? "Draft"
+          : ver.kind === "named"
+            ? `v${ver.versionNumber}${ver.name ? ` — ${ver.name}` : ""}`
+            : ver.kind === "preregistered"
+              ? `Preregistration v${ver.versionNumber}`
+              : `Published v${ver.versionNumber}`;
+
+      return {
+        leftLabel: "Working copy",
+        rightLabel: verLabel,
+        left: leftBlocks.map((b) => toNode(b, "left")),
+        right: rightBlocks.map((b) => toNode(b, "right")),
+      };
+    }),
 
   /** Rename a study (autosaves the title; the title lives on Experiment, not a version). */
   updateTitle: writeProcedure

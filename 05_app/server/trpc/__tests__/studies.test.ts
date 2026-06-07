@@ -1053,3 +1053,194 @@ describe("studies.getVersion + restoreVersion (ADR-0019)", () => {
     await expect(b.studies.restoreVersion({ studyId: id, versionId: ver.id })).rejects.toThrow();
   });
 });
+
+describe("studies.browsePublic + browseTags (V1.8 Stream B, ADR-0018)", () => {
+  async function makePublic(
+    caller: ReturnType<typeof createCaller>,
+    title: string,
+    tags: string[] = [],
+  ): Promise<string> {
+    const { id } = await caller.studies.create({ kind: "blank", title });
+    await caller.studies.publish({ studyId: id });
+    await caller.studies.setForkable({ studyId: id, forkableBy: "public" });
+    if (tags.length) await caller.studies.setTags({ studyId: id, tags });
+    return id;
+  }
+
+  it("lists only public studies with a frozen version — drafts and private excluded", async () => {
+    await seedUserWithWorkspace("hanna", "Hanna Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+
+    const shown = await makePublic(a, "Public + published");
+
+    // Public but only a Draft (never published) — not discoverable.
+    const draft = await a.studies.create({ kind: "blank", title: "Public draft only" });
+    await a.studies.setForkable({ studyId: draft.id, forkableBy: "public" });
+
+    // Published but private — not discoverable.
+    const priv = await a.studies.create({ kind: "blank", title: "Private published" });
+    await a.studies.publish({ studyId: priv.id });
+
+    const page = await a.studies.browsePublic({});
+    expect(page.items.map((i) => i.studyId)).toEqual([shown]);
+    expect(page.items[0]).toMatchObject({
+      title: "Public + published",
+      authorName: "hanna",
+      latestKind: "published",
+      latestVersionNumber: 1,
+      replicationCount: 0,
+    });
+    expect(page.nextCursor).toBeNull();
+  });
+
+  it("intersects tag filters (a study must carry every selected tag)", async () => {
+    await seedUserWithWorkspace("hanna", "Hanna Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const both = await makePublic(a, "Misinfo + trust", ["misinformation", "trust"]);
+    await makePublic(a, "Misinfo only", ["misinformation"]);
+
+    const r = await a.studies.browsePublic({ tags: ["misinformation", "trust"] });
+    expect(r.items.map((i) => i.studyId)).toEqual([both]);
+
+    const wide = await a.studies.browsePublic({ tags: ["misinformation"] });
+    expect(wide.items).toHaveLength(2);
+  });
+
+  it("filters by author name", async () => {
+    await seedUserWithWorkspace("hanna", "Hanna Lab");
+    await seedUserWithWorkspace("sofia", "Sofia Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const b = createCaller({ authUser: authUser("sofia") });
+    const hStudy = await makePublic(a, "Hanna study");
+    await makePublic(b, "Sofia study");
+
+    const r = await a.studies.browsePublic({ authorQuery: "hann" });
+    expect(r.items.map((i) => i.studyId)).toEqual([hStudy]);
+  });
+
+  it("sorts by most replicated", async () => {
+    await seedUserWithWorkspace("hanna", "Hanna Lab");
+    await seedUserWithWorkspace("sofia", "Sofia Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const b = createCaller({ authUser: authUser("sofia") });
+    const popular = await makePublic(a, "Popular");
+    const quiet = await makePublic(a, "Quiet");
+    // Sofia forks the popular one twice.
+    await b.studies.fork({ studyId: popular });
+    await b.studies.fork({ studyId: popular });
+
+    const r = await a.studies.browsePublic({ sort: "replicated" });
+    expect(r.items[0].studyId).toBe(popular);
+    expect(r.items[0].replicationCount).toBe(2);
+    expect(r.items.find((i) => i.studyId === quiet)!.replicationCount).toBe(0);
+  });
+
+  it("paginates by cursor", async () => {
+    await seedUserWithWorkspace("hanna", "Hanna Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    await makePublic(a, "One");
+    await makePublic(a, "Two");
+    await makePublic(a, "Three");
+
+    const p1 = await a.studies.browsePublic({ limit: 2 });
+    expect(p1.items).toHaveLength(2);
+    expect(p1.nextCursor).not.toBeNull();
+
+    const p2 = await a.studies.browsePublic({ limit: 2, cursor: p1.nextCursor! });
+    expect(p2.items).toHaveLength(1);
+    expect(p2.nextCursor).toBeNull();
+
+    // No overlap between pages.
+    const ids = new Set([...p1.items, ...p2.items].map((i) => i.studyId));
+    expect(ids.size).toBe(3);
+  });
+
+  it("browseTags returns counts over the public set, with optional prefix", async () => {
+    await seedUserWithWorkspace("hanna", "Hanna Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    await makePublic(a, "S1", ["misinformation", "trust"]);
+    await makePublic(a, "S2", ["misinformation"]);
+    // A private study's tags must NOT count.
+    const priv = await a.studies.create({ kind: "blank", title: "priv" });
+    await a.studies.publish({ studyId: priv.id });
+    await a.studies.setTags({ studyId: priv.id, tags: ["misinformation", "secret"] });
+
+    const all = await a.studies.browseTags({});
+    const map = Object.fromEntries(all.map((t) => [t.tag, t.count]));
+    expect(map["misinformation"]).toBe(2);
+    expect(map["trust"]).toBe(1);
+    expect(map["secret"]).toBeUndefined(); // private study excluded
+
+    const pref = await a.studies.browseTags({ q: "mis" });
+    expect(pref.map((t) => t.tag)).toEqual(["misinformation"]);
+  });
+});
+
+describe("studies.getPublicStudy (V1.8 Stream B)", () => {
+  it("returns a public study's latest frozen version read-only", async () => {
+    await seedUserWithWorkspace("hanna", "Hanna Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const { id } = await a.studies.create({ kind: "blank", title: "Public detail" });
+    await a.studies.addBlock({ studyId: id, source: "core", key: "likert-7", version: "1.0.0" });
+    await a.studies.publish({ studyId: id });
+    await a.studies.setForkable({ studyId: id, forkableBy: "public" });
+    await a.studies.setTags({ studyId: id, tags: ["misinformation"] });
+
+    const detail = await a.studies.getPublicStudy({ studyId: id });
+    expect(detail).toMatchObject({
+      title: "Public detail",
+      authorName: "hanna",
+      latestKind: "published",
+      latestVersionNumber: 1,
+      tags: ["misinformation"],
+    });
+    expect(detail.blocks.map((b) => b.ref)).toEqual(["core/likert-7@1.0.0"]);
+  });
+
+  it("is NOT_FOUND for a private study", async () => {
+    await seedUserWithWorkspace("hanna", "Hanna Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const { id } = await a.studies.create({ kind: "blank", title: "Private" });
+    await a.studies.publish({ studyId: id });
+    await expect(a.studies.getPublicStudy({ studyId: id })).rejects.toThrow();
+  });
+});
+
+describe("studies.compareVersions (V1.8 Stream A, ADR-0020 §A6)", () => {
+  it("diffs the working copy against a chosen version: added / removed / unchanged", async () => {
+    await seedUserWithWorkspace("hanna", "Hanna Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const { id } = await a.studies.create({ kind: "blank", title: "Cmp" });
+
+    const c = await a.studies.addBlock({ studyId: id, source: "core", key: "likert-7", version: "1.0.0" });
+    const old = await a.studies.addBlock({ studyId: id, source: "core", key: "multiple-choice", version: "1.0.0" });
+    await a.studies.publish({ studyId: id }); // v1 frozen with [C, old]
+    const v1 = (await a.studies.listVersions({ studyId: id })).find((v) => v.kind === "published")!;
+
+    // Working copy diverges: drop `old`, add `fresh`.
+    await a.studies.removeBlock({ studyId: id, instanceId: old.instanceId });
+    const fresh = await a.studies.addBlock({ studyId: id, source: "core", key: "slider", version: "1.0.0" });
+
+    const cmp = await a.studies.compareVersions({ studyId: id, vs: v1.id });
+    expect(cmp.leftLabel).toBe("Working copy");
+    expect(cmp.rightLabel).toBe("Published v1");
+
+    const leftById = Object.fromEntries(cmp.left.map((n) => [n.instanceId, n.status]));
+    const rightById = Object.fromEntries(cmp.right.map((n) => [n.instanceId, n.status]));
+    expect(leftById[c.instanceId]).toBe("unchanged");
+    expect(leftById[fresh.instanceId]).toBe("added");
+    expect(rightById[c.instanceId]).toBe("unchanged");
+    expect(rightById[old.instanceId]).toBe("removed");
+  });
+
+  it("is tenant-scoped — another workspace's study is NOT_FOUND", async () => {
+    await seedUserWithWorkspace("hanna", "Hanna Lab");
+    await seedUserWithWorkspace("sofia", "Sofia Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const b = createCaller({ authUser: authUser("sofia") });
+    const { id } = await a.studies.create({ kind: "blank", title: "S" });
+    await a.studies.publish({ studyId: id });
+    const v1 = (await a.studies.listVersions({ studyId: id })).find((v) => v.kind === "published")!;
+    await expect(b.studies.compareVersions({ studyId: id, vs: v1.id })).rejects.toThrow();
+  });
+});

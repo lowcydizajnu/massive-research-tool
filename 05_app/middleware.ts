@@ -19,6 +19,7 @@ const isProtectedRoute = createRouteMatcher([
   "/studies(.*)",
   "/library(.*)",
   "/frameworks(.*)",
+  "/browse(.*)",
   "/settings(.*)",
 ]);
 
