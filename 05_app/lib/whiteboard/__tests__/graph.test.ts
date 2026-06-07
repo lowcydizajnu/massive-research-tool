@@ -10,6 +10,7 @@ function block(partial: Partial<StudyBlock> & { instanceId: string }): StudyBloc
     key: "likert-7",
     version: "1.0.0",
     name: "Likert (7-point)",
+    title: null,
     ref: "core/likert-7@1.0.0",
     config: {},
     complete: true,
