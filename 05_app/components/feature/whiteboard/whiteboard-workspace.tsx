@@ -14,6 +14,8 @@ import { api } from "@/lib/trpc/react";
 import type { StudyDetail } from "@/server/trpc/routers/studies";
 
 import { WhiteboardCanvas } from "./whiteboard-canvas";
+import { WhiteboardList } from "./whiteboard-list";
+import { cn } from "@/lib/utils";
 
 /**
  * Whiteboard mode workspace (ADR-0020). The graph view of a study with the same
@@ -30,6 +32,7 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [view, setView] = useState<"canvas" | "list">("canvas");
 
   const invalidate = () => utils.studies.get.invalidate({ id: study.id });
   const addBlock = api.studies.addBlock.useMutation({
@@ -66,6 +69,24 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
+              <div role="group" aria-label="Whiteboard view" className="flex items-center gap-1 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-0.5 text-[length:var(--text-small)]">
+                {(["canvas", "list"] as const).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    aria-pressed={view === v}
+                    onClick={() => setView(v)}
+                    className={cn(
+                      "rounded-[var(--radius-sm)] px-2 py-1 font-medium capitalize",
+                      view === v
+                        ? "bg-[var(--color-primary-subtle)] text-[var(--color-primary-text-on-subtle)]"
+                        : "text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]",
+                    )}
+                  >
+                    {v}
+                  </button>
+                ))}
+              </div>
               <div className="relative">
                 <button
                   type="button"
@@ -93,11 +114,19 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
             </div>
           </div>
 
-          <WhiteboardCanvas
-            study={study}
-            selectedId={selectedId}
-            onSelectBlock={setSelectedId}
-          />
+          {view === "canvas" ? (
+            <WhiteboardCanvas
+              study={study}
+              selectedId={selectedId}
+              onSelectBlock={setSelectedId}
+            />
+          ) : (
+            <WhiteboardList
+              blocks={study.blocks}
+              selectedId={selectedId}
+              onSelect={setSelectedId}
+            />
+          )}
         </section>
 
         {/* Right context panel — Configure the selected block (shared with Builder). */}
