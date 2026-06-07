@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { move } from "@/lib/whiteboard/reorder";
 
 import { StageTabs } from "@/components/chrome/stage-tabs";
+import { ConditionBuilder } from "@/components/feature/whiteboard/condition-builder";
 import { ModeToggle } from "./mode-toggle";
 import { EditableStudyTitle } from "@/components/feature/editable-study-title";
 import { FollowButton } from "@/components/feature/follow/follow-button";
@@ -92,6 +93,7 @@ export function BuilderWorkspace({
   });
   const renameBlock = api.studies.setBlockTitle.useMutation({ onSuccess: () => void invalidate() });
   const reorderBlocks = api.studies.reorderBlocks.useMutation({ onSuccess: () => void invalidate() });
+  const setCondition = api.studies.setBlockCondition.useMutation({ onSuccess: () => void invalidate() });
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const dropAt = (to: number) => {
     if (dragIdx === null || dragIdx === to) return setDragIdx(null);
@@ -280,6 +282,15 @@ export function BuilderWorkspace({
               studyId={study.id}
               instanceId={selected.instanceId}
               current={selected.showIfCondition}
+            />
+            <ConditionBuilder
+              key={`cond-${selected.instanceId}`}
+              block={selected}
+              earlierBlocks={study.blocks.slice(0, study.blocks.findIndex((b) => b.instanceId === selected.instanceId))}
+              pending={setCondition.isPending}
+              onSave={(showIf) =>
+                setCondition.mutate({ studyId: study.id, instanceId: selected.instanceId, showIf })
+              }
             />
           </>
         ) : panelTab === "versions" ? (
