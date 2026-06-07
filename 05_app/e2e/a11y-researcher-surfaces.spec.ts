@@ -72,6 +72,17 @@ test.describe("researcher-surface accessibility (axe)", () => {
 
     await scan(page, "Studies", "/studies");
     await scan(page, "Build (Builder + tags + forkability + conditions)", `/studies/${id}/build`);
+
+    // Whiteboard (V1.8, ADR-0020) — scan the canvas, its accessible List
+    // fallback, and the multi-version compare.
+    await scan(page, "Whiteboard · canvas", `/studies/${id}/build/whiteboard`);
+    await page.getByRole("button", { name: "list" }).click();
+    await runAxe(page, "Whiteboard · list fallback");
+    await scan(page, "Whiteboard · compare", `/studies/${id}/build/whiteboard/compare`);
+
+    // Browse public studies (V1.8 Stream B).
+    await scan(page, "Browse", "/browse");
+
     await scan(page, "Share", `/studies/${id}/share`);
     await scan(page, "Preregister", `/studies/${id}/preregister`);
     await scan(page, "Run", `/studies/${id}/run`);
