@@ -1205,3 +1205,42 @@ describe("studies.getPublicStudy (V1.8 Stream B)", () => {
     await expect(a.studies.getPublicStudy({ studyId: id })).rejects.toThrow();
   });
 });
+
+describe("studies.compareVersions (V1.8 Stream A, ADR-0020 §A6)", () => {
+  it("diffs the working copy against a chosen version: added / removed / unchanged", async () => {
+    await seedUserWithWorkspace("hanna", "Hanna Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const { id } = await a.studies.create({ kind: "blank", title: "Cmp" });
+
+    const c = await a.studies.addBlock({ studyId: id, source: "core", key: "likert-7", version: "1.0.0" });
+    const old = await a.studies.addBlock({ studyId: id, source: "core", key: "multiple-choice", version: "1.0.0" });
+    await a.studies.publish({ studyId: id }); // v1 frozen with [C, old]
+    const v1 = (await a.studies.listVersions({ studyId: id })).find((v) => v.kind === "published")!;
+
+    // Working copy diverges: drop `old`, add `fresh`.
+    await a.studies.removeBlock({ studyId: id, instanceId: old.instanceId });
+    const fresh = await a.studies.addBlock({ studyId: id, source: "core", key: "slider", version: "1.0.0" });
+
+    const cmp = await a.studies.compareVersions({ studyId: id, vs: v1.id });
+    expect(cmp.leftLabel).toBe("Working copy");
+    expect(cmp.rightLabel).toBe("Published v1");
+
+    const leftById = Object.fromEntries(cmp.left.map((n) => [n.instanceId, n.status]));
+    const rightById = Object.fromEntries(cmp.right.map((n) => [n.instanceId, n.status]));
+    expect(leftById[c.instanceId]).toBe("unchanged");
+    expect(leftById[fresh.instanceId]).toBe("added");
+    expect(rightById[c.instanceId]).toBe("unchanged");
+    expect(rightById[old.instanceId]).toBe("removed");
+  });
+
+  it("is tenant-scoped — another workspace's study is NOT_FOUND", async () => {
+    await seedUserWithWorkspace("hanna", "Hanna Lab");
+    await seedUserWithWorkspace("sofia", "Sofia Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const b = createCaller({ authUser: authUser("sofia") });
+    const { id } = await a.studies.create({ kind: "blank", title: "S" });
+    await a.studies.publish({ studyId: id });
+    const v1 = (await a.studies.listVersions({ studyId: id })).find((v) => v.kind === "published")!;
+    await expect(b.studies.compareVersions({ studyId: id, vs: v1.id })).rejects.toThrow();
+  });
+});

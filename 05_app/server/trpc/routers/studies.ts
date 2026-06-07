@@ -377,6 +377,25 @@ export type VersionPreviewBlock = {
   complete: boolean;
 };
 
+/** Per-block diff status for the Whiteboard multi-version compare (ADR-0020 §A6). */
+export type CompareStatus = "added" | "removed" | "modified" | "unchanged";
+
+export type CompareNode = {
+  instanceId: string;
+  name: string;
+  ref: string;
+  status: CompareStatus;
+  showIfCondition: string[];
+};
+
+/** Side-by-side compare of the working copy (left) vs a chosen version (right). */
+export type VersionCompare = {
+  leftLabel: string;
+  rightLabel: string;
+  left: CompareNode[];
+  right: CompareNode[];
+};
+
 /** A single version rendered read-only for preview (ADR-0019). */
 export type VersionPreview = {
   id: string;
@@ -1059,6 +1078,76 @@ export const studiesRouter = router({
         };
       },
     ),
+
+  /**
+   * Side-by-side compare of the working copy vs a chosen frozen version for the
+   * Whiteboard multi-version view (ADR-0020 §A6). Reuses the shared `diffBlocks`
+   * (by instanceId): blocks only in the working copy = added (green), only in
+   * the version = removed (red), present in both but ref/config differs =
+   * modified (amber). Read-only; tenant-scoped.
+   */
+  compareVersions: workspaceProcedure
+    .input(z.object({ studyId: z.string().uuid(), vs: z.string().uuid() }))
+    .query(async ({ ctx, input }): Promise<VersionCompare> => {
+      const [exp] = await db
+        .select()
+        .from(experiment)
+        .where(and(eq(experiment.id, input.studyId), eq(experiment.tenantId, ctx.workspace.id)))
+        .limit(1);
+      if (!exp) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const [ver] = await db
+        .select({
+          kind: experimentVersion.kind,
+          versionNumber: experimentVersion.versionNumber,
+          name: experimentVersion.name,
+          snapshot: experimentVersion.definitionSnapshot,
+        })
+        .from(experimentVersion)
+        .where(
+          and(eq(experimentVersion.id, input.vs), eq(experimentVersion.experimentId, input.studyId)),
+        )
+        .limit(1);
+      if (!ver) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const leftBlocks = await studyTipBlocks(exp); // working copy (child)
+      const rightBlocks = readBlocks(ver.snapshot); // chosen version (parent)
+      const diff = diffBlocks(rightBlocks, leftBlocks);
+      const addedIds = new Set(diff.added.map((b) => b.instanceId));
+      const removedIds = new Set(diff.removed.map((b) => b.instanceId));
+      const changedIds = new Set(diff.changed.map((b) => b.instanceId));
+
+      const toNode = (b: BlockInstance, side: "left" | "right"): CompareNode => {
+        const d = blockDisplay(b);
+        let status: CompareStatus = "unchanged";
+        if (changedIds.has(b.instanceId)) status = "modified";
+        else if (side === "left" && addedIds.has(b.instanceId)) status = "added";
+        else if (side === "right" && removedIds.has(b.instanceId)) status = "removed";
+        return {
+          instanceId: b.instanceId,
+          name: d.name,
+          ref: d.ref,
+          status,
+          showIfCondition: b.visibility?.showIfCondition ?? [],
+        };
+      };
+
+      const verLabel =
+        ver.kind === "autosave"
+          ? "Draft"
+          : ver.kind === "named"
+            ? `v${ver.versionNumber}${ver.name ? ` — ${ver.name}` : ""}`
+            : ver.kind === "preregistered"
+              ? `Preregistration v${ver.versionNumber}`
+              : `Published v${ver.versionNumber}`;
+
+      return {
+        leftLabel: "Working copy",
+        rightLabel: verLabel,
+        left: leftBlocks.map((b) => toNode(b, "left")),
+        right: rightBlocks.map((b) => toNode(b, "right")),
+      };
+    }),
 
   /** Rename a study (autosaves the title; the title lives on Experiment, not a version). */
   updateTitle: writeProcedure
