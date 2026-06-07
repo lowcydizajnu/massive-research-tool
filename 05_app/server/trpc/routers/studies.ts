@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { and, count, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
+import { and, arrayContains, count, desc, eq, ilike, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { ulid } from "ulid";
 import { z } from "zod";
 
@@ -29,7 +29,7 @@ import {
   validateConfig,
 } from "@/server/modules/blocks";
 import { getModuleDef } from "@/server/modules/registry";
-import { router, workspaceProcedure, writeProcedure } from "@/server/trpc/trpc";
+import { publicProcedure, router, workspaceProcedure, writeProcedure } from "@/server/trpc/trpc";
 
 /**
  * Load a study's working tip (its current autosave version), scoped to the
@@ -430,7 +430,177 @@ export type ResultsSummary = {
   }[];
 };
 
+/** One card in the Browse-public-studies grid (ADR-0018 + browse wireframe). */
+export type BrowseStudyCard = {
+  studyId: string;
+  title: string;
+  authorId: string;
+  authorName: string;
+  tags: string[];
+  /** Latest discoverable (frozen) version's kind + number. */
+  latestKind: "published" | "preregistered";
+  latestVersionNumber: number;
+  replicationCount: number;
+  createdAt: string;
+};
+
+export type BrowsePage = { items: BrowseStudyCard[]; nextCursor: string | null };
+
+/** Tag + usage count for the Browse filter sidebar. */
+export type BrowseTag = { tag: string; count: number };
+
+type BrowseCursor = { c: string; i: string; r?: number };
+
+function encodeCursor(cur: BrowseCursor): string {
+  return Buffer.from(JSON.stringify(cur), "utf8").toString("base64url");
+}
+
+function decodeCursor(raw: string): BrowseCursor | null {
+  try {
+    const v = JSON.parse(Buffer.from(raw, "base64url").toString("utf8")) as BrowseCursor;
+    if (typeof v.c === "string" && typeof v.i === "string") return v;
+  } catch {
+    // fall through
+  }
+  return null;
+}
+
 export const studiesRouter = router({
+  /**
+   * Browse public studies (ADR-0018 + browse-public-studies wireframe). Public
+   * — no workspace context needed to read the listing. The discoverable set is
+   * `forkable_by = 'public'`, not archived, with at least one published or
+   * preregistered (frozen) version. Filters: tag intersection + author name.
+   * Sort: most recent or most replicated. Keyset (cursor) pagination.
+   * Framework filtering is DEFERRED (no study→framework provenance in the
+   * schema; owner decision 2026-06-07).
+   */
+  browsePublic: publicProcedure
+    .input(
+      z.object({
+        tags: z.array(z.string()).optional(),
+        authorQuery: z.string().trim().max(120).optional(),
+        sort: z.enum(["recent", "replicated"]).default("recent"),
+        cursor: z.string().optional(),
+        limit: z.number().int().min(1).max(48).default(24),
+      }),
+    )
+    .query(async ({ input }): Promise<BrowsePage> => {
+      const repCount = sql<number>`(select count(*)::int from ${experiment} c where c.fork_of_experiment_id = ${experiment.id})`;
+      const latestNum = sql<number>`(select max(v.version_number) from ${experimentVersion} v where v.experiment_id = ${experiment.id} and v.kind in ('published','preregistered'))`;
+      const latestKind = sql<"published" | "preregistered">`(select v.kind from ${experimentVersion} v where v.experiment_id = ${experiment.id} and v.kind in ('published','preregistered') order by v.version_number desc limit 1)`;
+
+      const filters = [
+        eq(experiment.forkableBy, "public"),
+        isNull(experiment.archivedAt),
+        // Discoverable = has at least one frozen, citable version.
+        sql`exists (select 1 from ${experimentVersion} v where v.experiment_id = ${experiment.id} and v.kind in ('published','preregistered'))`,
+      ];
+      if (input.tags?.length) {
+        // Intersection: the study must carry every selected tag (@> contains).
+        filters.push(arrayContains(experiment.tags, input.tags));
+      }
+      if (input.authorQuery) {
+        filters.push(ilike(user.displayName, `%${input.authorQuery}%`));
+      }
+
+      // Keyset cursor — rows strictly "after" the cursor in the sort order.
+      const cur = input.cursor ? decodeCursor(input.cursor) : null;
+      if (cur) {
+        if (input.sort === "replicated") {
+          filters.push(
+            sql`(${repCount}, ${experiment.createdAt}, ${experiment.id}) < (${cur.r ?? 0}, ${cur.c}::timestamptz, ${cur.i}::uuid)`,
+          );
+        } else {
+          filters.push(
+            sql`(${experiment.createdAt}, ${experiment.id}) < (${cur.c}::timestamptz, ${cur.i}::uuid)`,
+          );
+        }
+      }
+
+      const order =
+        input.sort === "replicated"
+          ? [desc(repCount), desc(experiment.createdAt), desc(experiment.id)]
+          : [desc(experiment.createdAt), desc(experiment.id)];
+
+      const rows = await db
+        .select({
+          studyId: experiment.id,
+          title: experiment.title,
+          authorId: experiment.ownerId,
+          authorName: user.displayName,
+          tags: experiment.tags,
+          createdAt: experiment.createdAt,
+          replicationCount: repCount,
+          latestVersionNumber: latestNum,
+          latestKind: latestKind,
+        })
+        .from(experiment)
+        .innerJoin(user, eq(user.id, experiment.ownerId))
+        .where(and(...filters))
+        .orderBy(...order)
+        .limit(input.limit + 1);
+
+      const hasMore = rows.length > input.limit;
+      const page = rows.slice(0, input.limit);
+      const last = page[page.length - 1];
+      const nextCursor =
+        hasMore && last
+          ? encodeCursor({
+              c: last.createdAt.toISOString(),
+              i: last.studyId,
+              r: input.sort === "replicated" ? Number(last.replicationCount) : undefined,
+            })
+          : null;
+
+      return {
+        items: page.map((r) => ({
+          studyId: r.studyId,
+          title: r.title,
+          authorId: r.authorId,
+          authorName: r.authorName ?? "",
+          tags: r.tags ?? [],
+          latestKind: r.latestKind,
+          latestVersionNumber: Number(r.latestVersionNumber),
+          replicationCount: Number(r.replicationCount),
+          createdAt: r.createdAt.toISOString(),
+        })),
+        nextCursor,
+      };
+    }),
+
+  /**
+   * Tags (with usage counts) across the discoverable public set, for the Browse
+   * filter sidebar's autocomplete. Optional prefix query `q`.
+   */
+  browseTags: publicProcedure
+    .input(z.object({ q: z.string().trim().max(60).optional() }).optional())
+    .query(async ({ input }): Promise<BrowseTag[]> => {
+      const rows = await db
+        .select({ tags: experiment.tags })
+        .from(experiment)
+        .where(
+          and(
+            eq(experiment.forkableBy, "public"),
+            isNull(experiment.archivedAt),
+            sql`exists (select 1 from ${experimentVersion} v where v.experiment_id = ${experiment.id} and v.kind in ('published','preregistered'))`,
+          ),
+        );
+
+      const q = input?.q?.toLowerCase();
+      const counts = new Map<string, number>();
+      for (const r of rows) {
+        for (const tag of r.tags ?? []) {
+          if (q && !tag.toLowerCase().startsWith(q)) continue;
+          counts.set(tag, (counts.get(tag) ?? 0) + 1);
+        }
+      }
+      return [...counts.entries()]
+        .map(([tag, c]) => ({ tag, count: c }))
+        .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag))
+        .slice(0, 50);
+    }),
+
   list: workspaceProcedure
     .input(z.object({ filter: z.enum(STUDY_FILTERS).default("all") }).optional())
     .query(async ({ ctx, input }): Promise<StudyListItem[]> => {
