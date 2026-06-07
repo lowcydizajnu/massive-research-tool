@@ -60,3 +60,39 @@ Build order: (1) data shape + a `setBlockBranching` mutation; (2) runtime resolv
 - ADR-0014 — condition arms + response/response_item (the answers branch rules read).
 - ADR-0020 — Whiteboard canvas (the surface that draws the block→block wires).
 - `05_app/server/runtime/participant.ts` — `visibleBlocks`/`getRuntimeQuestion` (the resolver to make incremental).
+
+---
+
+## Amendment (2026-06-07) — richer condition model + order-spine wires
+
+Reviewing the first cut live, the owner refined the model. Two changes, both within the chosen Option A "order + conditional wires" approach (the runtime stays order-based; conditions gate visibility — no graph rewrite):
+
+1. **Wires reflect list order (the spine).** The whiteboard draws a wire between each consecutive pair of blocks (in block order), so every block is visibly connected — a block with no wire "looks like an element I considered but never added." A wire is **flat** (no condition) by default; the block sequence is unchanged by flatness.
+
+2. **The condition is a type-aware compound tree, edited from the wire.** Each wire carries a **settings button** that opens a condition editor for the transition *into* its target block: "show this block only if …". The editor's inputs depend on the **source** block's module type — a stimulus (social-post) has no answer so its wire is **flat-only**; Likert/slider are numeric (`=, ≠, ≥, ≤, between`); single-select is option-based (`is`, `is any of`); multi-select is membership (`includes any of`); free-text is `is` / `contains`. Clauses combine with **AND / OR**.
+
+### Data (supersedes the equality-only `branchRules`)
+
+A block gains an optional `showIf` condition group in the blocks JSON (still no migration):
+
+```
+showIf?: { op: "and" | "or"; clauses: Clause[] }
+Clause = { fromInstanceId: string; operator: Operator; value: string[] }
+Operator = "eq"|"neq"|"gt"|"gte"|"lt"|"lte"|"between"|"is"|"isAnyOf"|"contains"|"includesAny"
+```
+
+Legacy `branchRules` (equality-OR) are read as the group `{ op:"or", clauses: rules.map(eq) }` for back-compat; new writes use `showIf`. The pure model + evaluator + the type→operator menus live in a shared, client-safe `lib/whiteboard/conditions.ts` so the **runtime** (`resolveVisibleBlocks`) and the **builder UI** evaluate/offer identically.
+
+### Runtime
+
+`branchVisible` becomes "evaluate the block's `showIf` (or legacy `branchRules`) group against the answers recorded so far." Group `op` is AND/OR over clauses; each clause applies its operator to the source block's answer value(s) (normalized by `answerValues`). Everything else (incremental resolution, completion against the updated path, ignoring orphaned answers) is unchanged.
+
+### Build order
+
+(1) `lib/whiteboard/conditions.ts` — types + operator menus + pure evaluator + tests; (2) wire it into the runtime resolver (keep legacy branchRules working) + `setBlockCondition` mutation + `StudyBlock.showIf`; (3) UI — auto-drawn order-spine wires, a wire settings button, and the type-aware AND/OR condition editor. Drag-reorder of blocks (Builder + list) ships alongside the UI step.
+
+### Consequences delta
+
+- The block array order is now also the **visual spine** on the canvas (auto-wired), not just the data order.
+- Conditions are compound + typed (Option C capabilities arrive, but stored in the same blocks JSON — no migration).
+- Stimulus blocks can't be a condition source (no answer) — the editor offers only a flat wire from them.

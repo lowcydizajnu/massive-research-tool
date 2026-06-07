@@ -320,8 +320,10 @@ export type StudyBlock = {
   complete: boolean;
   /** Condition slugs this block is gated to; empty = shown to everyone. */
   showIfCondition: string[];
-  /** Answer-based branch rules (ADR-0021): show only if a prior answer matches. */
+  /** Legacy equality branch rules (ADR-0021, superseded by `showIf`). */
   branchRules: { fromInstanceId: string; equals: string }[];
+  /** Answer-based visibility condition tree (ADR-0021 amendment); null = flat. */
+  showIf: import("@/lib/whiteboard/conditions").ConditionGroup | null;
 };
 
 export type StudyDetail = {
@@ -824,6 +826,7 @@ export const studiesRouter = router({
           complete: d.complete,
           showIfCondition: b.visibility?.showIfCondition ?? [],
           branchRules: b.branchRules ?? [],
+          showIf: b.showIf ?? null,
         };
       });
 
@@ -1334,6 +1337,67 @@ export const studiesRouter = router({
       const next = { ...blocks[idx] };
       if (input.branchRules.length) next.branchRules = input.branchRules;
       else delete next.branchRules;
+      blocks[idx] = next;
+      await writeBlocks(tip.version.id, input.studyId, blocks);
+      return { ok: true };
+    }),
+
+  /**
+   * Set a block's answer-based visibility condition (ADR-0021 amendment) — a
+   * type-aware AND/OR tree over earlier blocks' answers. `null` clears it (flat).
+   * Source blocks must exist and not be the block itself. Replaces any legacy
+   * `branchRules` on the block.
+   */
+  setBlockCondition: writeProcedure
+    .input(
+      z.object({
+        studyId: z.string().uuid(),
+        instanceId: z.string(),
+        showIf: z
+          .object({
+            op: z.enum(["and", "or"]),
+            clauses: z
+              .array(
+                z.object({
+                  fromInstanceId: z.string(),
+                  operator: z.enum([
+                    "eq",
+                    "neq",
+                    "gt",
+                    "gte",
+                    "lt",
+                    "lte",
+                    "between",
+                    "isAnyOf",
+                    "contains",
+                    "includesAny",
+                  ]),
+                  value: z.array(z.string()).max(50),
+                }),
+              )
+              .max(20),
+          })
+          .nullable(),
+      }),
+    )
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+      const blocks = readBlocks(tip.version.definitionSnapshot);
+      const idx = blocks.findIndex((b) => b.instanceId === input.instanceId);
+      if (idx === -1) throw new TRPCError({ code: "NOT_FOUND" });
+      const ids = new Set(blocks.map((b) => b.instanceId));
+      for (const c of input.showIf?.clauses ?? []) {
+        if (c.fromInstanceId === input.instanceId) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "A block can't condition on itself." });
+        }
+        if (!ids.has(c.fromInstanceId)) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Unknown source block." });
+        }
+      }
+      const next = { ...blocks[idx] };
+      delete next.branchRules; // superseded by showIf
+      if (input.showIf && input.showIf.clauses.length) next.showIf = input.showIf;
+      else delete next.showIf;
       blocks[idx] = next;
       await writeBlocks(tip.version.id, input.studyId, blocks);
       return { ok: true };
