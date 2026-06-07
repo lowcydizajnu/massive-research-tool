@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:migrate:prod": "tsx scripts/migrate-prod.ts",
     "db:seed": "tsx server/db/seed.ts",
     "test": "vitest run",
     "test:e2e": "playwright test --project=chromium",
