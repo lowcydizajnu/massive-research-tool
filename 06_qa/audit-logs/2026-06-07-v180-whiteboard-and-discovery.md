@@ -39,5 +39,6 @@
 
 ## Sign-off
 
-- [x] Agent: V1.8 code complete on `v1.8`; 177 vitest + typecheck + lint + build + validator all green.
-- [ ] **Owner:** approve the production `whiteboard_viewport` migration + the `v1.8` → `main` merge (single deploy); then `npm run deploy:verify` against production and `git tag v1.8.0`.
+- [x] Agent: V1.8 code complete; 177 vitest + typecheck + lint + build + validator all green.
+- [x] Agent: **SHIPPED** — owner approved the deploy (2026-06-07). Prod `whiteboard_viewport` migration applied via `db:migrate:prod`; `v1.8` merged to `main` (`52f6064`); Vercel deployed (`/api/health` → `52f6064`); smoke clean (`/signin` 200, protected routes 307); tagged **`v1.8.0`**.
+- [ ] **Owner:** click-through review on production (Browse + Whiteboard). Optional: `npm run deploy:verify` for the full gated axe/e2e pass (writes test data — skippable as the only user).
