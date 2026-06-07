@@ -331,6 +331,15 @@ export type StudyDetail = {
   forkableBy: "public" | "link-only" | "private";
   isReplication: boolean;
   blocks: StudyBlock[];
+  /** Whiteboard pan/zoom (ADR-0020); {} = fit-to-screen on first render. */
+  whiteboardViewport: WhiteboardViewport;
+};
+
+/** Whiteboard canvas viewport state (ADR-0020). Empty object = fit-to-screen. */
+export type WhiteboardViewport = {
+  x?: number;
+  y?: number;
+  zoom?: number;
 };
 
 /** A node in a study's replication family (ADR-0018). `diff` is withheld (null) when the caller can't see the other study's protocol. */
@@ -802,7 +811,39 @@ export const studiesRouter = router({
         forkableBy: row.experiment.forkableBy,
         isReplication: row.experiment.forkOfExperimentId !== null,
         blocks,
+        whiteboardViewport: (row.version?.whiteboardViewport as WhiteboardViewport | null) ?? {},
       };
+    }),
+
+  /**
+   * Persist the Whiteboard canvas viewport (ADR-0020) onto the autosave tip.
+   * The only new server endpoint the Whiteboard needs — all block edits reuse
+   * the Builder mutations. Viewport is UX state, not part of the immutable
+   * snapshot, so it writes the current (autosave) version in place.
+   */
+  updateWhiteboardViewport: writeProcedure
+    .input(
+      z.object({
+        studyId: z.string().uuid(),
+        viewport: z.object({
+          x: z.number(),
+          y: z.number(),
+          zoom: z.number(),
+        }),
+      }),
+    )
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      const [exp] = await db
+        .select({ currentVersionId: experiment.currentVersionId })
+        .from(experiment)
+        .where(and(eq(experiment.id, input.studyId), eq(experiment.tenantId, ctx.workspace.id)))
+        .limit(1);
+      if (!exp?.currentVersionId) throw new TRPCError({ code: "NOT_FOUND" });
+      await db
+        .update(experimentVersion)
+        .set({ whiteboardViewport: input.viewport })
+        .where(eq(experimentVersion.id, exp.currentVersionId));
+      return { ok: true };
     }),
 
   /**
