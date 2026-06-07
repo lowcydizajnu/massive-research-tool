@@ -29,7 +29,16 @@ const nodeTypes = { block: BlockNode, condition: ConditionNode };
  * autosave tip's `whiteboard_viewport` so the canvas reopens where it was left.
  * Read/structure view here; block edits round-trip through the Builder (A5).
  */
-export function WhiteboardCanvas({ study }: { study: StudyDetail }) {
+export function WhiteboardCanvas({
+  study,
+  selectedId = null,
+  onSelectBlock,
+}: {
+  study: StudyDetail;
+  selectedId?: string | null;
+  /** Selecting a block node opens the shared Configure panel (A5). */
+  onSelectBlock?: (instanceId: string | null) => void;
+}) {
   const graph = useMemo(() => deriveGraph(study.blocks), [study.blocks]);
 
   const nodes: Node[] = useMemo(
@@ -38,12 +47,13 @@ export function WhiteboardCanvas({ study }: { study: StudyDetail }) {
         id: n.id,
         type: n.kind,
         position: n.position,
+        selected: n.kind === "block" && n.id === selectedId,
         data:
           n.kind === "block"
             ? { label: n.label, ref: n.ref, complete: n.complete }
             : { label: n.label },
       })),
-    [graph],
+    [graph, selectedId],
   );
 
   const edges: Edge[] = useMemo(
@@ -88,6 +98,10 @@ export function WhiteboardCanvas({ study }: { study: StudyDetail }) {
         defaultViewport={defaultViewport}
         fitView={!defaultViewport}
         onMoveEnd={onMoveEnd}
+        onNodeClick={(_, node) =>
+          onSelectBlock?.(node.type === "block" ? node.id : null)
+        }
+        onPaneClick={() => onSelectBlock?.(null)}
         nodesConnectable={false}
         nodesDraggable
         proOptions={{ hideAttribution: true }}
