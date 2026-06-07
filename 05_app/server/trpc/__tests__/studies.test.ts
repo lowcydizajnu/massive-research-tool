@@ -1175,3 +1175,33 @@ describe("studies.browsePublic + browseTags (V1.8 Stream B, ADR-0018)", () => {
     expect(pref.map((t) => t.tag)).toEqual(["misinformation"]);
   });
 });
+
+describe("studies.getPublicStudy (V1.8 Stream B)", () => {
+  it("returns a public study's latest frozen version read-only", async () => {
+    await seedUserWithWorkspace("hanna", "Hanna Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const { id } = await a.studies.create({ kind: "blank", title: "Public detail" });
+    await a.studies.addBlock({ studyId: id, source: "core", key: "likert-7", version: "1.0.0" });
+    await a.studies.publish({ studyId: id });
+    await a.studies.setForkable({ studyId: id, forkableBy: "public" });
+    await a.studies.setTags({ studyId: id, tags: ["misinformation"] });
+
+    const detail = await a.studies.getPublicStudy({ studyId: id });
+    expect(detail).toMatchObject({
+      title: "Public detail",
+      authorName: "hanna",
+      latestKind: "published",
+      latestVersionNumber: 1,
+      tags: ["misinformation"],
+    });
+    expect(detail.blocks.map((b) => b.ref)).toEqual(["core/likert-7@1.0.0"]);
+  });
+
+  it("is NOT_FOUND for a private study", async () => {
+    await seedUserWithWorkspace("hanna", "Hanna Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const { id } = await a.studies.create({ kind: "blank", title: "Private" });
+    await a.studies.publish({ studyId: id });
+    await expect(a.studies.getPublicStudy({ studyId: id })).rejects.toThrow();
+  });
+});
