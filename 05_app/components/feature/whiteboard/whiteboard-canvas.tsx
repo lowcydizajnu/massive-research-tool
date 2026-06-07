@@ -19,6 +19,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { api } from "@/lib/trpc/react";
 import { conditionNodeId } from "@/lib/whiteboard/graph";
+import { OPERATOR_LABELS, normalizeCondition } from "@/lib/whiteboard/conditions";
 import type { StudyDetail } from "@/server/trpc/routers/studies";
 
 import { BlockNode, ConditionNode } from "./whiteboard-nodes";
@@ -99,17 +100,19 @@ export function WhiteboardCanvas({
           markerEnd: { type: MarkerType.ArrowClosed },
         })),
       ),
-      // Answer-based branch wires (block → block), labelled with the trigger value.
-      ...study.blocks.flatMap((b) =>
-        (b.branchRules ?? []).map((r) => ({
-          id: `b:${r.fromInstanceId}->${b.instanceId}`,
-          source: r.fromInstanceId,
+      // Answer-based condition wires (block → block) from the effective condition
+      // (showIf, else legacy branchRules), one per clause, labelled op + value.
+      ...study.blocks.flatMap((b) => {
+        const cond = normalizeCondition(b.showIf, b.branchRules);
+        return (cond?.clauses ?? []).map((c, i) => ({
+          id: `b:${c.fromInstanceId}->${b.instanceId}:${i}`,
+          source: c.fromInstanceId,
           target: b.instanceId,
-          label: `= ${r.equals}`,
+          label: `${OPERATOR_LABELS[c.operator]} ${c.value.join("/")}`.trim(),
           markerEnd: { type: MarkerType.ArrowClosed },
           style: { stroke: "var(--color-primary)" },
-        })),
-      ),
+        }));
+      }),
     ],
     [study.blocks],
   );

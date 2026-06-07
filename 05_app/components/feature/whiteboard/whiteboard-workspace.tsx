@@ -13,6 +13,9 @@ import { ModulePicker } from "@/components/feature/builder/module-picker";
 import { api } from "@/lib/trpc/react";
 import type { StudyDetail } from "@/server/trpc/routers/studies";
 
+import { normalizeCondition } from "@/lib/whiteboard/conditions";
+
+import { ConditionBuilder } from "./condition-builder";
 import { WhiteboardCanvas } from "./whiteboard-canvas";
 import { WhiteboardList } from "./whiteboard-list";
 import { cn } from "@/lib/utils";
@@ -46,6 +49,7 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
   const updateConfig = api.studies.updateBlockConfig.useMutation({ onSuccess: () => void invalidate() });
   const renameBlock = api.studies.setBlockTitle.useMutation({ onSuccess: () => void invalidate() });
   const reorderBlocks = api.studies.reorderBlocks.useMutation({ onSuccess: () => void invalidate() });
+  const setCondition = api.studies.setBlockCondition.useMutation({ onSuccess: () => void invalidate() });
 
   // Conditions drive the canvas wires (drag a Condition node → a block to gate it).
   const conditions = api.studies.listConditions.useQuery({ studyId: study.id });
@@ -63,32 +67,29 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
     setBlockConditions(blockId, b.showIfCondition.filter((s) => s !== slug));
   };
 
-  // Answer-based branching (ADR-0021): wire source-block → target-block, gated
-  // on the source's answer value (captured via a prompt at connect time).
-  const setBranching = api.studies.setBlockBranching.useMutation({ onSuccess: () => void invalidate() });
+  // Quick block→block wire (ADR-0021 amendment): adds an equality clause to the
+  // target's condition (full editing is the right-panel ConditionBuilder).
   const connectBranch = (targetId: string, sourceId: string) => {
     const target = study.blocks.find((x) => x.instanceId === targetId);
     const source = study.blocks.find((x) => x.instanceId === sourceId);
     if (!target || !source) return;
     const value = window
-      .prompt(`Show "${target.title?.trim() || target.name}" only if the answer to "${source.title?.trim() || source.name}" equals:`)
+      .prompt(`Show "${target.title?.trim() || target.name}" only if the answer to "${source.title?.trim() || source.name}" equals (you can refine in the panel):`)
       ?.trim();
     if (!value) return;
-    const existing = target.branchRules ?? [];
-    if (existing.some((r) => r.fromInstanceId === sourceId && r.equals === value)) return;
-    setBranching.mutate({
-      studyId: study.id,
-      instanceId: targetId,
-      branchRules: [...existing, { fromInstanceId: sourceId, equals: value }],
-    });
+    const existing = normalizeCondition(target.showIf, target.branchRules);
+    const clauses = [...(existing?.clauses ?? []), { fromInstanceId: sourceId, operator: "eq" as const, value: [value] }];
+    setCondition.mutate({ studyId: study.id, instanceId: targetId, showIf: { op: existing?.op ?? "and", clauses } });
   };
   const disconnectBranch = (targetId: string, sourceId: string) => {
     const target = study.blocks.find((x) => x.instanceId === targetId);
     if (!target) return;
-    setBranching.mutate({
+    const existing = normalizeCondition(target.showIf, target.branchRules);
+    const clauses = (existing?.clauses ?? []).filter((c) => c.fromInstanceId !== sourceId);
+    setCondition.mutate({
       studyId: study.id,
       instanceId: targetId,
-      branchRules: (target.branchRules ?? []).filter((r) => r.fromInstanceId !== sourceId),
+      showIf: clauses.length ? { op: existing?.op ?? "and", clauses } : null,
     });
   };
 
@@ -208,6 +209,15 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
                   removeBlock.mutate({ studyId: study.id, instanceId: selected.instanceId });
                   setSelectedId(null);
                 }}
+              />
+              <ConditionBuilder
+                key={`cond-${selected.instanceId}`}
+                block={selected}
+                earlierBlocks={study.blocks.slice(0, study.blocks.findIndex((b) => b.instanceId === selected.instanceId))}
+                pending={setCondition.isPending}
+                onSave={(showIf) =>
+                  setCondition.mutate({ studyId: study.id, instanceId: selected.instanceId, showIf })
+                }
               />
               <BlockVisibilityField
                 studyId={study.id}
