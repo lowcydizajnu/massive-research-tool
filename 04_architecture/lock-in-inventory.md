@@ -88,6 +88,16 @@ For each vendor:
 | **Migration target** | Per-tenant or per-task. Multiple providers can be active simultaneously. |
 | **Cost-ceiling trigger** | Cost-per-invocation tracked in `TenantAIMeter`; trigger when monthly cost > $50/tenant OR when token consumption pattern suggests caching gaps. |
 
+## React Flow / xyflow (Whiteboard canvas — per ADR-0020)
+
+| | |
+| --- | --- |
+| **What we use it for** | V1.8 Whiteboard mode — the study-graph view (blocks as nodes, `visibility.showIfCondition` rules as edges) + multi-version side-by-side compare. Researcher-only (ADR-0013: participants stay SSR-MPA). |
+| **Behind an adapter** | No server adapter — `@xyflow/react` is a client-only UI library, so the lock-in boundary is a component wrapper, not a `server/adapters/` interface. All `@xyflow/react` imports + its CSS are confined to `05_app/components/feature/whiteboard/*`; the rest of the app never imports xyflow types or components. The canvas is a translation layer over `definition_snapshot.blocks` (ADR-0012) — the data shape is **ours**, not xyflow's, so there is no data-model lock-in (the migration only rewrites rendering). |
+| **Deliberate exceptions** | (none — the component-folder boundary holds; no xyflow import leaks outside `components/feature/whiteboard/`.) |
+| **Migration target** | Konva or a small custom HTML5-canvas layer (per ADR-0020). Well-bounded because nodes/edges are derived from our own `blocks` array on each render; a migration swaps the renderer, not the data. |
+| **Cost-ceiling trigger** | None — MIT licensed, no SaaS tier, no per-seat cost. The only revisit trigger is bundle size (~30kb gzipped today; revisit if a future `bundle-size` ADR sets a budget) or a hypothetical license change (ADR-0020 revisit triggers). |
+
 ## Review discipline
 
 When opening a PR that touches an adapter or adds a vendor SDK import:

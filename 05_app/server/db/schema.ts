@@ -247,6 +247,13 @@ export const experimentVersion = pgTable(
     description: text("description"),
     definitionSnapshot: jsonb("definition_snapshot").notNull(),
     moduleVersionLocks: jsonb("module_version_locks").notNull(),
+    /**
+     * Whiteboard canvas viewport (ADR-0020): { x, y, zoom } pan/zoom + optional
+     * per-node positions. Empty {} means "fit-to-screen on first render". On the
+     * autosave tip this is mutable (debounce-written as the researcher pans/zooms);
+     * frozen versions capture the viewport at snapshot time and never change.
+     */
+    whiteboardViewport: jsonb("whiteboard_viewport").notNull().default({}),
     themeId: uuid("theme_id"),
     themeSnapshot: jsonb("theme_snapshot"),
     createdBy: uuid("created_by")
