@@ -90,6 +90,21 @@ describe("first migration — forward apply", () => {
     await expect(ins("n_2")).rejects.toThrow(); // same (recipient, source_event) → unique violation
   });
 
+  it("adds the V1.8 whiteboard_viewport column (additive, default {}) to experiment_version", async () => {
+    await applyMigrations();
+    const { rows } = await pg.query<{ column_default: string | null; is_nullable: string; data_type: string }>(
+      `select column_default, is_nullable, data_type
+         from information_schema.columns
+        where table_schema = 'public'
+          and table_name = 'experiment_version'
+          and column_name = 'whiteboard_viewport'`,
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].data_type).toBe("jsonb");
+    expect(rows[0].is_nullable).toBe("NO");
+    expect(rows[0].column_default).toMatch(/\{\}/); // defaults to an empty object
+  });
+
   it("creates every enum type", async () => {
     await applyMigrations();
     const { rows } = await pg.query<{ typname: string }>(

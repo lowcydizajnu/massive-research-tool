@@ -3,6 +3,7 @@
 import {
   Activity,
   Boxes,
+  Compass,
   FlaskConical,
   Library,
   Settings,
@@ -32,6 +33,7 @@ const DESTINATIONS: Destination[] = [
   { label: "Studies", icon: FlaskConical, href: "/studies" },
   { label: "Library", icon: Library },
   { label: "Frameworks", icon: Boxes, href: "/frameworks" as Route },
+  { label: "Browse", icon: Compass, href: "/browse" as Route },
   { label: "Participants", icon: Users },
   { label: "Activity", icon: Activity, href: "/activity" as Route },
   { label: "Team", icon: UsersRound },
