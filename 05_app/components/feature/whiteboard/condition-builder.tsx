@@ -16,9 +16,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { StudyBlock } from "@/server/trpc/routers/studies";
 
-/** Operators whose value is a single free text/number. */
-const SINGLE_VALUE: Operator[] = ["eq", "neq", "gt", "gte", "lt", "lte", "contains"];
-/** Operators whose value is a list (comma-separated). */
+/** Operators whose value is a list (comma-separated); others are single text/number. */
 const LIST_VALUE: Operator[] = ["isAnyOf", "includesAny"];
 
 /**
