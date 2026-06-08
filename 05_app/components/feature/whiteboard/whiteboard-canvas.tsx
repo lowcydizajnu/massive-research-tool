@@ -22,9 +22,9 @@ import { conditionNodeId } from "@/lib/whiteboard/graph";
 import { OPERATOR_LABELS, conditionWithSources } from "@/lib/whiteboard/conditions";
 import type { StudyDetail } from "@/server/trpc/routers/studies";
 
-import { BlockNode, ConditionEdge, ConditionNode } from "./whiteboard-nodes";
+import { BlockNode, ConditionEdge, ConditionNode, GroupNode } from "./whiteboard-nodes";
 
-const nodeTypes = { block: BlockNode, condition: ConditionNode };
+const nodeTypes = { block: BlockNode, condition: ConditionNode, group: GroupNode };
 const edgeTypes = { condition: ConditionEdge };
 const COND_PREFIX = "cond:";
 
@@ -79,16 +79,46 @@ export function WhiteboardCanvas({
         data: { label: `Condition: ${condName(slug)}` },
       };
     });
+    const posOf = (id: string, i: number) => saved[id] ?? { x: 320, y: i * 120 };
     const blockNodes: Node[] = study.blocks.map((b, i) => ({
       id: b.instanceId,
       type: "block",
-      position: saved[b.instanceId] ?? { x: 320, y: i * 120 },
+      position: posOf(b.instanceId, i),
       selected: b.instanceId === selectedId,
+      zIndex: 1,
       data: { label: b.title?.trim() || b.name, ref: `${b.key} · ${b.version}`, complete: b.complete },
     }));
-    return [...condNodes, ...blockNodes];
+
+    // Group container boxes (ADR-0028 / grouping #5): a dashed box behind each
+    // group, sized from its members' bounding box (works after manual drag too).
+    const NW = 280, NH = 76, PAD = 16, HEADER = 20;
+    const groupNodes: Node[] = study.groups
+      .map((g) => {
+        const members = study.blocks
+          .map((b, i) => ({ b, i }))
+          .filter((x) => x.b.groupId === g.id)
+          .map((x) => posOf(x.b.instanceId, x.i));
+        if (members.length === 0) return null;
+        const minX = Math.min(...members.map((p) => p.x));
+        const minY = Math.min(...members.map((p) => p.y));
+        const maxX = Math.max(...members.map((p) => p.x + NW));
+        const maxY = Math.max(...members.map((p) => p.y + NH));
+        return {
+          id: `group:${g.id}`,
+          type: "group",
+          position: { x: minX - PAD, y: minY - PAD - HEADER },
+          draggable: false,
+          selectable: false,
+          zIndex: 0,
+          data: { label: g.title ?? "Group" },
+          style: { width: maxX - minX + 2 * PAD, height: maxY - minY + 2 * PAD + HEADER },
+        } as Node;
+      })
+      .filter(Boolean) as Node[];
+
+    return [...groupNodes, ...condNodes, ...blockNodes];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [study.blocks, conditions, selectedId, JSON.stringify(saved), condName]);
+  }, [study.blocks, study.groups, conditions, selectedId, JSON.stringify(saved), condName]);
 
   const computedEdges = useMemo<Edge[]>(
     () => [

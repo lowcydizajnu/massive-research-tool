@@ -20,9 +20,24 @@ import { Settings2 } from "lucide-react";
  */
 export type BlockNodeData = { label: string; ref?: string; complete?: boolean };
 export type ConditionNodeData = { label: string };
+export type GroupNodeData = { label: string };
 
 export type BlockNodeType = Node<BlockNodeData, "block">;
 export type ConditionNodeType = Node<ConditionNodeData, "condition">;
+export type GroupNodeType = Node<GroupNodeData, "group">;
+
+/** Container box behind a question group's member nodes (ADR-0028 / grouping #5).
+ *  Sized + positioned by the canvas from the members' bounding box; non-
+ *  interactive (the members are the draggable nodes). */
+export function GroupNode({ data }: NodeProps<GroupNodeType>) {
+  return (
+    <div className="relative h-full w-full rounded-[var(--radius-md)] border-2 border-dashed border-[var(--color-primary)] bg-[var(--color-primary-subtle)] opacity-60">
+      <span className="absolute left-2 top-1 text-[length:var(--text-small)] font-medium text-[var(--color-primary-text-on-subtle)]">
+        ⊞ {data.label || "Group"}
+      </span>
+    </div>
+  );
+}
 
 export function BlockNode({ data, selected }: NodeProps<BlockNodeType>) {
   return (
