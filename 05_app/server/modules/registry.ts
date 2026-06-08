@@ -865,7 +865,129 @@ const pictureChoiceBlock: CoreModuleDef = {
     (c.imageUrls as unknown[]).filter((u) => String(u).trim() !== "").length > 0,
 };
 
+// ---------- V1.12 Wave 3 (batch 1): numeric research scales ----------
+
+const numVal = (a: unknown): number | null => {
+  const v = (a as { value?: unknown })?.value;
+  return typeof v === "number" && !Number.isNaN(v) ? v : null;
+};
+
+const npsBlock: CoreModuleDef = {
+  source: "core",
+  key: "nps",
+  version: "1.0.0",
+  name: "Net Promoter Score (0–10)",
+  description: "An 11-point 0–10 likelihood-to-recommend scale (NPS).",
+  categoryTags: ["measurement", "rating"],
+  configSchema: z.object({
+    prompt: z.string(),
+    required: z.boolean(),
+    leftLabel: z.string(),
+    rightLabel: z.string(),
+  }),
+  defaultConfig: {
+    prompt: "",
+    required: true,
+    leftLabel: "Not at all likely",
+    rightLabel: "Extremely likely",
+  },
+  jsonSchema: {
+    type: "object",
+    properties: {
+      prompt: { type: "string" },
+      required: { type: "boolean" },
+      leftLabel: { type: "string" },
+      rightLabel: { type: "string" },
+    },
+    required: ["prompt"],
+    additionalProperties: false,
+  },
+  collectsResponse: true,
+  responseSchema: z.object({ value: z.number().int().min(0).max(10) }),
+  isAnswerEmpty: (a) => numVal(a) === null,
+  validateAnswer: (a) => {
+    const v = numVal(a);
+    return v !== null && Number.isInteger(v) && v >= 0 && v <= 10;
+  },
+  isComplete: (c) => typeof c.prompt === "string" && c.prompt.trim().length > 0,
+};
+
+const ratingStarsBlock: CoreModuleDef = {
+  source: "core",
+  key: "rating-stars",
+  version: "1.0.0",
+  name: "Star rating",
+  description: "A 1-to-N star rating.",
+  categoryTags: ["measurement", "rating"],
+  configSchema: z.object({ prompt: z.string(), required: z.boolean(), max: z.number().int().min(2).max(10) }),
+  defaultConfig: { prompt: "", required: true, max: 5 },
+  jsonSchema: {
+    type: "object",
+    properties: {
+      prompt: { type: "string" },
+      required: { type: "boolean" },
+      max: { type: "integer", minimum: 2, maximum: 10 },
+    },
+    required: ["prompt"],
+    additionalProperties: false,
+  },
+  collectsResponse: true,
+  responseSchema: z.object({ value: z.number().int().min(1).max(10) }),
+  isAnswerEmpty: (a) => numVal(a) === null,
+  validateAnswer: (a, c) => {
+    const v = numVal(a);
+    const max = typeof c.max === "number" ? c.max : 5;
+    return v !== null && Number.isInteger(v) && v >= 1 && v <= max;
+  },
+  isComplete: (c) => typeof c.prompt === "string" && c.prompt.trim().length > 0,
+};
+
+const vasBlock: CoreModuleDef = {
+  source: "core",
+  key: "vas",
+  version: "1.0.0",
+  name: "Visual analog scale",
+  description: "A continuous slider between two labelled anchors (VAS).",
+  categoryTags: ["measurement", "rating"],
+  configSchema: z.object({
+    prompt: z.string(),
+    required: z.boolean(),
+    min: z.number(),
+    max: z.number(),
+    leftLabel: z.string(),
+    rightLabel: z.string(),
+  }),
+  defaultConfig: { prompt: "", required: true, min: 0, max: 100, leftLabel: "", rightLabel: "" },
+  jsonSchema: {
+    type: "object",
+    properties: {
+      prompt: { type: "string" },
+      required: { type: "boolean" },
+      min: { type: "number" },
+      max: { type: "number" },
+      leftLabel: { type: "string" },
+      rightLabel: { type: "string" },
+    },
+    required: ["prompt"],
+    additionalProperties: false,
+  },
+  collectsResponse: true,
+  responseSchema: z.object({ value: z.number() }),
+  isAnswerEmpty: (a) => numVal(a) === null,
+  validateAnswer: (a, c) => {
+    const v = numVal(a);
+    if (v === null) return false;
+    const min = typeof c.min === "number" ? c.min : 0;
+    const max = typeof c.max === "number" ? c.max : 100;
+    return v >= min && v <= max;
+  },
+  isComplete: (c) => typeof c.prompt === "string" && c.prompt.trim().length > 0,
+};
+
 export const MODULE_REGISTRY: CoreModuleDef[] = [
+  npsBlock,
+  ratingStarsBlock,
+  vasBlock,
   textBlock,
   imageBlock,
   videoBlock,

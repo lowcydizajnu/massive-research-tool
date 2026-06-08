@@ -48,7 +48,14 @@ export async function answerAction(formData: FormData): Promise<void> {
   // re-validates against the block's responseSchema server-side, so trusting
   // the client's moduleKey here only selects extraction, not correctness.
   let answer: unknown = null;
-  if (moduleKey === "likert-7" || moduleKey === "slider" || moduleKey === "number") {
+  if (
+    moduleKey === "likert-7" ||
+    moduleKey === "slider" ||
+    moduleKey === "number" ||
+    moduleKey === "nps" ||
+    moduleKey === "rating-stars" ||
+    moduleKey === "vas"
+  ) {
     const raw = formData.get("value");
     answer = raw != null && String(raw) !== "" ? { value: Number(raw) } : null;
   } else if (
