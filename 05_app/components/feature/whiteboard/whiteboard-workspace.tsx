@@ -14,8 +14,8 @@ import { api } from "@/lib/trpc/react";
 import type { StudyDetail } from "@/server/trpc/routers/studies";
 
 import {
-  clausesBrokenByOrder,
   isConditionSource,
+  newlyBrokenByReorder,
   normalizeCondition,
   summarizeClause,
 } from "@/lib/whiteboard/conditions";
@@ -63,7 +63,8 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
   const requestReorder = (order: string[]) => {
     const byId = new Map(study.blocks.map((b) => [b.instanceId, b]));
     const ordered = order.map((id) => byId.get(id)).filter(Boolean) as typeof study.blocks;
-    const broken = clausesBrokenByOrder(ordered);
+    // Only warn about conditions that are valid now but this move would break.
+    const broken = newlyBrokenByReorder(study.blocks, ordered);
     if (broken.length === 0) {
       reorderBlocks.mutate({ studyId: study.id, order });
       return;

@@ -5,8 +5,8 @@ import { useEffect, useState } from "react";
 
 import { move } from "@/lib/whiteboard/reorder";
 import {
-  clausesBrokenByOrder,
   conditionWithSources,
+  newlyBrokenByReorder,
   summarizeClause,
   summarizeCondition,
 } from "@/lib/whiteboard/conditions";
@@ -111,7 +111,7 @@ export function BuilderWorkspace({
   const requestReorder = (order: string[]) => {
     const byId = new Map(study.blocks.map((b) => [b.instanceId, b]));
     const ordered = order.map((id) => byId.get(id)).filter(Boolean) as typeof study.blocks;
-    const broken = clausesBrokenByOrder(ordered);
+    const broken = newlyBrokenByReorder(study.blocks, ordered);
     if (broken.length === 0) {
       reorderBlocks.mutate({ studyId: study.id, order });
       return;

@@ -160,6 +160,23 @@ export function clausesBrokenByOrder(
   return broken;
 }
 
+type OrderedBlock = { instanceId: string; showIf?: ConditionGroup | null; branchRules?: LegacyBranchRule[] | null };
+const brokenKey = (b: { targetId: string; clause: Clause }) =>
+  `${b.targetId}|${b.clause.fromInstanceId}|${b.clause.operator}|${b.clause.value.join(",")}`;
+
+/**
+ * Clauses that are valid *now* but would become invalid under `next` — i.e. the
+ * conditions a reorder would actually destroy. Excludes clauses already broken
+ * in the current order (those are dead already; don't warn about them).
+ */
+export function newlyBrokenByReorder(
+  current: OrderedBlock[],
+  next: OrderedBlock[],
+): { targetId: string; clause: Clause }[] {
+  const alreadyBroken = new Set(clausesBrokenByOrder(current).map(brokenKey));
+  return clausesBrokenByOrder(next).filter((b) => !alreadyBroken.has(brokenKey(b)));
+}
+
 /** Short human label for one clause, e.g. "Post 1 is at least 5" or "Q2 is answered". */
 export function summarizeClause(clause: Clause, nameOf: (id: string) => string): string {
   const name = nameOf(clause.fromInstanceId);

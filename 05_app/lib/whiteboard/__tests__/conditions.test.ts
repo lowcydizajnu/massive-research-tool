@@ -6,6 +6,7 @@ import {
   conditionWithSources,
   evaluateClause,
   evaluateCondition,
+  newlyBrokenByReorder,
   normalizeCondition,
   operatorsForKey,
   isConditionSource,
@@ -137,5 +138,38 @@ describe("source validity (reorder consistency, V1.10.2)", () => {
     expect(
       clausesBrokenByOrder([{ instanceId: "a" }, { instanceId: "c" }, { instanceId: "b", showIf }]),
     ).toHaveLength(0);
+  });
+});
+
+describe("newlyBrokenByReorder (only warn about live conditions, V1.10.3)", () => {
+  it("ignores clauses already broken in the current order", () => {
+    // Current order: target 'k' (first) references 'lk' + 'sl' — already broken
+    // (they come after 'k'). Post 'p' references 'sl' — valid now.
+    const current = [
+      { instanceId: "k", showIf: { op: "or" as const, clauses: [
+        { fromInstanceId: "lk", operator: "neq" as const, value: ["3"] },
+        { fromInstanceId: "sl", operator: "eq" as const, value: ["30"] },
+      ] } },
+      { instanceId: "lk" },
+      { instanceId: "sl" },
+      { instanceId: "p", showIf: { op: "and" as const, clauses: [
+        { fromInstanceId: "sl", operator: "eq" as const, value: ["20"] },
+      ] } },
+    ];
+    // Move 'p' above 'sl' → only "p: sl is 20" newly breaks; k's were already dead.
+    const next = [current[0], current[1], current[3], current[2]];
+    const broken = newlyBrokenByReorder(current, next);
+    expect(broken).toHaveLength(1);
+    expect(broken[0]).toMatchObject({ targetId: "p", clause: { fromInstanceId: "sl" } });
+  });
+  it("returns nothing when a reorder only shuffles already-dead clauses", () => {
+    const current = [
+      { instanceId: "k", showIf: { op: "or" as const, clauses: [
+        { fromInstanceId: "sl", operator: "eq" as const, value: ["30"] },
+      ] } },
+      { instanceId: "sl" },
+    ];
+    // Swap them — k's clause was already broken (sl after k) and stays broken.
+    expect(newlyBrokenByReorder(current, [current[1], current[0]])).toHaveLength(0);
   });
 });
