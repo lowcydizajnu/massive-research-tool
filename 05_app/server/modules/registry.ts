@@ -733,6 +733,137 @@ const dropdownBlock: CoreModuleDef = {
   isComplete: (c) => typeof c.prompt === "string" && c.prompt.trim().length > 0 && Array.isArray(c.options) && c.options.length > 0,
 };
 
+// ---------- V1.12 C2 (batch 2): phone, address, contact, picture-choice ----------
+
+const phoneBlock: CoreModuleDef = {
+  source: "core",
+  key: "phone",
+  version: "1.0.0",
+  name: "Phone number",
+  description: "A phone-number field (light E.164-style validation).",
+  categoryTags: ["form", "contact"],
+  configSchema: z.object({ prompt: z.string(), required: z.boolean() }),
+  defaultConfig: { prompt: "", required: true },
+  jsonSchema: {
+    type: "object",
+    properties: { prompt: { type: "string" }, required: { type: "boolean" } },
+    required: ["prompt"],
+    additionalProperties: false,
+  },
+  collectsResponse: true,
+  responseSchema: z.object({ value: z.string().max(40) }),
+  isAnswerEmpty: blankValue,
+  validateAnswer: (a) => {
+    const v = valueStr(a).trim();
+    return v === "" || /^\+?[0-9][0-9\s\-().]{5,19}$/.test(v);
+  },
+  isComplete: (c) => typeof c.prompt === "string" && c.prompt.trim().length > 0,
+};
+
+const sField = (a: unknown, k: string): string => {
+  const v = (a as Record<string, unknown> | null)?.[k];
+  return typeof v === "string" ? v : "";
+};
+
+const addressBlock: CoreModuleDef = {
+  source: "core",
+  key: "address",
+  version: "1.0.0",
+  name: "Address",
+  description: "A structured postal address (street, city, state, postal code, country).",
+  categoryTags: ["form", "contact"],
+  configSchema: z.object({ prompt: z.string(), required: z.boolean() }),
+  defaultConfig: { prompt: "", required: true },
+  jsonSchema: {
+    type: "object",
+    properties: { prompt: { type: "string" }, required: { type: "boolean" } },
+    required: ["prompt"],
+    additionalProperties: false,
+  },
+  collectsResponse: true,
+  responseSchema: z.object({
+    street: z.string().max(300).optional(),
+    city: z.string().max(120).optional(),
+    state: z.string().max(120).optional(),
+    postal: z.string().max(40).optional(),
+    country: z.string().max(120).optional(),
+  }),
+  isAnswerEmpty: (a) =>
+    ["street", "city", "state", "postal", "country"].every((k) => sField(a, k).trim() === ""),
+  isComplete: (c) => typeof c.prompt === "string" && c.prompt.trim().length > 0,
+};
+
+const contactBlock: CoreModuleDef = {
+  source: "core",
+  key: "contact",
+  version: "1.0.0",
+  name: "Contact info",
+  description: "Name + email (+ optional phone) on one screen.",
+  categoryTags: ["form", "contact"],
+  configSchema: z.object({ prompt: z.string(), required: z.boolean() }),
+  defaultConfig: { prompt: "", required: true },
+  jsonSchema: {
+    type: "object",
+    properties: { prompt: { type: "string" }, required: { type: "boolean" } },
+    required: ["prompt"],
+    additionalProperties: false,
+  },
+  collectsResponse: true,
+  responseSchema: z.object({
+    name: z.string().max(200).optional(),
+    email: z.string().max(320).optional(),
+    phone: z.string().max(40).optional(),
+  }),
+  isAnswerEmpty: (a) => sField(a, "name").trim() === "" && sField(a, "email").trim() === "",
+  validateAnswer: (a) => {
+    const e = sField(a, "email").trim();
+    return e === "" || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e);
+  },
+  isComplete: (c) => typeof c.prompt === "string" && c.prompt.trim().length > 0,
+};
+
+const pictureChoiceBlock: CoreModuleDef = {
+  source: "core",
+  key: "picture-choice",
+  version: "1.0.0",
+  name: "Picture choice",
+  description: "Image-based options (paste image URLs); single or multi-select.",
+  categoryTags: ["form", "measurement"],
+  configSchema: z.object({
+    prompt: z.string(),
+    required: z.boolean(),
+    multiple: z.boolean(),
+    imageUrls: z.array(z.string()),
+  }),
+  defaultConfig: { prompt: "", required: true, multiple: false, imageUrls: [""] },
+  jsonSchema: {
+    type: "object",
+    properties: {
+      prompt: { type: "string" },
+      required: { type: "boolean" },
+      multiple: { type: "boolean" },
+      imageUrls: { type: "array", items: { type: "string" } },
+    },
+    required: ["prompt", "imageUrls"],
+    additionalProperties: false,
+  },
+  collectsResponse: true,
+  responseSchema: z.object({ selected: z.array(z.string()) }),
+  isAnswerEmpty: (a) => !Array.isArray((a as { selected?: unknown })?.selected) || (a as { selected: unknown[] }).selected.length === 0,
+  validateAnswer: (a, c) => {
+    const sel = Array.isArray((a as { selected?: unknown })?.selected)
+      ? ((a as { selected: unknown[] }).selected.map(String))
+      : [];
+    const urls = Array.isArray(c.imageUrls) ? (c.imageUrls as unknown[]).map(String) : [];
+    return sel.every((s) => urls.includes(s));
+  },
+  isComplete: (c) =>
+    typeof c.prompt === "string" &&
+    c.prompt.trim().length > 0 &&
+    Array.isArray(c.imageUrls) &&
+    (c.imageUrls as unknown[]).filter((u) => String(u).trim() !== "").length > 0,
+};
+
 export const MODULE_REGISTRY: CoreModuleDef[] = [
   textBlock,
   imageBlock,
@@ -744,6 +875,10 @@ export const MODULE_REGISTRY: CoreModuleDef[] = [
   dateBlock,
   yesNoBlock,
   dropdownBlock,
+  phoneBlock,
+  addressBlock,
+  contactBlock,
+  pictureChoiceBlock,
   socialPost,
   socialPostV2,
   likert7,

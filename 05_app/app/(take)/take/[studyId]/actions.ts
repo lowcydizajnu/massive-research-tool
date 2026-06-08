@@ -56,10 +56,27 @@ export async function answerAction(formData: FormData): Promise<void> {
     moduleKey === "url" ||
     moduleKey === "date" ||
     moduleKey === "yes-no" ||
-    moduleKey === "dropdown"
+    moduleKey === "dropdown" ||
+    moduleKey === "phone"
   ) {
     // V1.12 C2 — single string-value form blocks.
     answer = { value: String(formData.get("value") ?? "") };
+  } else if (moduleKey === "address") {
+    const o: Record<string, string> = {};
+    for (const f of ["street", "city", "state", "postal", "country"] as const) {
+      const v = formData.get(f);
+      if (v != null && String(v).trim() !== "") o[f] = String(v);
+    }
+    answer = o;
+  } else if (moduleKey === "contact") {
+    const o: Record<string, string> = {};
+    for (const f of ["name", "email", "phone"] as const) {
+      const v = formData.get(f);
+      if (v != null && String(v).trim() !== "") o[f] = String(v);
+    }
+    answer = o;
+  } else if (moduleKey === "picture-choice") {
+    answer = { selected: formData.getAll("mc").map(String) };
   } else if (moduleKey === "multiple-choice") {
     answer = { selected: formData.getAll("mc").map(String) };
   } else if (moduleKey === "attention-check") {
