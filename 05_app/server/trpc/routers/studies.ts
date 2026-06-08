@@ -380,6 +380,27 @@ export type ReplicationNode = {
 };
 export type ReplicationsView = { parent: ReplicationNode | null; children: ReplicationNode[] };
 
+/** A node in the replication lineage/tree (V1.12 E). `title` is null when the
+ *  study is private to another workspace (link still resolves for the owner). */
+export type ReplicationTreeNode = {
+  studyId: string;
+  title: string | null;
+  authorName: string;
+  visible: boolean;
+  /** True when the study is in the caller's workspace (→ deep-link to Builder). */
+  inWorkspace: boolean;
+  generation: number;
+  isCurrent: boolean;
+  createdAt: string;
+  children: ReplicationTreeNode[];
+};
+export type ReplicationTree = {
+  /** Upstream lineage, root-first down to the immediate parent (may be empty). */
+  ancestors: { studyId: string; title: string | null; authorName: string; visible: boolean; inWorkspace: boolean }[];
+  /** The current study + its nested descendant forks. */
+  root: ReplicationTreeNode;
+};
+
 /** One row in a study's version history (ADR-0012 amendment) — the Versions sub-tab. */
 export type StudyVersion = {
   id: string;
@@ -1044,6 +1065,99 @@ export const studiesRouter = router({
         });
       }
       return { parent, children };
+    }),
+
+  /**
+   * Full replication lineage (V1.12 E): the upstream ancestry (root → parent) +
+   * the nested descendant fork tree, via recursive CTEs over
+   * experiment.fork_of_experiment_id. Titles are hidden for studies private to
+   * another workspace (link still resolves for that owner).
+   */
+  getReplicationTree: workspaceProcedure
+    .input(z.object({ studyId: z.string().uuid() }))
+    .query(async ({ ctx, input }): Promise<ReplicationTree> => {
+      const wsId = ctx.workspace.id;
+      const [self] = await db
+        .select({ tenantId: experiment.tenantId, forkableBy: experiment.forkableBy })
+        .from(experiment)
+        .where(eq(experiment.id, input.studyId))
+        .limit(1);
+      if (!self || (self.tenantId !== wsId && self.forkableBy !== "public")) {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
+
+      type Row = {
+        id: string;
+        title: string;
+        tenant_id: string;
+        forkable_by: string;
+        fork_of_experiment_id: string | null;
+        created_at: string | Date;
+        display_name: string | null;
+        depth: number;
+      };
+
+      const descendants = (await db.execute(sql`
+        WITH RECURSIVE tree AS (
+          SELECT e.id, e.title, e.tenant_id, e.forkable_by, e.fork_of_experiment_id, e.created_at, 0 AS depth
+          FROM ${experiment} e WHERE e.id = ${input.studyId}
+          UNION ALL
+          SELECT c.id, c.title, c.tenant_id, c.forkable_by, c.fork_of_experiment_id, c.created_at, t.depth + 1
+          FROM ${experiment} c JOIN tree t ON c.fork_of_experiment_id = t.id
+        )
+        SELECT t.id, t.title, t.tenant_id, t.forkable_by, t.fork_of_experiment_id, t.created_at, u.display_name, t.depth
+        FROM tree t JOIN ${user} u ON u.id = t.owner_id
+        ORDER BY t.depth, t.created_at
+      `)) as unknown as Row[];
+
+      const ancestry = (await db.execute(sql`
+        WITH RECURSIVE up AS (
+          SELECT e.id, e.title, e.tenant_id, e.forkable_by, e.fork_of_experiment_id, e.created_at, 0 AS depth
+          FROM ${experiment} e WHERE e.id = ${input.studyId}
+          UNION ALL
+          SELECT p.id, p.title, p.tenant_id, p.forkable_by, p.fork_of_experiment_id, p.created_at, up.depth + 1
+          FROM ${experiment} p JOIN up ON up.fork_of_experiment_id = p.id
+        )
+        SELECT up.id, up.title, up.tenant_id, up.forkable_by, u.display_name, up.depth
+        FROM up JOIN ${user} u ON u.id = up.owner_id
+        WHERE up.id <> ${input.studyId}
+        ORDER BY up.depth DESC
+      `)) as unknown as Row[];
+
+      const visible = (r: { tenant_id: string; forkable_by: string }) =>
+        r.tenant_id === wsId || r.forkable_by === "public";
+      const toNode = (r: Row): ReplicationTreeNode => ({
+        studyId: r.id,
+        title: visible(r) ? r.title : null,
+        authorName: r.display_name ?? "",
+        visible: visible(r),
+        inWorkspace: r.tenant_id === wsId,
+        generation: r.depth,
+        isCurrent: r.id === input.studyId,
+        createdAt: new Date(r.created_at).toISOString(),
+        children: [],
+      });
+
+      const byId = new Map<string, ReplicationTreeNode>();
+      for (const r of descendants) byId.set(r.id, toNode(r));
+      let root: ReplicationTreeNode | null = null;
+      for (const r of descendants) {
+        const node = byId.get(r.id)!;
+        if (r.id === input.studyId) root = node;
+        else if (r.fork_of_experiment_id) byId.get(r.fork_of_experiment_id)?.children.push(node);
+      }
+      if (!root) throw new TRPCError({ code: "NOT_FOUND" });
+
+      return {
+        ancestors: ancestry.map((r) => ({
+          studyId: r.id,
+          title: visible(r) ? r.title : null,
+          authorName: r.display_name ?? "",
+          visible: visible(r),
+          inWorkspace: r.tenant_id === wsId,
+        })),
+        root,
+      };
     }),
 
   /**
