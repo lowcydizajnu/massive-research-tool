@@ -22,9 +22,11 @@ const base: StudyPdfData = {
 
 const isPdf = (buf: Buffer) => buf.subarray(0, 5).toString("latin1") === "%PDF-";
 
+type DocEl = Parameters<typeof renderToBuffer>[0];
+
 describe("StudyPdfDocument (V1.12 B2, ADR-0027)", () => {
   it("renders a valid PDF buffer", async () => {
-    const buf = await renderToBuffer(createElement(StudyPdfDocument, { data: base }));
+    const buf = await renderToBuffer(createElement(StudyPdfDocument, { data: base }) as DocEl);
     expect(buf.length).toBeGreaterThan(800);
     expect(isPdf(buf)).toBe(true);
   });
@@ -33,7 +35,7 @@ describe("StudyPdfDocument (V1.12 B2, ADR-0027)", () => {
     const buf = await renderToBuffer(
       createElement(StudyPdfDocument, {
         data: { ...base, abstract: "", hypotheses: [], sections: [], blocks: [], prereg: null, author: { name: "", affiliation: null, orcid: null } },
-      }),
+      }) as DocEl,
     );
     expect(isPdf(buf)).toBe(true);
   });

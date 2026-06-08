@@ -16,6 +16,11 @@ export function BlockView({ block, seed }: { block: RuntimeBlock; seed?: string 
   if (block.key === "ranking") return <RankingInput config={block.config} />;
   if (block.key === "attention-check") return <AttentionCheckInput config={block.config} />;
   if (block.key === "demographics") return <DemographicsInput config={block.config} />;
+  // V1.12 C1 — embedded content (stimulus-only).
+  if (block.key === "text") return <TextView config={block.config} />;
+  if (block.key === "image") return <ImageView config={block.config} />;
+  if (block.key === "video") return <VideoView config={block.config} />;
+  if (block.key === "link") return <LinkView config={block.config} />;
   // Unknown module — render nothing rather than crash the runtime.
   return (
     <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
@@ -295,5 +300,112 @@ function DemographicsInput({ config }: { config: Record<string, unknown> }) {
         </label>
       ) : null}
     </div>
+  );
+}
+
+/* ---------- V1.12 C1: embedded content (stimulus-only) ---------- */
+
+function TextView({ config }: { config: Record<string, unknown> }) {
+  const md = str(config.contentMd);
+  if (!md.trim()) return null;
+  return (
+    <div className="flex flex-col gap-2 text-[length:var(--text-body)] text-[var(--color-text-primary)]">
+      {md.split(/\n{2,}/).map((p, i) => (
+        <p key={i} className="whitespace-pre-wrap">
+          {p}
+        </p>
+      ))}
+    </div>
+  );
+}
+
+function ImageView({ config }: { config: Record<string, unknown> }) {
+  const url = str(config.url);
+  const caption = str(config.caption);
+  if (!url) return null;
+  return (
+    <figure className="flex flex-col gap-2">
+      {/* eslint-disable-next-line @next/next/no-img-element -- researcher-supplied arbitrary URL; next/image needs configured domains */}
+      <img
+        src={url}
+        alt={str(config.alt)}
+        className="max-h-[480px] w-full rounded-[var(--radius-md)] object-contain"
+      />
+      {caption ? (
+        <figcaption className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+          {caption}
+        </figcaption>
+      ) : null}
+    </figure>
+  );
+}
+
+/** Resolve a YouTube/Vimeo URL to its embed URL; null = treat as a direct file. */
+function embedUrl(url: string): string | null {
+  const yt = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]{6,})/);
+  if (yt) return `https://www.youtube.com/embed/${yt[1]}`;
+  const vimeo = url.match(/vimeo\.com\/(\d+)/);
+  if (vimeo) return `https://player.vimeo.com/video/${vimeo[1]}`;
+  return null;
+}
+
+function VideoView({ config }: { config: Record<string, unknown> }) {
+  const url = str(config.url);
+  const caption = str(config.caption);
+  if (!url) return null;
+  const embed = embedUrl(url);
+  return (
+    <figure className="flex flex-col gap-2">
+      <div className="aspect-video w-full overflow-hidden rounded-[var(--radius-md)] bg-black">
+        {embed ? (
+          <iframe
+            src={embed}
+            title={caption || "Embedded video"}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            className="h-full w-full border-0"
+          />
+        ) : (
+          // eslint-disable-next-line jsx-a11y/media-has-caption -- researcher stimulus; captions optional
+          <video src={url} controls className="h-full w-full" />
+        )}
+      </div>
+      {caption ? (
+        <figcaption className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+          {caption}
+        </figcaption>
+      ) : null}
+    </figure>
+  );
+}
+
+function LinkView({ config }: { config: Record<string, unknown> }) {
+  const url = str(config.url);
+  const title = str(config.title);
+  const description = str(config.description);
+  if (!url) return null;
+  let host = url;
+  try {
+    host = new URL(url).host;
+  } catch {
+    /* keep raw */
+  }
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer noopener"
+      className="flex flex-col gap-1 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-4 hover:bg-[var(--color-surface-subtle)]"
+    >
+      <span className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">
+        {title || url}
+      </span>
+      {description ? (
+        <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+          {description}
+        </span>
+      ) : null}
+      <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">{host}</span>
+    </a>
   );
 }
