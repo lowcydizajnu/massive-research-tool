@@ -140,6 +140,26 @@ export function evaluateCondition(
   return group.op === "and" ? results.every(Boolean) : results.some(Boolean);
 }
 
+/**
+ * Given blocks in a *prospective* order, find condition clauses that would become
+ * invalid (their source is no longer an earlier block). Used to warn before a
+ * reorder/remove silently drops conditions. Returns one entry per broken clause.
+ */
+export function clausesBrokenByOrder(
+  ordered: { instanceId: string; showIf?: ConditionGroup | null; branchRules?: LegacyBranchRule[] | null }[],
+): { targetId: string; clause: Clause }[] {
+  const earlier = new Set<string>();
+  const broken: { targetId: string; clause: Clause }[] = [];
+  for (const b of ordered) {
+    const g = normalizeCondition(b.showIf, b.branchRules);
+    for (const clause of g?.clauses ?? []) {
+      if (!earlier.has(clause.fromInstanceId)) broken.push({ targetId: b.instanceId, clause });
+    }
+    earlier.add(b.instanceId);
+  }
+  return broken;
+}
+
 /** Short human label for one clause, e.g. "Post 1 is at least 5" or "Q2 is answered". */
 export function summarizeClause(clause: Clause, nameOf: (id: string) => string): string {
   const name = nameOf(clause.fromInstanceId);
@@ -156,6 +176,23 @@ export function summarizeCondition(
   if (!group || group.clauses.length === 0) return null;
   const joiner = group.op === "and" ? " AND " : " OR ";
   return group.clauses.map((c) => summarizeClause(c, nameOf)).join(joiner);
+}
+
+/**
+ * A block's *effective* condition, keeping only clauses whose source is allowed
+ * (i.e. an earlier block). A clause that references a later block — e.g. after a
+ * reorder — is invalid and dropped, so the canvas/list/runtime stay consistent.
+ * Returns null when nothing valid remains (the block is then unconditional).
+ */
+export function conditionWithSources(
+  showIf: ConditionGroup | null | undefined,
+  legacy: LegacyBranchRule[] | null | undefined,
+  allowedSources: Set<string>,
+): ConditionGroup | null {
+  const g = normalizeCondition(showIf, legacy);
+  if (!g) return null;
+  const clauses = g.clauses.filter((c) => allowedSources.has(c.fromInstanceId));
+  return clauses.length ? { op: g.op, clauses } : null;
 }
 
 /** Resolve a block's effective condition group: `showIf`, else legacy equality rules, else null. */

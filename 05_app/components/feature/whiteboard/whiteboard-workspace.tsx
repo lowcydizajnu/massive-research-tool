@@ -13,7 +13,13 @@ import { ModulePicker } from "@/components/feature/builder/module-picker";
 import { api } from "@/lib/trpc/react";
 import type { StudyDetail } from "@/server/trpc/routers/studies";
 
-import { isConditionSource, normalizeCondition } from "@/lib/whiteboard/conditions";
+import {
+  clausesBrokenByOrder,
+  isConditionSource,
+  normalizeCondition,
+  summarizeClause,
+} from "@/lib/whiteboard/conditions";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 import { ConditionBuilder } from "./condition-builder";
 import { WhiteboardCanvas } from "./whiteboard-canvas";
@@ -49,6 +55,24 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
   const updateConfig = api.studies.updateBlockConfig.useMutation({ onSuccess: () => void invalidate() });
   const renameBlock = api.studies.setBlockTitle.useMutation({ onSuccess: () => void invalidate() });
   const reorderBlocks = api.studies.reorderBlocks.useMutation({ onSuccess: () => void invalidate() });
+  const [pendingReorder, setPendingReorder] = useState<{ order: string[]; items: string[] } | null>(null);
+  const nameOfBlock = (id: string) => {
+    const b = study.blocks.find((x) => x.instanceId === id);
+    return b ? b.title?.trim() || b.name : id;
+  };
+  const requestReorder = (order: string[]) => {
+    const byId = new Map(study.blocks.map((b) => [b.instanceId, b]));
+    const ordered = order.map((id) => byId.get(id)).filter(Boolean) as typeof study.blocks;
+    const broken = clausesBrokenByOrder(ordered);
+    if (broken.length === 0) {
+      reorderBlocks.mutate({ studyId: study.id, order });
+      return;
+    }
+    setPendingReorder({
+      order,
+      items: broken.map((b) => `"${nameOfBlock(b.targetId)}": ${summarizeClause(b.clause, nameOfBlock)}`),
+    });
+  };
   const setCondition = api.studies.setBlockCondition.useMutation({ onSuccess: () => void invalidate() });
 
   // Conditions drive the canvas wires (drag a Condition node → a block to gate it).
@@ -190,7 +214,7 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
               blocks={study.blocks}
               selectedId={selectedId}
               onSelect={setSelectedId}
-              onReorder={(order) => reorderBlocks.mutate({ studyId: study.id, order })}
+              onReorder={requestReorder}
             />
           )}
         </section>
@@ -236,6 +260,19 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
           )}
         </aside>
       </div>
+      <ConfirmDialog
+        open={pendingReorder !== null}
+        title="Reordering will remove some conditions"
+        body="These conditions point at blocks that would no longer come earlier in the flow, so they’ll be removed:"
+        items={pendingReorder?.items ?? []}
+        confirmLabel="Reorder and remove"
+        tone="danger"
+        onConfirm={() => {
+          if (pendingReorder) reorderBlocks.mutate({ studyId: study.id, order: pendingReorder.order });
+          setPendingReorder(null);
+        }}
+        onCancel={() => setPendingReorder(null)}
+      />
     </main>
   );
 }

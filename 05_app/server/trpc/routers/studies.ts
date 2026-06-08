@@ -515,6 +515,31 @@ function decodeCursor(raw: string): BrowseCursor | null {
   return null;
 }
 
+/**
+ * Drop condition clauses that no longer reference an *earlier* block (forward
+ * refs left by a reorder, or dangling refs after a remove), so the blocks JSON
+ * stays internally consistent (ADR-0021 amendment). Pure; preserves order.
+ */
+function pruneForwardConditions(blocks: BlockInstance[]): BlockInstance[] {
+  const earlier = new Set<string>();
+  const out = blocks.map((b) => {
+    const next = { ...b };
+    if (next.showIf) {
+      const clauses = next.showIf.clauses.filter((c) => earlier.has(c.fromInstanceId));
+      if (clauses.length) next.showIf = { ...next.showIf, clauses };
+      else delete next.showIf;
+    }
+    if (next.branchRules) {
+      const rules = next.branchRules.filter((r) => earlier.has(r.fromInstanceId));
+      if (rules.length) next.branchRules = rules;
+      else delete next.branchRules;
+    }
+    earlier.add(b.instanceId);
+    return next;
+  });
+  return out;
+}
+
 export const studiesRouter = router({
   /**
    * Browse public studies (ADR-0018 + browse-public-studies wireframe). Public
@@ -1248,7 +1273,9 @@ export const studiesRouter = router({
       const blocks = readBlocks(tip.version.definitionSnapshot).filter(
         (b) => b.instanceId !== input.instanceId,
       );
-      await writeBlocks(tip.version.id, input.studyId, blocks);
+      // Drop any condition clauses that referenced the removed block (or are now
+      // forward refs) so nothing dangles.
+      await writeBlocks(tip.version.id, input.studyId, pruneForwardConditions(blocks));
       return { ok: true };
     }),
 
@@ -1256,6 +1283,8 @@ export const studiesRouter = router({
    * Reorder the blocks to match `order` (a permutation of the study's block
    * instanceIds). Drives drag-to-reorder in the Builder + whiteboard list. The
    * block sequence is the participant path's spine (ADR-0021 amendment).
+   * Conditions that now reference a non-earlier block are pruned so the canvas /
+   * list / runtime stay consistent (the client warns first).
    */
   reorderBlocks: writeProcedure
     .input(z.object({ studyId: z.string().uuid(), order: z.array(z.string()) }))
@@ -1271,7 +1300,7 @@ export const studiesRouter = router({
       ) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid block order." });
       }
-      const reordered = input.order.map((id) => byId.get(id)!);
+      const reordered = pruneForwardConditions(input.order.map((id) => byId.get(id)!));
       await writeBlocks(tip.version.id, input.studyId, reordered);
       return { ok: true };
     }),
