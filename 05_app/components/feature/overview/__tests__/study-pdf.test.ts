@@ -17,6 +17,7 @@ const base: StudyPdfData = {
     { name: "Credibility", ref: "likert-7 · 1.0.0", prompt: "How credible is this?" },
   ],
   prereg: { doi: "10.17605/OSF.IO/ABC12", url: "https://osf.io/abc12" },
+  replication: null,
   year: 2026,
 };
 
@@ -35,6 +36,23 @@ describe("StudyPdfDocument (V1.12 B2, ADR-0027)", () => {
     const buf = await renderToBuffer(
       createElement(StudyPdfDocument, {
         data: { ...base, abstract: "", hypotheses: [], sections: [], blocks: [], prereg: null, author: { name: "", affiliation: null, orcid: null } },
+      }) as DocEl,
+    );
+    expect(isPdf(buf)).toBe(true);
+  });
+
+  it("renders a replication (provenance + change summary + notes)", async () => {
+    const buf = await renderToBuffer(
+      createElement(StudyPdfDocument, {
+        data: {
+          ...base,
+          replication: {
+            parentTitle: "Original credibility study",
+            parentAuthor: "A. Researcher",
+            changeSummary: "2 added, 1 removed, 3 modified, 5 unchanged",
+            notes: "Adapted the stimulus set for a Polish sample.",
+          },
+        },
       }) as DocEl,
     );
     expect(isPdf(buf)).toBe(true);

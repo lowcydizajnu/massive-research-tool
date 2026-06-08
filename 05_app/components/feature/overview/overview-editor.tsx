@@ -20,10 +20,19 @@ const fieldCls =
  * freezes it alongside the blocks). Markdown is rendered safely where the
  * overview is displayed (preregister / OSF / public author page).
  */
-export function OverviewEditor({ studyId, initial }: { studyId: string; initial: StudyOverview }) {
+export function OverviewEditor({
+  studyId,
+  initial,
+  isReplication = false,
+}: {
+  studyId: string;
+  initial: StudyOverview;
+  isReplication?: boolean;
+}) {
   const [abstract, setAbstract] = useState(initial.abstract);
   const [hypotheses, setHypotheses] = useState<string[]>(initial.hypotheses);
   const [sections, setSections] = useState<OverviewSection[]>(initial.sections);
+  const [replicationNotes, setReplicationNotes] = useState(initial.replicationNotes);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
 
   const save = api.studies.setOverview.useMutation({
@@ -99,6 +108,24 @@ export function OverviewEditor({ studyId, initial }: { studyId: string; initial:
           }}
         />
       </label>
+
+      {isReplication ? (
+        <label className="flex flex-col gap-1">
+          <span className="text-[length:var(--text-label)] uppercase tracking-wide text-[var(--color-text-muted)]">
+            Notes on changes from the original
+          </span>
+          <textarea
+            className={cn(fieldCls, "min-h-[72px] resize-y")}
+            placeholder="Explain what you changed and why (complements the auto-generated diff above)."
+            value={replicationNotes}
+            maxLength={5000}
+            onChange={(e) => {
+              setReplicationNotes(e.target.value);
+              dirty();
+            }}
+          />
+        </label>
+      ) : null}
 
       <div className="flex flex-col gap-2">
         <span className="text-[length:var(--text-label)] uppercase tracking-wide text-[var(--color-text-muted)]">
@@ -216,7 +243,12 @@ export function OverviewEditor({ studyId, initial }: { studyId: string; initial:
           onClick={() =>
             save.mutate({
               studyId,
-              overview: { abstract, hypotheses: hypotheses.filter((h) => h.trim() !== ""), sections },
+              overview: {
+                abstract,
+                hypotheses: hypotheses.filter((h) => h.trim() !== ""),
+                replicationNotes,
+                sections,
+              },
             })
           }
           className="self-start"

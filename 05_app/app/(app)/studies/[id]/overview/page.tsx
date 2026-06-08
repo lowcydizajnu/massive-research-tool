@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 
 import { StageTabs } from "@/components/chrome/stage-tabs";
 import { OverviewEditor } from "@/components/feature/overview/overview-editor";
+import { ReplicationProvenance, type Provenance } from "@/components/feature/overview/replication-provenance";
 import { getServerApi } from "@/server/trpc/server";
 import type { StudyDetail } from "@/server/trpc/routers/studies";
 
@@ -20,6 +21,17 @@ export default async function OverviewPage({ params }: { params: Promise<{ id: s
     study = null;
   }
   if (!study) notFound();
+
+  // For a replication, fetch the upstream parent + auto-generated block diff.
+  let parent: Provenance | null = null;
+  if (study.isReplication) {
+    try {
+      const reps = await api.studies.getReplications({ studyId: study.id });
+      parent = reps.parent ?? null;
+    } catch {
+      parent = null;
+    }
+  }
 
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-3">
@@ -42,7 +54,8 @@ export default async function OverviewPage({ params }: { params: Promise<{ id: s
             Export PDF
           </a>
         </div>
-        <OverviewEditor studyId={study.id} initial={study.overview} />
+        {parent ? <ReplicationProvenance parent={parent} /> : null}
+        <OverviewEditor studyId={study.id} initial={study.overview} isReplication={study.isReplication} />
       </div>
     </main>
   );

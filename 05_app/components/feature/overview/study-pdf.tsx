@@ -11,6 +11,13 @@ export type StudyPdfData = {
   sections: { heading: string; contentMd: string }[];
   blocks: { name: string; ref: string; prompt?: string }[];
   prereg: { doi: string | null; url: string | null } | null;
+  /** Provenance for a replication (null for an original study). */
+  replication: {
+    parentTitle: string;
+    parentAuthor: string;
+    changeSummary: string;
+    notes: string;
+  } | null;
   year: number;
 };
 
@@ -62,6 +69,24 @@ export function StudyPdfDocument({ data }: { data: StudyPdfData }) {
         </Text>
 
         <View style={s.divider} />
+
+        {data.replication ? (
+          <View>
+            <Text style={s.h2}>Replication</Text>
+            <Text style={s.para}>
+              Replication of “{data.replication.parentTitle}”
+              {data.replication.parentAuthor ? ` by ${data.replication.parentAuthor}` : ""}.
+            </Text>
+            <Text style={s.para}>Changes from the original: {data.replication.changeSummary}</Text>
+            {data.replication.notes
+              ? paragraphs(data.replication.notes).map((p, i) => (
+                  <Text key={i} style={s.para}>
+                    {p}
+                  </Text>
+                ))
+              : null}
+          </View>
+        ) : null}
 
         {data.abstract ? (
           <View>
