@@ -1355,6 +1355,7 @@ export const studiesRouter = router({
         studyId: z.string().uuid(),
         overview: z.object({
           abstract: z.string().max(5000),
+          hypotheses: z.array(z.string().max(1000)).max(30),
           sections: z
             .array(
               z.object({

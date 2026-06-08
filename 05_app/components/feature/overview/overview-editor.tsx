@@ -8,7 +8,7 @@ import { api } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
 import type { OverviewSection, StudyOverview } from "@/server/modules/blocks";
 
-const SUGGESTED = ["Hypotheses", "Background", "Methods", "Analysis plan", "Ethics / IRB", "References"];
+const SUGGESTED = ["Background", "Methods", "Analysis plan", "Ethics / IRB", "References"];
 
 const fieldCls =
   "w-full rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-3 py-2 text-[length:var(--text-body)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]";
@@ -22,6 +22,7 @@ const fieldCls =
  */
 export function OverviewEditor({ studyId, initial }: { studyId: string; initial: StudyOverview }) {
   const [abstract, setAbstract] = useState(initial.abstract);
+  const [hypotheses, setHypotheses] = useState<string[]>(initial.hypotheses);
   const [sections, setSections] = useState<OverviewSection[]>(initial.sections);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
 
@@ -33,6 +34,28 @@ export function OverviewEditor({ studyId, initial }: { studyId: string; initial:
   });
 
   const dirty = () => setSavedMsg(null);
+  const setHyp = (i: number, v: string) => {
+    setHypotheses((h) => h.map((x, j) => (j === i ? v : x)));
+    dirty();
+  };
+  const addHyp = () => {
+    setHypotheses((h) => [...h, ""]);
+    dirty();
+  };
+  const removeHyp = (i: number) => {
+    setHypotheses((h) => h.filter((_, j) => j !== i));
+    dirty();
+  };
+  const moveHyp = (i: number, dir: -1 | 1) => {
+    setHypotheses((h) => {
+      const j = i + dir;
+      if (j < 0 || j >= h.length) return h;
+      const c = [...h];
+      [c[i], c[j]] = [c[j], c[i]];
+      return c;
+    });
+    dirty();
+  };
   const addSection = (heading = "") => {
     setSections((s) => [...s, { id: crypto.randomUUID(), heading, contentMd: "" }]);
     dirty();
@@ -76,6 +99,54 @@ export function OverviewEditor({ studyId, initial }: { studyId: string; initial:
           }}
         />
       </label>
+
+      <div className="flex flex-col gap-2">
+        <span className="text-[length:var(--text-label)] uppercase tracking-wide text-[var(--color-text-muted)]">
+          Hypotheses
+        </span>
+        {hypotheses.length === 0 ? (
+          <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+            Add your numbered hypotheses (H1, H2, …) — they’re frozen into the preregistration.
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {hypotheses.map((h, i) => (
+              <li key={i} className="flex items-start gap-2">
+                <span className="flex flex-col pt-2 text-[var(--color-text-muted)]">
+                  <button type="button" aria-label="Move up" disabled={i === 0} onClick={() => moveHyp(i, -1)} className="leading-none disabled:opacity-30">▴</button>
+                  <button type="button" aria-label="Move down" disabled={i === hypotheses.length - 1} onClick={() => moveHyp(i, 1)} className="leading-none disabled:opacity-30">▾</button>
+                </span>
+                <span className="pt-2 font-mono text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)]">
+                  H{i + 1}
+                </span>
+                <textarea
+                  className={cn(fieldCls, "min-h-[44px] resize-y")}
+                  placeholder="e.g. Warning labels reduce perceived credibility of false headlines."
+                  value={h}
+                  maxLength={1000}
+                  onChange={(e) => setHyp(i, e.target.value)}
+                />
+                <button
+                  type="button"
+                  aria-label={`Remove hypothesis ${i + 1}`}
+                  onClick={() => removeHyp(i)}
+                  className="mt-1.5 shrink-0 rounded-[var(--radius-sm)] p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)] hover:text-[var(--color-danger-text-on-subtle)]"
+                >
+                  <X className="size-4" aria-hidden />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <button
+          type="button"
+          onClick={addHyp}
+          className="inline-flex items-center gap-1 self-start rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-1.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
+        >
+          <Plus className="size-4" aria-hidden />
+          Add hypothesis
+        </button>
+      </div>
 
       <div className="flex flex-col gap-3">
         {sections.map((sec, i) => (
@@ -142,7 +213,12 @@ export function OverviewEditor({ studyId, initial }: { studyId: string; initial:
           pending={save.isPending}
           idleLabel="Save overview"
           pendingLabel="Saving…"
-          onClick={() => save.mutate({ studyId, overview: { abstract, sections } })}
+          onClick={() =>
+            save.mutate({
+              studyId,
+              overview: { abstract, hypotheses: hypotheses.filter((h) => h.trim() !== ""), sections },
+            })
+          }
           className="self-start"
         />
         {savedMsg ? (
