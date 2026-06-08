@@ -30,6 +30,7 @@ import {
   locksFromBlocks,
   readBlocks,
   readOverview,
+  readGroups,
   validateConfig,
 } from "@/server/modules/blocks";
 import { getModuleDef } from "@/server/modules/registry";
@@ -341,6 +342,8 @@ export type StudyBlock = {
   branchRules: { fromInstanceId: string; equals: string }[];
   /** Answer-based visibility condition tree (ADR-0021 amendment); null = flat. */
   showIf: import("@/lib/whiteboard/conditions").ConditionGroup | null;
+  /** Question-group membership (ADR-0028); null = ungrouped. */
+  groupId: string | null;
 };
 
 export type StudyDetail = {
@@ -359,6 +362,8 @@ export type StudyDetail = {
   whiteboardViewport: WhiteboardViewport;
   /** Researcher-authored study documentation (V1.12 B1). */
   overview: import("@/server/modules/blocks").StudyOverview;
+  /** Question groups (ADR-0028); members reference these by `block.groupId`. */
+  groups: import("@/server/modules/blocks").StudyGroup[];
 };
 
 /** Whiteboard canvas viewport state (ADR-0020). Empty object = fit-to-screen. */
@@ -617,6 +622,7 @@ const blockInstanceSchema = z.object({
   visibility: z.object({ showIfCondition: z.array(z.string()).optional() }).optional(),
   branchRules: z.array(z.object({ fromInstanceId: z.string(), equals: z.string() })).optional(),
   showIf: conditionGroupSchema.optional(),
+  groupId: z.string().optional(), // ADR-0028 question-group membership
 });
 
 export const studiesRouter = router({
@@ -936,6 +942,7 @@ export const studiesRouter = router({
           showIfCondition: b.visibility?.showIfCondition ?? [],
           branchRules: b.branchRules ?? [],
           showIf: b.showIf ?? null,
+          groupId: b.groupId ?? null,
         };
       });
 
@@ -953,6 +960,7 @@ export const studiesRouter = router({
         blocks,
         whiteboardViewport: (row.version?.whiteboardViewport as WhiteboardViewport | null) ?? {},
         overview: readOverview(row.version?.definitionSnapshot),
+        groups: readGroups(row.version?.definitionSnapshot),
       };
     }),
 
@@ -1469,6 +1477,38 @@ export const studiesRouter = router({
       const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
       const blocks = pruneForwardConditions(input.blocks as unknown as BlockInstance[]);
       await writeBlocks(tip.version.id, input.studyId, blocks);
+      return { ok: true };
+    }),
+
+  /**
+   * Persist question groups (ADR-0028) — writes the blocks (with their `groupId`)
+   * and the `groups[]` metadata together into the snapshot, preserving overview.
+   */
+  setGroups: writeProcedure
+    .input(
+      z.object({
+        studyId: z.string().uuid(),
+        blocks: z.array(blockInstanceSchema).max(200),
+        groups: z
+          .array(z.object({ id: z.string(), title: z.string().max(200).optional(), showIf: conditionGroupSchema.optional() }))
+          .max(50),
+      }),
+    )
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+      const blocks = pruneForwardConditions(input.blocks as unknown as BlockInstance[]);
+      // Keep only groups that still have ≥1 member block.
+      const used = new Set(blocks.map((b) => b.groupId).filter(Boolean));
+      const groups = input.groups.filter((g) => used.has(g.id));
+      const snap =
+        tip.version.definitionSnapshot && typeof tip.version.definitionSnapshot === "object"
+          ? (tip.version.definitionSnapshot as Record<string, unknown>)
+          : {};
+      await db
+        .update(experimentVersion)
+        .set({ definitionSnapshot: { ...snap, blocks, groups }, moduleVersionLocks: locksFromBlocks(blocks) })
+        .where(eq(experimentVersion.id, tip.version.id));
+      await db.update(experiment).set({ updatedAt: new Date() }).where(eq(experiment.id, input.studyId));
       return { ok: true };
     }),
 
