@@ -1,19 +1,24 @@
 import { ChevronDown } from "lucide-react";
 
 import { Breadcrumb } from "@/components/chrome/breadcrumb";
+import { UserMenu } from "@/components/chrome/user-menu";
 import { NewStudyButton } from "@/components/feature/new-study/new-study-button";
 
 /**
  * Top bar — floating cap with workspace-global chrome (studies-destination
  * wireframe). Workspace switcher popover + ⌘K search are deferred (inert here);
- * `+ New study` and the breadcrumb are live.
+ * `+ New study`, the breadcrumb, and the account menu (V1.12 A1) are live.
  */
 export function TopBar({
   workspaceName,
   userInitials,
+  displayName,
+  email,
 }: {
   workspaceName: string;
   userInitials: string;
+  displayName: string | null;
+  email: string | null;
 }) {
   return (
     <header className="flex items-center gap-3 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-panel)] px-3 py-2">
@@ -42,12 +47,7 @@ export function TopBar({
 
       <NewStudyButton variant="topbar" />
 
-      <span
-        aria-label="Account"
-        className="flex size-8 items-center justify-center rounded-full bg-[var(--color-primary-subtle)] text-[length:var(--text-small)] font-medium text-[var(--color-primary-text-on-subtle)]"
-      >
-        {userInitials}
-      </span>
+      <UserMenu initials={userInitials} displayName={displayName} email={email} />
     </header>
   );
 }
