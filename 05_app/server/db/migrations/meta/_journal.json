@@ -57,6 +57,13 @@
       "when": 1780915242460,
       "tag": "0007_even_lord_hawal",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1780929556358,
+      "tag": "0008_smooth_madame_web",
+      "breakpoints": true
     }
   ]
 }

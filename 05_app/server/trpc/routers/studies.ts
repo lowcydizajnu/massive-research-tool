@@ -626,6 +626,7 @@ export const studiesRouter = router({
       const filters = [
         eq(experiment.forkableBy, "public"),
         isNull(experiment.archivedAt),
+        eq(experiment.isDemo, false), // demo studies never publicly discoverable (ADR-0023)
         // Discoverable = has at least one frozen, citable version.
         sql`exists (select 1 from ${experimentVersion} v where v.experiment_id = ${experiment.id} and v.kind in ('published','preregistered'))`,
       ];
@@ -726,6 +727,7 @@ export const studiesRouter = router({
             eq(experiment.id, input.studyId),
             eq(experiment.forkableBy, "public"),
             isNull(experiment.archivedAt),
+            eq(experiment.isDemo, false), // demo studies aren't publicly viewable (ADR-0023)
           ),
         )
         .limit(1);
@@ -783,6 +785,7 @@ export const studiesRouter = router({
           and(
             eq(experiment.forkableBy, "public"),
             isNull(experiment.archivedAt),
+            eq(experiment.isDemo, false), // demo tags don't leak into public browse (ADR-0023)
             sql`exists (select 1 from ${experimentVersion} v where v.experiment_id = ${experiment.id} and v.kind in ('published','preregistered'))`,
           ),
         );
@@ -819,6 +822,8 @@ export const studiesRouter = router({
             filter === "archived"
               ? isNotNull(experiment.archivedAt)
               : isNull(experiment.archivedAt),
+            // Seeded demo studies appear only when this workspace opts in (ADR-0023).
+            ctx.workspace.showDemoContent ? undefined : eq(experiment.isDemo, false),
           ),
         )
         .orderBy(desc(experiment.updatedAt));
