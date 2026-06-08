@@ -42,3 +42,34 @@
 .wb-canvas .react-flow__attribution {
   display: none;
 }
+
+/* Answer-condition wire chip + gear (ADR-0021 amendment). Tokens only. */
+.wb-edge-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.wb-edge-chip-label {
+  border-radius: var(--radius-full, 9999px);
+  border: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-raised);
+  padding: 1px 8px;
+  font-size: var(--text-small);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+.wb-edge-chip-gear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full, 9999px);
+  border: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-raised);
+  padding: 3px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.wb-edge-chip-gear:hover {
+  background: var(--color-surface-subtle);
+  color: var(--color-primary);
+}
