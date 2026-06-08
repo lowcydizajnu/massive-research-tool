@@ -35,9 +35,33 @@ export type BlockInstance = {
    * live in `lib/whiteboard/conditions.ts`.
    */
   showIf?: import("@/lib/whiteboard/conditions").ConditionGroup;
+  /**
+   * Question-group membership (ADR-0028). Blocks sharing a `groupId` (and
+   * contiguous in order) render together on ONE participant screen. Absent =
+   * the block is its own screen (today's behaviour). The group's metadata
+   * (title, screen-level condition) lives in `definition_snapshot.groups[]`.
+   */
+  groupId?: string;
 };
 
 export type ModuleLock = { source: string; key: string; version: string };
+
+/** Question-group metadata (ADR-0028), stored in `definition_snapshot.groups[]`. */
+export type StudyGroup = {
+  id: string;
+  title?: string;
+  /** Screen-level visibility — the whole group shows/skips as a unit. */
+  showIf?: import("@/lib/whiteboard/conditions").ConditionGroup;
+};
+
+/** Read the question-group metadata out of a definition_snapshot. */
+export function readGroups(snapshot: unknown): StudyGroup[] {
+  if (snapshot && typeof snapshot === "object" && "groups" in snapshot) {
+    const g = (snapshot as { groups?: unknown }).groups;
+    if (Array.isArray(g)) return g as StudyGroup[];
+  }
+  return [];
+}
 
 /** Researcher-authored study documentation (V1.12 B1), stored in the snapshot. */
 export type OverviewSection = { id: string; heading: string; contentMd: string };
