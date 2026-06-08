@@ -25,14 +25,22 @@ export default async function OverviewPage({ params }: { params: Promise<{ id: s
     <main className="flex min-w-0 flex-1 flex-col gap-3">
       <StageTabs studyId={study.id} active="Overview" />
       <div className="flex flex-1 flex-col gap-5 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6">
-        <div className="flex flex-col gap-1">
-          <h1 className="font-serif text-[length:var(--text-display)] font-medium text-[var(--color-text-primary)]">
-            {study.title}
-          </h1>
-          <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-            Describe your study — hypotheses, background, methods, analysis plan. This travels with
-            the study and is frozen into the preregistration record.
-          </p>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex flex-col gap-1">
+            <h1 className="font-serif text-[length:var(--text-display)] font-medium text-[var(--color-text-primary)]">
+              {study.title}
+            </h1>
+            <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+              Describe your study — hypotheses, background, methods, analysis plan. This travels with
+              the study and is frozen into the preregistration record.
+            </p>
+          </div>
+          <a
+            href={`/studies/${study.id}/export-pdf`}
+            className="inline-flex shrink-0 items-center gap-1 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-1.5 text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
+          >
+            Export PDF
+          </a>
         </div>
         <OverviewEditor studyId={study.id} initial={study.overview} />
       </div>
