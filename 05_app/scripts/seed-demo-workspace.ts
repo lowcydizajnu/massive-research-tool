@@ -209,6 +209,7 @@ export async function seedDemoWorkspace(email: string): Promise<void> {
           experimentVersionId: versionId,
           conditionId: condId,
           mode: "run",
+          status: "completed",
           completedAt: new Date(),
         });
         for (let p = 0; p < opts.blocks.length; p++) {
