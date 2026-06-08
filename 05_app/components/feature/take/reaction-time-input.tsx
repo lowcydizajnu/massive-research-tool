@@ -16,7 +16,13 @@ function n(v: unknown, fallback: number): number {
   return typeof v === "number" && Number.isFinite(v) ? v : fallback;
 }
 
-export function ReactionTimeInput({ config }: { config: Record<string, unknown> }) {
+export function ReactionTimeInput({
+  config,
+  namePrefix = "",
+}: {
+  config: Record<string, unknown>;
+  namePrefix?: string;
+}) {
   const prompt = typeof config.prompt === "string" ? config.prompt : "";
   const stimulus = (typeof config.stimulus === "string" && config.stimulus) || "GO";
   const minDelay = n(config.minDelayMs, 1000);
@@ -60,7 +66,7 @@ export function ReactionTimeInput({ config }: { config: Record<string, unknown> 
       <p className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">
         {prompt}
       </p>
-      <input type="hidden" name="value" value={rt ?? ""} readOnly />
+      <input type="hidden" name={`${namePrefix}value`} value={rt ?? ""} readOnly />
 
       {phase === "idle" ? (
         <button
