@@ -41,7 +41,7 @@ export function SortableList({
   children,
 }: {
   ids: string[];
-  onReorder: (ids: string[]) => void;
+  onReorder: (ids: string[], movedId: string) => void;
   ariaLabel?: string;
   className?: string;
   children: (id: string, handle: DragHandleProps, isDragging: boolean) => ReactNode;
@@ -60,7 +60,7 @@ export function SortableList({
     const next = [...ids];
     const [moved] = next.splice(from, 1);
     next.splice(to, 0, moved);
-    onReorder(next);
+    onReorder(next, moved);
   };
 
   return (

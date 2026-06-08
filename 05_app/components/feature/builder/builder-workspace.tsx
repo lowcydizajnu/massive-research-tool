@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 import { SortableList } from "@/components/feature/whiteboard/sortable-list";
 import { useBlockHistory } from "@/lib/whiteboard/use-block-history";
+import { regroupAfterMove } from "@/lib/whiteboard/screens";
 import {
   conditionWithSources,
   newlyBrokenByReorder,
@@ -100,7 +101,6 @@ export function BuilderWorkspace({
     onSuccess: () => void invalidate(),
   });
   const renameBlock = api.studies.setBlockTitle.useMutation({ onSuccess: () => void invalidate() });
-  const reorderBlocks = api.studies.reorderBlocks.useMutation({ onSuccess: () => void invalidate() });
   const setCondition = api.studies.setBlockCondition.useMutation({ onSuccess: () => void invalidate() });
   // Bump on a restore (undo/redo) so the right-panel editors re-seed (they hold
   // local state keyed by block id, which a restore doesn't change). Normal edits
@@ -171,21 +171,33 @@ export function BuilderWorkspace({
       else next.add(groupId);
       return next;
     });
-  const [pendingReorder, setPendingReorder] = useState<{ order: string[]; items: string[] } | null>(null);
+  const [pendingReorder, setPendingReorder] = useState<{
+    blocks: ReturnType<typeof toInstance>[];
+    groups: StudyDetail["groups"];
+    items: string[];
+  } | null>(null);
   const nameOf = (id: string) => {
     const b = study.blocks.find((x) => x.instanceId === id);
     return b ? b.title?.trim() || b.name : id;
   };
-  const requestReorder = (order: string[]) => {
+  // A drag-reorder also recomputes group membership from drop neighbors + keeps
+  // groups contiguous (ADR-0028 #3+#8), then persists blocks + groups together.
+  const requestReorder = (order: string[], movedId: string) => {
     const byId = new Map(study.blocks.map((b) => [b.instanceId, b]));
-    const ordered = order.map((id) => byId.get(id)).filter(Boolean) as typeof study.blocks;
-    const broken = newlyBrokenByReorder(study.blocks, ordered);
+    const minimal = order.map((id) => ({ instanceId: id, groupId: byId.get(id)?.groupId ?? null }));
+    const regrouped = regroupAfterMove(minimal, movedId);
+    const orderedStudyBlocks = regrouped.map((r) => ({ ...byId.get(r.instanceId)!, groupId: r.groupId }));
+    const broken = newlyBrokenByReorder(study.blocks, orderedStudyBlocks);
+    const blocks = regrouped.map((r) => toInstance(byId.get(r.instanceId)!, r.groupId));
+    const usedIds = new Set(blocks.map((b) => b.groupId).filter(Boolean) as string[]);
+    const groups = study.groups.filter((g) => usedIds.has(g.id));
     if (broken.length === 0) {
-      reorderBlocks.mutate({ studyId: study.id, order });
+      setGroupsMut.mutate({ studyId: study.id, blocks, groups });
       return;
     }
     setPendingReorder({
-      order,
+      blocks,
+      groups,
       items: broken.map((b) => `"${nameOf(b.targetId)}": ${summarizeClause(b.clause, nameOf)}`),
     });
   };
@@ -587,7 +599,8 @@ export function BuilderWorkspace({
         confirmLabel="Reorder and remove"
         tone="danger"
         onConfirm={() => {
-          if (pendingReorder) reorderBlocks.mutate({ studyId: study.id, order: pendingReorder.order });
+          if (pendingReorder)
+            setGroupsMut.mutate({ studyId: study.id, blocks: pendingReorder.blocks, groups: pendingReorder.groups });
           setPendingReorder(null);
         }}
         onCancel={() => setPendingReorder(null)}
