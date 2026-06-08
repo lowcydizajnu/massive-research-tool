@@ -146,8 +146,8 @@ export function ExportBuilder({ studyId, title }: { studyId: string; title: stri
 
   return (
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-[320px_1fr]">
-      {/* Left: variables */}
-      <div className="flex flex-col gap-2">
+      {/* Left: variables — sticky so they stay in view while scrolling the table. */}
+      <div className="flex flex-col gap-2 lg:sticky lg:top-3 lg:max-h-[calc(100vh-170px)] lg:self-start lg:overflow-auto lg:pr-1">
         <div className="flex items-center justify-between">
           <span className="text-[length:var(--text-label)] uppercase tracking-wide text-[var(--color-text-muted)]">
             Variables ({visible.length}/{cols.length})
@@ -282,7 +282,7 @@ export function ExportBuilder({ studyId, title }: { studyId: string; title: stri
           ) : null}
         </div>
 
-        <div className="overflow-auto rounded-[var(--radius-md)] border border-[var(--color-border-subtle)]">
+        <div className="max-h-[60vh] overflow-auto rounded-[var(--radius-md)] border border-[var(--color-border-subtle)]">
           <table className="min-w-full border-collapse text-[length:var(--text-small)]">
             <thead className="sticky top-0 bg-[var(--color-surface-subtle)]">
               <tr>

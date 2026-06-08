@@ -54,7 +54,7 @@ export default async function OverviewPage({ params }: { params: Promise<{ id: s
             Export PDF
           </a>
         </div>
-        {parent ? <ReplicationProvenance parent={parent} /> : null}
+        {parent ? <ReplicationProvenance parent={parent} studyId={study.id} /> : null}
         <OverviewEditor studyId={study.id} initial={study.overview} isReplication={study.isReplication} />
       </div>
     </main>
