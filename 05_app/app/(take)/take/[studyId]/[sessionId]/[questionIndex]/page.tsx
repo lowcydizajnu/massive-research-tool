@@ -41,14 +41,7 @@ export default async function ScreenPage({
   return (
     <Card>
       {s.mode === "preview" ? <PreviewRibbon /> : null}
-      <div className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">{s.studyTitle}</div>
       <Progress position={s.position} total={s.total} />
-
-      {isGroup && s.screen.title ? (
-        <h2 className="font-serif text-[length:var(--text-title)] font-medium text-[var(--color-text-primary)]">
-          {s.screen.title}
-        </h2>
-      ) : null}
 
       <form action={answerAction} className="flex flex-col gap-6">
         <input type="hidden" name="studyId" value={studyId} />
