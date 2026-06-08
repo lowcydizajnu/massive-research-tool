@@ -48,9 +48,18 @@ export async function answerAction(formData: FormData): Promise<void> {
   // re-validates against the block's responseSchema server-side, so trusting
   // the client's moduleKey here only selects extraction, not correctness.
   let answer: unknown = null;
-  if (moduleKey === "likert-7" || moduleKey === "slider") {
+  if (moduleKey === "likert-7" || moduleKey === "slider" || moduleKey === "number") {
     const raw = formData.get("value");
     answer = raw != null && String(raw) !== "" ? { value: Number(raw) } : null;
+  } else if (
+    moduleKey === "email" ||
+    moduleKey === "url" ||
+    moduleKey === "date" ||
+    moduleKey === "yes-no" ||
+    moduleKey === "dropdown"
+  ) {
+    // V1.12 C2 — single string-value form blocks.
+    answer = { value: String(formData.get("value") ?? "") };
   } else if (moduleKey === "multiple-choice") {
     answer = { selected: formData.getAll("mc").map(String) };
   } else if (moduleKey === "attention-check") {

@@ -21,6 +21,13 @@ export function BlockView({ block, seed }: { block: RuntimeBlock; seed?: string 
   if (block.key === "image") return <ImageView config={block.config} />;
   if (block.key === "video") return <VideoView config={block.config} />;
   if (block.key === "link") return <LinkView config={block.config} />;
+  // V1.12 C2 — standard form blocks.
+  if (block.key === "email") return <SimpleFieldInput config={block.config} type="email" />;
+  if (block.key === "url") return <SimpleFieldInput config={block.config} type="url" />;
+  if (block.key === "number") return <NumberInput config={block.config} />;
+  if (block.key === "date") return <SimpleFieldInput config={block.config} type="date" />;
+  if (block.key === "yes-no") return <YesNoInput config={block.config} />;
+  if (block.key === "dropdown") return <DropdownInput config={block.config} />;
   // Unknown module — render nothing rather than crash the runtime.
   return (
     <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
@@ -407,5 +414,95 @@ function LinkView({ config }: { config: Record<string, unknown> }) {
       ) : null}
       <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">{host}</span>
     </a>
+  );
+}
+
+/* ---------- V1.12 C2: standard form blocks ---------- */
+
+const FIELD_CLS =
+  "w-full rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-3 py-2 text-[length:var(--text-body)] text-[var(--color-text-primary)]";
+const PROMPT_CLS =
+  "text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]";
+
+/** email / url / date — a single typed text field named "value". */
+function SimpleFieldInput({
+  config,
+  type,
+}: {
+  config: Record<string, unknown>;
+  type: "email" | "url" | "date";
+}) {
+  const placeholder = type === "email" ? "name@example.com" : type === "url" ? "https://…" : undefined;
+  return (
+    <div className="flex flex-col gap-2">
+      <label htmlFor="value" className={PROMPT_CLS}>
+        {str(config.prompt)}
+      </label>
+      <input id="value" type={type} name="value" placeholder={placeholder} className={FIELD_CLS} />
+    </div>
+  );
+}
+
+function NumberInput({ config }: { config: Record<string, unknown> }) {
+  const unit = str(config.unit);
+  const min = typeof config.min === "number" ? config.min : undefined;
+  const max = typeof config.max === "number" ? config.max : undefined;
+  return (
+    <div className="flex flex-col gap-2">
+      <label htmlFor="value" className={PROMPT_CLS}>
+        {str(config.prompt)}
+      </label>
+      <div className="flex items-center gap-2">
+        <input id="value" type="number" name="value" min={min} max={max} className={FIELD_CLS} />
+        {unit ? (
+          <span className="shrink-0 text-[length:var(--text-small)] text-[var(--color-text-muted)]">{unit}</span>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function YesNoInput({ config }: { config: Record<string, unknown> }) {
+  const yes = str(config.yesLabel) || "Yes";
+  const no = str(config.noLabel) || "No";
+  return (
+    <fieldset className="flex flex-col gap-2">
+      <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
+      <div className="flex gap-2">
+        {[
+          { v: "yes", label: yes },
+          { v: "no", label: no },
+        ].map((o) => (
+          <label
+            key={o.v}
+            className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-4 py-3 text-[length:var(--text-body)] text-[var(--color-text-primary)] hover:bg-[var(--color-surface-subtle)]"
+          >
+            <input type="radio" name="value" value={o.v} className="size-4 accent-[var(--color-primary)]" />
+            {o.label}
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
+
+function DropdownInput({ config }: { config: Record<string, unknown> }) {
+  const options = Array.isArray(config.options) ? (config.options as unknown[]).map(str) : [];
+  return (
+    <div className="flex flex-col gap-2">
+      <label htmlFor="value" className={PROMPT_CLS}>
+        {str(config.prompt)}
+      </label>
+      <select id="value" name="value" defaultValue="" className={FIELD_CLS}>
+        <option value="" disabled>
+          Choose…
+        </option>
+        {options.map((opt, i) => (
+          <option key={`${i}-${opt}`} value={opt}>
+            {opt}
+          </option>
+        ))}
+      </select>
+    </div>
   );
 }
