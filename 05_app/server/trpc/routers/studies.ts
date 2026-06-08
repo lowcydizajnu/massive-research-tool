@@ -26,6 +26,7 @@ import {
   diffBlocks,
   locksFromBlocks,
   readBlocks,
+  readOverview,
   validateConfig,
 } from "@/server/modules/blocks";
 import { getModuleDef } from "@/server/modules/registry";
@@ -74,9 +75,16 @@ async function writeBlocks(
   studyId: string,
   blocks: ReturnType<typeof readBlocks>,
 ) {
+  // Preserve other snapshot keys (e.g. `overview`, V1.12 B1) — only blocks change.
+  const [cur] = await db
+    .select({ snap: experimentVersion.definitionSnapshot })
+    .from(experimentVersion)
+    .where(eq(experimentVersion.id, versionId))
+    .limit(1);
+  const prev = cur?.snap && typeof cur.snap === "object" ? (cur.snap as Record<string, unknown>) : {};
   await db
     .update(experimentVersion)
-    .set({ definitionSnapshot: { blocks }, moduleVersionLocks: locksFromBlocks(blocks) })
+    .set({ definitionSnapshot: { ...prev, blocks }, moduleVersionLocks: locksFromBlocks(blocks) })
     .where(eq(experimentVersion.id, versionId));
   await db.update(experiment).set({ updatedAt: new Date() }).where(eq(experiment.id, studyId));
 }
@@ -340,6 +348,8 @@ export type StudyDetail = {
   blocks: StudyBlock[];
   /** Whiteboard pan/zoom (ADR-0020); {} = fit-to-screen on first render. */
   whiteboardViewport: WhiteboardViewport;
+  /** Researcher-authored study documentation (V1.12 B1). */
+  overview: import("@/server/modules/blocks").StudyOverview;
 };
 
 /** Whiteboard canvas viewport state (ADR-0020). Empty object = fit-to-screen. */
@@ -907,6 +917,7 @@ export const studiesRouter = router({
         isReplication: row.experiment.forkOfExperimentId !== null,
         blocks,
         whiteboardViewport: (row.version?.whiteboardViewport as WhiteboardViewport | null) ?? {},
+        overview: readOverview(row.version?.definitionSnapshot),
       };
     }),
 
@@ -1330,6 +1341,43 @@ export const studiesRouter = router({
       const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
       const blocks = pruneForwardConditions(input.blocks as unknown as BlockInstance[]);
       await writeBlocks(tip.version.id, input.studyId, blocks);
+      return { ok: true };
+    }),
+
+  /**
+   * Save the study's Overview document (V1.12 B1) — abstract + named markdown
+   * sections. Rides in `definition_snapshot.overview` (preserving blocks), so a
+   * preregistered version freezes the narrative alongside the blocks (ADR-0012).
+   */
+  setOverview: writeProcedure
+    .input(
+      z.object({
+        studyId: z.string().uuid(),
+        overview: z.object({
+          abstract: z.string().max(5000),
+          sections: z
+            .array(
+              z.object({
+                id: z.string(),
+                heading: z.string().max(200),
+                contentMd: z.string().max(20000),
+              }),
+            )
+            .max(30),
+        }),
+      }),
+    )
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+      const snap =
+        tip.version.definitionSnapshot && typeof tip.version.definitionSnapshot === "object"
+          ? (tip.version.definitionSnapshot as Record<string, unknown>)
+          : {};
+      await db
+        .update(experimentVersion)
+        .set({ definitionSnapshot: { ...snap, overview: input.overview } })
+        .where(eq(experimentVersion.id, tip.version.id));
+      await db.update(experiment).set({ updatedAt: new Date() }).where(eq(experiment.id, input.studyId));
       return { ok: true };
     }),
 

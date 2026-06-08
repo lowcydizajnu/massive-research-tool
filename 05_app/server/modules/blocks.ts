@@ -39,6 +39,25 @@ export type BlockInstance = {
 
 export type ModuleLock = { source: string; key: string; version: string };
 
+/** Researcher-authored study documentation (V1.12 B1), stored in the snapshot. */
+export type OverviewSection = { id: string; heading: string; contentMd: string };
+export type StudyOverview = { abstract: string; sections: OverviewSection[] };
+
+/** Read the overview out of a definition_snapshot; empty default if absent. */
+export function readOverview(snapshot: unknown): StudyOverview {
+  if (snapshot && typeof snapshot === "object" && "overview" in snapshot) {
+    const o = (snapshot as { overview?: unknown }).overview;
+    if (o && typeof o === "object") {
+      const ov = o as Partial<StudyOverview>;
+      return {
+        abstract: typeof ov.abstract === "string" ? ov.abstract : "",
+        sections: Array.isArray(ov.sections) ? (ov.sections as OverviewSection[]) : [],
+      };
+    }
+  }
+  return { abstract: "", sections: [] };
+}
+
 /** Read the block array out of a (possibly empty/unknown) definition_snapshot. */
 export function readBlocks(snapshot: unknown): BlockInstance[] {
   if (snapshot && typeof snapshot === "object" && "blocks" in snapshot) {
