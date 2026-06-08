@@ -7,7 +7,7 @@
 
 ## Purpose
 
-Show the researcher exactly what a participant sees — chrome-free and at common device widths — before running, so the instrument is checked in its real form (V1.12 A4).
+Show the researcher exactly what a participant sees — chrome-free and at common device widths — before running, so the instrument is checked in its real form (V1.12 A4). It runs the **real participant runtime** in preview mode (an ephemeral `mode:"preview"` response on the working draft via `studies.startPreview`), iframed in the overlay: one screen at a time, with live validation and branching/conditions applied. Nothing counts toward results (preview responses are excluded by default); "Restart" begins a fresh preview run.
 
 ## Layout
 
@@ -29,9 +29,10 @@ A full-viewport overlay (`fixed inset-0`, above the researcher TopBar/rail/stage
 - **Share-link menu** — creates/lists/revokes public preview links (V1.12 I; from `previewTokens` router).
 - **Open in new tab** — link to `/studies/<id>/preview` (same overlay, own tab).
 - **Close ✕** — returns to `/studies/<id>/build`.
-- **Preview ribbon** — static "nothing recorded" note.
+- **Restart** — begins a fresh preview run (new ephemeral response).
+- **Preview ribbon** — the runtime shows its own "preview — nothing recorded" ribbon.
 - **Study title** — from server (`studies.get`).
-- **Blocks** — every block via participant `BlockView`; conditional blocks all shown (no answers to branch).
+- **Runtime iframe** — the real participant runtime at `/take/[studyId]/[responseId]/0`, one screen at a time (conditions/branching evaluated against the answers given in the preview run).
 
 ## States
 

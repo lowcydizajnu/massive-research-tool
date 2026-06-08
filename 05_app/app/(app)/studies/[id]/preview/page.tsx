@@ -2,20 +2,16 @@ import { notFound } from "next/navigation";
 
 import { PreviewExperience } from "@/components/feature/take/preview-experience";
 import { getServerApi } from "@/server/trpc/server";
-import type { RuntimeBlock } from "@/server/runtime/participant";
 import type { StudyDetail } from "@/server/trpc/routers/studies";
 
 /**
- * Preview stage (V1.12 A4, preview-modal.md) — the study as a participant sees
- * it, rendered chrome-free in a full-viewport, device-framed overlay (no
- * researcher TopBar / rail / stage tabs). Read-only: every block renders through
- * the participant `BlockView`; nothing recorded; conditional blocks all shown.
+ * Preview stage (V1.12, preview-modal.md) — the study as a participant sees it,
+ * chrome-free in a full-viewport device-framed overlay. Runs the REAL participant
+ * runtime in preview mode (an ephemeral mode:"preview" response on the working
+ * draft, started client-side via studies.startPreview): one screen at a time,
+ * live validation + branching, nothing counted toward results.
  */
-export default async function PreviewPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function PreviewPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const api = await getServerApi();
   let study: StudyDetail | null = null;
@@ -26,14 +22,5 @@ export default async function PreviewPage({
   }
   if (!study) notFound();
 
-  const blocks: RuntimeBlock[] = study.blocks.map((b) => ({
-    instanceId: b.instanceId,
-    source: b.source,
-    key: b.key,
-    version: b.version,
-    config: b.config,
-    visibility: { showIfCondition: b.showIfCondition },
-  }));
-
-  return <PreviewExperience studyId={study.id} title={study.title} blocks={blocks} />;
+  return <PreviewExperience studyId={study.id} title={study.title} />;
 }
