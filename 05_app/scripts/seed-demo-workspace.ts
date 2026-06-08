@@ -14,16 +14,19 @@
  */
 import { config } from "dotenv";
 
-config({ path: ".env.local" });
-
-const DEFAULT_EMAIL = "lowcydizajnu@gmail.com";
+export const DEFAULT_EMAIL = "lowcydizajnu@gmail.com";
 
 // Deterministic-ish randomness is unnecessary for a seed; plain Math.random is fine here.
 const randInt = (a: number, b: number) => a + Math.floor(Math.random() * (b - a + 1));
 const pick = <T>(arr: T[]): T => arr[randInt(0, arr.length - 1)];
 
-async function main() {
-  const email = (process.argv[2] ?? DEFAULT_EMAIL).toLowerCase();
+/**
+ * Seed the curated demo studies into the workspace owned by `email`. The DB
+ * client (lazy) reads DATABASE_URL on first use, so callers set it first
+ * (dev = .env.local; prod = seed-demo-prod.ts derives it via the Neon API).
+ * Idempotent: returns early if demo studies already exist. Throws on error.
+ */
+export async function seedDemoWorkspace(email: string): Promise<void> {
   const { and, eq } = await import("drizzle-orm");
   const { ulid } = await import("ulid");
   const { db } = await import("@/server/db/client");
@@ -113,15 +116,9 @@ async function main() {
 
   // ---- resolve owner + workspace ----
   const [owner] = await db.select().from(s.user).where(eq(s.user.email, email)).limit(1);
-  if (!owner) {
-    console.error(`No user with email ${email}.`);
-    process.exit(1);
-  }
+  if (!owner) throw new Error(`No user with email ${email}.`);
   const [ws] = await db.select().from(s.workspace).where(eq(s.workspace.ownerId, owner.id)).limit(1);
-  if (!ws) {
-    console.error(`No workspace owned by ${email}.`);
-    process.exit(1);
-  }
+  if (!ws) throw new Error(`No workspace owned by ${email}.`);
 
   // Idempotency: bail if demo studies already exist.
   const existing = await db
@@ -131,7 +128,7 @@ async function main() {
     .limit(1);
   if (existing.length) {
     console.log("Demo studies already seeded — nothing to do.");
-    process.exit(0);
+    return;
   }
 
   // Teammates for authorship / replication.
@@ -348,10 +345,15 @@ async function main() {
   await db.update(s.workspace).set({ showDemoContent: true }).where(eq(s.workspace.id, ws.id));
 
   console.log(`Done. Demo content is ON for "${ws.name}" (Settings → Appearance to hide).`);
-  process.exit(0);
 }
 
-main().catch((e: unknown) => {
-  console.error("seed-demo-workspace failed:", e instanceof Error ? e.message : String(e));
-  process.exit(1);
-});
+// Direct dev run (not when imported by seed-demo-prod.ts): load .env.local + seed.
+if (process.argv[1]?.includes("seed-demo-workspace")) {
+  config({ path: ".env.local" });
+  seedDemoWorkspace((process.argv[2] ?? DEFAULT_EMAIL).toLowerCase())
+    .then(() => process.exit(0))
+    .catch((e: unknown) => {
+      console.error("seed-demo-workspace failed:", e instanceof Error ? e.message : String(e));
+      process.exit(1);
+    });
+}
