@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Route } from "next";
 import { notFound } from "next/navigation";
 
 import { StageTabs } from "@/components/chrome/stage-tabs";
@@ -37,18 +38,28 @@ export default async function ResultsStagePage({
       <StageTabs studyId={study.id} active="Results" />
 
       <div className="flex flex-1 flex-col gap-5 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6">
-        <div className="min-w-0">
-          <h1
-            title={study.title}
-            className="truncate font-serif text-[length:var(--text-display)] font-medium text-[var(--color-text-primary)]"
-          >
-            {study.title}
-          </h1>
-          <p className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
-            {results
-              ? `${results.totalCompleted} completed response${results.totalCompleted === 1 ? "" : "s"} across ${results.conditions.length} condition${results.conditions.length === 1 ? "" : "s"}${results.includesPreview ? " (including preview)" : ""}.`
-              : "Results appear here once the study is preregistered and collecting responses."}
-          </p>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h1
+              title={study.title}
+              className="truncate font-serif text-[length:var(--text-display)] font-medium text-[var(--color-text-primary)]"
+            >
+              {study.title}
+            </h1>
+            <p className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+              {results
+                ? `${results.totalCompleted} completed response${results.totalCompleted === 1 ? "" : "s"} across ${results.conditions.length} condition${results.conditions.length === 1 ? "" : "s"}${results.includesPreview ? " (including preview)" : ""}.`
+                : "Results appear here once the study is preregistered and collecting responses."}
+            </p>
+          </div>
+          {results && results.totalCompleted > 0 ? (
+            <Link
+              href={`/studies/${study.id}/results/export` as Route}
+              className="inline-flex shrink-0 items-center gap-1 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-1.5 text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
+            >
+              Export data
+            </Link>
+          ) : null}
         </div>
 
         {results === null ? (
