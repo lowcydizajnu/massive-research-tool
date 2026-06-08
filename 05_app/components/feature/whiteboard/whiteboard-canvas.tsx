@@ -27,6 +27,10 @@ import { BlockNode, ConditionEdge, ConditionNode, GroupNode } from "./whiteboard
 const nodeTypes = { block: BlockNode, condition: ConditionNode, group: GroupNode };
 const edgeTypes = { condition: ConditionEdge };
 const COND_PREFIX = "cond:";
+const GROUP_PREFIX = "group:";
+// Canvas layout (ADR-0028 amendment): NW/NH = block node box; PAD/HEADER = group
+// container insets; GAP/VGAP = vertical rhythm; COLX = block column x.
+const NW = 280, NH = 76, PAD = 16, HEADER = 26, GAP = 92, COLX = 320, VGAP = 40;
 
 export type WhiteboardCondition = { slug: string; name: string };
 
@@ -46,6 +50,7 @@ export function WhiteboardCanvas({
   onDisconnectCondition,
   onConnectBranch,
   onDisconnectBranch,
+  onRegroup,
 }: {
   study: StudyDetail;
   conditions: WhiteboardCondition[];
@@ -56,6 +61,8 @@ export function WhiteboardCanvas({
   /** Wire block→block: show `targetId` only if `sourceId`'s answer matches (ADR-0021). */
   onConnectBranch?: (targetId: string, sourceId: string) => void;
   onDisconnectBranch?: (targetId: string, sourceId: string) => void;
+  /** Drag a block into a group container (groupId) or out (null) — ADR-0028. */
+  onRegroup?: (blockId: string, groupId: string | null) => void;
 }) {
   const saved = study.whiteboardViewport.nodePositions ?? {};
   const condName = useMemo(() => {
@@ -79,44 +86,70 @@ export function WhiteboardCanvas({
         data: { label: `Condition: ${condName(slug)}` },
       };
     });
-    const posOf = (id: string, i: number) => saved[id] ?? { x: 320, y: i * 120 };
-    const blockNodes: Node[] = study.blocks.map((b, i) => ({
-      id: b.instanceId,
-      type: "block",
-      position: posOf(b.instanceId, i),
-      selected: b.instanceId === selectedId,
-      zIndex: 1,
-      data: { label: b.title?.trim() || b.name, ref: `${b.key} · ${b.version}`, complete: b.complete },
-    }));
+    // Groups render as real React Flow container (parent) nodes with member
+    // blocks as children (ADR-0028 amendment): native nesting + group-as-unit
+    // drag. Children carry relative positions; containers + ungrouped blocks are
+    // absolute. Default layout stacks top-level items (a group or a lone block)
+    // vertically; the parent MUST precede its children in the array.
+    const blockData = (b: (typeof study.blocks)[number]) => ({
+      label: b.title?.trim() || b.name,
+      ref: `${b.key} · ${b.version}`,
+      complete: b.complete,
+    });
 
-    // Group container boxes (ADR-0028 / grouping #5): a dashed box behind each
-    // group, sized from its members' bounding box (works after manual drag too).
-    const NW = 280, NH = 76, PAD = 16, HEADER = 20;
-    const groupNodes: Node[] = study.groups
-      .map((g) => {
-        const members = study.blocks
-          .map((b, i) => ({ b, i }))
-          .filter((x) => x.b.groupId === g.id)
-          .map((x) => posOf(x.b.instanceId, x.i));
-        if (members.length === 0) return null;
-        const minX = Math.min(...members.map((p) => p.x));
-        const minY = Math.min(...members.map((p) => p.y));
-        const maxX = Math.max(...members.map((p) => p.x + NW));
-        const maxY = Math.max(...members.map((p) => p.y + NH));
-        return {
-          id: `group:${g.id}`,
+    const groupNodes: Node[] = [];
+    const childNodes: Node[] = [];
+    const ungroupedNodes: Node[] = [];
+    const seenGroup = new Set<string>();
+    let y = 0;
+    for (const b of study.blocks) {
+      if (b.groupId) {
+        if (seenGroup.has(b.groupId)) continue;
+        seenGroup.add(b.groupId);
+        const g = study.groups.find((x) => x.id === b.groupId);
+        const members = study.blocks.filter((x) => x.groupId === b.groupId);
+        const containerId = `group:${b.groupId}`;
+        const height = HEADER + members.length * GAP + PAD;
+        groupNodes.push({
+          id: containerId,
           type: "group",
-          position: { x: minX - PAD, y: minY - PAD - HEADER },
-          draggable: false,
+          position: saved[containerId] ?? { x: COLX, y },
+          draggable: true,
           selectable: false,
           zIndex: 0,
-          data: { label: g.title ?? "Group" },
-          style: { width: maxX - minX + 2 * PAD, height: maxY - minY + 2 * PAD + HEADER },
-        } as Node;
-      })
-      .filter(Boolean) as Node[];
+          data: { label: g?.title ?? "Group" },
+          style: { width: NW + 2 * PAD, height },
+        } as Node);
+        members.forEach((m, mi) =>
+          childNodes.push({
+            id: m.instanceId,
+            type: "block",
+            parentId: containerId,
+            // No `extent: "parent"` — a child must be draggable OUT of the box to
+            // ungroup. Children auto-stack (relative position, never persisted),
+            // so re-parenting on drop is unambiguous (ADR-0028 amendment).
+            position: { x: PAD, y: HEADER + mi * GAP },
+            selected: m.instanceId === selectedId,
+            zIndex: 1,
+            data: blockData(m),
+          } as Node),
+        );
+        y += height + VGAP;
+      } else {
+        ungroupedNodes.push({
+          id: b.instanceId,
+          type: "block",
+          position: saved[b.instanceId] ?? { x: COLX, y },
+          selected: b.instanceId === selectedId,
+          zIndex: 1,
+          data: blockData(b),
+        });
+        y += NH + VGAP;
+      }
+    }
 
-    return [...groupNodes, ...condNodes, ...blockNodes];
+    // Parent (group) nodes before their children; conditions + ungrouped after.
+    return [...groupNodes, ...childNodes, ...condNodes, ...ungroupedNodes];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [study.blocks, study.groups, conditions, selectedId, JSON.stringify(saved), condName]);
 
@@ -174,9 +207,42 @@ export function WhiteboardCanvas({
   );
   const onNodeDragStop = useCallback(
     (_: unknown, node: Node) => {
-      save.mutate({ studyId: study.id, nodePositions: { [node.id]: node.position } });
+      // Group container moved as a unit → just persist its position.
+      if (node.type === "group") {
+        save.mutate({ studyId: study.id, nodePositions: { [node.id]: node.position } });
+        return;
+      }
+      if (node.type !== "block") return;
+
+      // Absolute centre of the dropped block (child positions are parent-relative).
+      const parent = node.parentId ? nodes.find((n) => n.id === node.parentId) : null;
+      const cx = (parent?.position.x ?? 0) + node.position.x + NW / 2;
+      const cy = (parent?.position.y ?? 0) + node.position.y + NH / 2;
+
+      // Which group container (if any) is under the drop point?
+      const container = nodes.find((n) => {
+        if (n.type !== "group") return false;
+        const w = Number(n.style?.width) || 0;
+        const h = Number(n.style?.height) || 0;
+        return cx >= n.position.x && cx <= n.position.x + w && cy >= n.position.y && cy <= n.position.y + h;
+      });
+      const targetGroup = container ? container.id.slice(GROUP_PREFIX.length) : null;
+      const currentGroup = study.blocks.find((b) => b.instanceId === node.id)?.groupId ?? null;
+
+      if (targetGroup !== currentGroup) {
+        onRegroup?.(node.id, targetGroup);
+        // Leaving a group: keep the block where it was dropped (absolute).
+        if (targetGroup === null) {
+          save.mutate({ studyId: study.id, nodePositions: { [node.id]: { x: cx - NW / 2, y: cy - NH / 2 } } });
+        }
+        return; // joining/moving group → re-layout (don't persist a stale position)
+      }
+      // Same group: persist free moves of ungrouped blocks; grouped members re-stack.
+      if (currentGroup === null) {
+        save.mutate({ studyId: study.id, nodePositions: { [node.id]: node.position } });
+      }
     },
-    [save, study.id],
+    [save, study.id, nodes, study.blocks, onRegroup],
   );
 
   const isValidConnection = useCallback(

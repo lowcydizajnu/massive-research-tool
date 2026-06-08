@@ -3,7 +3,15 @@
 - **Status:** accepted
 - **Date:** 2026-06-08
 - **Deciders:** project owner, Claude (agent)
-- **Tags:** blocks, runtime, grouping, ADR-0012-amendment, ADR-0013-amendment
+- **Tags:** blocks, runtime, grouping, ADR-0012-amendment, ADR-0013-amendment, ADR-0020-amendment
+
+## Amendment (2026-06-08) — whiteboard groups as React Flow container nodes
+
+For the Whiteboard, a question group renders as a real **React Flow parent (group) node** containing its member blocks as **child nodes** (`parentId` + `extent: "parent"`), chosen over a derived bounds-only box (the "(a)" option). Rationale: it gives true visual nesting, native **group-as-unit drag** (dragging the container moves its children), and a real drop target for **drag-into / drag-out-of** a group — matching how groups are authored.
+
+Consequence — **position persistence (amends ADR-0020):** React Flow reports a child node's `position` **relative to its parent**, whereas `whiteboard_viewport.nodePositions` historically stored **absolute** coordinates. Rule going forward: persist each node's `position` exactly as React Flow reports it (absolute for top-level nodes + the group container; relative for grouped children). When a block **joins** a group it's re-parented and its stored position is **reset** (re-laid-out inside the container) to avoid an absolute coordinate being misread as relative; when it **leaves**, its position is converted back to absolute. The container's size is derived from its children's bounding box. Membership remains the flat `block.groupId` (source of truth); the parent/child tree is a render-time projection, synced to the Builder/list via `studies.setGroups`.
+
+Group-level conditions are wired by connecting a condition entry-point to the **group container** node → the group's `showIf` (vs a block's), reusing the ADR-0021 engine at the screen level.
 
 ## Context
 

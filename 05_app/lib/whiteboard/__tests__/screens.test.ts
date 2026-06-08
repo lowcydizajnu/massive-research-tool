@@ -79,3 +79,24 @@ describe("regroupAfterMove (ADR-0028 #3+#8)", () => {
     expect(gid(out, "Z")).toBeNull();
   });
 });
+
+import { setBlockGroup } from "@/lib/whiteboard/screens";
+
+describe("setBlockGroup (whiteboard drag-into/out-of group)", () => {
+  const mk = (...s: [string, string | null][]) => s.map(([instanceId, groupId]) => ({ instanceId, groupId }));
+  const ids = (r: { instanceId: string }[]) => r.map((x) => x.instanceId);
+  const gid = (r: { instanceId: string; groupId: string | null }[], id: string) =>
+    r.find((x) => x.instanceId === id)!.groupId;
+
+  it("joining a group pulls the block next to its members (contiguous)", () => {
+    const out = setBlockGroup(mk(["A", "g"], ["B", "g"], ["Z", null], ["C", null]), "Z", "g");
+    expect(gid(out, "Z")).toBe("g");
+    expect(ids(out)).toEqual(["A", "B", "Z", "C"]); // Z pulled into g's cluster
+  });
+
+  it("ungrouping sets groupId null and keeps order", () => {
+    const out = setBlockGroup(mk(["A", "g"], ["B", "g"], ["C", "g"]), "B", null);
+    expect(gid(out, "B")).toBeNull();
+    expect(ids(out)).toEqual(["A", "C", "B"]); // B falls out of the cluster, to its first free slot after
+  });
+});
