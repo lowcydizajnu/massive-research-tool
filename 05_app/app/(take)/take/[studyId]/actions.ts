@@ -54,7 +54,8 @@ export async function answerAction(formData: FormData): Promise<void> {
     moduleKey === "number" ||
     moduleKey === "nps" ||
     moduleKey === "rating-stars" ||
-    moduleKey === "vas"
+    moduleKey === "vas" ||
+    moduleKey === "reaction-time"
   ) {
     const raw = formData.get("value");
     answer = raw != null && String(raw) !== "" ? { value: Number(raw) } : null;
@@ -95,6 +96,8 @@ export async function answerAction(formData: FormData): Promise<void> {
       }
     }
     answer = { values };
+  } else if (moduleKey === "maxdiff") {
+    answer = { best: String(formData.get("best") ?? ""), worst: String(formData.get("worst") ?? "") };
   } else if (moduleKey === "picture-choice") {
     answer = { selected: formData.getAll("mc").map(String) };
   } else if (moduleKey === "multiple-choice") {

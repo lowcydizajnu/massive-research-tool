@@ -1,3 +1,4 @@
+import { ReactionTimeInput } from "@/components/feature/take/reaction-time-input";
 import type { RuntimeBlock } from "@/server/runtime/participant";
 
 /**
@@ -38,6 +39,8 @@ export function BlockView({ block, seed }: { block: RuntimeBlock; seed?: string 
   if (block.key === "vas") return <VasInput config={block.config} />;
   if (block.key === "matrix-grid") return <MatrixGridInput config={block.config} />;
   if (block.key === "semantic-differential") return <SemanticDifferentialInput config={block.config} />;
+  if (block.key === "reaction-time") return <ReactionTimeInput config={block.config} />;
+  if (block.key === "maxdiff") return <MaxDiffInput config={block.config} />;
   // Unknown module — render nothing rather than crash the runtime.
   return (
     <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
@@ -767,6 +770,40 @@ function SemanticDifferentialInput({ config }: { config: Record<string, unknown>
           </span>
         </div>
       ))}
+    </fieldset>
+  );
+}
+
+/* ---------- V1.12 Wave 3: MaxDiff (best–worst) ---------- */
+
+function MaxDiffInput({ config }: { config: Record<string, unknown> }) {
+  const items = Array.isArray(config.items) ? (config.items as unknown[]).map(str) : [];
+  const required = config.required === true;
+  return (
+    <fieldset className="flex flex-col gap-2">
+      <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
+      <table className="w-full border-collapse text-[length:var(--text-small)]">
+        <thead>
+          <tr>
+            <th className="px-2 py-1 text-left font-medium text-[var(--color-text-secondary)]">Best</th>
+            <th className="px-2 py-1 text-left font-medium text-[var(--color-text-secondary)]">Worst</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item, i) => (
+            <tr key={i} className="border-t border-[var(--color-border-subtle)]">
+              <td className="px-2 py-2 text-center">
+                <input type="radio" name="best" value={item} required={required} aria-label={`Best: ${item}`} className="size-4 accent-[var(--color-primary)]" />
+              </td>
+              <td className="px-2 py-2 text-center">
+                <input type="radio" name="worst" value={item} required={required} aria-label={`Worst: ${item}`} className="size-4 accent-[var(--color-primary)]" />
+              </td>
+              <td className="py-2 pl-3 text-[var(--color-text-primary)]">{item}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </fieldset>
   );
 }

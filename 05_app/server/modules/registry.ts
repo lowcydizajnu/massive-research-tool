@@ -1105,12 +1105,100 @@ const semanticDifferentialBlock: CoreModuleDef = {
     c.rightLabels.length > 0,
 };
 
+// ---------- V1.12 Wave 3 (batch 3): reaction-time + MaxDiff ----------
+
+const reactionTimeBlock: CoreModuleDef = {
+  source: "core",
+  key: "reaction-time",
+  version: "1.0.0",
+  name: "Reaction time",
+  description: "Measures response latency (ms) after a stimulus appears following a random delay.",
+  categoryTags: ["measurement", "behavioral"],
+  configSchema: z.object({
+    prompt: z.string(),
+    stimulus: z.string(),
+    minDelayMs: z.number().int().min(0).max(60000),
+    maxDelayMs: z.number().int().min(0).max(60000),
+  }),
+  defaultConfig: {
+    prompt: "Press Respond as fast as you can when the word appears.",
+    stimulus: "GO",
+    minDelayMs: 1000,
+    maxDelayMs: 3000,
+  },
+  jsonSchema: {
+    type: "object",
+    properties: {
+      prompt: { type: "string" },
+      stimulus: { type: "string" },
+      minDelayMs: { type: "integer" },
+      maxDelayMs: { type: "integer" },
+    },
+    required: ["prompt", "stimulus"],
+    additionalProperties: false,
+  },
+  collectsResponse: true,
+  responseSchema: z.object({ value: z.number().min(0) }),
+  isAnswerEmpty: (a) => numVal(a) === null,
+  validateAnswer: (a) => {
+    const v = numVal(a);
+    return v !== null && v >= 0;
+  },
+  isComplete: (c) =>
+    typeof c.prompt === "string" &&
+    c.prompt.trim().length > 0 &&
+    typeof c.stimulus === "string" &&
+    c.stimulus.trim().length > 0,
+};
+
+const maxDiffBlock: CoreModuleDef = {
+  source: "core",
+  key: "maxdiff",
+  version: "1.0.0",
+  name: "MaxDiff (best–worst)",
+  description: "Best-worst scaling: from a set of items, pick the best and the worst.",
+  categoryTags: ["measurement", "ranking"],
+  configSchema: z.object({ prompt: z.string(), required: z.boolean(), items: z.array(z.string()) }),
+  defaultConfig: { prompt: "", required: true, items: ["Item 1", "Item 2", "Item 3"] },
+  jsonSchema: {
+    type: "object",
+    properties: {
+      prompt: { type: "string" },
+      required: { type: "boolean" },
+      items: { type: "array", items: { type: "string" } },
+    },
+    required: ["prompt", "items"],
+    additionalProperties: false,
+  },
+  collectsResponse: true,
+  responseSchema: z.object({ best: z.string(), worst: z.string() }),
+  isAnswerEmpty: (a) => {
+    const o = (a ?? {}) as { best?: unknown; worst?: unknown };
+    return typeof o.best !== "string" || o.best === "" || typeof o.worst !== "string" || o.worst === "";
+  },
+  validateAnswer: (a, c) => {
+    const o = (a ?? {}) as { best?: unknown; worst?: unknown };
+    const items = Array.isArray(c.items) ? (c.items as unknown[]).map(String) : [];
+    const best = typeof o.best === "string" ? o.best : "";
+    const worst = typeof o.worst === "string" ? o.worst : "";
+    if (best === "" && worst === "") return true; // empty handled by required check
+    return items.includes(best) && items.includes(worst) && best !== worst;
+  },
+  isComplete: (c) =>
+    typeof c.prompt === "string" &&
+    c.prompt.trim().length > 0 &&
+    Array.isArray(c.items) &&
+    c.items.length >= 2,
+};
+
 export const MODULE_REGISTRY: CoreModuleDef[] = [
   npsBlock,
   ratingStarsBlock,
   vasBlock,
   matrixGridBlock,
   semanticDifferentialBlock,
+  reactionTimeBlock,
+  maxDiffBlock,
   textBlock,
   imageBlock,
   videoBlock,
