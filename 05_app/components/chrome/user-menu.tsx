@@ -1,10 +1,9 @@
 "use client";
 
+import { useClerk } from "@clerk/nextjs";
 import { LogOut, Settings } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-
-import { signOutAction } from "@/app/actions/sign-out";
 
 /**
  * Account menu in the TopBar (V1.12 A1). Avatar button → dropdown with the
@@ -22,6 +21,8 @@ export function UserMenu({
   email: string | null;
 }) {
   const [open, setOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  const { signOut } = useClerk();
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -79,12 +80,21 @@ export function UserMenu({
             Account settings
           </Link>
 
-          <form action={signOutAction}>
-            <button type="submit" role="menuitem" className={itemCls}>
-              <LogOut className="size-4 text-[var(--color-text-muted)]" aria-hidden />
-              Sign out
-            </button>
-          </form>
+          <button
+            type="button"
+            role="menuitem"
+            disabled={signingOut}
+            onClick={() => {
+              setSigningOut(true);
+              // Clerk's client signOut clears the session + cookies, then
+              // redirects to the auth-aware root (→ /signup when signed out).
+              void signOut({ redirectUrl: "/" });
+            }}
+            className={itemCls}
+          >
+            <LogOut className="size-4 text-[var(--color-text-muted)]" aria-hidden />
+            {signingOut ? "Signing out…" : "Sign out"}
+          </button>
         </div>
       ) : null}
     </div>
