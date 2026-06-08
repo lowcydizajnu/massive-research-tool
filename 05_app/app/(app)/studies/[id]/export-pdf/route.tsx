@@ -59,6 +59,29 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     .orderBy(desc(registryPush.createdAt))
     .limit(1);
 
+  // Replication provenance + auto change-summary (V1.12).
+  let replication: StudyPdfData["replication"] = null;
+  if (study.isReplication) {
+    try {
+      const reps = await api.studies.getReplications({ studyId: id });
+      const p = reps.parent;
+      if (p) {
+        const d = p.diff;
+        const summary = d
+          ? `${d.added.length} added, ${d.removed.length} removed, ${d.changed.length} modified, ${d.unchangedCount} unchanged`
+          : "block diff unavailable (the original is private)";
+        replication = {
+          parentTitle: p.title,
+          parentAuthor: p.authorName,
+          changeSummary: summary,
+          notes: study.overview.replicationNotes,
+        };
+      }
+    } catch {
+      replication = null;
+    }
+  }
+
   const data: StudyPdfData = {
     title: study.title || "Untitled study",
     author: {
@@ -77,6 +100,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       prompt: typeof b.config?.prompt === "string" ? (b.config.prompt as string) : undefined,
     })),
     prereg: push ? { doi: push.doi, url: push.url } : null,
+    replication,
     year: new Date().getFullYear(),
   };
 

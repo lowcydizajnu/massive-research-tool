@@ -46,6 +46,9 @@ export type StudyOverview = {
   /** Numbered hypotheses (H1, H2, …) — first-class for preregistration. */
   hypotheses: string[];
   sections: OverviewSection[];
+  /** For a replication: the researcher's notes on what they changed + why
+   *  (complements the auto-generated block diff). Empty for non-replications. */
+  replicationNotes: string;
 };
 
 /** Read the overview out of a definition_snapshot; empty default if absent. */
@@ -60,10 +63,11 @@ export function readOverview(snapshot: unknown): StudyOverview {
           ? (ov.hypotheses.filter((h) => typeof h === "string") as string[])
           : [],
         sections: Array.isArray(ov.sections) ? (ov.sections as OverviewSection[]) : [],
+        replicationNotes: typeof ov.replicationNotes === "string" ? ov.replicationNotes : "",
       };
     }
   }
-  return { abstract: "", hypotheses: [], sections: [] };
+  return { abstract: "", hypotheses: [], sections: [], replicationNotes: "" };
 }
 
 /** Read the block array out of a (possibly empty/unknown) definition_snapshot. */
