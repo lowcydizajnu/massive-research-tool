@@ -540,6 +540,45 @@ function pruneForwardConditions(blocks: BlockInstance[]): BlockInstance[] {
   return out;
 }
 
+/** Shared condition-group input schema (ADR-0021 amendment). */
+const conditionGroupSchema = z.object({
+  op: z.enum(["and", "or"]),
+  clauses: z
+    .array(
+      z.object({
+        fromInstanceId: z.string(),
+        operator: z.enum([
+          "answered",
+          "eq",
+          "neq",
+          "gt",
+          "gte",
+          "lt",
+          "lte",
+          "between",
+          "isAnyOf",
+          "contains",
+          "includesAny",
+        ]),
+        value: z.array(z.string()).max(50),
+      }),
+    )
+    .max(20),
+});
+
+/** A full block instance, for the undo/restore path (structurally validated). */
+const blockInstanceSchema = z.object({
+  instanceId: z.string(),
+  source: z.string(),
+  key: z.string(),
+  version: z.string(),
+  config: z.record(z.string(), z.unknown()),
+  title: z.string().optional(),
+  visibility: z.object({ showIfCondition: z.array(z.string()).optional() }).optional(),
+  branchRules: z.array(z.object({ fromInstanceId: z.string(), equals: z.string() })).optional(),
+  showIf: conditionGroupSchema.optional(),
+});
+
 export const studiesRouter = router({
   /**
    * Browse public studies (ADR-0018 + browse-public-studies wireframe). Public
@@ -1280,6 +1319,21 @@ export const studiesRouter = router({
     }),
 
   /**
+   * Restore the working tip's blocks to an exact prior snapshot — the server
+   * side of Builder/Whiteboard undo. The client holds the edit history; this
+   * just writes the given (structurally validated, previously-valid) blocks.
+   * Forward/dangling clauses are pruned defensively.
+   */
+  setBlocks: writeProcedure
+    .input(z.object({ studyId: z.string().uuid(), blocks: z.array(blockInstanceSchema).max(200) }))
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+      const blocks = pruneForwardConditions(input.blocks as unknown as BlockInstance[]);
+      await writeBlocks(tip.version.id, input.studyId, blocks);
+      return { ok: true };
+    }),
+
+  /**
    * Reorder the blocks to match `order` (a permutation of the study's block
    * instanceIds). Drives drag-to-reorder in the Builder + whiteboard list. The
    * block sequence is the participant path's spine (ADR-0021 amendment).
@@ -1406,32 +1460,7 @@ export const studiesRouter = router({
       z.object({
         studyId: z.string().uuid(),
         instanceId: z.string(),
-        showIf: z
-          .object({
-            op: z.enum(["and", "or"]),
-            clauses: z
-              .array(
-                z.object({
-                  fromInstanceId: z.string(),
-                  operator: z.enum([
-                    "answered",
-                    "eq",
-                    "neq",
-                    "gt",
-                    "gte",
-                    "lt",
-                    "lte",
-                    "between",
-                    "isAnyOf",
-                    "contains",
-                    "includesAny",
-                  ]),
-                  value: z.array(z.string()).max(50),
-                }),
-              )
-              .max(20),
-          })
-          .nullable(),
+        showIf: conditionGroupSchema.nullable(),
       }),
     )
     .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {

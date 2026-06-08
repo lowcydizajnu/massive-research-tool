@@ -1,9 +1,10 @@
 "use client";
 
-import { GripVertical, Plus } from "lucide-react";
+import { GripVertical, Plus, Undo2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { move } from "@/lib/whiteboard/reorder";
+import { useBlockHistory } from "@/lib/whiteboard/use-block-history";
 import {
   conditionWithSources,
   newlyBrokenByReorder,
@@ -101,6 +102,10 @@ export function BuilderWorkspace({
   const renameBlock = api.studies.setBlockTitle.useMutation({ onSuccess: () => void invalidate() });
   const reorderBlocks = api.studies.reorderBlocks.useMutation({ onSuccess: () => void invalidate() });
   const setCondition = api.studies.setBlockCondition.useMutation({ onSuccess: () => void invalidate() });
+  const setBlocksMut = api.studies.setBlocks.useMutation({ onSuccess: () => void invalidate() });
+  const { canUndo, undo } = useBlockHistory(study.id, study.blocks, (blocks) =>
+    setBlocksMut.mutate({ studyId: study.id, blocks }),
+  );
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [overIdx, setOverIdx] = useState<number | null>(null);
   const [pendingReorder, setPendingReorder] = useState<{ order: string[]; items: string[] } | null>(null);
@@ -155,6 +160,16 @@ export function BuilderWorkspace({
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={undo}
+                disabled={!canUndo || setBlocksMut.isPending}
+                title="Undo last change"
+                aria-label="Undo last change"
+                className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-1.5 text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)] disabled:opacity-40"
+              >
+                <Undo2 className="size-4" aria-hidden />
+              </button>
               <ModeToggle studyId={study.id} mode="builder" />
               <button
                 type="button"
