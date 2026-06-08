@@ -163,6 +163,14 @@ export function BuilderWorkspace({
     const groups = study.groups.map((g) => (g.id === groupId ? { ...g, title } : g));
     setGroupsMut.mutate({ studyId: study.id, blocks, groups });
   };
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const toggleCollapse = (groupId: string) =>
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
+      return next;
+    });
   const [pendingReorder, setPendingReorder] = useState<{ order: string[]; items: string[] } | null>(null);
   const nameOf = (id: string) => {
     const b = study.blocks.find((x) => x.instanceId === id);
@@ -277,15 +285,45 @@ export function BuilderWorkspace({
                   const grouped = !!b.groupId;
                   const groupStart = grouped && (!prev || prev.groupId !== b.groupId);
                   const group = grouped ? study.groups.find((g) => g.id === b.groupId) : null;
+                  const isCollapsed = grouped && collapsedGroups.has(b.groupId!);
+                  const memberCount = grouped ? study.blocks.filter((x) => x.groupId === b.groupId).length : 0;
+                  // Collapsed: render non-first members as a thin one-liner (kept in
+                  // the DnD list so reordering still works).
+                  if (grouped && !groupStart && isCollapsed) {
+                    return (
+                      <div className="flex items-center gap-1 border-l-2 border-[var(--color-primary)] pl-2">
+                        <span
+                          ref={handle.ref}
+                          {...handle.attributes}
+                          {...handle.listeners}
+                          aria-label="Drag to reorder"
+                          className="flex shrink-0 cursor-grab touch-none items-center rounded-[var(--radius-md)] px-1 text-[var(--color-text-muted)] active:cursor-grabbing"
+                        >
+                          <GripVertical className="size-3.5" aria-hidden />
+                        </span>
+                        <span className="truncate text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                          {b.title?.trim() || b.name}
+                        </span>
+                      </div>
+                    );
+                  }
                   return (
                     <div className="flex flex-col gap-2">
                       {groupStart ? (
                         <div className="flex items-center gap-2 pl-7">
+                          <button
+                            type="button"
+                            onClick={() => toggleCollapse(b.groupId!)}
+                            aria-label={isCollapsed ? "Expand group" : "Collapse group"}
+                            className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+                          >
+                            {isCollapsed ? "▸" : "▾"}
+                          </button>
                           <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">⊞ Group screen</span>
-                          <GroupTitleInput
-                            value={group?.title ?? ""}
-                            onCommit={(t) => renameGroup(b.groupId!, t)}
-                          />
+                          <GroupTitleInput value={group?.title ?? ""} onCommit={(t) => renameGroup(b.groupId!, t)} />
+                          {isCollapsed ? (
+                            <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">· {memberCount} questions</span>
+                          ) : null}
                         </div>
                       ) : null}
                       <div className={cn("flex items-stretch gap-1", grouped && "border-l-2 border-[var(--color-primary)] pl-2")}>
