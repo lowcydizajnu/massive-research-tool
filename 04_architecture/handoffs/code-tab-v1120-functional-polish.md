@@ -65,13 +65,20 @@ Wireframe gate: `03_design/wireframes/account-settings.md` (write it before the 
 - 30-300 fake responses (cluster-sampled from realistic distributions — likert responses skewed by condition, demographics matching real population estimates)
 - Comments from "Maya Okonkwo" + "Hanna Kowalczyk" + "Sofia Marsh" reviewing each other's work (the personas from `02_product/personas/`)
 - Activity events emitted properly so the Activity destination shows real-feeling activity
-- For preregistered studies: a fake OSF DOI in the format `10.17605/OSF.IO/<fake>` + a note in the UI that this is demo (links don't resolve)
+- For preregistered studies: a clearly-non-resolvable DOI format `10.17605/OSF.DEMO/<demo-key>` (visibly different from real OSF DOIs which use `OSF.IO`) — no per-link badge needed because the workspace banner + the distinct DOI shape both make the demo-ness obvious. The runtime DOES NOT push these to real OSF (the `is_demo` flag on the version short-circuits the `registry.push` Inngest job)
 
 **Implementation approach:**
 - New file `scripts/seed-demo-workspace.ts` (separate from `seed-network-demo.ts` which is for dev e2e). Imports realistic block configs from a `scripts/demo-studies/` directory — each demo study is a `.ts` file exporting its definition.
 - Idempotent: first run seeds + records `workspace.demo_seeded_at`; subsequent runs no-op (researcher can `Reset demo content` to re-seed).
 - Fake-response generator: per-block-type plausible-distribution sampler (likert ~ normal(4, 1.2); free-text picked from a curated 20-line pool per block; demographics matched to real US/global distributions per Census/Pew data).
 - Audio recordings (when that block ships): use a curated set of 5-second public-domain audio clips for the demo responses. License-clean.
+
+**Workspace-level demo banner (owner confirmed 2026-06-08):**
+When `workspace.demo_seeded_at IS NOT NULL` AND the user has demo mode enabled, a persistent banner renders at the top of every researcher-side surface:
+
+> ℹ️ Showing demo content. Toggle off in Settings → Workspace once you start your own studies. [Hide for this session]
+
+Combined with the distinct `OSF.DEMO` DOI format above, no per-link badge is needed — the banner is the primary signal, the DOI shape is the secondary signal, and the demo studies' Open Science Framework links open into a clearly-marked "Demo only" placeholder page (not real OSF) when clicked.
 
 ADR-0023 — Demo-data semantics (write at scaffold time). Captures: demo rows live in real tables filtered by `is_demo`; never counted in production aggregates; never federated to Browse for non-demo viewers; never push to real OSF.
 
@@ -386,21 +393,32 @@ Stored as `experiment_version.theme` (jsonb on the version; rides with the snaps
 
 Each preset is a **complete theme + layout + block-rendering bundle** that makes the participant runtime visually mimic a target platform. Critical for ecological-validity research where the "look" of the medium being studied matters.
 
-**Initial preset list:**
+**Full preset list (17 total; owner expanded 2026-06-08):**
 
+Non-mimicking baselines (4):
 1. **Academic** — current MRT default (warm parchment + Plex Serif + modular floating cards). Researcher-honest, neutral, "this is clearly a research instrument."
-2. **Clinical / Medical** — light blue + Inter + minimal cards + plain borders + "Powered by Massive Research Tool" removable. For health studies that need to look like NHS / Mayo Clinic / hospital intake forms.
+2. **Clinical / Medical** — light blue + Inter + minimal cards + plain borders + branding removable. For health studies that need to look like NHS / Mayo / hospital intake forms.
 3. **Modern survey** — white + Inter + sharp corners + progress bar. For when "looks like Typeform/SurveyMonkey" is the desired baseline.
-4. **Playful** — light pastels + rounded + soft shadows + Comic-adjacent typography. For children / youth studies.
+4. **Playful** — light pastels + rounded + soft shadows + friendly typography. For children / youth studies.
+
+Mimicking — social media (4):
 5. **Facebook** — FB blue (#1877F2) header + Helvetica/Segoe + rounded white cards on light gray bg + FB-style block headers (avatar + name + timestamp). The `core/social-post` block renders as a real-looking FB post with like/comment/share buttons (UI only, non-functional). Critical for misinformation/social-media research.
 6. **X (Twitter)** — black bg + monochrome accent + condensed Helvetica + tweet-style cards with engagement icons (reply/repost/heart/views). Social-post block renders as a tweet thread.
 7. **Instagram** — gradient header (purple-pink-orange) + Helvetica + image-forward layout (large image area; small text below) + heart/comment/share icons. Picture-choice block emphasized over text.
-8. **TikTok** — black bg + bottom-up scroll feel + bright accent (#FE2C55) + heavy use of vertical video aspect ratios + emoji-heavy. Video block (when shipped) renders as fullscreen with side action bar.
+8. **TikTok** — black bg + bottom-up scroll feel + bright accent (#FE2C55) + heavy use of vertical video aspect ratios + emoji-heavy. Video block renders as fullscreen with side action bar.
+
+Mimicking — web content (5):
 9. **News site** — newspaper-style with serif headline + sans-serif body + sidebar + byline + datestamp + "Subscribe" CTA (mocked). For headline-credibility research (the canonical use case).
 10. **Business portal** — corporate enterprise look: navy/gray + Inter + structured forms + multi-column layouts + "Submit to HR" CTA. For workplace surveys / B2B research.
 11. **Lifestyle website** — magazine-style + warm photography + serif/sans mix + ample whitespace. For wellness / lifestyle / consumer attitude research.
-12. **Forum** — Reddit/Discord-style threaded layout + monospace usernames + voting affordances. For online-community-behavior research.
+12. **Forum** — phpBB / vBulletin-style threaded layout + monospace usernames + post-count badges. For online-community-behavior research with a "traditional forum" aesthetic.
 13. **Blog** — Medium-style: minimal + reading-focused + large headers + author byline + clap/share at bottom. For long-form attitude research.
+
+Mimicking — owner-expanded 2026-06-08 (4):
+14. **Reddit** — Reddit's threaded discussion layout: subreddit header + upvote/downvote arrows + comment-tree indentation + flair tags + "mod" indicators. The `core/social-post` block renders as a Reddit post; comments block renders as nested Reddit comments. Useful for online-community-behavior + content-moderation + community-norms research.
+15. **LinkedIn** — professional feed: light gray bg + Inter + endorsement badges + connection-degree indicators ("1st", "2nd") + "Promoted" labels + post-engagement bar with reactions (Like / Celebrate / Support / Insightful / Curious). Social-post block emphasizes credentials. Useful for workplace + B2B + recruitment-bias research.
+16. **YouTube comments** — comment-thread layout positioned UNDER a placeholder video player at the top; pinned-creator-response affordance; like/reply counts; "creator hearted this" badges. The video block (when shipped) renders as the YouTube player at the top with comments below. Useful for video-content engagement + parasocial-relationship research.
+17. **Chat (Discord / WhatsApp / iMessage)** — chat-bubble layout with sender bubbles right-aligned + receiver bubbles left-aligned + typing indicators + read receipts + reactions on long-press + threaded replies indented. Owner picks per-study which sub-style (Discord vs WhatsApp vs iMessage) the bubbles render as (3 style variants under the same preset key). Useful for interpersonal-communication + group-dynamics + private-vs-public-context research.
 
 **How a preset is structured:**
 
@@ -427,14 +445,29 @@ The participant runtime checks `experiment_version.theme.preset_key` — when se
 
 **Choosing a preset doesn't lock the researcher in** — they can pick a preset as a baseline + override individual tokens / per-block-type styling on top. The Design stage shows preset + overrides separately so researchers can see what they've changed.
 
-**Methodological / ethical warnings per preset:**
-- The Design stage surfaces warnings when a researcher picks a mimicking preset (FB/X/Instagram/TikTok): "This preset mimics a real platform. Consider declaring this in your consent screen + with your IRB."
-- The preregistration narrative (B1 Overview tab) auto-includes the preset name as part of the design-section so the methodology is documented.
+**Methodological / ethical IRB acknowledgment gate (owner confirmed 2026-06-08):**
 
-**Preset budget for V1.12 ship:**
-- Academic + Clinical + Modern survey + Playful (the original 4) — non-mimicking; safer to ship; ~2 days total to author.
-- Facebook + X + News site + Business portal (the 4 highest-research-value mimicking presets) — ~1 day each to author + author-quality test.
-- Instagram + TikTok + Lifestyle + Forum + Blog (the rest) — could ship as a Wave 2 in V1.12.x sub-release if V1.12 timeline tightens.
+When a researcher picks any of the 13 mimicking presets (5-17), a **modal acknowledgment** appears before the preset applies:
+
+> ⚠️ **This preset visually mimics [Facebook / X / Reddit / etc.]**
+>
+> Mimicking a real platform can affect participant trust, perceived authority, and reactivity. Use only where it's methodologically justified + you have IRB approval where applicable.
+>
+> ☐ I confirm I have IRB approval (or my study type doesn't require it) and I've documented this design choice in my methodology.
+>
+> [Cancel] [Apply preset]
+
+Researcher must check the box + click Apply. The acknowledgment is stored on `experiment_version.theme.preset_irb_acknowledgment = { acknowledged_at, user_id, preset_key }` (rides with the version per ADR-0012; preregistered = the acknowledgment is locked into the immutable record). The non-mimicking baselines (1-4 Academic/Clinical/Modern/Playful) apply without the gate.
+
+The Overview tab (B1) auto-injects the preset name + acknowledgment date into the methodology section so the IRB review trail is part of the preregistration narrative pushed to OSF.
+
+**Preset budget for V1.12 ship (Wave 5; ~3-4 weeks total for all 17):**
+- Academic + Clinical + Modern survey + Playful (4 baselines; no IRB gate) — ~2 days total to author.
+- Facebook + X + News + Business portal (mimicking quartet) — ~4-5 days total.
+- Instagram + TikTok + Lifestyle + Forum + Blog (Wave 5b) — ~5-6 days total.
+- Reddit + LinkedIn + YouTube + Chat (Discord/WhatsApp/iMessage variants) (Wave 5c, owner-expanded) — ~5-6 days total (Chat has 3 sub-style variants so it's effectively 6 presets-worth of styling work).
+- IRB acknowledgment modal + acknowledgment-storage in `experiment_version.theme` + Overview-auto-injection — ~2 days.
+- Per-block-type renderer overrides framework (the typed contract every preset implements) — ~3 days.
 
 ADR-0024 (Section F5) covers the architectural locks for presets: preset module shape, block-override-renderer contract, security (still no scripts, no arbitrary CSS — preset modules are vetted-by-us code, not user content), and the methodological-warnings discipline.
 
@@ -586,7 +619,7 @@ Bundle as PR streams Code tab can land in any order. Given the expanded scope, C
 **Wave 6 — onboarding tour + UX wins + sign-off (~1.5 weeks; ship as V1.12.5):**
 - PR 16: J onboarding tour (pairs with demo content from PR 7) (~1 week)
 - PR 17: K Cmd+K palette + saved comment drafts + better empty states + mobile audit (~1 week, parallel)
-- PR 18: bulk study operations (if owner picks "keep in V1.12") (~3 days)
+- PR 18: bulk study operations — checkbox selection on `/studies` + Archive/Duplicate/Export/Tag/Delete-selected (owner confirmed 2026-06-08 to keep in V1.12 Wave 6; ~3 days)
 
 After each Wave: deploy + smoke + audit log entry + sub-tag (v1.12.0, v1.12.1, ...). Or bundle into one big V1.12 deploy at the end — Code tab's call. Per ADR-0016 deploy pattern + the deploy:verify procedure.
 
@@ -634,12 +667,14 @@ Each wireframe Code tab writes BEFORE building the UI per CLAUDE.md phase-gate r
 4. ✅ **Public preview URL expiry**: 7-day default confirmed.
 5. ⏳ **Bulk study operations** — owner asked for explanation. Bulk operations let a researcher select multiple study rows via checkboxes + perform an action on all selected at once (Archive multiple / Duplicate multiple / Export multiple as zip / Tag multiple / Delete multiple). Saves clicks for researchers managing 20+ studies. **Verdict pending — keep in V1.12 K mini-list, push to V1.13, or skip indefinitely?**
 
-## Open questions — new this round
+## Open questions — fully resolved 2026-06-08
 
-- **Demo OSF DOIs** — fake DOIs in the demo studies are clearly non-resolvable; should the demo-mode UI show a small "demo only" badge on the OSF link to make this clear, or rely on the workspace-level "Show demo content" banner?
-- **Platform preset for mimicking** — your IRB / ethics review: should mimicking presets require an explicit researcher acknowledgment before use ("I understand this preset visually mimics Facebook; I have IRB approval where applicable")? Adds friction; honest about the methodological implications.
-- **Bulk operations priority** (per #5 above).
-- **More platforms beyond the 9 listed** — Reddit, LinkedIn, YouTube comments, Discord, WhatsApp/iMessage? Any prioritized?
+- ✅ **Demo OSF DOIs**: workspace-level "Showing demo content" banner + distinct `10.17605/OSF.DEMO/<key>` DOI format. No per-link badge.
+- ✅ **Mimicking presets IRB gate**: required. Modal acknowledgment + checkbox before applying any of the 13 mimicking presets; acknowledgment stored on the version + auto-injected into the Overview methodology section.
+- ✅ **Bulk operations**: keep in V1.12 Wave 6 (~3 days).
+- ✅ **More platform presets**: ALL four added (Reddit + LinkedIn + YouTube comments + Chat-bubble with Discord/WhatsApp/iMessage variants). Total preset count = 17 (4 non-mimicking baselines + 13 mimicking).
+
+All scope locked. Code tab can start Wave 1 (PRs 1+2) whenever; subsequent Waves stack as PRs land. ADRs to draft as each Wave nears (ADR-0023 demo / ADR-0024 theming-with-presets-and-IRB-gate / ADR-0025 replication graph / ADR-0026 preview URL / ADR-0027 PDF rendering).
 
 ---
 
