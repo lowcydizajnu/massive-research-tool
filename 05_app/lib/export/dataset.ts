@@ -105,6 +105,49 @@ export function toJSON(results: ResultsSummary, columns: ExportColumn[]): string
   );
 }
 
+/** UTF-8 BOM so Excel opens the CSV with correct encoding (accents intact). */
+export function toExcelCsv(results: ResultsSummary, columns: ExportColumn[]): string {
+  return "﻿" + toDelimited(results, columns, ",");
+}
+
+const SPSS_TYPE: Record<ExportColumn["type"], string> = {
+  numeric: "F8.2",
+  categorical: "A255",
+  text: "A2000",
+  meta: "A255",
+};
+
+/**
+ * SPSS syntax companion (.sps) that reads the exported CSV and applies variable
+ * labels — the pragmatic, dependency-free route to SPSS (no binary .sav writer).
+ */
+export function toSpssSyntax(columns: ExportColumn[], csvFilename: string): string {
+  const visible = columns.filter((c) => !c.hidden);
+  const vars = visible.map((c) => `  ${c.label} ${SPSS_TYPE[c.type]}`).join("\n");
+  const labels = visible.map((c) => `  ${c.label} ${JSON.stringify(c.source)}`).join("\n");
+  return [
+    `GET DATA /TYPE=TXT /FILE=${JSON.stringify(csvFilename)}`,
+    `  /DELIMITERS="," /QUALIFIER='"' /ARRANGEMENT=DELIMITED /FIRSTCASE=2 /VARIABLES=`,
+    vars + ".",
+    "CACHE.",
+    "VARIABLE LABELS",
+    labels + ".",
+    "EXECUTE.",
+    "",
+  ].join("\n");
+}
+
+/** Stata do-file companion (.do): import the CSV + apply variable labels. */
+export function toStataDo(columns: ExportColumn[], csvFilename: string): string {
+  const visible = columns.filter((c) => !c.hidden);
+  const labels = visible.map((c) => `label variable ${c.label} ${JSON.stringify(c.source)}`).join("\n");
+  return [
+    `import delimited ${JSON.stringify(csvFilename)}, varnames(1) clear`,
+    labels,
+    "",
+  ].join("\n");
+}
+
 /** Machine-readable data dictionary (JSON). */
 export function dataDictionary(columns: ExportColumn[]): {
   variables: { name: string; source: string; type: ExportColumn["type"] }[];

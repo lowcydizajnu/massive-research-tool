@@ -8,18 +8,17 @@ import {
   buildMatrix,
   dataDictionary,
   toDelimited,
+  toExcelCsv,
   toJSON,
+  toSpssSyntax,
+  toStataDo,
   type ExportColumn,
 } from "@/lib/export/dataset";
 import { api } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
 
-type Format = "csv" | "tsv" | "json";
-const MIME: Record<Format, string> = {
-  csv: "text/csv",
-  tsv: "text/tab-separated-values",
-  json: "application/json",
-};
+type Format = "csv" | "tsv" | "json" | "excel";
+const FORMAT_LABEL: Record<Format, string> = { csv: "CSV", tsv: "TSV", json: "JSON", excel: "Excel (CSV)" };
 
 function download(filename: string, mime: string, content: string) {
   const blob = new Blob([content], { type: `${mime};charset=utf-8` });
@@ -48,6 +47,28 @@ export function ExportBuilder({ studyId, title }: { studyId: string; title: stri
   const results = api.studies.getResults.useQuery({ studyId, includePreview });
   const [cols, setCols] = useState<ExportColumn[] | null>(null);
   const [format, setFormat] = useState<Format>("csv");
+  // Explorer: sort by a visible-column index + a text filter over the rows.
+  const [sort, setSort] = useState<{ idx: number; dir: 1 | -1 } | null>(null);
+  const [filter, setFilter] = useState("");
+  // Saved views (per study, this browser) — name → column config.
+  const viewsKey = `mrt-export-views:${studyId}`;
+  const [views, setViews] = useState<{ name: string; cols: ExportColumn[] }[]>([]);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(viewsKey);
+      if (raw) setViews(JSON.parse(raw));
+    } catch {
+      /* ignore */
+    }
+  }, [viewsKey]);
+  const persistViews = (next: { name: string; cols: ExportColumn[] }[]) => {
+    setViews(next);
+    try {
+      localStorage.setItem(viewsKey, JSON.stringify(next));
+    } catch {
+      /* ignore */
+    }
+  };
 
   // Seed the column config once the dataset's variables are known (stable across
   // the includePreview toggle, which changes rows, not variables).
@@ -69,7 +90,24 @@ export function ExportBuilder({ studyId, title }: { studyId: string; title: stri
   const data = results.data;
   const visible = cols.filter((c) => !c.hidden);
   const preview = buildMatrix(data, cols);
-  const previewRows = preview.rows.slice(0, 50);
+  // Explorer: filter (any cell contains) then sort by the chosen column.
+  const q = filter.trim().toLowerCase();
+  let explored = q ? preview.rows.filter((r) => r.some((c) => c.toLowerCase().includes(q))) : preview.rows;
+  if (sort) {
+    const { idx, dir } = sort;
+    explored = [...explored].sort((a, b) => {
+      const av = a[idx] ?? "";
+      const bv = b[idx] ?? "";
+      const an = Number(av);
+      const bn = Number(bv);
+      const cmp =
+        av !== "" && bv !== "" && !Number.isNaN(an) && !Number.isNaN(bn)
+          ? an - bn
+          : av.localeCompare(bv);
+      return cmp * dir;
+    });
+  }
+  const previewRows = explored.slice(0, 50);
 
   const move = (i: number, dir: -1 | 1) =>
     setCols((cs) => {
@@ -84,10 +122,24 @@ export function ExportBuilder({ studyId, title }: { studyId: string; title: stri
     setCols((cs) => cs?.map((c) => (c.key === key ? { ...c, ...p } : c)) ?? cs);
 
   const base = safeName(title);
+  const csvName = `${base}.csv`;
   const exportFile = () => {
-    if (format === "json") return download(`${base}.json`, MIME.json, toJSON(data, cols));
-    download(`${base}.${format}`, MIME[format], toDelimited(data, cols, format === "tsv" ? "\t" : ","));
+    if (format === "json") return download(`${base}.json`, "application/json", toJSON(data, cols));
+    if (format === "excel") return download(csvName, "text/csv", toExcelCsv(data, cols));
+    if (format === "tsv") return download(`${base}.tsv`, "text/tab-separated-values", toDelimited(data, cols, "\t"));
+    download(csvName, "text/csv", toDelimited(data, cols, ","));
   };
+
+  const saveView = () => {
+    const name = window.prompt("Save this view as:")?.trim();
+    if (!name) return;
+    persistViews([...views.filter((v) => v.name !== name), { name, cols }]);
+  };
+  const applyView = (name: string) => {
+    const v = views.find((x) => x.name === name);
+    if (v) setCols(v.cols);
+  };
+  const deleteView = (name: string) => persistViews(views.filter((v) => v.name !== name));
 
   const fieldCls =
     "rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-1 text-[length:var(--text-small)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]";
@@ -151,27 +203,83 @@ export function ExportBuilder({ studyId, title }: { studyId: string; title: stri
       <div className="flex min-w-0 flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <select value={format} onChange={(e) => setFormat(e.target.value as Format)} className={fieldCls}>
-            <option value="csv">CSV</option>
-            <option value="tsv">TSV</option>
-            <option value="json">JSON</option>
+            {(["csv", "tsv", "json", "excel"] as Format[]).map((f) => (
+              <option key={f} value={f}>
+                {FORMAT_LABEL[f]}
+              </option>
+            ))}
           </select>
           <button
             type="button"
             onClick={exportFile}
             className="rounded-[var(--radius-md)] bg-[var(--color-primary)] px-4 py-1.5 text-[length:var(--text-body-emphasis)] font-medium text-white hover:opacity-90"
           >
-            Download {format.toUpperCase()}
+            Download {FORMAT_LABEL[format]}
           </button>
-          <button
-            type="button"
-            onClick={() => download(`${base}-dictionary.json`, MIME.json, JSON.stringify(dataDictionary(cols), null, 2))}
-            className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-1.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
-          >
-            Data dictionary
-          </button>
+          <div className="flex items-center gap-1">
+            {[
+              { label: "Dictionary", file: `${base}-dictionary.json`, mime: "application/json", body: () => JSON.stringify(dataDictionary(cols), null, 2) },
+              { label: "SPSS .sps", file: `${base}.sps`, mime: "text/plain", body: () => toSpssSyntax(cols, csvName) },
+              { label: "Stata .do", file: `${base}.do`, mime: "text/plain", body: () => toStataDo(cols, csvName) },
+            ].map((b) => (
+              <button
+                key={b.label}
+                type="button"
+                onClick={() => download(b.file, b.mime, b.body())}
+                className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-2.5 py-1.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
+              >
+                {b.label}
+              </button>
+            ))}
+          </div>
           <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
             {data.rows.length} row{data.rows.length === 1 ? "" : "s"}
           </span>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="search"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Filter rows…"
+            className={cn(fieldCls, "min-w-[160px] flex-1")}
+          />
+          <select
+            value=""
+            onChange={(e) => {
+              if (e.target.value) applyView(e.target.value);
+            }}
+            className={fieldCls}
+            aria-label="Apply saved view"
+          >
+            <option value="">Saved views…</option>
+            {views.map((v) => (
+              <option key={v.name} value={v.name}>
+                {v.name}
+              </option>
+            ))}
+          </select>
+          <button type="button" onClick={saveView} className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-2.5 py-1.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]">
+            Save view
+          </button>
+          {views.length > 0 ? (
+            <select
+              value=""
+              onChange={(e) => {
+                if (e.target.value) deleteView(e.target.value);
+              }}
+              className={fieldCls}
+              aria-label="Delete saved view"
+            >
+              <option value="">Delete view…</option>
+              {views.map((v) => (
+                <option key={v.name} value={v.name}>
+                  {v.name}
+                </option>
+              ))}
+            </select>
+          ) : null}
         </div>
 
         <div className="overflow-auto rounded-[var(--radius-md)] border border-[var(--color-border-subtle)]">
@@ -180,7 +288,14 @@ export function ExportBuilder({ studyId, title }: { studyId: string; title: stri
               <tr>
                 {preview.headers.map((h, i) => (
                   <th key={i} className="whitespace-nowrap px-2 py-1 text-left font-mono font-medium text-[var(--color-text-secondary)]">
-                    {h}
+                    <button
+                      type="button"
+                      onClick={() => setSort((s) => (s?.idx === i ? { idx: i, dir: (s.dir * -1) as 1 | -1 } : { idx: i, dir: 1 }))}
+                      className="inline-flex items-center gap-1 hover:text-[var(--color-text-primary)]"
+                    >
+                      {h}
+                      {sort?.idx === i ? <span aria-hidden>{sort.dir === 1 ? "▲" : "▼"}</span> : null}
+                    </button>
                   </th>
                 ))}
               </tr>

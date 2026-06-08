@@ -54,3 +54,23 @@ describe("export dataset (V1.12 D)", () => {
     expect(dict.variables.find((v) => v.name === "how_credible")?.type).toBe("numeric");
   });
 });
+
+import { toExcelCsv, toSpssSyntax, toStataDo } from "@/lib/export/dataset";
+
+describe("export companions (V1.12 D — formats)", () => {
+  it("Excel CSV is BOM-prefixed", () => {
+    const csv = toExcelCsv(results, baseColumns(results));
+    expect(csv.charCodeAt(0)).toBe(0xfeff);
+  });
+  it("SPSS syntax references the CSV + labels visible vars", () => {
+    const sps = toSpssSyntax(baseColumns(results), "study.csv");
+    expect(sps).toContain('GET DATA /TYPE=TXT /FILE="study.csv"');
+    expect(sps).toContain("VARIABLE LABELS");
+    expect(sps).toContain('how_credible "How credible?"');
+  });
+  it("Stata do-file imports + labels", () => {
+    const doFile = toStataDo(baseColumns(results), "study.csv");
+    expect(doFile).toContain('import delimited "study.csv", varnames(1) clear');
+    expect(doFile).toContain('label variable how_credible "How credible?"');
+  });
+});
