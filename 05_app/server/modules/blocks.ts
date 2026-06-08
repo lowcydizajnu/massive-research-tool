@@ -41,7 +41,12 @@ export type ModuleLock = { source: string; key: string; version: string };
 
 /** Researcher-authored study documentation (V1.12 B1), stored in the snapshot. */
 export type OverviewSection = { id: string; heading: string; contentMd: string };
-export type StudyOverview = { abstract: string; sections: OverviewSection[] };
+export type StudyOverview = {
+  abstract: string;
+  /** Numbered hypotheses (H1, H2, …) — first-class for preregistration. */
+  hypotheses: string[];
+  sections: OverviewSection[];
+};
 
 /** Read the overview out of a definition_snapshot; empty default if absent. */
 export function readOverview(snapshot: unknown): StudyOverview {
@@ -51,11 +56,14 @@ export function readOverview(snapshot: unknown): StudyOverview {
       const ov = o as Partial<StudyOverview>;
       return {
         abstract: typeof ov.abstract === "string" ? ov.abstract : "",
+        hypotheses: Array.isArray(ov.hypotheses)
+          ? (ov.hypotheses.filter((h) => typeof h === "string") as string[])
+          : [],
         sections: Array.isArray(ov.sections) ? (ov.sections as OverviewSection[]) : [],
       };
     }
   }
-  return { abstract: "", sections: [] };
+  return { abstract: "", hypotheses: [], sections: [] };
 }
 
 /** Read the block array out of a (possibly empty/unknown) definition_snapshot. */
