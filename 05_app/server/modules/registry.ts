@@ -540,11 +540,210 @@ const linkBlock: CoreModuleDef = {
   isComplete: (c) => typeof c.url === "string" && c.url.trim().length > 0,
 };
 
+// ---------- V1.12 C2 (Group 1): standard form blocks ----------
+
+const valueStr = (a: unknown): string => {
+  const v = (a as { value?: unknown })?.value;
+  return typeof v === "string" ? v : "";
+};
+const blankValue = (a: unknown) => valueStr(a).trim().length === 0;
+
+const emailBlock: CoreModuleDef = {
+  source: "core",
+  key: "email",
+  version: "1.0.0",
+  name: "Email",
+  description: "A single email-address field (format-validated).",
+  categoryTags: ["form", "contact"],
+  configSchema: z.object({ prompt: z.string(), required: z.boolean() }),
+  defaultConfig: { prompt: "", required: true },
+  jsonSchema: {
+    type: "object",
+    properties: { prompt: { type: "string" }, required: { type: "boolean" } },
+    required: ["prompt"],
+    additionalProperties: false,
+  },
+  collectsResponse: true,
+  responseSchema: z.object({ value: z.string().max(320) }),
+  isAnswerEmpty: blankValue,
+  validateAnswer: (a) => {
+    const v = valueStr(a);
+    return v === "" || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v);
+  },
+  isComplete: (c) => typeof c.prompt === "string" && c.prompt.trim().length > 0,
+};
+
+const urlBlock: CoreModuleDef = {
+  source: "core",
+  key: "url",
+  version: "1.0.0",
+  name: "Website / URL",
+  description: "A single URL field (http/https, format-validated).",
+  categoryTags: ["form"],
+  configSchema: z.object({ prompt: z.string(), required: z.boolean() }),
+  defaultConfig: { prompt: "", required: true },
+  jsonSchema: {
+    type: "object",
+    properties: { prompt: { type: "string" }, required: { type: "boolean" } },
+    required: ["prompt"],
+    additionalProperties: false,
+  },
+  collectsResponse: true,
+  responseSchema: z.object({ value: z.string().max(2000) }),
+  isAnswerEmpty: blankValue,
+  validateAnswer: (a) => {
+    const v = valueStr(a);
+    return v === "" || /^https?:\/\/.+/.test(v);
+  },
+  isComplete: (c) => typeof c.prompt === "string" && c.prompt.trim().length > 0,
+};
+
+const numberBlock: CoreModuleDef = {
+  source: "core",
+  key: "number",
+  version: "1.0.0",
+  name: "Number",
+  description: "A numeric field with optional min/max and a unit suffix.",
+  categoryTags: ["form", "measurement"],
+  configSchema: z.object({
+    prompt: z.string(),
+    required: z.boolean(),
+    min: z.number(),
+    max: z.number(),
+    unit: z.string(),
+  }),
+  defaultConfig: { prompt: "", required: true, min: 0, max: 100, unit: "" },
+  jsonSchema: {
+    type: "object",
+    properties: {
+      prompt: { type: "string" },
+      required: { type: "boolean" },
+      min: { type: "number" },
+      max: { type: "number" },
+      unit: { type: "string" },
+    },
+    required: ["prompt"],
+    additionalProperties: false,
+  },
+  collectsResponse: true,
+  responseSchema: z.object({ value: z.number() }),
+  isAnswerEmpty: (a) => typeof (a as { value?: unknown })?.value !== "number" || Number.isNaN((a as { value: number }).value),
+  validateAnswer: (a, c) => {
+    const v = (a as { value?: unknown })?.value;
+    if (typeof v !== "number" || Number.isNaN(v)) return false;
+    const min = typeof c.min === "number" ? c.min : -Infinity;
+    const max = typeof c.max === "number" ? c.max : Infinity;
+    return v >= min && v <= max;
+  },
+  isComplete: (c) => typeof c.prompt === "string" && c.prompt.trim().length > 0,
+};
+
+const dateBlock: CoreModuleDef = {
+  source: "core",
+  key: "date",
+  version: "1.0.0",
+  name: "Date",
+  description: "A date field (ISO 8601).",
+  categoryTags: ["form"],
+  configSchema: z.object({ prompt: z.string(), required: z.boolean() }),
+  defaultConfig: { prompt: "", required: true },
+  jsonSchema: {
+    type: "object",
+    properties: { prompt: { type: "string" }, required: { type: "boolean" } },
+    required: ["prompt"],
+    additionalProperties: false,
+  },
+  collectsResponse: true,
+  responseSchema: z.object({ value: z.string().max(40) }),
+  isAnswerEmpty: blankValue,
+  validateAnswer: (a) => {
+    const v = valueStr(a);
+    return v === "" || !Number.isNaN(Date.parse(v));
+  },
+  isComplete: (c) => typeof c.prompt === "string" && c.prompt.trim().length > 0,
+};
+
+const yesNoBlock: CoreModuleDef = {
+  source: "core",
+  key: "yes-no",
+  version: "1.0.0",
+  name: "Yes / No",
+  description: "A binary choice with configurable labels (Yes/No, True/False, …).",
+  categoryTags: ["form"],
+  configSchema: z.object({
+    prompt: z.string(),
+    required: z.boolean(),
+    yesLabel: z.string(),
+    noLabel: z.string(),
+  }),
+  defaultConfig: { prompt: "", required: true, yesLabel: "Yes", noLabel: "No" },
+  jsonSchema: {
+    type: "object",
+    properties: {
+      prompt: { type: "string" },
+      required: { type: "boolean" },
+      yesLabel: { type: "string" },
+      noLabel: { type: "string" },
+    },
+    required: ["prompt"],
+    additionalProperties: false,
+  },
+  collectsResponse: true,
+  responseSchema: z.object({ value: z.string() }),
+  isAnswerEmpty: blankValue,
+  validateAnswer: (a) => {
+    const v = valueStr(a);
+    return v === "" || v === "yes" || v === "no";
+  },
+  isComplete: (c) => typeof c.prompt === "string" && c.prompt.trim().length > 0,
+};
+
+const dropdownBlock: CoreModuleDef = {
+  source: "core",
+  key: "dropdown",
+  version: "1.0.0",
+  name: "Dropdown",
+  description: "A single-select dropdown — good for long option lists.",
+  categoryTags: ["form", "measurement"],
+  configSchema: z.object({
+    prompt: z.string(),
+    required: z.boolean(),
+    options: z.array(z.string()),
+  }),
+  defaultConfig: { prompt: "", required: true, options: ["Option 1", "Option 2"] },
+  jsonSchema: {
+    type: "object",
+    properties: {
+      prompt: { type: "string" },
+      required: { type: "boolean" },
+      options: { type: "array", items: { type: "string" } },
+    },
+    required: ["prompt", "options"],
+    additionalProperties: false,
+  },
+  collectsResponse: true,
+  responseSchema: z.object({ value: z.string() }),
+  isAnswerEmpty: blankValue,
+  validateAnswer: (a, c) => {
+    const v = valueStr(a);
+    if (v === "") return true;
+    const opts = Array.isArray(c.options) ? (c.options as unknown[]).map(String) : [];
+    return opts.includes(v);
+  },
+  isComplete: (c) => typeof c.prompt === "string" && c.prompt.trim().length > 0 && Array.isArray(c.options) && c.options.length > 0,
+};
+
 export const MODULE_REGISTRY: CoreModuleDef[] = [
   textBlock,
   imageBlock,
   videoBlock,
   linkBlock,
+  emailBlock,
+  urlBlock,
+  numberBlock,
+  dateBlock,
+  yesNoBlock,
+  dropdownBlock,
   socialPost,
   socialPostV2,
   likert7,

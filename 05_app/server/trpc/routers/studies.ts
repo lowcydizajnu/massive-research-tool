@@ -243,6 +243,7 @@ function stringifyAnswer(answer: unknown): string {
   if (answer && typeof answer === "object") {
     const a = answer as Record<string, unknown>;
     if (typeof a.value === "number") return String(a.value);
+    if (typeof a.value === "string") return a.value; // email/url/date/dropdown/yes-no (V1.12 C2)
     if (Array.isArray(a.selected)) return a.selected.map(String).join("; ");
     if (Array.isArray(a.order)) return a.order.map(String).join(" > ");
     if (typeof a.text === "string") return a.text;
