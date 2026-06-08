@@ -45,3 +45,37 @@ describe("deriveScreens (ADR-0028)", () => {
     expect(s).toEqual([{ id: "a", kind: "single", title: null, showIf: undefined, blocks: [expect.any(Object)] }]);
   });
 });
+
+import { regroupAfterMove } from "@/lib/whiteboard/screens";
+
+describe("regroupAfterMove (ADR-0028 #3+#8)", () => {
+  const mk = (...specs: [string, string | null][]) => specs.map(([instanceId, groupId]) => ({ instanceId, groupId }));
+  const ids = (rows: { instanceId: string }[]) => rows.map((r) => r.instanceId);
+  const gid = (rows: { instanceId: string; groupId: string | null }[], id: string) =>
+    rows.find((r) => r.instanceId === id)!.groupId;
+
+  it("dropping a block between two members of a group joins it", () => {
+    // order after drop: A(g), Z(none, moved between), B(g), C(g)
+    const out = regroupAfterMove(mk(["A", "g"], ["Z", null], ["B", "g"], ["C", "g"]), "Z");
+    expect(gid(out, "Z")).toBe("g");
+    expect(ids(out)).toEqual(["A", "Z", "B", "C"]); // contiguous
+  });
+
+  it("dragging a member away from its group (between ungrouped blocks) leaves it", () => {
+    const out = regroupAfterMove(mk(["X", null], ["B", "g"], ["Y", null], ["A", "g"], ["C", "g"]), "B");
+    expect(gid(out, "B")).toBeNull();
+  });
+
+  it("moving a member to the top carries the whole group (contiguity)", () => {
+    // B(g) dropped at top, next = A(g) → stays in g; group pulled together up top
+    const out = regroupAfterMove(mk(["B", "g"], ["A", "g"], ["C", "g"], ["Z", null]), "B");
+    expect(gid(out, "B")).toBe("g");
+    expect(ids(out).slice(0, 3).sort()).toEqual(["A", "B", "C"]);
+    expect(ids(out)[3]).toBe("Z");
+  });
+
+  it("reordering an ungrouped block near (not inside) a group doesn't join it", () => {
+    const out = regroupAfterMove(mk(["Z", null], ["A", "g"], ["B", "g"]), "Z");
+    expect(gid(out, "Z")).toBeNull();
+  });
+});
