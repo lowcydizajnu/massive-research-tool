@@ -1,13 +1,15 @@
 import { and, eq, isNotNull } from "drizzle-orm";
+import { z } from "zod";
 
 import { db } from "@/server/db/client";
-import { member, user } from "@/server/db/schema";
-import { router, workspaceProcedure } from "@/server/trpc/trpc";
+import { member, user, workspace } from "@/server/db/schema";
+import { router, workspaceProcedure, writeProcedure } from "@/server/trpc/trpc";
 
 export type ActiveWorkspace = {
   id: string;
   name: string;
   slug: string;
+  showDemoContent: boolean;
 };
 
 export type WorkspaceMember = { userId: string; displayName: string };
@@ -18,6 +20,7 @@ export const workspaceRouter = router({
     id: ctx.workspace.id,
     name: ctx.workspace.name,
     slug: ctx.workspace.slug,
+    showDemoContent: ctx.workspace.showDemoContent,
   })),
 
   /** Active members of the workspace — feeds the @-mention autocomplete (ADR-0015). */
@@ -37,4 +40,15 @@ export const workspaceRouter = router({
       .filter((r): r is { userId: string; displayName: string } => !!r.userId)
       .map((r) => ({ userId: r.userId, displayName: r.displayName ?? "" }));
   }),
+
+  /** Toggle whether seeded demo content shows in this workspace's lists (ADR-0023). */
+  setShowDemoContent: writeProcedure
+    .input(z.object({ show: z.boolean() }))
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      await db
+        .update(workspace)
+        .set({ showDemoContent: input.show })
+        .where(eq(workspace.id, ctx.workspace.id));
+      return { ok: true };
+    }),
 });

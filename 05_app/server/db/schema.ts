@@ -132,6 +132,8 @@ export const workspace = pgTable("workspace", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   archivedAt: timestamp("archived_at", { withTimezone: true }),
+  /** Show seeded demo content (is_demo studies) in this workspace's lists (ADR-0023). */
+  showDemoContent: boolean("show_demo_content").notNull().default(false),
 });
 
 export const member = pgTable(
@@ -239,6 +241,9 @@ export const experiment = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
+    /** Seeded demo study (ADR-0023) — excluded from /browse + public aggregates;
+     *  shown in its workspace only when workspace.show_demo_content is on. */
+    isDemo: boolean("is_demo").notNull().default(false),
   },
   () => [
     check(
