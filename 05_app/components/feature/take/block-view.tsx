@@ -32,6 +32,10 @@ export function BlockView({ block, seed }: { block: RuntimeBlock; seed?: string 
   if (block.key === "address") return <AddressInput config={block.config} />;
   if (block.key === "contact") return <ContactInput config={block.config} />;
   if (block.key === "picture-choice") return <PictureChoiceInput config={block.config} />;
+  // V1.12 Wave 3 — numeric research scales.
+  if (block.key === "nps") return <NpsInput config={block.config} />;
+  if (block.key === "rating-stars") return <StarRatingInput config={block.config} />;
+  if (block.key === "vas") return <VasInput config={block.config} />;
   // Unknown module — render nothing rather than crash the runtime.
   return (
     <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
@@ -587,5 +591,95 @@ function PictureChoiceInput({ config }: { config: Record<string, unknown> }) {
         ))}
       </div>
     </fieldset>
+  );
+}
+
+/* ---------- V1.12 Wave 3: numeric research scales ---------- */
+
+function NpsInput({ config }: { config: Record<string, unknown> }) {
+  const left = str(config.leftLabel) || "Not at all likely";
+  const right = str(config.rightLabel) || "Extremely likely";
+  return (
+    <fieldset className="flex flex-col gap-3">
+      <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
+      <div className="flex flex-wrap gap-1">
+        {Array.from({ length: 11 }, (_, n) => (
+          <label
+            key={n}
+            className="flex flex-1 min-w-[36px] cursor-pointer flex-col items-center gap-1 rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] py-2 text-[length:var(--text-small)] text-[var(--color-text-primary)] hover:bg-[var(--color-surface-subtle)] has-[:checked]:border-[var(--color-primary)] has-[:checked]:bg-[var(--color-primary-subtle)]"
+          >
+            <input
+              type="radio"
+              name="value"
+              value={n}
+              required={config.required === true}
+              aria-label={`${n}${n === 0 ? ` — ${left}` : n === 10 ? ` — ${right}` : ""}`}
+              className="sr-only"
+            />
+            <span aria-hidden>{n}</span>
+          </label>
+        ))}
+      </div>
+      <div className="flex justify-between text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+        <span>{left}</span>
+        <span>{right}</span>
+      </div>
+    </fieldset>
+  );
+}
+
+function StarRatingInput({ config }: { config: Record<string, unknown> }) {
+  const max = typeof config.max === "number" ? config.max : 5;
+  // Radios in reverse so a CSS sibling hover/checked highlights stars up to N.
+  return (
+    <fieldset className="flex flex-col gap-2">
+      <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
+      <div className="flex gap-1">
+        {Array.from({ length: max }, (_, i) => {
+          const v = i + 1;
+          return (
+            <label key={v} className="cursor-pointer text-[length:var(--text-display)] leading-none text-[var(--color-text-muted)] hover:text-[var(--color-warning-text-on-subtle)] has-[:checked]:text-[var(--color-warning-text-on-subtle)]">
+              <input
+                type="radio"
+                name="value"
+                value={v}
+                required={config.required === true}
+                aria-label={`${v} of ${max} stars`}
+                className="sr-only"
+              />
+              <span aria-hidden>★</span>
+            </label>
+          );
+        })}
+      </div>
+    </fieldset>
+  );
+}
+
+function VasInput({ config }: { config: Record<string, unknown> }) {
+  const min = num(config.min, 0);
+  const max = num(config.max, 100);
+  const left = str(config.leftLabel);
+  const right = str(config.rightLabel);
+  return (
+    <div className="flex flex-col gap-2">
+      <label htmlFor="value" className={PROMPT_CLS}>
+        {str(config.prompt)}
+      </label>
+      <input
+        id="value"
+        type="range"
+        name="value"
+        min={min}
+        max={max}
+        step="any"
+        defaultValue={(min + max) / 2}
+        className="w-full accent-[var(--color-primary)]"
+      />
+      <div className="flex justify-between text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+        <span>{left || String(min)}</span>
+        <span>{right || String(max)}</span>
+      </div>
+    </div>
   );
 }
