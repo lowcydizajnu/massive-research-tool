@@ -11,7 +11,8 @@ import { ConfigureForm } from "@/components/feature/builder/configure-form";
 import { ModeToggle } from "@/components/feature/builder/mode-toggle";
 import { ModulePicker } from "@/components/feature/builder/module-picker";
 import { api } from "@/lib/trpc/react";
-import type { StudyDetail } from "@/server/trpc/routers/studies";
+import type { StudyBlock, StudyDetail } from "@/server/trpc/routers/studies";
+import { regroupAfterMove } from "@/lib/whiteboard/screens";
 
 import {
   isConditionSource,
@@ -55,23 +56,46 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
   const removeBlock = api.studies.removeBlock.useMutation({ onSuccess: () => void invalidate() });
   const updateConfig = api.studies.updateBlockConfig.useMutation({ onSuccess: () => void invalidate() });
   const renameBlock = api.studies.setBlockTitle.useMutation({ onSuccess: () => void invalidate() });
-  const reorderBlocks = api.studies.reorderBlocks.useMutation({ onSuccess: () => void invalidate() });
-  const [pendingReorder, setPendingReorder] = useState<{ order: string[]; items: string[] } | null>(null);
+  const setGroupsMut = api.studies.setGroups.useMutation({ onSuccess: () => void invalidate() });
+  const toInstance = (b: StudyBlock, groupId: string | null) => ({
+    instanceId: b.instanceId,
+    source: b.source,
+    key: b.key,
+    version: b.version,
+    config: b.config,
+    ...(b.title ? { title: b.title } : {}),
+    ...(b.showIfCondition.length ? { visibility: { showIfCondition: b.showIfCondition } } : {}),
+    ...(b.branchRules.length ? { branchRules: b.branchRules } : {}),
+    ...(b.showIf ? { showIf: b.showIf } : {}),
+    ...(groupId ? { groupId } : {}),
+  });
+  const [pendingReorder, setPendingReorder] = useState<{
+    blocks: ReturnType<typeof toInstance>[];
+    groups: StudyDetail["groups"];
+    items: string[];
+  } | null>(null);
   const nameOfBlock = (id: string) => {
     const b = study.blocks.find((x) => x.instanceId === id);
     return b ? b.title?.trim() || b.name : id;
   };
-  const requestReorder = (order: string[]) => {
+  const requestReorder = (order: string[], movedId: string) => {
     const byId = new Map(study.blocks.map((b) => [b.instanceId, b]));
-    const ordered = order.map((id) => byId.get(id)).filter(Boolean) as typeof study.blocks;
-    // Only warn about conditions that are valid now but this move would break.
-    const broken = newlyBrokenByReorder(study.blocks, ordered);
+    const regrouped = regroupAfterMove(
+      order.map((id) => ({ instanceId: id, groupId: byId.get(id)?.groupId ?? null })),
+      movedId,
+    );
+    const orderedStudyBlocks = regrouped.map((r) => ({ ...byId.get(r.instanceId)!, groupId: r.groupId }));
+    const broken = newlyBrokenByReorder(study.blocks, orderedStudyBlocks);
+    const blocks = regrouped.map((r) => toInstance(byId.get(r.instanceId)!, r.groupId));
+    const usedIds = new Set(blocks.map((b) => b.groupId).filter(Boolean) as string[]);
+    const groups = study.groups.filter((g) => usedIds.has(g.id));
     if (broken.length === 0) {
-      reorderBlocks.mutate({ studyId: study.id, order });
+      setGroupsMut.mutate({ studyId: study.id, blocks, groups });
       return;
     }
     setPendingReorder({
-      order,
+      blocks,
+      groups,
       items: broken.map((b) => `"${nameOfBlock(b.targetId)}": ${summarizeClause(b.clause, nameOfBlock)}`),
     });
   };
@@ -247,6 +271,7 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
           ) : (
             <WhiteboardList
               blocks={study.blocks}
+              groups={study.groups}
               selectedId={selectedId}
               onSelect={setSelectedId}
               onReorder={requestReorder}
@@ -304,7 +329,8 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
         confirmLabel="Reorder and remove"
         tone="danger"
         onConfirm={() => {
-          if (pendingReorder) reorderBlocks.mutate({ studyId: study.id, order: pendingReorder.order });
+          if (pendingReorder)
+            setGroupsMut.mutate({ studyId: study.id, blocks: pendingReorder.blocks, groups: pendingReorder.groups });
           setPendingReorder(null);
         }}
         onCancel={() => setPendingReorder(null)}
