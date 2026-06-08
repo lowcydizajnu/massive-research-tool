@@ -1,50 +1,68 @@
-# Wireframe — Preview (chrome-free, device-framed)
+# Wireframe spec — Preview (chrome-free, device-framed)
 
-Status: building · Stage: Preview · Feature: V1.12 A4 · Owner: Claude (agent)
-Refs: participant-runtime.md (the rendered content), build-stage-builder-mode.md (where Preview lives), ADR-0013 (participant runtime)
+- **Serves user flow:** [hanna-run-and-read-results](../../02_product/user-flows/hanna-run-and-read-results.md)
+- **IA placement:** [Studies › study › Preview stage](../ia/information-architecture.md)
+- **Persona:** [postdoc-operator](../../02_product/personas/postdoc-operator.md)
+- **Status:** ready for handoff
 
-## Problem
+## Purpose
 
-V1.8.1's Preview rendered the participant `BlockView` **inline** inside the researcher chrome (TopBar + LeftRail + stage tabs). That doesn't reflect what a participant actually sees — the researcher chrome is noise. The owner wants Preview to show the real participant design, and to check it at common screen widths.
+Show the researcher exactly what a participant sees — chrome-free and at common device widths — before running, so the instrument is checked in its real form (V1.12 A4).
 
-## Solution
+## Layout
 
-The **Preview** stage opens a **full-viewport, chrome-free overlay** (fixed inset-0, above all researcher chrome) presenting the study exactly as a participant sees it, rendered through the same participant `BlockView` components. A slim control strip at the top lets the researcher switch device widths and escape.
+A full-viewport overlay (`fixed inset-0`, above the researcher TopBar/rail/stage-tabs). Two zones:
+
+- **Control strip** (top, researcher-only): "Preview" label · device toggle (Desktop / Tablet / Mobile) · Share-link menu · Open-in-new-tab · ✕ Close.
+- **Stage** (fills the rest): a centered card at the selected width on the dimmed page background, scrolling, rendering the study through the participant `BlockView`.
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│  Preview · [ Desktop | Tablet | Mobile ]      Open in new tab  ✕│  ← control strip (researcher-only; not part of the participant view)
-├──────────────────────────────────────────────────────────────┤
-│                                                                │
-│            ┌───────────────────────────────┐                  │
-│            │  (participant runtime content) │  ← centered device frame at the selected width
-│            │  block 1                        │     · Desktop = full / ~960px
-│            │  block 2                        │     · Tablet  = 768px
-│            │  …                              │     · Mobile  = 390px
-│            └───────────────────────────────┘                  │
-│                  dimmed page backdrop                          │
-└──────────────────────────────────────────────────────────────┘
+[ Preview  (Desktop|Tablet|Mobile)        Share link · Open in new tab · ✕ ]
+            ┌───────────── device frame (960 / 768 / 390) ─────────────┐
+            │  Preview ribbon · title · block 1 · block 2 · …          │
+            └──────────────────────────────────────────────────────────┘
 ```
 
-### Control strip (researcher chrome, not shown to participants)
+## Content inventory
 
-- **Device toggle** — Desktop / Tablet / Mobile. Sets the frame width (Desktop = `min(100%, 960px)`, Tablet = 768px, Mobile = 390px). Default Desktop.
-- **Open in new tab** — opens the same chrome-free preview URL in a new tab (for testing real browser resize / sharing the look with a colleague who has access).
-- **✕ Close** — returns to the Builder (`/studies/[id]/build`).
+- **Device toggle** — radiogroup, computed widths (Desktop 960 / Tablet 768 / Mobile 390). Static labels.
+- **Share-link menu** — creates/lists/revokes public preview links (V1.12 I; from `previewTokens` router).
+- **Open in new tab** — link to `/studies/<id>/preview` (same overlay, own tab).
+- **Close ✕** — returns to `/studies/<id>/build`.
+- **Preview ribbon** — static "nothing recorded" note.
+- **Study title** — from server (`studies.get`).
+- **Blocks** — every block via participant `BlockView`; conditional blocks all shown (no answers to branch).
 
-### The frame
+## States
 
-- A centered card at the selected width on a dimmed backdrop, scrollable. Renders every block through the participant `BlockView` (the same components `/take/*` uses), so the fidelity is real, not a mock.
-- A small **"Preview — nothing is recorded"** ribbon (reuses `PreviewRibbon`) at the top of the frame; conditional blocks are all shown here with a note (same as V1.8.1), since there are no answers to branch on.
-- When a per-study theme ships (V1.12 Section F), the frame applies that theme so the preview reflects the participant appearance exactly.
+- **Default** — device = Desktop; blocks rendered.
+- **Loading** — server component; the page resolves before render (no client loading state).
+- **Empty** — no blocks → "No blocks yet — add some in Builder, then preview."
+- **Partial** — n/a (single server fetch).
+- **Error** — study not found → `notFound()`.
+- **Success / optimistic** — n/a (read-only).
 
-## Behavior / a11y
+## Interactions
 
-- The overlay is `role="dialog" aria-modal`, traps nothing destructive; ESC closes (→ Builder). Focus moves to the control strip on open.
-- The device toggle is a `radiogroup`; arrow keys switch.
-- Reduced-motion: no transition on width change beyond a short ease.
+- **Device toggle** — click/arrow keys set the frame width; instant.
+- **Share link** — opens a popover: "Create + copy link" (7-day token, copied to clipboard) + active-link list with Revoke.
+- **Open in new tab** — opens the chrome-free preview in a new tab.
+- **Close / ESC** — navigates to Builder.
 
-## Notes / deferred
+## Edge cases
 
-- **Why an overlay, not an iframe to `/take`** — the participant `BlockView` is the exact component the runtime renders, so an in-page frame is faithful without standing up a throwaway preview *session* through the per-question `/take/[sessionId]/[q]` route. A future enhancement (max fidelity) can iframe a live preview session (`mode:"preview"`, ADR-0013) for true per-question navigation; the "Open in new tab" affordance is the seam for that.
-- The old inline `/studies/[id]/preview` (with researcher chrome) is replaced by this chrome-free version at the same route; the Preview stage tab still navigates here.
+- Very long titles wrap; long blocks scroll within the frame.
+- Zero blocks → empty copy. Many blocks → the stage scrolls.
+- Slow network — server-rendered, so the overlay appears already populated.
+- Offline — standard Next error boundary.
+- Permissions — the route is workspace-scoped via `studies.get`; non-members hit `notFound()`. (The *public* shared link is the separate `/preview/<id>?token=` route, ADR-0026.)
+
+## Accessibility notes
+
+- Overlay is `role="dialog" aria-modal`; ESC closes; focus starts on the control strip.
+- Device toggle is a `radiogroup` with arrow-key selection.
+- Reduced motion: width changes are instant (no animated reflow required).
+
+## Open questions
+
+- Future max-fidelity option: iframe a live `mode:"preview"` session through `/take` for true per-question navigation (the "Open in new tab" affordance is the seam). Deferred.
