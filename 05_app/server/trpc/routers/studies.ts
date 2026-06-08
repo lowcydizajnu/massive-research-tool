@@ -17,7 +17,10 @@ import {
   responseItem,
   user,
 } from "@/server/db/schema";
-import { openRecruitment as runtimeOpenRecruitment } from "@/server/runtime/participant";
+import {
+  openRecruitment as runtimeOpenRecruitment,
+  startResponse as runtimeStartResponse,
+} from "@/server/runtime/participant";
 import { getFrameworkDef } from "@/server/frameworks/registry";
 import {
   type BlockDiff,
@@ -1382,6 +1385,25 @@ export const studiesRouter = router({
         .where(eq(experimentVersion.id, tip.version.id));
       await db.update(experiment).set({ updatedAt: new Date() }).where(eq(experiment.id, input.studyId));
       return { ok: true };
+    }),
+
+  /**
+   * Start an ephemeral PREVIEW run of the working draft (V1.12) — opens (idempotent)
+   * a recruitment session on the autosave tip and creates a `mode:"preview"`
+   * response, returning its id. The Preview stage iframes the REAL participant
+   * runtime at this response so the researcher sees the true participant view
+   * (one screen at a time, validation, branching). Preview responses are excluded
+   * from results (getResults defaults to mode "run"); a draft preview never flips
+   * the study's stage (furthestStage reads version kind, not recruitment).
+   */
+  startPreview: writeProcedure
+    .input(z.object({ studyId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }): Promise<{ responseId: string }> => {
+      const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+      const rec = await runtimeOpenRecruitment(tip.version.id);
+      const res = await runtimeStartResponse({ recruitmentSessionId: rec.id, mode: "preview" });
+      if ("error" in res) throw new TRPCError({ code: "BAD_REQUEST", message: res.error });
+      return { responseId: res.responseId };
     }),
 
   /**
