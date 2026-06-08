@@ -142,6 +142,19 @@ export function BuilderWorkspace({
     return () => clearTimeout(t);
   }, [savedMsg]);
 
+  // Cmd/Ctrl+S → save as a named version (autosave already keeps the draft; this
+  // is the conscious save). V1.12 H.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        setSaveOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   return (
     <>
       <main className="flex min-w-0 flex-1 flex-col gap-3">
