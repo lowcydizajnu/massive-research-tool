@@ -1,10 +1,15 @@
-# Code tab handoff — V1.12 functional-polish bundle (updated 2026-06-08)
+# Code tab handoff — V1.12 functional-polish bundle (updated 2026-06-08 round 3)
 
 V1.11.3 is the latest tagged release (right-panel re-seed-after-undo/redo). Project owner has identified a large bundle of functional gaps the tool needs before V1.13 (Participants + Prolific) and V2.0 (AI features). This handoff bundles them as **V1.12 — functional polish**, with each section self-contained so you can land them as separate PRs in whatever order makes sense.
 
-**Total estimate: ~10-12 weeks Code-tab time** after owner's 2026-06-08 answers expanded Sections A3 (realistic-complex demo studies; ~1.5 weeks), C2 (full block-type catalogue with 15 new blocks + 6 meta affordances; ~3 weeks), and F (granular theme controls + 13 platform presets including FB / X / Instagram / TikTok / news / forum etc.; ~4 weeks). Code tab can land sections as separate PRs + ship V1.12.0 / V1.12.1 / ... sub-releases as items mature; one V1.12 audit log + tag at the end of the bundle OR per-sub-release.
+**Total estimate: ~13-14 weeks Code-tab time** after three rounds of owner answers expanding the scope:
+- Round 1: Section A3 (realistic-complex demo studies; ~1.5w), Section C2 (15 new blocks + 6 meta affordances per Typeform screenshot; ~3w), Section F (granular theme controls + 13 platform presets; ~4w).
+- Round 2: Bulk ops kept in V1.12 (~3d); IRB acknowledgment gate added to mimicking presets; demo OSF DOI format locked; 4 new presets added (Reddit/LinkedIn/YouTube/Chat with Discord/WhatsApp/iMessage variants → 17 presets total).
+- Round 3: **Section L — Block grouping + experimental parts** (question-groups with anchor artifacts + section/transition blocks + Results pivot by artifact; ~1.5w) and **Section M — IA v0.4: Focused study mode** (route-group split + slim TopBar + collapsible/resizable sidebar + Cmd+K palette elevation + IA document update; ~2w).
 
-**Order this is written in: roughly small-to-large.** Sections A-B are quick wins; C-E are medium; F is the biggest (visual theme + platform presets); G-K are smaller additions.
+Code tab can land sections as separate PRs + ship V1.12.0 / V1.12.1 / ... sub-releases as items mature; one V1.12 audit log + tag at the end of the bundle OR per-sub-release.
+
+**Order this is written in: roughly small-to-large.** Sections A-B are quick wins; C-E are medium; F is the biggest (visual theme + platform presets); G-K are smaller UX additions; L+M are foundational additions from owner's round 3 (block grouping + IA shift).
 
 ---
 
@@ -587,6 +592,258 @@ If there's slack in V1.12, these are quick gems:
 
 ---
 
+## Section L — Block grouping + experimental parts (owner-added 2026-06-08, ~1.5 weeks)
+
+Owner asked for two compositional affordances that are foundational for serious experimental design and don't exist today (today blocks are a flat list):
+
+### L1. Question Groups with anchor artifacts
+
+> "I would like to group questions to display them together — for example post or image alongside multichoice and likert all together — and data assigned to my artifacts."
+
+The use case: a researcher shows a **stimulus** (a social media post, an image, a news headline) and asks **multiple measures** about it on the same screen (likert: "How credible is this?"; multiple-choice: "Would you share this?"; free-text: "Why?"). All measures are semantically anchored to the stimulus — data analysis aggregates responses **by stimulus**, not by question-in-isolation. This is the standard "stimulus + measures" pattern in social/cognitive psychology research.
+
+**Block kind: `core/question-group@1.0.0`**
+
+A new block-kind that wraps N member blocks with an explicit **anchor**:
+
+- `id`, `type: "question-group"`, `title?` (optional researcher-visible label), `parent_group_id?` (for nesting under sections — Section L2)
+- `anchor_block_id?: string` — references one of the members; that member is the "artifact under study" (e.g., the social-post block). Optional — a group without an anchor is just a "render these together" grouping (e.g., demographics block + a few related likerts on one screen).
+- `members: BlockInstance[]` — actually, members are kept in the flat blocks array; the group references them via the new `parent_group_id` field on every block (every block knows its parent group via this field). This minimizes the data-model change — the flat array stays flat, with a tree-shape derived from `parent_group_id`.
+- `layout: "stacked" | "side-by-side" | "stimulus-prominent"` — controls how members render together. `stimulus-prominent` is the standard pattern (anchor at top large; measures below).
+- `condition?` — same showIf shape as ADR-0021 / V1.10's condition builder. Hides/shows the whole group as a unit. If conditioned, NONE of the members render.
+
+**Data linkage to the artifact** (the load-bearing feature):
+
+Per ADR-0014's `response_item` table: today `response_item.block_instance_id` references the answering block directly. We add:
+
+- `response_item.group_id?: text` — the question-group's `id` (if the answering block is inside a group)
+- `response_item.anchor_block_id?: text` — the anchor block's `id` (denormalized from the group for query speed)
+
+Now Results / Data Export can pivot:
+- "Show me the credibility-likert mean **for each artifact** (group anchor)"
+- "Show me all responses **to this specific social-post**" — joins on `anchor_block_id`
+- CSV export gets a new column `artifact_id` per response row (the anchor block's instance id)
+
+This is the half that makes the grouping methodologically useful, not just UI.
+
+**Builder UI:**
+- Drag blocks into a "group container" on the Builder canvas; the container renders with a labelled border + the anchor highlighted with a small "★ Anchor" marker (researcher can re-pick the anchor by clicking a different member).
+- Whiteboard canvas (React Flow): the group renders as a grouped node with members as sub-nodes (using React Flow's parent-node primitive — first-class for this pattern).
+- List view: indented under the group header.
+
+**Participant runtime:**
+- One screen per group (instead of one per question), respecting the V1.5 ADR-0013 per-question-SSR-for-analytics rule via a small amendment: per-screen routing carries multiple block_instance_ids in the URL (`/take/.../screen/g1` where `g1` is the group id), preserving Clarity heatmaps at the group level. Answers from a screen-submit roll up as multiple `response_item` rows in one transaction.
+- The layout setting (stacked / side-by-side / stimulus-prominent) controls the visual arrangement on the screen.
+
+ADR-0028 — Question groups + anchor artifacts. Locks the data model (parent_group_id on blocks + group_id / anchor_block_id on response_item), the per-screen-routing amendment to ADR-0013, the Results pivot semantics.
+
+Wireframe gate: `03_design/wireframes/builder-question-groups.md`.
+
+### L2. Experimental parts / sections / between-screens
+
+> "Groupings other groups and questions in parts of experiment — part one, between screen, part two, ... (parts also might be conditioned)."
+
+Standard research terminology: an experiment has **phases** (sometimes called blocks in the experimental-psych sense — confusingly different from our "blocks" = questions). Common pattern:
+
+- **Part 1 — Pre-test:** demographics + baseline measures
+- **Between-screen:** "You'll now see 10 social media posts. After each, please answer the questions."
+- **Part 2 — Stimulus phase:** 10 question-groups (each with one stimulus + measures)
+- **Between-screen:** "Almost done! A few final questions."
+- **Part 3 — Post-test:** manipulation checks + debrief
+- Each part may have an optional condition (e.g., only show Part 3 to participants in the warning-labeled condition)
+
+**Two new block kinds:**
+
+- **`core/section@1.0.0`** — a labelled top-level part of the experiment. Has `title`, `description?`, `condition?`, and contains member blocks (via their `parent_group_id`). Renders as a visual divider in the Builder + a participant-runtime "Part 1 of 3" indicator at the top of each screen within the section. Sections cannot nest sections (one level of section + groups inside).
+- **`core/transition@1.0.0`** — a between-screen narrative block. No response captured. `content_md` (markdown) is shown as a full-screen interstitial with a "Continue" button. Used for "You'll now see 10 posts...", debrief screens, instructions between parts.
+
+**Hierarchy supported:**
+
+```
+Section "Part 1: Background"
+  ├ Block: demographics
+  └ Block: baseline likert
+Transition: "You'll now see 10 posts..."
+Section "Part 2: Stimuli"
+  ├ Question-group "Post 1"
+  │   ├ Block: social-post (anchor)
+  │   ├ Block: credibility likert
+  │   └ Block: share-intent multiple-choice
+  ├ Question-group "Post 2"
+  │   └ ...
+  └ ... (8 more)
+Transition: "Almost done..."
+Section "Part 3: Manipulation checks"
+  └ ...
+```
+
+All represented as a flat blocks array with `parent_group_id` references. Order = array index. Tree derivation = client-side fold.
+
+**Conditional sections:**
+
+A section with a `condition` (using the V1.10 AND/OR ConditionBuilder) hides its entire subtree if the condition is false. Same evaluation as V1.9.0's branching engine — the runtime walks the tree, skips conditioned-out sections + their descendants.
+
+**Builder UI:**
+- Sections rendered as collapsible top-level containers (like Notion toggle blocks).
+- Drag-reorder applies at the section level too (move whole sections around).
+- Right-panel Configure shows section title + description + condition.
+
+**Participant runtime:**
+- "Part X of Y" indicator at top of each screen within a section (rolling up from the section's title).
+- Transition screens get their own URL: `/take/.../transition/t1`.
+
+ADR-0028 amendment (or a separate ADR-0029 — small one): section + transition block kinds + the hierarchy tree fold.
+
+Wireframe gate: `03_design/wireframes/builder-sections-and-parts.md`.
+
+### L3. Data model amendment (small additive migration)
+
+Two changes:
+
+1. Every block (in `definition_snapshot.blocks`) gains a `parent_group_id?: string` field. Default null = top-level. Renamed-from-nothing; backwards compatible (existing studies have all-null parent_group_ids = same flat structure they have today).
+2. `response_item` table gains `group_id text NULL`, `anchor_block_id text NULL`. Additive migration; backwards compatible.
+
+Per ADR-0012 the blocks JSON shape is researcher-editable; the parent_group_id field is just a new optional property. Preregistered = the nesting is frozen with the snapshot.
+
+### L4. Results + Export integration
+
+- `getResults` now optionally aggregates by anchor — researcher picks "By question" (current behavior) or "By artifact" (NEW: groups response items by anchor_block_id, shows per-artifact means/distributions).
+- Section D (data export builder) variable list adds a per-group "artifact_id" virtual column when groups exist.
+- The platform presets in Section F can render groups differently (e.g., on the Facebook preset, a question-group with a social-post anchor renders as a real FB post with the measures BELOW it; on the Reddit preset, the post is a Reddit post with measures threaded under it).
+
+---
+
+## Section M — IA v0.4: Focused study mode (owner-added 2026-06-08, ~2 weeks)
+
+Owner asked for a substantial IA shift after using the tool: when a researcher selects a study from the dashboard, the workspace chrome should get out of the way — they're in "study mode" until they explicitly leave. Inspired by the attached screenshot (a Journeys app showing slim workspace switcher + breadcrumb + close-X with no destination sidebar).
+
+### M1. The proposed model — two IA modes
+
+**Mode 1 — Workspace mode** (the default; current IA):
+- TopBar with workspace switcher + global ⌘K + user menu
+- LeftRail with destinations: Studies / Library / Frameworks / Activity / Browse / Settings
+- Surfaces for cross-study work (Browse, Activity, Frameworks listing, etc.)
+- Routes: `/`, `/studies`, `/browse`, `/activity`, `/frameworks`, `/library`, `/settings/*`
+
+**Mode 2 — Focused study mode** (NEW; owner-requested):
+- TopBar transforms to: workspace name + collapse icon on the left, breadcrumb `Studies / [Study Title]` in the middle, ⋯ More menu + ✕ Close on the right (matching the screenshot)
+- LeftRail collapses entirely (or replaced with a study-internal nav: stage selector + sub-panels)
+- The right panel (Configure / Details / Conditions / Versions / Replications / Comments) stays
+- The full work surface fills the rest of the page
+- Closing (✕ click) returns to `/studies` (or wherever the user came from)
+- Routes: `/studies/[id]/*` (everything under a study)
+
+The MODE switch happens automatically based on URL path. No manual toggle.
+
+### M2. The visual changes (per screenshot)
+
+- **Workspace name at top-left** (replacing the current TopBar's workspace switcher) with a small avatar/logo + name + subtitle (e.g., "Design Team"). Clicking expands a workspace switcher dropdown.
+- **Collapse icon next to the workspace name** — when in focused mode, the LeftRail can be toggled to a slim icon-only column OR fully hidden. Default: hidden (the bare minimum chrome).
+- **Breadcrumb `Studies / [Study Title]`** — `Studies` is a link back; the title is the current focus. Editable inline if the user has write permission (V1.8.2 already shipped editable title).
+- **Right-aligned ⋯ menu + ✕ close** — the menu has actions like Archive / Duplicate / Export / Settings / Delete (a per-study version of the bulk actions from Section K); the close X navigates back to `/studies`.
+- **Top bar visually merges with the page** — no boxed container around it. The current implementation puts the TopBar in a card-like wrapper; this changes to a flat strip flush with the viewport edge, with a subtle shadow or border-bottom only. (Per owner: "Visually make nav also part of top of page not as box as is now.")
+
+### M3. Resizable sidebar handle
+
+> "Between main section and left sidebar should be handle to make them wider/narrower."
+
+Add a draggable handle between the LeftRail (or its collapsed icon-strip in focused mode) and the main content area. User drags to resize; saved to `user.publicMetadata.sidebarWidth` per user, per workspace.
+
+Implementation: `react-resizable-panels` (MIT, small, accessibility-conscious). Add to lock-in inventory.
+
+Min/max widths: collapsed (~48px icon strip) / narrow (~200px) / default (~256px) / wide (~360px). Drag snaps to these breakpoints OR truly continuous.
+
+### M4. Stage-tab + right-panel position decision
+
+Owner: "Right side of nav keep as is now or move to left panel."
+
+The current right panel (Configure / Details / Conditions / Versions / Replications / Comments) is at the right of the work surface. Options:
+
+- **(a) Keep right** (current) — feels balanced; mirrors many design tools (Figma, Sketch).
+- **(b) Move to left** — replaces the (now hidden) LeftRail in focused mode; the right side becomes the canvas only. Might feel cleaner in focused mode where there's no left nav.
+- **(c) Both options exposed** — researcher picks via a Settings preference (right-handed vs left-handed handedness; researcher autonomy).
+
+Recommendation: ship (a) keep-right by default + (c) settings preference for left-handed users. Owner's wording "keep as is now or move to left panel" suggests they're not yet sure; the settings toggle defers the choice and respects researchers who'd want different.
+
+### M5. Routes + layout architecture
+
+Next.js route group split:
+
+```
+app/
+  (app)/
+    (workspace)/        ← Mode 1 routes (NEW group)
+      layout.tsx        ← TopBar with destinations + LeftRail
+      page.tsx          ← / → redirects to /studies (already done per commit 5fcda09)
+      studies/
+        page.tsx        ← /studies
+      browse/
+        page.tsx
+      activity/
+        page.tsx
+      frameworks/
+      library/
+      settings/
+    (study)/            ← Mode 2 routes (NEW group)
+      layout.tsx        ← Slim focused-mode TopBar; no LeftRail
+      studies/[id]/
+        layout.tsx      ← Stage tabs + right panel
+        overview/page.tsx
+        build/page.tsx
+        preview/page.tsx
+        share/page.tsx
+        preregister/page.tsx
+        run/page.tsx
+        results/page.tsx
+```
+
+The two groups are siblings under `(app)`. Next.js route groups don't affect URL paths — `/studies/[id]/build` continues to work; only the layout chain changes.
+
+### M6. Cmd+K command palette becomes more important
+
+With the LeftRail destinations hidden in focused mode, **Cmd+K** (already in Section K mini-list) becomes the primary cross-study navigation. Bump priority + expand search:
+
+- Search across studies (jump to a study)
+- Search across destinations (jump to Browse / Activity / Frameworks)
+- Recent items
+- Quick actions ("Save as named", "Preregister", "Export results")
+- ⌘K respects focused-mode context: if user is inside a study, recent block edits + study-internal actions surface first.
+
+### M7. IA v0.4 document update
+
+The IA document at `03_design/ia/information-architecture.md` is at v0.3. This change is a v0.4. Code tab writes the v0.4 amendment that captures:
+
+- The two-mode model (workspace vs focused study)
+- The mode-switch rules (URL-path-driven; no manual toggle)
+- Cmd+K's elevated role
+- The right-panel-side preference setting
+- The collapsible/resizable sidebar primitive
+
+### M8. ADR-0029 — IA v0.4: Focused study mode + dual layout
+
+Architecture decision covers:
+
+- The Next.js route-group split (`(workspace)` vs `(study)`)
+- The resizable-panels library choice (`react-resizable-panels`; MIT; add to lock-in inventory with migration target = custom hook over `useState` + `resize observer`)
+- Mode switch behavior + transitions (no animation in v1; just route change → layout swap)
+- Persistence of sidebar width (per user, per workspace; stored in Clerk metadata via the AuthAdapter)
+- Right-panel-side preference setting + Settings UI surface
+- Backward compatibility — the existing routes work unchanged; no migration needed.
+
+Wireframe gates: `03_design/wireframes/focused-study-mode.md` + `03_design/wireframes/workspace-mode-topbar.md`.
+
+### M9. Section M sequencing (~2 weeks Code tab)
+
+- PR L1 (~3 days): route group split + slim TopBar component for focused mode + close-X → /studies behavior
+- PR L2 (~3 days): resizable-panels integration + sidebar width persistence + min/max breakpoints
+- PR L3 (~2 days): TopBar flat-flush styling (no box) + workspace selector dropdown
+- PR L4 (~3 days): Cmd+K palette expanded with focused-mode awareness + studies search
+- PR L5 (~1 day): right-panel-side preference + Settings UI
+- PR L6 (~2 days): IA v0.4 document + ADR-0029 + wireframes + axe spec for focused mode
+- Test: Playwright spec that navigates / → /studies → click study → assert focused mode chrome → click ✕ → back to /studies.
+
+---
+
 ## Sequencing recommendation (updated 2026-06-08)
 
 Bundle as PR streams Code tab can land in any order. Given the expanded scope, Code tab's recent cadence (6 tagged releases in 4 days), and the high authoring cost of A3 demo content + F platform presets, splitting into V1.12.0 / V1.12.1 / ... sub-releases is probably cleaner than one giant V1.12 bundle.
@@ -616,12 +873,29 @@ Bundle as PR streams Code tab can land in any order. Given the expanded scope, C
 - PR 14: F3 Design stage UI + F5 ADR-0024 finalization + G researcher-controlled copy (~5 days)
 - PR 15: C2 Group 5 meta affordances (Welcome / End / Multi-Q page / Question Group / Redirect) — folds into the Design stage UI work (~3 days)
 
+**Wave 5b — IA v0.4 focused study mode (NEW, owner-added 2026-06-08; ~2 weeks; ship as V1.12.4b):**
+- PR L1 (~3 days): route group split `(workspace)` vs `(study)` + slim TopBar for focused mode + close-X behavior
+- PR L2 (~3 days): resizable-panels integration + sidebar width persistence (Clerk metadata via AuthAdapter)
+- PR L3 (~2 days): TopBar flat-flush styling (no box) + workspace selector dropdown
+- PR L4 (~3 days): Cmd+K palette expanded with focused-mode awareness + studies search
+- PR L5 (~1 day): right-panel-side preference + Settings UI
+- PR L6 (~2 days): IA v0.4 document + ADR-0029 + wireframes + axe spec for focused mode
+
+**Wave 5c — block grouping + experimental parts (NEW, owner-added 2026-06-08; ~1.5 weeks; ship as V1.12.4c):**
+- PR M1 (~3 days): data-model amendment (parent_group_id on blocks + group_id/anchor_block_id on response_item) + Drizzle migration + ADR-0028
+- PR M2 (~3 days): `core/question-group@1.0.0` block kind + Builder UI (group container with anchor marker) + tree-aware rendering + Whiteboard React Flow parent-node integration
+- PR M3 (~3 days): `core/section@1.0.0` + `core/transition@1.0.0` block kinds + conditional sections + participant runtime "Part X of Y" indicator + per-screen routing amendment to ADR-0013
+- PR M4 (~2 days): Results pivot ("By question" vs "By artifact") + export builder anchor column + integration with V1.12 platform presets (group renders differently per platform)
+- PR M5 (~1 day): wireframes (builder-question-groups + builder-sections-and-parts) + integration tests
+
 **Wave 6 — onboarding tour + UX wins + sign-off (~1.5 weeks; ship as V1.12.5):**
 - PR 16: J onboarding tour (pairs with demo content from PR 7) (~1 week)
-- PR 17: K Cmd+K palette + saved comment drafts + better empty states + mobile audit (~1 week, parallel)
+- PR 17: K Cmd+K palette + saved comment drafts + better empty states + mobile audit (~1 week, parallel) — Cmd+K work was elevated in Wave 5b PR L4; this is the remaining items
 - PR 18: bulk study operations — checkbox selection on `/studies` + Archive/Duplicate/Export/Tag/Delete-selected (owner confirmed 2026-06-08 to keep in V1.12 Wave 6; ~3 days)
 
 After each Wave: deploy + smoke + audit log entry + sub-tag (v1.12.0, v1.12.1, ...). Or bundle into one big V1.12 deploy at the end — Code tab's call. Per ADR-0016 deploy pattern + the deploy:verify procedure.
+
+**Revised total V1.12 estimate: ~13-14 weeks** after Sections L (~1.5w) + M (~2w) added. Code tab's actual cadence will likely compress this; estimates are conservative.
 
 ---
 
