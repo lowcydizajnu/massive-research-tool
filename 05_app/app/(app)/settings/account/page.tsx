@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { ProfileForm } from "@/components/feature/settings/profile-form";
 import { FormSubmitButton } from "@/components/ui/form-submit-button";
 import { cn } from "@/lib/utils";
 import { registry } from "@/server/adapters/registry";
@@ -14,7 +15,9 @@ import { disconnectOsfAction } from "@/server/registry/disconnect";
  * (per-user OSF OAuth, ADR-0005); Profile / Appearance / Notifications are
  * shown but inert (full account settings are a later surface).
  */
-const TABS = ["Profile", "Appearance", "Connections", "Notifications"] as const;
+const TABS = ["Profile", "Connections", "Appearance", "Notifications"] as const;
+const ACTIVE_TABS = new Set(["Profile", "Connections"]);
+const tabKey = (t: string) => t.toLowerCase();
 
 function formatDate(iso: string): string {
   return new Intl.DateTimeFormat("en-US", {
@@ -27,14 +30,16 @@ function formatDate(iso: string): string {
 export default async function AccountSettingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ osf?: string }>;
+  searchParams: Promise<{ osf?: string; tab?: string }>;
 }) {
   const dbUser = await getCurrentDbUser();
   if (!dbUser) redirect("/signin");
 
   const connection = await registry.getConnection(dbUser.id);
   const osfConfigured = isOsfConfigured();
-  const flag = (await searchParams).osf;
+  const sp = await searchParams;
+  const flag = sp.osf;
+  const tab = sp.tab === "connections" ? "connections" : "profile";
 
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-5 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6">
@@ -43,28 +48,39 @@ export default async function AccountSettingsPage({
       </h1>
 
       <nav role="tablist" aria-label="Account settings" className="flex flex-wrap gap-1 border-b border-[var(--color-border-subtle)] pb-2">
-        {TABS.map((tab) => {
-          const active = tab === "Connections";
-          return (
-            <span
-              key={tab}
+        {TABS.map((label) => {
+          const selectable = ACTIVE_TABS.has(label);
+          const current = selectable && tabKey(label) === tab;
+          const tabCls = cn(
+            "rounded-[var(--radius-md)] px-2.5 py-1 text-[length:var(--text-small)] font-medium",
+            current
+              ? "bg-[var(--color-primary-subtle)] text-[var(--color-primary-text-on-subtle)]"
+              : selectable
+                ? "text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
+                : "cursor-default text-[var(--color-text-muted)] opacity-60",
+          );
+          return selectable ? (
+            <Link
+              key={label}
               role="tab"
-              aria-current={active ? "page" : undefined}
-              aria-disabled={!active}
-              title={active ? undefined : "Coming soon"}
-              className={cn(
-                "rounded-[var(--radius-md)] px-2.5 py-1 text-[length:var(--text-small)] font-medium",
-                active
-                  ? "bg-[var(--color-primary-subtle)] text-[var(--color-primary-text-on-subtle)]"
-                  : "cursor-default text-[var(--color-text-muted)] opacity-60",
-              )}
+              aria-current={current ? "page" : undefined}
+              href={`/settings/account?tab=${tabKey(label)}`}
+              className={tabCls}
             >
-              {tab}
+              {label}
+            </Link>
+          ) : (
+            <span key={label} role="tab" aria-disabled title="Coming soon" className={tabCls}>
+              {label}
             </span>
           );
         })}
       </nav>
 
+      {tab === "profile" ? <ProfileForm /> : null}
+
+      {tab === "connections" ? (
+        <>
       {flag === "connected" ? (
         <p role="status" className="rounded-[var(--radius-md)] bg-[var(--color-success-subtle)] px-3 py-2 text-[length:var(--text-small)] text-[var(--color-success-text-on-subtle)]">
           OSF connected.
@@ -158,6 +174,8 @@ export default async function AccountSettingsPage({
           ) : null}
         </div>
       </section>
+        </>
+      ) : null}
     </main>
   );
 }

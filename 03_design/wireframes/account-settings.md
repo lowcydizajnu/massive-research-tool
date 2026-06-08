@@ -57,3 +57,21 @@ Standard three-zone modular surface per brief v0.6 — slim top bar (no Save —
 
 - Privacy / data export — link to legal page from Profile? Yes, footer row.
 - Sign out — already in user dropdown; surface here as well? Defer.
+
+---
+
+## Profile tab (V1.12 A2)
+
+The **Profile** tab (now the default; `?tab=profile`) holds researcher identity reused by OSF preregistration metadata, the public author byline, and V1.13 Participants. Tabs: **Profile · Connections** active; Appearance / Notifications stay "coming soon".
+
+Fields (all optional except display name; stored additively-nullable on `user`, migration `0006`):
+
+- **Display name** (editable) · **Email** (read-only)
+- **Full name** — OSF authors + byline
+- **ORCID iD** — validated `XXXX-XXXX-XXXX-XXXX` (checksum `X` allowed)
+- **Affiliation** — institution + department
+- **Research areas** — chip input (reuses the V1.7 tag shape; Enter / comma to add, ✕ to remove; max 20)
+- **Bio** — short markdown textarea (public author page)
+- **Website** + **Google Scholar** — http(s) URLs, validated
+
+`Save profile` (PendingButton) → `profile.update` (zod-validated; empty strings normalize to null). `profile.get` seeds the form. ORCID + URL errors surface inline. No participant-facing surface.

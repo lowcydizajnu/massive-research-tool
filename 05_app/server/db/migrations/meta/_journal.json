@@ -43,6 +43,13 @@
       "when": 1780851790327,
       "tag": "0005_yellow_magma",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1780912929033,
+      "tag": "0006_unusual_thunderbolt_ross",
+      "breakpoints": true
     }
   ]
 }

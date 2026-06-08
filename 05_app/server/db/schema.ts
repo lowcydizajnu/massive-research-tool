@@ -102,6 +102,22 @@ export const user = pgTable("user", {
   /** May be empty until onboarding completes. */
   displayName: text("display_name").notNull().default(""),
   avatarUrl: text("avatar_url"),
+  // Researcher profile (V1.12 A2; additive, nullable). Reused by OSF
+  // preregistration metadata, the public author byline, and V1.13 Participants.
+  /** Legal/full name (distinct from displayName) — OSF authors + byline. */
+  fullName: text("full_name"),
+  /** Institution + department, free text. */
+  affiliation: text("affiliation"),
+  /** ORCID iD, format XXXX-XXXX-XXXX-XXXX. */
+  orcid: text("orcid"),
+  /** Research-area tags (reuses the V1.7 tag-primitive shape). */
+  researchAreas: jsonb("research_areas").$type<string[]>().notNull().default([]),
+  /** Short markdown bio for the public author page. */
+  bio: text("bio"),
+  /** Personal website URL. */
+  websiteUrl: text("website_url"),
+  /** Google Scholar (or similar) profile URL. */
+  scholarUrl: text("scholar_url"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
