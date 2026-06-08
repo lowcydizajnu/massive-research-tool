@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import type { Route } from "next";
 import { useRouter } from "next/navigation";
 
 import { api } from "@/lib/trpc/react";
@@ -35,6 +37,12 @@ export function ReplicationsPanel({ studyId }: { studyId: string }) {
 
   return (
     <div className="flex flex-col gap-3">
+      <Link
+        href={`/studies/${studyId}/replications` as Route}
+        className="self-start text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] underline-offset-2 hover:underline"
+      >
+        View full lineage →
+      </Link>
       {parent ? (
         <section className="flex flex-col gap-1 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-3">
           <span className="text-[length:var(--text-label)] uppercase tracking-wide text-[var(--color-text-muted)]">
