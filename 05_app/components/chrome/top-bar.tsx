@@ -1,5 +1,6 @@
 import { ChevronDown } from "lucide-react";
 
+import { AutosaveIndicator } from "@/components/chrome/autosave-indicator";
 import { Breadcrumb } from "@/components/chrome/breadcrumb";
 import { UserMenu } from "@/components/chrome/user-menu";
 import { NewStudyButton } from "@/components/feature/new-study/new-study-button";
@@ -36,6 +37,8 @@ export function TopBar({
       <Breadcrumb />
 
       <div className="flex-1" />
+
+      <AutosaveIndicator />
 
       {/* ⌘K search (modal deferred) */}
       <span
