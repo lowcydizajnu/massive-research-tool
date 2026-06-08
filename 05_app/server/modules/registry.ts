@@ -447,7 +447,104 @@ const demographics: CoreModuleDef = {
   isComplete: () => true, // toggles only; always structurally complete
 };
 
+// ---------- V1.12 C1: embedded content (stimulus-only, no response) ----------
+
+const textBlock: CoreModuleDef = {
+  source: "core",
+  key: "text",
+  version: "1.0.0",
+  name: "Text",
+  description: "A block of instructional or narrative text (markdown).",
+  categoryTags: ["content", "instructions"],
+  configSchema: z.object({ contentMd: z.string() }),
+  defaultConfig: { contentMd: "" },
+  jsonSchema: {
+    type: "object",
+    properties: { contentMd: { type: "string" } },
+    required: ["contentMd"],
+    additionalProperties: false,
+  },
+  collectsResponse: false,
+  responseSchema: null,
+  isComplete: (c) => typeof c.contentMd === "string" && c.contentMd.trim().length > 0,
+};
+
+const imageBlock: CoreModuleDef = {
+  source: "core",
+  key: "image",
+  version: "1.0.0",
+  name: "Image",
+  description: "An embedded image stimulus (URL), with alt text and an optional caption.",
+  categoryTags: ["content", "stimulus", "media"],
+  configSchema: z.object({
+    url: z.union([z.string().url(), z.literal("")]),
+    alt: z.string(),
+    caption: z.string(),
+  }),
+  defaultConfig: { url: "", alt: "", caption: "" },
+  jsonSchema: {
+    type: "object",
+    properties: { url: { type: "string" }, alt: { type: "string" }, caption: { type: "string" } },
+    required: ["url"],
+    additionalProperties: false,
+  },
+  collectsResponse: false,
+  responseSchema: null,
+  isComplete: (c) => typeof c.url === "string" && c.url.trim().length > 0,
+};
+
+const videoBlock: CoreModuleDef = {
+  source: "core",
+  key: "video",
+  version: "1.0.0",
+  name: "Video",
+  description: "An embedded video (YouTube, Vimeo, or direct MP4 URL), with an optional caption.",
+  categoryTags: ["content", "stimulus", "media"],
+  configSchema: z.object({
+    url: z.union([z.string().url(), z.literal("")]),
+    caption: z.string(),
+  }),
+  defaultConfig: { url: "", caption: "" },
+  jsonSchema: {
+    type: "object",
+    properties: { url: { type: "string" }, caption: { type: "string" } },
+    required: ["url"],
+    additionalProperties: false,
+  },
+  collectsResponse: false,
+  responseSchema: null,
+  isComplete: (c) => typeof c.url === "string" && c.url.trim().length > 0,
+};
+
+const linkBlock: CoreModuleDef = {
+  source: "core",
+  key: "link",
+  version: "1.0.0",
+  name: "Link",
+  description: "An embedded link card (URL) with a title and description.",
+  categoryTags: ["content", "stimulus"],
+  configSchema: z.object({
+    url: z.union([z.string().url(), z.literal("")]),
+    title: z.string(),
+    description: z.string(),
+  }),
+  defaultConfig: { url: "", title: "", description: "" },
+  jsonSchema: {
+    type: "object",
+    properties: { url: { type: "string" }, title: { type: "string" }, description: { type: "string" } },
+    required: ["url"],
+    additionalProperties: false,
+  },
+  collectsResponse: false,
+  responseSchema: null,
+  isComplete: (c) => typeof c.url === "string" && c.url.trim().length > 0,
+};
+
 export const MODULE_REGISTRY: CoreModuleDef[] = [
+  textBlock,
+  imageBlock,
+  videoBlock,
+  linkBlock,
   socialPost,
   socialPostV2,
   likert7,
