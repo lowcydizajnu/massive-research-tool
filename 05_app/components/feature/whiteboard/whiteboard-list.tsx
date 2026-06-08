@@ -4,6 +4,7 @@ import { GripVertical } from "lucide-react";
 import { useState } from "react";
 
 import { move } from "@/lib/whiteboard/reorder";
+import { normalizeCondition, summarizeCondition } from "@/lib/whiteboard/conditions";
 import { cn } from "@/lib/utils";
 import type { StudyBlock } from "@/server/trpc/routers/studies";
 
@@ -26,10 +27,17 @@ export function WhiteboardList({
   onReorder?: (order: string[]) => void;
 }) {
   const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [overIdx, setOverIdx] = useState<number | null>(null);
+  const nameOf = (id: string) => {
+    const b = blocks.find((x) => x.instanceId === id);
+    return b ? b.title?.trim() || b.name : id;
+  };
   const drop = (to: number) => {
-    if (dragIdx === null || dragIdx === to) return setDragIdx(null);
-    onReorder?.(move(blocks, dragIdx, to).map((b) => b.instanceId));
+    const from = dragIdx;
     setDragIdx(null);
+    setOverIdx(null);
+    if (from === null || from === to) return;
+    onReorder?.(move(blocks, from, to).map((b) => b.instanceId));
   };
   if (blocks.length === 0) {
     return (
@@ -47,10 +55,20 @@ export function WhiteboardList({
         return (
           <li
             key={b.instanceId}
-            onDragOver={(e) => e.preventDefault()}
+            onDragOver={(e) => {
+              e.preventDefault();
+              if (overIdx !== i) setOverIdx(i);
+            }}
             onDrop={() => drop(i)}
-            className={cn("rounded-[var(--radius-md)]", dragIdx === i && "opacity-50")}
+            className={cn(
+              "rounded-[var(--radius-md)] transition-[margin,opacity] duration-150",
+              dragIdx === i && "opacity-40",
+              overIdx === i && dragIdx !== null && dragIdx !== i && "mt-6",
+            )}
           >
+            {overIdx === i && dragIdx !== null && dragIdx !== i ? (
+              <div className="-mt-4 mb-2 h-0.5 rounded-full bg-[var(--color-primary)]" aria-hidden />
+            ) : null}
             <div
               className={cn(
                 "flex items-stretch gap-1 rounded-[var(--radius-md)] border",
@@ -62,7 +80,10 @@ export function WhiteboardList({
               <span
                 draggable
                 onDragStart={() => setDragIdx(i)}
-                onDragEnd={() => setDragIdx(null)}
+                onDragEnd={() => {
+                  setDragIdx(null);
+                  setOverIdx(null);
+                }}
                 aria-label="Drag to reorder"
                 className="flex cursor-grab items-center px-1 text-[var(--color-text-muted)] active:cursor-grabbing"
               >
@@ -92,9 +113,17 @@ export function WhiteboardList({
               </span>
               {b.showIfCondition.length > 0 ? (
                 <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
-                  Shown only if: {b.showIfCondition.join(", ")}
+                  Arm: {b.showIfCondition.join(", ")}
                 </span>
               ) : null}
+              {(() => {
+                const summary = summarizeCondition(normalizeCondition(b.showIf, b.branchRules), nameOf);
+                return summary ? (
+                  <span className="rounded-full bg-[var(--color-primary-subtle)] px-1.5 py-0.5 text-[length:var(--text-small)] text-[var(--color-primary-text-on-subtle)]">
+                    Shown if {summary}
+                  </span>
+                ) : null;
+              })()}
               </button>
             </div>
           </li>

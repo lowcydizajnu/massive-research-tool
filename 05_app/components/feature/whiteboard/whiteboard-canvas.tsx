@@ -108,7 +108,8 @@ export function WhiteboardCanvas({
           id: `b:${c.fromInstanceId}->${b.instanceId}:${i}`,
           source: c.fromInstanceId,
           target: b.instanceId,
-          label: `${OPERATOR_LABELS[c.operator]} ${c.value.join("/")}`.trim(),
+          // Flat ("answered") wires read as a plain line; conditioned wires are labelled.
+          label: c.operator === "answered" ? "" : `${OPERATOR_LABELS[c.operator]} ${c.value.join("/")}`.trim(),
           markerEnd: { type: MarkerType.ArrowClosed },
           style: { stroke: "var(--color-primary)" },
         }));

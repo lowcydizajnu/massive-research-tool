@@ -1385,6 +1385,7 @@ export const studiesRouter = router({
                 z.object({
                   fromInstanceId: z.string(),
                   operator: z.enum([
+                    "answered",
                     "eq",
                     "neq",
                     "gt",

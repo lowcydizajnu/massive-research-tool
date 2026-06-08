@@ -5,6 +5,7 @@
  * client-safe — no server imports.
  */
 export type Operator =
+  | "answered" // flat link — source has any answer (no value needed); the default
   | "eq" // is / equals (also single-select "is")
   | "neq" // is not
   | "gt"
@@ -23,6 +24,7 @@ export type ConditionGroup = { op: "and" | "or"; clauses: Clause[] };
 export type LegacyBranchRule = { fromInstanceId: string; equals: string };
 
 export const OPERATOR_LABELS: Record<Operator, string> = {
+  answered: "is answered",
   eq: "is",
   neq: "is not",
   gt: "is greater than",
@@ -35,10 +37,11 @@ export const OPERATOR_LABELS: Record<Operator, string> = {
   includesAny: "includes any of",
 };
 
-const NUMERIC: Operator[] = ["eq", "neq", "gte", "lte", "gt", "lt", "between"];
-const SINGLE: Operator[] = ["eq", "neq", "isAnyOf"];
-const MULTI: Operator[] = ["includesAny"];
-const TEXT: Operator[] = ["eq", "neq", "contains"];
+// "answered" leads each menu so a freshly-drawn wire is flat (no value) by default.
+const NUMERIC: Operator[] = ["answered", "eq", "neq", "gte", "lte", "gt", "lt", "between"];
+const SINGLE: Operator[] = ["answered", "eq", "neq", "isAnyOf"];
+const MULTI: Operator[] = ["answered", "includesAny"];
+const TEXT: Operator[] = ["answered", "eq", "neq", "contains"];
 
 /** Can a block's answer be used as a condition source? Stimuli have no answer. */
 export function isConditionSource(key: string): boolean {
@@ -98,6 +101,7 @@ function num(s: string | undefined): number {
 /** Evaluate one clause against a recorded answer (its source block's answer). */
 export function evaluateClause(answer: unknown, operator: Operator, value: string[]): boolean {
   const av = answerValues(answer);
+  if (operator === "answered") return av.length > 0; // flat link — reached once answered
   if (av.length === 0) return false; // unanswered source never matches
   const first = av[0];
   switch (operator) {
@@ -134,6 +138,24 @@ export function evaluateCondition(
   if (!group || group.clauses.length === 0) return true; // flat / unconditioned
   const results = group.clauses.map((c) => evaluateClause(answers[c.fromInstanceId], c.operator, c.value));
   return group.op === "and" ? results.every(Boolean) : results.some(Boolean);
+}
+
+/** Short human label for one clause, e.g. "Post 1 is at least 5" or "Q2 is answered". */
+export function summarizeClause(clause: Clause, nameOf: (id: string) => string): string {
+  const name = nameOf(clause.fromInstanceId);
+  if (clause.operator === "answered") return `${name} is answered`;
+  const val = clause.operator === "between" ? clause.value.join("–") : clause.value.join(" / ");
+  return `${name} ${OPERATOR_LABELS[clause.operator]} ${val}`.trim();
+}
+
+/** One-line summary of a whole group for preview tags, e.g. "Q1 is Yes OR Q2 ≥ 5". */
+export function summarizeCondition(
+  group: ConditionGroup | null | undefined,
+  nameOf: (id: string) => string,
+): string | null {
+  if (!group || group.clauses.length === 0) return null;
+  const joiner = group.op === "and" ? " AND " : " OR ";
+  return group.clauses.map((c) => summarizeClause(c, nameOf)).join(joiner);
 }
 
 /** Resolve a block's effective condition group: `showIf`, else legacy equality rules, else null. */
