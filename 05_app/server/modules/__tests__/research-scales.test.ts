@@ -60,3 +60,28 @@ describe("V1.12 Wave 3 — composite scales", () => {
     expect(ok("semantic-differential", { values: { "0": 4 } }, cfg)).toBe(false); // pair 1 missing
   });
 });
+
+describe("V1.12 Wave 3 — reaction-time + MaxDiff", () => {
+  it("registers reaction-time + maxdiff as response-collecting", () => {
+    for (const k of ["reaction-time", "maxdiff"]) {
+      expect(def(k).collectsResponse).toBe(true);
+      expect(def(k).responseSchema).not.toBeNull();
+    }
+  });
+
+  it("reaction-time accepts a non-negative latency", () => {
+    expect(ok("reaction-time", { value: 342 })).toBe(true);
+    expect(ok("reaction-time", { value: 0 })).toBe(true);
+    expect(ok("reaction-time", { value: -5 })).toBe(false);
+    expect(def("reaction-time").isAnswerEmpty!({})).toBe(true);
+  });
+
+  it("maxdiff requires distinct best/worst from the item set", () => {
+    const cfg = { items: ["A", "B", "C"] };
+    expect(ok("maxdiff", { best: "A", worst: "C" }, cfg)).toBe(true);
+    expect(ok("maxdiff", { best: "A", worst: "A" }, cfg)).toBe(false); // same
+    expect(ok("maxdiff", { best: "A", worst: "Z" }, cfg)).toBe(false); // not an item
+    expect(def("maxdiff").isAnswerEmpty!({ best: "A", worst: "" })).toBe(true);
+    expect(def("maxdiff").isAnswerEmpty!({ best: "A", worst: "B" })).toBe(false);
+  });
+});
