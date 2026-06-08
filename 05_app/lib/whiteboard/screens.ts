@@ -43,15 +43,18 @@ export function regroupAfterMove(
   let g: string | null = null;
   if (prev && next && prev === next) g = prev; // dropped inside a group
   else if (was && (prev === was || next === was)) g = was; // stayed adjacent to its group
-  const withGroup = blocks.map((b) => (b.instanceId === movedId ? { ...b, groupId: g } : b));
+  return makeContiguous(blocks.map((b) => (b.instanceId === movedId ? { ...b, groupId: g } : b)));
+}
 
-  // Contiguity: emit each group's members consecutively at first encounter.
-  const out: { instanceId: string; groupId: string | null }[] = [];
+/** Reorder so each group's members are consecutive (at the group's first
+ *  occurrence). Pure; preserves relative order within a group + among singles. */
+export function makeContiguous<T extends { instanceId: string; groupId: string | null }>(blocks: T[]): T[] {
+  const out: T[] = [];
   const emitted = new Set<string>();
-  for (const b of withGroup) {
+  for (const b of blocks) {
     if (emitted.has(b.instanceId)) continue;
     if (b.groupId) {
-      for (const m of withGroup) {
+      for (const m of blocks) {
         if (m.groupId === b.groupId && !emitted.has(m.instanceId)) {
           out.push(m);
           emitted.add(m.instanceId);
@@ -63,6 +66,17 @@ export function regroupAfterMove(
     }
   }
   return out;
+}
+
+/** Set one block's group to an explicit target (or null to ungroup) — used by
+ *  whiteboard drag-into/out-of a container — then re-make groups contiguous so
+ *  the joined block sits with its group (ADR-0028 amendment). Pure. */
+export function setBlockGroup<T extends { instanceId: string; groupId: string | null }>(
+  blocks: T[],
+  blockId: string,
+  groupId: string | null,
+): T[] {
+  return makeContiguous(blocks.map((b) => (b.instanceId === blockId ? { ...b, groupId } : b)));
 }
 
 export function deriveScreens(blocks: BlockInstance[], groups: StudyGroup[]): Screen[] {

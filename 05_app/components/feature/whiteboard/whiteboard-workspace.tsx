@@ -12,7 +12,7 @@ import { ModeToggle } from "@/components/feature/builder/mode-toggle";
 import { ModulePicker } from "@/components/feature/builder/module-picker";
 import { api } from "@/lib/trpc/react";
 import type { StudyBlock, StudyDetail } from "@/server/trpc/routers/studies";
-import { regroupAfterMove } from "@/lib/whiteboard/screens";
+import { regroupAfterMove, setBlockGroup } from "@/lib/whiteboard/screens";
 
 import {
   isConditionSource,
@@ -77,6 +77,20 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
   const nameOfBlock = (id: string) => {
     const b = study.blocks.find((x) => x.instanceId === id);
     return b ? b.title?.trim() || b.name : id;
+  };
+  // Drag a block into a group container (groupId) or out of one (null) on the
+  // canvas → set membership + re-make groups contiguous, then persist (ADR-0028).
+  const regroupOnCanvas = (blockId: string, groupId: string | null) => {
+    const byId = new Map(study.blocks.map((b) => [b.instanceId, b]));
+    const normalized = setBlockGroup(
+      study.blocks.map((b) => ({ instanceId: b.instanceId, groupId: b.groupId })),
+      blockId,
+      groupId,
+    );
+    const blocks = normalized.map((r) => toInstance(byId.get(r.instanceId)!, r.groupId));
+    const usedIds = new Set(blocks.map((b) => b.groupId).filter(Boolean) as string[]);
+    const groups = study.groups.filter((g) => usedIds.has(g.id));
+    setGroupsMut.mutate({ studyId: study.id, blocks, groups });
   };
   const requestReorder = (order: string[], movedId: string) => {
     const byId = new Map(study.blocks.map((b) => [b.instanceId, b]));
@@ -260,6 +274,7 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
                 onDisconnectCondition={disconnectCondition}
                 onConnectBranch={connectBranch}
                 onDisconnectBranch={disconnectBranch}
+                onRegroup={regroupOnCanvas}
               />
               <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
                 {"Drag a wire from one block to another to branch on its answer (you’ll set the trigger value); or from a Condition node to a block to gate it by arm. Select a wire and press Delete to remove it."}
