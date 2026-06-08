@@ -102,7 +102,16 @@ export function BuilderWorkspace({
   const renameBlock = api.studies.setBlockTitle.useMutation({ onSuccess: () => void invalidate() });
   const reorderBlocks = api.studies.reorderBlocks.useMutation({ onSuccess: () => void invalidate() });
   const setCondition = api.studies.setBlockCondition.useMutation({ onSuccess: () => void invalidate() });
-  const setBlocksMut = api.studies.setBlocks.useMutation({ onSuccess: () => void invalidate() });
+  // Bump on a restore (undo/redo) so the right-panel editors re-seed (they hold
+  // local state keyed by block id, which a restore doesn't change). Normal edits
+  // don't bump it, so typing isn't interrupted.
+  const [panelEpoch, setPanelEpoch] = useState(0);
+  const setBlocksMut = api.studies.setBlocks.useMutation({
+    onSuccess: () => {
+      void invalidate();
+      setPanelEpoch((e) => e + 1);
+    },
+  });
   const { canUndo, canRedo, undo, redo } = useBlockHistory(study.id, study.blocks, (blocks) =>
     setBlocksMut.mutate({ studyId: study.id, blocks }),
   );
@@ -318,7 +327,7 @@ export function BuilderWorkspace({
         {selected ? (
           <>
             <ConfigureForm
-              key={selected.instanceId}
+              key={`${selected.instanceId}-${panelEpoch}`}
               block={selected}
               pending={updateConfig.isPending || removeBlock.isPending}
               onChange={(config) =>
@@ -333,12 +342,13 @@ export function BuilderWorkspace({
               }}
             />
             <BlockVisibilityField
+              key={`vis-${selected.instanceId}-${panelEpoch}`}
               studyId={study.id}
               instanceId={selected.instanceId}
               current={selected.showIfCondition}
             />
             <ConditionBuilder
-              key={`cond-${selected.instanceId}`}
+              key={`cond-${selected.instanceId}-${panelEpoch}`}
               block={selected}
               earlierBlocks={study.blocks.slice(0, study.blocks.findIndex((b) => b.instanceId === selected.instanceId))}
               pending={setCondition.isPending}
