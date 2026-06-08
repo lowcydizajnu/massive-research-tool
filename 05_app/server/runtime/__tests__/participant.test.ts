@@ -28,9 +28,11 @@ import {
   completeResponse,
   ensureConditions,
   getRuntimeQuestion,
+  getRuntimeScreen,
   openRecruitment,
   pickCondition,
   recordAnswer,
+  recordScreenAnswers,
   resolveVisibleBlocks,
   answerMatches,
   startResponse,
@@ -330,5 +332,65 @@ describe("answer-based branching (ADR-0021)", () => {
     expect(resolveVisibleBlocks(s, "treatment", { a: { value: 5 } }).map((x) => x.instanceId)).toEqual(["a", "b"]);
     // Right arm but no rule matches → hidden.
     expect(resolveVisibleBlocks(s, "treatment", { a: { value: 1 } }).map((x) => x.instanceId)).toEqual(["a"]);
+  });
+});
+
+describe("recordScreenAnswers + getRuntimeScreen (ADR-0028 grouping)", () => {
+  async function seedGrouped() {
+    const [u] = await db.insert(user).values({ externalId: "g-ext", email: "g@e.com", displayName: "G" }).returning();
+    const [ws] = await db.insert(workspace).values({ name: "GLab", slug: "glab", ownerId: u.id }).returning();
+    await db.insert(member).values({ workspaceId: ws.id, userId: u.id, role: "owner", status: "active" });
+    const [exp] = await db.insert(experiment).values({ tenantId: ws.id, ownerId: u.id, title: "Grouped" }).returning();
+    const [ver] = await db
+      .insert(experimentVersion)
+      .values({
+        experimentId: exp.id,
+        versionNumber: 1,
+        kind: "preregistered",
+        name: "v1",
+        createdBy: u.id,
+        moduleVersionLocks: {},
+        definitionSnapshot: {
+          blocks: [
+            { instanceId: "m1", source: "core", key: "likert-7", version: "1.0.0", config: { prompt: "P", required: true }, groupId: "g1" },
+            { instanceId: "m2", source: "core", key: "multiple-choice", version: "1.0.0", config: { prompt: "Q", options: ["A", "B"], multiple: false, required: true }, groupId: "g1" },
+          ],
+          groups: [{ id: "g1", title: "Stimulus + measures" }],
+        },
+      })
+      .returning();
+    await db.update(experiment).set({ currentVersionId: ver.id }).where(eq(experiment.id, exp.id));
+    const { id: rsId } = await openRecruitment(ver.id);
+    const started = await startResponse({ recruitmentSessionId: rsId, mode: "run", externalPid: null });
+    if ("error" in started) throw new Error("start failed");
+    return { studyId: exp.id, responseId: started.responseId };
+  }
+
+  it("getRuntimeScreen returns one group screen with both member blocks", async () => {
+    const { studyId, responseId } = await seedGrouped();
+    const s = await getRuntimeScreen({ studyId, responseId, screenIndex: 0 });
+    expect("screen" in s && s.screen.kind).toBe("group");
+    expect("screen" in s && s.screen.blocks.map((b) => b.instanceId)).toEqual(["m1", "m2"]);
+    expect("total" in s && s.total).toBe(1);
+  });
+
+  it("records every block on the screen, then completes", async () => {
+    const { responseId } = await seedGrouped();
+    const r = await recordScreenAnswers({
+      responseId,
+      screenIndex: 0,
+      answers: { m1: { value: 5 }, m2: { selected: ["A"] } },
+    });
+    expect(r).toEqual({ ok: true, done: true, nextIndex: 1 });
+    const items = await db.select().from(responseItem).where(eq(responseItem.responseId, responseId));
+    expect(items.map((i) => i.blockInstanceId).sort()).toEqual(["m1", "m2"]);
+  });
+
+  it("rejects the whole screen if one required block is empty (no partial writes)", async () => {
+    const { responseId } = await seedGrouped();
+    const r = await recordScreenAnswers({ responseId, screenIndex: 0, answers: { m1: { value: 5 }, m2: { selected: [] } } });
+    expect(r).toEqual({ ok: false, error: "answer_required" });
+    const items = await db.select().from(responseItem).where(eq(responseItem.responseId, responseId));
+    expect(items).toHaveLength(0); // m1 not written either
   });
 });
