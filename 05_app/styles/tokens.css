@@ -6,6 +6,9 @@
    ========================================================================= */
 
 :root {
+  /* Native form controls (date picker, select arrow, scrollbars) follow the
+     theme — fixes the invisible dark-on-dark calendar icon. */
+  color-scheme: light;
   /* Surface neutrals — warm parchment ladder */
   --color-surface-page: #F7F2E8;
   --color-surface-canvas: #FFFFFF;
@@ -61,6 +64,7 @@
 }
 
 [data-theme="dark"] {
+  color-scheme: dark;
   /* Surface neutrals — warm-dark, not cool slate */
   --color-surface-page: #161514;
   --color-surface-canvas: #1F1D1B;

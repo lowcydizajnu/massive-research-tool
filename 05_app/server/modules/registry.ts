@@ -520,8 +520,9 @@ const linkBlock: CoreModuleDef = {
   source: "core",
   key: "link",
   version: "1.0.0",
-  name: "Link",
-  description: "An embedded link card (URL) with a title and description.",
+  name: "Link preview (stimulus)",
+  description:
+    "A clickable link card SHOWN to participants as stimulus — collects no answer. (To ask a participant to enter a web address, use the “Website / URL” form block.)",
   categoryTags: ["content", "stimulus"],
   configSchema: z.object({
     url: z.union([z.string().url(), z.literal("")]),

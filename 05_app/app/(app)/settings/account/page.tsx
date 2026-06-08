@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { ProfileForm } from "@/components/feature/settings/profile-form";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { FormSubmitButton } from "@/components/ui/form-submit-button";
 import { cn } from "@/lib/utils";
 import { registry } from "@/server/adapters/registry";
@@ -16,7 +17,7 @@ import { disconnectOsfAction } from "@/server/registry/disconnect";
  * shown but inert (full account settings are a later surface).
  */
 const TABS = ["Profile", "Connections", "Appearance", "Notifications"] as const;
-const ACTIVE_TABS = new Set(["Profile", "Connections"]);
+const ACTIVE_TABS = new Set(["Profile", "Connections", "Appearance"]);
 const tabKey = (t: string) => t.toLowerCase();
 
 function formatDate(iso: string): string {
@@ -39,7 +40,8 @@ export default async function AccountSettingsPage({
   const osfConfigured = isOsfConfigured();
   const sp = await searchParams;
   const flag = sp.osf;
-  const tab = sp.tab === "connections" ? "connections" : "profile";
+  const tab =
+    sp.tab === "connections" ? "connections" : sp.tab === "appearance" ? "appearance" : "profile";
 
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-5 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6">
@@ -78,6 +80,18 @@ export default async function AccountSettingsPage({
       </nav>
 
       {tab === "profile" ? <ProfileForm /> : null}
+
+      {tab === "appearance" ? (
+        <section className="flex flex-col gap-3">
+          <h2 className="font-serif text-[17px] font-medium text-[var(--color-text-primary)]">
+            Appearance
+          </h2>
+          <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+            Choose how Massive Research Lab looks. “System” follows your device setting.
+          </p>
+          <ThemeToggle />
+        </section>
+      ) : null}
 
       {tab === "connections" ? (
         <>
