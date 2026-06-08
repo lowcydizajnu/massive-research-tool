@@ -450,6 +450,147 @@ export async function recordAnswer(input: {
   return { ok: true, done, nextIndex };
 }
 
+export type RuntimeScreenView = {
+  studyTitle: string;
+  mode: ResponseMode;
+  conditionSlug: string;
+  screen: Screen;
+  position: number;
+  total: number;
+};
+
+/**
+ * Resolve the SCREEN at `screenIndex` (ADR-0028) — a group (several blocks) or a
+ * single block — for a response. The per-screen analogue of getRuntimeQuestion;
+ * `done` past the last visible screen, `not_found` on a mismatch.
+ */
+export async function getRuntimeScreen(input: {
+  studyId: string;
+  responseId: string;
+  screenIndex: number;
+}): Promise<RuntimeScreenView | { done: true } | { error: "not_found" }> {
+  const [row] = await db
+    .select({
+      resp: response,
+      snapshot: experimentVersion.definitionSnapshot,
+      versionExperimentId: experimentVersion.experimentId,
+      title: experiment.title,
+      conditionSlug: conditionTable.slug,
+    })
+    .from(response)
+    .innerJoin(experimentVersion, eq(response.experimentVersionId, experimentVersion.id))
+    .innerJoin(experiment, eq(experimentVersion.experimentId, experiment.id))
+    .innerJoin(conditionTable, eq(response.conditionId, conditionTable.id))
+    .where(eq(response.id, input.responseId))
+    .limit(1);
+  if (!row || row.versionExperimentId !== input.studyId) return { error: "not_found" };
+
+  const answers = await answersFor(input.responseId);
+  const screens = resolveVisibleScreens(row.snapshot, row.conditionSlug, answers);
+  if (input.screenIndex < 0) return { error: "not_found" };
+  if (input.screenIndex >= screens.length) return { done: true };
+
+  return {
+    studyTitle: row.title,
+    mode: row.resp.mode as ResponseMode,
+    conditionSlug: row.conditionSlug,
+    screen: screens[input.screenIndex],
+    position: input.screenIndex,
+    total: screens.length,
+  };
+}
+
+/** Validate one block's answer against its module (shape + config-dependent +
+ *  required). Returns the parsed value to write, `null` to skip (empty optional /
+ *  stimulus), or an error. */
+function validateBlockAnswer(
+  block: BlockInstance,
+  answer: unknown,
+): { write: unknown } | { skip: true } | { error: "invalid_answer" | "answer_required" } {
+  const def = getModuleDef(block.source, block.key, block.version);
+  if (!def?.collectsResponse || !def.responseSchema) return { skip: true };
+  const required = block.config?.required !== false;
+  const empty = def.isAnswerEmpty
+    ? def.isAnswerEmpty(answer)
+    : answer == null || (typeof answer === "object" && Object.keys(answer).length === 0);
+  if (empty) return required ? { error: "answer_required" } : { skip: true };
+  const parsed = def.responseSchema.safeParse(answer);
+  if (!parsed.success) return { error: "invalid_answer" };
+  if (def.validateAnswer && !def.validateAnswer(parsed.data, block.config)) {
+    return { error: "invalid_answer" };
+  }
+  return { write: parsed.data };
+}
+
+/**
+ * Record every block on a screen at once (ADR-0028), then advance by screen.
+ * Validates ALL blocks first (no partial writes), upserts each collecting block's
+ * answer, re-resolves the screen path with the new answers (branching), and
+ * completes when the last visible screen is done. `answers` is keyed by block
+ * instanceId.
+ */
+export async function recordScreenAnswers(input: {
+  responseId: string;
+  screenIndex: number;
+  answers: Record<string, unknown>;
+}): Promise<RecordResult> {
+  const [resp] = await db.select().from(response).where(eq(response.id, input.responseId)).limit(1);
+  if (!resp) return { ok: false, error: "not_found" };
+  const [ver] = await db
+    .select({ snapshot: experimentVersion.definitionSnapshot, slug: conditionTable.slug })
+    .from(experimentVersion)
+    .innerJoin(conditionTable, eq(conditionTable.id, resp.conditionId))
+    .where(eq(experimentVersion.id, resp.experimentVersionId))
+    .limit(1);
+  if (!ver) return { ok: false, error: "not_found" };
+
+  const answersBefore = await answersFor(input.responseId);
+  const screens = resolveVisibleScreens(ver.snapshot, ver.slug, answersBefore);
+  const screen = screens[input.screenIndex];
+  if (!screen) return { ok: false, error: "not_found" };
+
+  // Validate every block first — no partial writes on a screen with one bad field.
+  const toWrite: { block: BlockInstance; value: unknown }[] = [];
+  for (const block of screen.blocks) {
+    const r = validateBlockAnswer(block, input.answers[block.instanceId]);
+    if ("error" in r) return { ok: false, error: r.error };
+    if ("write" in r) toWrite.push({ block, value: r.write });
+  }
+
+  for (const { block, value } of toWrite) {
+    await db
+      .insert(responseItem)
+      .values({
+        id: ulid(),
+        responseId: resp.id,
+        blockInstanceId: block.instanceId,
+        blockPosition: input.screenIndex,
+        moduleSource: block.source,
+        moduleKey: block.key,
+        moduleVersion: block.version,
+        answer: value,
+      })
+      .onConflictDoUpdate({
+        target: [responseItem.responseId, responseItem.blockInstanceId],
+        set: { answer: value, blockPosition: input.screenIndex, answeredAt: new Date() },
+      });
+  }
+
+  const nextIndex = input.screenIndex + 1;
+  const answersAfter = { ...answersBefore };
+  for (const { block, value } of toWrite) answersAfter[block.instanceId] = value;
+  const screensAfter = resolveVisibleScreens(ver.snapshot, ver.slug, answersAfter);
+  const done = nextIndex >= screensAfter.length;
+
+  const advancedIndex = Math.max(resp.currentQuestionIndex, nextIndex);
+  if (done) {
+    await completeResponse(resp.id);
+  } else {
+    await db.update(response).set({ currentQuestionIndex: advancedIndex }).where(eq(response.id, resp.id));
+  }
+  return { ok: true, done, nextIndex };
+}
+
 /** Mark a response complete + bump the session's completed count (run mode). */
 export async function completeResponse(responseId: string): Promise<void> {
   const [resp] = await db
