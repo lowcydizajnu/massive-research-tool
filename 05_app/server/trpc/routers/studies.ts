@@ -1099,10 +1099,10 @@ export const studiesRouter = router({
 
       const descendants = (await db.execute(sql`
         WITH RECURSIVE tree AS (
-          SELECT e.id, e.title, e.tenant_id, e.forkable_by, e.fork_of_experiment_id, e.created_at, 0 AS depth
+          SELECT e.id, e.title, e.owner_id, e.tenant_id, e.forkable_by, e.fork_of_experiment_id, e.created_at, 0 AS depth
           FROM ${experiment} e WHERE e.id = ${input.studyId}
           UNION ALL
-          SELECT c.id, c.title, c.tenant_id, c.forkable_by, c.fork_of_experiment_id, c.created_at, t.depth + 1
+          SELECT c.id, c.title, c.owner_id, c.tenant_id, c.forkable_by, c.fork_of_experiment_id, c.created_at, t.depth + 1
           FROM ${experiment} c JOIN tree t ON c.fork_of_experiment_id = t.id
         )
         SELECT t.id, t.title, t.tenant_id, t.forkable_by, t.fork_of_experiment_id, t.created_at, u.display_name, t.depth
@@ -1112,10 +1112,10 @@ export const studiesRouter = router({
 
       const ancestry = (await db.execute(sql`
         WITH RECURSIVE up AS (
-          SELECT e.id, e.title, e.tenant_id, e.forkable_by, e.fork_of_experiment_id, e.created_at, 0 AS depth
+          SELECT e.id, e.title, e.owner_id, e.tenant_id, e.forkable_by, e.fork_of_experiment_id, e.created_at, 0 AS depth
           FROM ${experiment} e WHERE e.id = ${input.studyId}
           UNION ALL
-          SELECT p.id, p.title, p.tenant_id, p.forkable_by, p.fork_of_experiment_id, p.created_at, up.depth + 1
+          SELECT p.id, p.title, p.owner_id, p.tenant_id, p.forkable_by, p.fork_of_experiment_id, p.created_at, up.depth + 1
           FROM ${experiment} p JOIN up ON up.fork_of_experiment_id = p.id
         )
         SELECT up.id, up.title, up.tenant_id, up.forkable_by, u.display_name, up.depth
