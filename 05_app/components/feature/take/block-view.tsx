@@ -785,21 +785,21 @@ function MaxDiffInput({ config }: { config: Record<string, unknown> }) {
       <table className="w-full border-collapse text-[length:var(--text-small)]">
         <thead>
           <tr>
-            <th className="px-2 py-1 text-left font-medium text-[var(--color-text-secondary)]">Best</th>
-            <th className="px-2 py-1 text-left font-medium text-[var(--color-text-secondary)]">Worst</th>
             <th />
+            <th className="w-20 px-2 py-1 text-center font-medium text-[var(--color-text-secondary)]">Best</th>
+            <th className="w-20 px-2 py-1 text-center font-medium text-[var(--color-text-secondary)]">Worst</th>
           </tr>
         </thead>
         <tbody>
           {items.map((item, i) => (
             <tr key={i} className="border-t border-[var(--color-border-subtle)]">
+              <td className="py-2 pr-3 text-[var(--color-text-primary)]">{item}</td>
               <td className="px-2 py-2 text-center">
                 <input type="radio" name="best" value={item} required={required} aria-label={`Best: ${item}`} className="size-4 accent-[var(--color-primary)]" />
               </td>
               <td className="px-2 py-2 text-center">
                 <input type="radio" name="worst" value={item} required={required} aria-label={`Worst: ${item}`} className="size-4 accent-[var(--color-primary)]" />
               </td>
-              <td className="py-2 pl-3 text-[var(--color-text-primary)]">{item}</td>
             </tr>
           ))}
         </tbody>
