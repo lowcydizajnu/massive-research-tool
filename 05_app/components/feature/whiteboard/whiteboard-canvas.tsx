@@ -22,9 +22,10 @@ import { conditionNodeId } from "@/lib/whiteboard/graph";
 import { OPERATOR_LABELS, conditionWithSources } from "@/lib/whiteboard/conditions";
 import type { StudyDetail } from "@/server/trpc/routers/studies";
 
-import { BlockNode, ConditionNode } from "./whiteboard-nodes";
+import { BlockNode, ConditionEdge, ConditionNode } from "./whiteboard-nodes";
 
 const nodeTypes = { block: BlockNode, condition: ConditionNode };
+const edgeTypes = { condition: ConditionEdge };
 const COND_PREFIX = "cond:";
 
 export type WhiteboardCondition = { slug: string; name: string };
@@ -110,14 +111,19 @@ export function WhiteboardCanvas({
           id: `b:${c.fromInstanceId}->${b.instanceId}:${i}`,
           source: c.fromInstanceId,
           target: b.instanceId,
-          // Flat ("answered") wires read as a plain line; conditioned wires are labelled.
-          label: c.operator === "answered" ? "" : `${OPERATOR_LABELS[c.operator]} ${c.value.join("/")}`.trim(),
+          type: "condition",
+          // Flat ("answered") wires show just the gear; conditioned wires label it.
+          // The gear opens the target block's condition editor (right panel).
+          data: {
+            label: c.operator === "answered" ? "" : `${OPERATOR_LABELS[c.operator]} ${c.value.join("/")}`.trim(),
+            onEdit: () => onSelectBlock?.(b.instanceId),
+          },
           markerEnd: { type: MarkerType.ArrowClosed },
           style: { stroke: "var(--color-primary)" },
         }));
       }),
     ],
-    [study.blocks],
+    [study.blocks, onSelectBlock],
   );
 
   const [nodes, setNodes, onNodesChange] = useNodesState(computedNodes);
@@ -198,6 +204,7 @@ export function WhiteboardCanvas({
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onNodeDragStop={onNodeDragStop}

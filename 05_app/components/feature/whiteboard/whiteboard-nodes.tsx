@@ -1,6 +1,16 @@
 "use client";
 
-import { Handle, Position, type Node, type NodeProps } from "@xyflow/react";
+import {
+  BaseEdge,
+  EdgeLabelRenderer,
+  getBezierPath,
+  Handle,
+  Position,
+  type EdgeProps,
+  type Node,
+  type NodeProps,
+} from "@xyflow/react";
+import { Settings2 } from "lucide-react";
 
 /**
  * Custom React Flow nodes for the Whiteboard (ADR-0020). Block nodes mirror the
@@ -49,5 +59,65 @@ export function ConditionNode({ data }: NodeProps<ConditionNodeType>) {
       {data.label}
       <Handle type="source" position={Position.Right} />
     </div>
+  );
+}
+
+/** Edge data for answer-condition wires — the label chip + the gear's action. */
+export type ConditionEdgeData = { label?: string; onEdit?: () => void };
+
+/**
+ * Answer-condition wire with a settings gear on it (ADR-0021 amendment). The
+ * chip shows the condition summary (blank for a flat link); clicking the gear
+ * opens the target block's condition editor in the right panel.
+ */
+export function ConditionEdge({
+  id,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  sourcePosition,
+  targetPosition,
+  markerEnd,
+  style,
+  data,
+}: EdgeProps) {
+  const [edgePath, labelX, labelY] = getBezierPath({
+    sourceX,
+    sourceY,
+    targetX,
+    targetY,
+    sourcePosition,
+    targetPosition,
+  });
+  const d = data as ConditionEdgeData | undefined;
+  return (
+    <>
+      <BaseEdge id={id} path={edgePath} markerEnd={markerEnd} style={style} />
+      <EdgeLabelRenderer>
+        <div
+          className="nodrag nopan wb-edge-chip"
+          style={{
+            position: "absolute",
+            transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
+            pointerEvents: "all",
+          }}
+        >
+          {d?.label ? <span className="wb-edge-chip-label">{d.label}</span> : null}
+          <button
+            type="button"
+            aria-label="Edit condition"
+            title="Edit condition"
+            onClick={(e) => {
+              e.stopPropagation();
+              d?.onEdit?.();
+            }}
+            className="wb-edge-chip-gear"
+          >
+            <Settings2 className="size-3" aria-hidden />
+          </button>
+        </div>
+      </EdgeLabelRenderer>
+    </>
   );
 }

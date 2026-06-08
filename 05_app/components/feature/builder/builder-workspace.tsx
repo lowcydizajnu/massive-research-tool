@@ -3,7 +3,7 @@
 import { GripVertical, Plus, Undo2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { move } from "@/lib/whiteboard/reorder";
+import { SortableList } from "@/components/feature/whiteboard/sortable-list";
 import { useBlockHistory } from "@/lib/whiteboard/use-block-history";
 import {
   conditionWithSources,
@@ -106,8 +106,6 @@ export function BuilderWorkspace({
   const { canUndo, undo } = useBlockHistory(study.id, study.blocks, (blocks) =>
     setBlocksMut.mutate({ studyId: study.id, blocks }),
   );
-  const [dragIdx, setDragIdx] = useState<number | null>(null);
-  const [overIdx, setOverIdx] = useState<number | null>(null);
   const [pendingReorder, setPendingReorder] = useState<{ order: string[]; items: string[] } | null>(null);
   const nameOf = (id: string) => {
     const b = study.blocks.find((x) => x.instanceId === id);
@@ -125,13 +123,6 @@ export function BuilderWorkspace({
       order,
       items: broken.map((b) => `"${nameOf(b.targetId)}": ${summarizeClause(b.clause, nameOf)}`),
     });
-  };
-  const dropAt = (to: number) => {
-    const from = dragIdx;
-    setDragIdx(null);
-    setOverIdx(null);
-    if (from === null || from === to) return;
-    requestReorder(move(study.blocks, from, to).map((b) => b.instanceId));
   };
 
   const selected = study.blocks.find((b) => b.instanceId === selectedId) ?? null;
@@ -192,30 +183,24 @@ export function BuilderWorkspace({
                 No blocks yet. Add your first to start building.
               </p>
             ) : (
-              <ul className="flex flex-col gap-2">
-                {study.blocks.map((b, i) => (
-                  <li
-                    key={b.instanceId}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      if (overIdx !== i) setOverIdx(i);
-                    }}
-                    onDrop={() => dropAt(i)}
-                    className={cn("transition-opacity duration-150", dragIdx === i && "opacity-40")}
-                  >
-                    {overIdx === i && dragIdx !== null && dragIdx !== i ? (
-                      <div className="mb-2 h-0.5 rounded-full bg-[var(--color-primary)]" aria-hidden />
-                    ) : null}
+              <SortableList
+                ids={study.blocks.map((b) => b.instanceId)}
+                onReorder={requestReorder}
+                ariaLabel="Study blocks"
+                className="flex flex-col gap-2"
+              >
+                {(id, handle) => {
+                  const i = study.blocks.findIndex((b) => b.instanceId === id);
+                  const b = study.blocks[i];
+                  if (!b) return null;
+                  return (
                     <div className="flex items-stretch gap-1">
                       <span
-                        draggable
-                        onDragStart={() => setDragIdx(i)}
-                        onDragEnd={() => {
-                          setDragIdx(null);
-                          setOverIdx(null);
-                        }}
+                        ref={handle.ref}
+                        {...handle.attributes}
+                        {...handle.listeners}
                         aria-label="Drag to reorder"
-                        className="flex shrink-0 cursor-grab items-center rounded-[var(--radius-md)] px-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)] active:cursor-grabbing"
+                        className="flex shrink-0 cursor-grab touch-none items-center rounded-[var(--radius-md)] px-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)] active:cursor-grabbing"
                       >
                         <GripVertical className="size-4" aria-hidden />
                       </span>
@@ -235,9 +220,9 @@ export function BuilderWorkspace({
                         />
                       </div>
                     </div>
-                  </li>
-                ))}
-              </ul>
+                  );
+                }}
+              </SortableList>
             )}
 
             <div className="relative self-start">

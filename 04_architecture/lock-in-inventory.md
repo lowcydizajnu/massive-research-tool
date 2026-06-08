@@ -98,6 +98,16 @@ For each vendor:
 | **Migration target** | Konva or a small custom HTML5-canvas layer (per ADR-0020). Well-bounded because nodes/edges are derived from our own `blocks` array on each render; a migration swaps the renderer, not the data. |
 | **Cost-ceiling trigger** | None — MIT licensed, no SaaS tier, no per-seat cost. The only revisit trigger is bundle size (~30kb gzipped today; revisit if a future `bundle-size` ADR sets a budget) or a hypothetical license change (ADR-0020 revisit triggers). |
 
+## dnd-kit (Block drag-reorder — per ADR-0022)
+
+| | |
+| --- | --- |
+| **What we use it for** | V1.11 block drag-reorder in the Builder list + whiteboard List — a smooth, keyboard-accessible sortable. Researcher-only. |
+| **Behind an adapter** | No server adapter — dnd-kit is a client-only UI library, so the boundary is a component wrapper (`05_app/components/feature/whiteboard/sortable-list.tsx`); `@dnd-kit/*` imports are confined to that wrapper + the two list components that consume it. The reorder *result* is a plain `instanceId[]` handed to `studies.reorderBlocks` — no dnd-kit type touches the data layer. |
+| **Deliberate exceptions** | (none — the wrapper boundary holds.) |
+| **Migration target** | Native HTML5 DnD (what we had pre-V1.11) or another sortable lib; a migration swaps the wrapper, since order is just the `blocks` array order (ADR-0012). |
+| **Cost-ceiling trigger** | None — MIT, no SaaS tier, no per-seat cost. Revisit only on a React-major incompatibility or unmaintained status (ADR-0022 triggers). |
+
 ## Review discipline
 
 When opening a PR that touches an adapter or adds a vendor SDK import:
