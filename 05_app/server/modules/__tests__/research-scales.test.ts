@@ -35,3 +35,28 @@ describe("V1.12 Wave 3 — numeric research scales", () => {
     expect(ok("vas", { value: 120 }, { min: 0, max: 100 })).toBe(false);
   });
 });
+
+describe("V1.12 Wave 3 — composite scales", () => {
+  it("registers matrix-grid + semantic-differential as response-collecting", () => {
+    for (const k of ["matrix-grid", "semantic-differential"]) {
+      expect(def(k).collectsResponse).toBe(true);
+      expect(def(k).responseSchema).not.toBeNull();
+    }
+  });
+
+  it("matrix-grid values must be valid columns; required ⇒ every row answered", () => {
+    const cfg = { rows: ["R1", "R2"], columns: ["A", "B"], required: true };
+    expect(ok("matrix-grid", { values: { "0": "A", "1": "B" } }, cfg)).toBe(true);
+    expect(ok("matrix-grid", { values: { "0": "Z", "1": "B" } }, cfg)).toBe(false); // bad column
+    expect(ok("matrix-grid", { values: { "0": "A" } }, cfg)).toBe(false); // R2 missing (required)
+    expect(ok("matrix-grid", { values: { "0": "A" } }, { ...cfg, required: false })).toBe(true);
+    expect(def("matrix-grid").isAnswerEmpty!({ values: {} })).toBe(true);
+  });
+
+  it("semantic-differential values must be 1..points; required ⇒ every pair", () => {
+    const cfg = { leftLabels: ["a", "b"], rightLabels: ["x", "y"], points: 7, required: true };
+    expect(ok("semantic-differential", { values: { "0": 4, "1": 7 } }, cfg)).toBe(true);
+    expect(ok("semantic-differential", { values: { "0": 8, "1": 1 } }, cfg)).toBe(false); // >points
+    expect(ok("semantic-differential", { values: { "0": 4 } }, cfg)).toBe(false); // pair 1 missing
+  });
+});

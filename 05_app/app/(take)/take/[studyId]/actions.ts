@@ -82,6 +82,19 @@ export async function answerAction(formData: FormData): Promise<void> {
       if (v != null && String(v).trim() !== "") o[f] = String(v);
     }
     answer = o;
+  } else if (moduleKey === "matrix-grid" || moduleKey === "semantic-differential") {
+    // One row per `row_${i}`; rowCount carries the total so unselected rows
+    // (absent from FormData) don't truncate the scan.
+    const rowCount = Number(formData.get("rowCount") ?? 0);
+    const values: Record<string, string | number> = {};
+    for (let i = 0; i < rowCount; i++) {
+      const raw = formData.get(`row_${i}`);
+      if (raw != null && String(raw) !== "") {
+        values[String(i)] =
+          moduleKey === "semantic-differential" ? Number(raw) : String(raw);
+      }
+    }
+    answer = { values };
   } else if (moduleKey === "picture-choice") {
     answer = { selected: formData.getAll("mc").map(String) };
   } else if (moduleKey === "multiple-choice") {

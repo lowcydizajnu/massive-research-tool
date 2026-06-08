@@ -36,6 +36,8 @@ export function BlockView({ block, seed }: { block: RuntimeBlock; seed?: string 
   if (block.key === "nps") return <NpsInput config={block.config} />;
   if (block.key === "rating-stars") return <StarRatingInput config={block.config} />;
   if (block.key === "vas") return <VasInput config={block.config} />;
+  if (block.key === "matrix-grid") return <MatrixGridInput config={block.config} />;
+  if (block.key === "semantic-differential") return <SemanticDifferentialInput config={block.config} />;
   // Unknown module — render nothing rather than crash the runtime.
   return (
     <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
@@ -681,5 +683,90 @@ function VasInput({ config }: { config: Record<string, unknown> }) {
         <span>{right || String(max)}</span>
       </div>
     </div>
+  );
+}
+
+/* ---------- V1.12 Wave 3: composite scales ---------- */
+
+function MatrixGridInput({ config }: { config: Record<string, unknown> }) {
+  const rows = Array.isArray(config.rows) ? (config.rows as unknown[]).map(str) : [];
+  const columns = Array.isArray(config.columns) ? (config.columns as unknown[]).map(str) : [];
+  const required = config.required === true;
+  return (
+    <fieldset className="flex flex-col gap-2">
+      <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
+      <input type="hidden" name="rowCount" value={rows.length} />
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse text-[length:var(--text-small)]">
+          <thead>
+            <tr>
+              <th />
+              {columns.map((c, j) => (
+                <th key={j} className="px-2 py-1 text-center font-medium text-[var(--color-text-secondary)]">
+                  {c}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => (
+              <tr key={i} className="border-t border-[var(--color-border-subtle)]">
+                <td className="py-2 pr-3 text-[var(--color-text-primary)]">{row}</td>
+                {columns.map((c, j) => (
+                  <td key={j} className="px-2 py-2 text-center">
+                    <input
+                      type="radio"
+                      name={`row_${i}`}
+                      value={c}
+                      required={required}
+                      aria-label={`${row}: ${c}`}
+                      className="size-4 accent-[var(--color-primary)]"
+                    />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </fieldset>
+  );
+}
+
+function SemanticDifferentialInput({ config }: { config: Record<string, unknown> }) {
+  const left = Array.isArray(config.leftLabels) ? (config.leftLabels as unknown[]).map(str) : [];
+  const right = Array.isArray(config.rightLabels) ? (config.rightLabels as unknown[]).map(str) : [];
+  const points = typeof config.points === "number" ? config.points : 7;
+  const pairs = Math.min(left.length, right.length);
+  const required = config.required === true;
+  return (
+    <fieldset className="flex flex-col gap-3">
+      <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
+      <input type="hidden" name="rowCount" value={pairs} />
+      {Array.from({ length: pairs }, (_, i) => (
+        <div key={i} className="flex items-center gap-3">
+          <span className="w-24 shrink-0 text-right text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+            {left[i]}
+          </span>
+          <div className="flex flex-1 justify-between">
+            {Array.from({ length: points }, (_, p) => (
+              <label key={p} className="cursor-pointer">
+                <input
+                  type="radio"
+                  name={`row_${i}`}
+                  value={p + 1}
+                  required={required}
+                  aria-label={`${left[i]} to ${right[i]}: ${p + 1} of ${points}`}
+                  className="size-4 accent-[var(--color-primary)]"
+                />
+              </label>
+            ))}
+          </div>
+          <span className="w-24 shrink-0 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+            {right[i]}
+          </span>
+        </div>
+      ))}
+    </fieldset>
   );
 }
