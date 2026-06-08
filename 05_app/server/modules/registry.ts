@@ -984,10 +984,133 @@ const vasBlock: CoreModuleDef = {
   isComplete: (c) => typeof c.prompt === "string" && c.prompt.trim().length > 0,
 };
 
+// ---------- V1.12 Wave 3 (batch 2): composite scales ----------
+
+const valuesObj = (a: unknown): Record<string, unknown> => {
+  const v = (a as { values?: unknown })?.values;
+  return v && typeof v === "object" ? (v as Record<string, unknown>) : {};
+};
+
+const matrixGridBlock: CoreModuleDef = {
+  source: "core",
+  key: "matrix-grid",
+  version: "1.0.0",
+  name: "Matrix / grid",
+  description: "A grid of statements (rows) each rated on a shared scale (columns).",
+  categoryTags: ["measurement", "matrix"],
+  configSchema: z.object({
+    prompt: z.string(),
+    required: z.boolean(),
+    rows: z.array(z.string()),
+    columns: z.array(z.string()),
+  }),
+  defaultConfig: {
+    prompt: "",
+    required: true,
+    rows: ["Statement 1", "Statement 2"],
+    columns: ["Disagree", "Neutral", "Agree"],
+  },
+  jsonSchema: {
+    type: "object",
+    properties: {
+      prompt: { type: "string" },
+      required: { type: "boolean" },
+      rows: { type: "array", items: { type: "string" } },
+      columns: { type: "array", items: { type: "string" } },
+    },
+    required: ["prompt", "rows", "columns"],
+    additionalProperties: false,
+  },
+  collectsResponse: true,
+  responseSchema: z.object({ values: z.record(z.string(), z.string()) }),
+  isAnswerEmpty: (a) => Object.keys(valuesObj(a)).length === 0,
+  validateAnswer: (a, c) => {
+    const vals = valuesObj(a);
+    const cols = Array.isArray(c.columns) ? (c.columns as unknown[]).map(String) : [];
+    const rows = Array.isArray(c.rows) ? (c.rows as unknown[]) : [];
+    for (const v of Object.values(vals)) if (!cols.includes(String(v))) return false;
+    if (c.required === true) {
+      return rows.every((_, i) => {
+        const x = vals[String(i)];
+        return typeof x === "string" && x !== "";
+      });
+    }
+    return true;
+  },
+  isComplete: (c) =>
+    typeof c.prompt === "string" &&
+    c.prompt.trim().length > 0 &&
+    Array.isArray(c.rows) &&
+    c.rows.length > 0 &&
+    Array.isArray(c.columns) &&
+    c.columns.length > 0,
+};
+
+const semanticDifferentialBlock: CoreModuleDef = {
+  source: "core",
+  key: "semantic-differential",
+  version: "1.0.0",
+  name: "Semantic differential",
+  description: "Bipolar adjective pairs (left vs right) each rated on a 1–N scale.",
+  categoryTags: ["measurement", "rating"],
+  configSchema: z.object({
+    prompt: z.string(),
+    required: z.boolean(),
+    points: z.number().int().min(2).max(11),
+    leftLabels: z.array(z.string()),
+    rightLabels: z.array(z.string()),
+  }),
+  defaultConfig: {
+    prompt: "",
+    required: true,
+    points: 7,
+    leftLabels: ["Bad", "Weak"],
+    rightLabels: ["Good", "Strong"],
+  },
+  jsonSchema: {
+    type: "object",
+    properties: {
+      prompt: { type: "string" },
+      required: { type: "boolean" },
+      points: { type: "integer", minimum: 2, maximum: 11 },
+      leftLabels: { type: "array", items: { type: "string" } },
+      rightLabels: { type: "array", items: { type: "string" } },
+    },
+    required: ["prompt", "leftLabels", "rightLabels"],
+    additionalProperties: false,
+  },
+  collectsResponse: true,
+  responseSchema: z.object({ values: z.record(z.string(), z.number()) }),
+  isAnswerEmpty: (a) => Object.keys(valuesObj(a)).length === 0,
+  validateAnswer: (a, c) => {
+    const vals = valuesObj(a);
+    const points = typeof c.points === "number" ? c.points : 7;
+    for (const v of Object.values(vals)) {
+      if (typeof v !== "number" || !Number.isInteger(v) || v < 1 || v > points) return false;
+    }
+    if (c.required === true) {
+      const left = Array.isArray(c.leftLabels) ? c.leftLabels.length : 0;
+      const right = Array.isArray(c.rightLabels) ? c.rightLabels.length : 0;
+      const pairs = Math.min(left, right);
+      for (let i = 0; i < pairs; i++) if (typeof vals[String(i)] !== "number") return false;
+    }
+    return true;
+  },
+  isComplete: (c) =>
+    typeof c.prompt === "string" &&
+    c.prompt.trim().length > 0 &&
+    Array.isArray(c.leftLabels) &&
+    c.leftLabels.length > 0 &&
+    Array.isArray(c.rightLabels) &&
+    c.rightLabels.length > 0,
+};
+
 export const MODULE_REGISTRY: CoreModuleDef[] = [
   npsBlock,
   ratingStarsBlock,
   vasBlock,
+  matrixGridBlock,
+  semanticDifferentialBlock,
   textBlock,
   imageBlock,
   videoBlock,

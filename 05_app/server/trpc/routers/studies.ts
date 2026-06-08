@@ -247,6 +247,11 @@ function stringifyAnswer(answer: unknown): string {
     const a = answer as Record<string, unknown>;
     if (typeof a.value === "number") return String(a.value);
     if (typeof a.value === "string") return a.value; // email/url/date/dropdown/yes-no (V1.12 C2)
+    if (a.values && typeof a.values === "object")
+      // matrix-grid / semantic-differential (V1.12 Wave 3): "0=Agree; 1=Neutral"
+      return Object.entries(a.values as Record<string, unknown>)
+        .map(([k, v]) => `${k}=${v}`)
+        .join("; ");
     if (Array.isArray(a.selected)) return a.selected.map(String).join("; ");
     if (Array.isArray(a.order)) return a.order.map(String).join(" > ");
     if (typeof a.text === "string") return a.text;
