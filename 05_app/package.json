@@ -15,6 +15,7 @@
     "db:migrate:prod": "tsx scripts/migrate-prod.ts",
     "db:seed": "tsx server/db/seed.ts",
     "db:seed:prod": "tsx scripts/seed-prod.ts",
+    "db:seed:demo": "tsx scripts/seed-demo-workspace.ts",
     "test": "vitest run",
     "test:e2e": "playwright test --project=chromium",
     "test:e2e:auth": "RUN_AUTH_E2E=1 playwright test --project=auth",
