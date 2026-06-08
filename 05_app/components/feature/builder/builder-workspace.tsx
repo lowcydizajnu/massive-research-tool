@@ -4,7 +4,13 @@ import { GripVertical, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { move } from "@/lib/whiteboard/reorder";
-import { normalizeCondition, summarizeCondition } from "@/lib/whiteboard/conditions";
+import {
+  clausesBrokenByOrder,
+  conditionWithSources,
+  summarizeClause,
+  summarizeCondition,
+} from "@/lib/whiteboard/conditions";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 import { StageTabs } from "@/components/chrome/stage-tabs";
 import { ConditionBuilder } from "@/components/feature/whiteboard/condition-builder";
@@ -97,19 +103,30 @@ export function BuilderWorkspace({
   const setCondition = api.studies.setBlockCondition.useMutation({ onSuccess: () => void invalidate() });
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [overIdx, setOverIdx] = useState<number | null>(null);
+  const [pendingReorder, setPendingReorder] = useState<{ order: string[]; items: string[] } | null>(null);
+  const nameOf = (id: string) => {
+    const b = study.blocks.find((x) => x.instanceId === id);
+    return b ? b.title?.trim() || b.name : id;
+  };
+  const requestReorder = (order: string[]) => {
+    const byId = new Map(study.blocks.map((b) => [b.instanceId, b]));
+    const ordered = order.map((id) => byId.get(id)).filter(Boolean) as typeof study.blocks;
+    const broken = clausesBrokenByOrder(ordered);
+    if (broken.length === 0) {
+      reorderBlocks.mutate({ studyId: study.id, order });
+      return;
+    }
+    setPendingReorder({
+      order,
+      items: broken.map((b) => `"${nameOf(b.targetId)}": ${summarizeClause(b.clause, nameOf)}`),
+    });
+  };
   const dropAt = (to: number) => {
     const from = dragIdx;
     setDragIdx(null);
     setOverIdx(null);
     if (from === null || from === to) return;
-    reorderBlocks.mutate({
-      studyId: study.id,
-      order: move(study.blocks, from, to).map((b) => b.instanceId),
-    });
-  };
-  const nameOf = (id: string) => {
-    const b = study.blocks.find((x) => x.instanceId === id);
-    return b ? b.title?.trim() || b.name : id;
+    requestReorder(move(study.blocks, from, to).map((b) => b.instanceId));
   };
 
   const selected = study.blocks.find((b) => b.instanceId === selectedId) ?? null;
@@ -192,7 +209,14 @@ export function BuilderWorkspace({
                           block={b}
                           selected={b.instanceId === selectedId}
                           onSelect={() => setSelectedId(b.instanceId)}
-                          conditionLabel={summarizeCondition(normalizeCondition(b.showIf, b.branchRules), nameOf)}
+                          conditionLabel={summarizeCondition(
+                            conditionWithSources(
+                              b.showIf,
+                              b.branchRules,
+                              new Set(study.blocks.slice(0, i).map((x) => x.instanceId)),
+                            ),
+                            nameOf,
+                          )}
                         />
                       </div>
                     </div>
@@ -399,6 +423,20 @@ export function BuilderWorkspace({
           {savedMsg}
         </div>
       ) : null}
+
+      <ConfirmDialog
+        open={pendingReorder !== null}
+        title="Reordering will remove some conditions"
+        body="These conditions point at blocks that would no longer come earlier in the flow, so they’ll be removed:"
+        items={pendingReorder?.items ?? []}
+        confirmLabel="Reorder and remove"
+        tone="danger"
+        onConfirm={() => {
+          if (pendingReorder) reorderBlocks.mutate({ studyId: study.id, order: pendingReorder.order });
+          setPendingReorder(null);
+        }}
+        onCancel={() => setPendingReorder(null)}
+      />
     </>
   );
 }

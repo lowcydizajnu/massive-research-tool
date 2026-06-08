@@ -4,7 +4,7 @@ import { GripVertical } from "lucide-react";
 import { useState } from "react";
 
 import { move } from "@/lib/whiteboard/reorder";
-import { normalizeCondition, summarizeCondition } from "@/lib/whiteboard/conditions";
+import { conditionWithSources, summarizeCondition } from "@/lib/whiteboard/conditions";
 import { cn } from "@/lib/utils";
 import type { StudyBlock } from "@/server/trpc/routers/studies";
 
@@ -117,7 +117,11 @@ export function WhiteboardList({
                 </span>
               ) : null}
               {(() => {
-                const summary = summarizeCondition(normalizeCondition(b.showIf, b.branchRules), nameOf);
+                const earlier = new Set(blocks.slice(0, i).map((x) => x.instanceId));
+                const summary = summarizeCondition(
+                  conditionWithSources(b.showIf, b.branchRules, earlier),
+                  nameOf,
+                );
                 return summary ? (
                   <span className="rounded-full bg-[var(--color-primary-subtle)] px-1.5 py-0.5 text-[length:var(--text-small)] text-[var(--color-primary-text-on-subtle)]">
                     Shown if {summary}

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   answerValues,
+  clausesBrokenByOrder,
+  conditionWithSources,
   evaluateClause,
   evaluateCondition,
   normalizeCondition,
@@ -103,5 +105,37 @@ describe("flat 'answered' link + summary (V1.10.1)", () => {
     };
     expect(summarizeCondition(g, nameOf)).toBe("Post 1 is answered OR Q2 is at least 5");
     expect(summarizeCondition(null, nameOf)).toBeNull();
+  });
+});
+
+describe("source validity (reorder consistency, V1.10.2)", () => {
+  const showIf: ConditionGroup = {
+    op: "or",
+    clauses: [
+      { fromInstanceId: "a", operator: "answered", value: [] },
+      { fromInstanceId: "c", operator: "eq", value: ["x"] },
+    ],
+  };
+  it("conditionWithSources keeps only allowed (earlier) sources", () => {
+    expect(conditionWithSources(showIf, null, new Set(["a", "c"]))?.clauses).toHaveLength(2);
+    expect(conditionWithSources(showIf, null, new Set(["a"]))?.clauses).toEqual([
+      { fromInstanceId: "a", operator: "answered", value: [] },
+    ]);
+    expect(conditionWithSources(showIf, null, new Set())).toBeNull();
+  });
+  it("clausesBrokenByOrder flags clauses whose source is not earlier", () => {
+    // Order: target 'b' references 'a' (earlier, ok) and 'c' (later, broken).
+    const broken = clausesBrokenByOrder([
+      { instanceId: "a" },
+      { instanceId: "b", showIf },
+      { instanceId: "c" },
+    ]);
+    expect(broken).toHaveLength(1);
+    expect(broken[0]).toMatchObject({ targetId: "b", clause: { fromInstanceId: "c" } });
+  });
+  it("nothing broken when every source is earlier", () => {
+    expect(
+      clausesBrokenByOrder([{ instanceId: "a" }, { instanceId: "c" }, { instanceId: "b", showIf }]),
+    ).toHaveLength(0);
   });
 });

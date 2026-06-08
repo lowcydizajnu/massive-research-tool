@@ -10,7 +10,7 @@ import {
   response,
   responseItem,
 } from "@/server/db/schema";
-import { evaluateCondition, normalizeCondition } from "@/lib/whiteboard/conditions";
+import { conditionWithSources, evaluateCondition } from "@/lib/whiteboard/conditions";
 import { readBlocks, type BlockInstance } from "@/server/modules/blocks";
 import { getModuleDef } from "@/server/modules/registry";
 
@@ -72,15 +72,6 @@ export function answerMatches(answer: unknown, equals: string): boolean {
   return answerValues(answer).includes(equals);
 }
 
-/**
- * Answer-based visibility (ADR-0021 + amendment): evaluate the block's `showIf`
- * condition tree (or legacy `branchRules`, converted) against the answers
- * recorded so far. Flat / absent → always visible. Rules reference earlier
- * blocks, so their answers exist by the time the dependent block is reached.
- */
-function branchVisible(block: RuntimeBlock, answers: Record<string, unknown>): boolean {
-  return evaluateCondition(normalizeCondition(block.showIf, block.branchRules), answers);
-}
 
 /**
  * The blocks a participant actually sees given their arm AND the answers
@@ -91,9 +82,17 @@ export function resolveVisibleBlocks(
   conditionSlug: string,
   answers: Record<string, unknown>,
 ): RuntimeBlock[] {
-  return (readBlocks(snapshot) as RuntimeBlock[]).filter(
-    (b) => isVisible(b, conditionSlug) && branchVisible(b, answers),
-  );
+  const all = readBlocks(snapshot) as RuntimeBlock[];
+  const earlier = new Set<string>(); // instanceIds positionally before the current block
+  const out: RuntimeBlock[] = [];
+  for (const b of all) {
+    // Only clauses referencing earlier blocks count — a "forward" clause (e.g.
+    // left over after a reorder) is invalid and ignored (ADR-0021 amendment).
+    const cond = conditionWithSources(b.showIf, b.branchRules, earlier);
+    if (isVisible(b, conditionSlug) && evaluateCondition(cond, answers)) out.push(b);
+    earlier.add(b.instanceId);
+  }
+  return out;
 }
 
 /** Recorded answers for a response, keyed by block instanceId (for branching). */

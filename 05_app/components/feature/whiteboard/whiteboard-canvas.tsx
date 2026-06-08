@@ -19,7 +19,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { api } from "@/lib/trpc/react";
 import { conditionNodeId } from "@/lib/whiteboard/graph";
-import { OPERATOR_LABELS, normalizeCondition } from "@/lib/whiteboard/conditions";
+import { OPERATOR_LABELS, conditionWithSources } from "@/lib/whiteboard/conditions";
 import type { StudyDetail } from "@/server/trpc/routers/studies";
 
 import { BlockNode, ConditionNode } from "./whiteboard-nodes";
@@ -100,10 +100,12 @@ export function WhiteboardCanvas({
           markerEnd: { type: MarkerType.ArrowClosed },
         })),
       ),
-      // Answer-based condition wires (block → block) from the effective condition
-      // (showIf, else legacy branchRules), one per clause, labelled op + value.
-      ...study.blocks.flatMap((b) => {
-        const cond = normalizeCondition(b.showIf, b.branchRules);
+      // Answer-based condition wires (block → block) from the effective condition,
+      // one per clause, labelled op + value. Only clauses from EARLIER blocks are
+      // valid (a forward clause left by a reorder is ignored — stays consistent).
+      ...study.blocks.flatMap((b, bi) => {
+        const earlier = new Set(study.blocks.slice(0, bi).map((x) => x.instanceId));
+        const cond = conditionWithSources(b.showIf, b.branchRules, earlier);
         return (cond?.clauses ?? []).map((c, i) => ({
           id: `b:${c.fromInstanceId}->${b.instanceId}:${i}`,
           source: c.fromInstanceId,
