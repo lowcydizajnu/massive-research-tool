@@ -16,15 +16,17 @@ import { SortableList } from "./sortable-list";
  */
 export function WhiteboardList({
   blocks,
+  groups = [],
   selectedId,
   onSelect,
   onReorder,
 }: {
   blocks: StudyBlock[];
+  groups?: { id: string; title?: string }[];
   selectedId: string | null;
   onSelect: (instanceId: string) => void;
-  /** Commit a new block order (drag-to-reorder). */
-  onReorder?: (order: string[]) => void;
+  /** Commit a new block order (drag-to-reorder). `movedId` = the dragged block. */
+  onReorder?: (order: string[], movedId: string) => void;
 }) {
   const nameOf = (id: string) => {
     const b = blocks.find((x) => x.instanceId === id);
@@ -44,7 +46,7 @@ export function WhiteboardList({
   return (
     <SortableList
       ids={blocks.map((b) => b.instanceId)}
-      onReorder={(ids) => onReorder?.(ids)}
+      onReorder={(ids, movedId) => onReorder?.(ids, movedId)}
       ariaLabel="Study blocks"
       className="flex flex-col gap-2"
     >
@@ -55,10 +57,20 @@ export function WhiteboardList({
         const active = b.instanceId === selectedId;
         const earlier = new Set(blocks.slice(0, i).map((x) => x.instanceId));
         const summary = summarizeCondition(conditionWithSources(b.showIf, b.branchRules, earlier), nameOf);
+        const grouped = !!b.groupId;
+        const groupStart = grouped && (i === 0 || blocks[i - 1].groupId !== b.groupId);
+        const groupTitle = grouped ? groups.find((g) => g.id === b.groupId)?.title : null;
         return (
+          <div className="flex flex-col gap-2">
+            {groupStart ? (
+              <span className="pl-1 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                ⊞ {groupTitle || "Group"}
+              </span>
+            ) : null}
           <div
             className={cn(
               "flex items-stretch gap-1 rounded-[var(--radius-md)] border",
+              grouped && "ml-2 border-l-2 border-l-[var(--color-primary)]",
               active
                 ? "border-l-2 border-l-[var(--color-primary)] border-[var(--color-border-subtle)] bg-[var(--color-primary-subtle)]"
                 : "border-[var(--color-border-subtle)] hover:bg-[var(--color-surface-subtle)]",
@@ -104,6 +116,7 @@ export function WhiteboardList({
                 </span>
               ) : null}
             </button>
+          </div>
           </div>
         );
       }}
