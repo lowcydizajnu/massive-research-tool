@@ -115,6 +115,54 @@ export function BuilderWorkspace({
   const { canUndo, canRedo, undo, redo } = useBlockHistory(study.id, study.blocks, (blocks) =>
     setBlocksMut.mutate({ studyId: study.id, blocks }),
   );
+  const setGroupsMut = api.studies.setGroups.useMutation({ onSuccess: () => void invalidate() });
+
+  // Convert the read-shaped StudyBlock back to the write (BlockInstance) shape.
+  const toInstance = (b: StudyBlock, groupId: string | null) => ({
+    instanceId: b.instanceId,
+    source: b.source,
+    key: b.key,
+    version: b.version,
+    config: b.config,
+    ...(b.title ? { title: b.title } : {}),
+    ...(b.showIfCondition.length ? { visibility: { showIfCondition: b.showIfCondition } } : {}),
+    ...(b.branchRules.length ? { branchRules: b.branchRules } : {}),
+    ...(b.showIf ? { showIf: b.showIf } : {}),
+    ...(groupId ? { groupId } : {}),
+  });
+  /** Persist a groupId override for one block + recompute the groups[] metadata. */
+  const persistGroupChange = (changedId: string, newGroupId: string | null, newGroup?: { id: string; title: string }) => {
+    const blocks = study.blocks.map((b) =>
+      toInstance(b, b.instanceId === changedId ? newGroupId : b.groupId),
+    );
+    const usedIds = new Set(blocks.map((b) => b.groupId).filter(Boolean) as string[]);
+    const groups = [
+      ...study.groups.filter((g) => usedIds.has(g.id)),
+      ...(newGroup && usedIds.has(newGroup.id) && !study.groups.some((g) => g.id === newGroup.id) ? [newGroup] : []),
+    ];
+    setGroupsMut.mutate({ studyId: study.id, blocks, groups });
+  };
+  const groupWithAbove = (i: number) => {
+    const above = study.blocks[i - 1];
+    const me = study.blocks[i];
+    if (!above || !me) return;
+    if (above.groupId) {
+      persistGroupChange(me.instanceId, above.groupId);
+    } else {
+      const id = crypto.randomUUID();
+      // Group both the block above (start the run) and this one.
+      const blocks = study.blocks.map((b) =>
+        toInstance(b, b.instanceId === above.instanceId || b.instanceId === me.instanceId ? id : b.groupId),
+      );
+      setGroupsMut.mutate({ studyId: study.id, blocks, groups: [...study.groups, { id, title: "Group" }] });
+    }
+  };
+  const ungroup = (id: string) => persistGroupChange(id, null);
+  const renameGroup = (groupId: string, title: string) => {
+    const blocks = study.blocks.map((b) => toInstance(b, b.groupId));
+    const groups = study.groups.map((g) => (g.id === groupId ? { ...g, title } : g));
+    setGroupsMut.mutate({ studyId: study.id, blocks, groups });
+  };
   const [pendingReorder, setPendingReorder] = useState<{ order: string[]; items: string[] } | null>(null);
   const nameOf = (id: string) => {
     const b = study.blocks.find((x) => x.instanceId === id);
@@ -225,31 +273,69 @@ export function BuilderWorkspace({
                   const i = study.blocks.findIndex((b) => b.instanceId === id);
                   const b = study.blocks[i];
                   if (!b) return null;
+                  const prev = study.blocks[i - 1];
+                  const grouped = !!b.groupId;
+                  const groupStart = grouped && (!prev || prev.groupId !== b.groupId);
+                  const group = grouped ? study.groups.find((g) => g.id === b.groupId) : null;
                   return (
-                    <div className="flex items-stretch gap-1">
-                      <span
-                        ref={handle.ref}
-                        {...handle.attributes}
-                        {...handle.listeners}
-                        aria-label="Drag to reorder"
-                        className="flex shrink-0 cursor-grab touch-none items-center rounded-[var(--radius-md)] px-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)] active:cursor-grabbing"
-                      >
-                        <GripVertical className="size-4" aria-hidden />
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <BlockCard
-                          block={b}
-                          selected={b.instanceId === selectedId}
-                          onSelect={() => setSelectedId(b.instanceId)}
-                          conditionLabel={summarizeCondition(
-                            conditionWithSources(
-                              b.showIf,
-                              b.branchRules,
-                              new Set(study.blocks.slice(0, i).map((x) => x.instanceId)),
-                            ),
-                            nameOf,
-                          )}
-                        />
+                    <div className="flex flex-col gap-2">
+                      {groupStart ? (
+                        <div className="flex items-center gap-2 pl-7">
+                          <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">⊞ Group screen</span>
+                          <input
+                            value={group?.title ?? ""}
+                            placeholder="Group title"
+                            onChange={(e) => renameGroup(b.groupId!, e.target.value)}
+                            className="rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-0.5 text-[length:var(--text-small)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+                          />
+                        </div>
+                      ) : null}
+                      <div className={cn("flex items-stretch gap-1", grouped && "border-l-2 border-[var(--color-primary)] pl-2")}>
+                        <span
+                          ref={handle.ref}
+                          {...handle.attributes}
+                          {...handle.listeners}
+                          aria-label="Drag to reorder"
+                          className="flex shrink-0 cursor-grab touch-none items-center rounded-[var(--radius-md)] px-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)] active:cursor-grabbing"
+                        >
+                          <GripVertical className="size-4" aria-hidden />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <BlockCard
+                            block={b}
+                            selected={b.instanceId === selectedId}
+                            onSelect={() => setSelectedId(b.instanceId)}
+                            conditionLabel={summarizeCondition(
+                              conditionWithSources(
+                                b.showIf,
+                                b.branchRules,
+                                new Set(study.blocks.slice(0, i).map((x) => x.instanceId)),
+                              ),
+                              nameOf,
+                            )}
+                          />
+                        </div>
+                        <div className="flex shrink-0 items-center">
+                          {grouped ? (
+                            <button
+                              type="button"
+                              onClick={() => ungroup(b.instanceId)}
+                              title="Remove from group"
+                              className="rounded-[var(--radius-sm)] px-1.5 py-1 text-[length:var(--text-small)] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)]"
+                            >
+                              Ungroup
+                            </button>
+                          ) : i > 0 ? (
+                            <button
+                              type="button"
+                              onClick={() => groupWithAbove(i)}
+                              title="Show on the same screen as the block above"
+                              className="rounded-[var(--radius-sm)] px-1.5 py-1 text-[length:var(--text-small)] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)]"
+                            >
+                              Group ↑
+                            </button>
+                          ) : null}
+                        </div>
                       </div>
                     </div>
                   );

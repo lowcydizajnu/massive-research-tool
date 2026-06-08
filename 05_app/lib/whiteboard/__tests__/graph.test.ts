@@ -17,6 +17,7 @@ function block(partial: Partial<StudyBlock> & { instanceId: string }): StudyBloc
     showIfCondition: [],
     branchRules: [],
     showIf: null,
+    groupId: null,
     ...partial,
   };
 }
