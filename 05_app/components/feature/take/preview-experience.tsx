@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { BlockView } from "@/components/feature/take/block-view";
 import { Card, PreviewRibbon } from "@/components/feature/take/parts";
+import { PreviewShareMenu } from "@/components/feature/take/preview-share-menu";
 import { cn } from "@/lib/utils";
 import type { RuntimeBlock } from "@/server/runtime/participant";
 
@@ -76,6 +77,7 @@ export function PreviewExperience({
           ))}
         </div>
         <div className="flex-1" />
+        <PreviewShareMenu studyId={studyId} />
         <a
           href={`/studies/${studyId}/preview`}
           target="_blank"

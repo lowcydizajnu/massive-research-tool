@@ -3,6 +3,7 @@ import { followsRouter } from "@/server/trpc/routers/follows";
 import { frameworksRouter } from "@/server/trpc/routers/frameworks";
 import { modulesRouter } from "@/server/trpc/routers/modules";
 import { notificationsRouter } from "@/server/trpc/routers/notifications";
+import { previewTokensRouter } from "@/server/trpc/routers/preview-tokens";
 import { profileRouter } from "@/server/trpc/routers/profile";
 import { studiesRouter } from "@/server/trpc/routers/studies";
 import { workspaceRouter } from "@/server/trpc/routers/workspace";
@@ -17,6 +18,7 @@ export const appRouter = router({
   notifications: notificationsRouter,
   follows: followsRouter,
   profile: profileRouter,
+  previewTokens: previewTokensRouter,
 });
 
 export type AppRouter = typeof appRouter;

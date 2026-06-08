@@ -1,0 +1,60 @@
+import { createHash, randomBytes } from "node:crypto";
+
+import { and, eq, gt, isNull } from "drizzle-orm";
+
+import { db } from "@/server/db/client";
+import { experiment, experimentVersion, previewToken } from "@/server/db/schema";
+import { readBlocks } from "@/server/modules/blocks";
+import type { RuntimeBlock } from "@/server/runtime/participant";
+
+/** A fresh URL-safe preview token (the plaintext; shown once, never stored). */
+export function newPreviewToken(): string {
+  return randomBytes(24).toString("base64url"); // ~32 chars
+}
+
+/** SHA-256 hex of a token — what we persist + look up by. */
+export function hashPreviewToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+export type PreviewPayload = { title: string; blocks: RuntimeBlock[] };
+
+/**
+ * Resolve a public preview link (V1.12 I). Given a study id + plaintext token,
+ * returns the study's working-tip title + blocks **iff** a matching token row
+ * exists that is not revoked and not expired. No auth — the token IS the
+ * authorization. Returns null on any miss (invalid / expired / revoked / wrong
+ * study), so the route can show a single neutral "link not valid" page.
+ */
+export async function loadPreviewByToken(
+  studyId: string,
+  token: string,
+): Promise<PreviewPayload | null> {
+  if (!token) return null;
+  const hash = hashPreviewToken(token);
+  const [row] = await db
+    .select({ title: experiment.title, snapshot: experimentVersion.definitionSnapshot })
+    .from(previewToken)
+    .innerJoin(experiment, eq(experiment.id, previewToken.experimentId))
+    .innerJoin(experimentVersion, eq(experimentVersion.id, experiment.currentVersionId))
+    .where(
+      and(
+        eq(previewToken.tokenHash, hash),
+        eq(previewToken.experimentId, studyId),
+        isNull(previewToken.revokedAt),
+        gt(previewToken.expiresAt, new Date()),
+      ),
+    )
+    .limit(1);
+  if (!row) return null;
+
+  const blocks: RuntimeBlock[] = readBlocks(row.snapshot).map((b) => ({
+    instanceId: b.instanceId,
+    source: b.source,
+    key: b.key,
+    version: b.version,
+    config: b.config,
+    visibility: b.visibility,
+  }));
+  return { title: row.title, blocks };
+}

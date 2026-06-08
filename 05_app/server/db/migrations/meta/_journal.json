@@ -50,6 +50,13 @@
       "when": 1780912929033,
       "tag": "0006_unusual_thunderbolt_ross",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1780915242460,
+      "tag": "0007_even_lord_hawal",
+      "breakpoints": true
     }
   ]
 }

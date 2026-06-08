@@ -571,10 +571,36 @@ export const follow = pgTable(
   ],
 );
 
+/**
+ * Public preview tokens (V1.12 I). A signed, expiring, revocable link that lets
+ * someone WITHOUT an account view a draft study in preview mode (no responses
+ * recorded). Only the SHA-256 hash of the token is stored; the plaintext is
+ * shown once at creation and lives only in the shared URL.
+ */
+export const previewToken = pgTable(
+  "preview_token",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    experimentId: uuid("experiment_id")
+      .notNull()
+      .references(() => experiment.id),
+    /** SHA-256 of the plaintext token (hex). The plaintext is never stored. */
+    tokenHash: text("token_hash").notNull().unique(),
+    createdBy: uuid("created_by")
+      .notNull()
+      .references(() => user.id),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("idx_preview_token_experiment").on(t.experimentId)],
+);
+
 /* ---------- inferred types ---------- */
 
 export type User = typeof user.$inferSelect;
 export type NewUser = typeof user.$inferInsert;
+export type PreviewToken = typeof previewToken.$inferSelect;
 export type Workspace = typeof workspace.$inferSelect;
 export type NewWorkspace = typeof workspace.$inferInsert;
 export type Member = typeof member.$inferSelect;
