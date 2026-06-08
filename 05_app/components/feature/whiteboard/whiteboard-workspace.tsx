@@ -76,7 +76,16 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
     });
   };
   const setCondition = api.studies.setBlockCondition.useMutation({ onSuccess: () => void invalidate() });
-  const setBlocksMut = api.studies.setBlocks.useMutation({ onSuccess: () => void invalidate() });
+  // Bump on a restore (undo/redo) so the right-panel editors re-seed from the
+  // restored data — they hold local state keyed by block id, which is unchanged
+  // by a restore. Normal edits don't bump it, so typing isn't interrupted.
+  const [panelEpoch, setPanelEpoch] = useState(0);
+  const setBlocksMut = api.studies.setBlocks.useMutation({
+    onSuccess: () => {
+      void invalidate();
+      setPanelEpoch((e) => e + 1);
+    },
+  });
   const { canUndo, canRedo, undo, redo } = useBlockHistory(study.id, study.blocks, (blocks) =>
     setBlocksMut.mutate({ studyId: study.id, blocks }),
   );
@@ -250,7 +259,7 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
           {selected ? (
             <>
               <ConfigureForm
-                key={selected.instanceId}
+                key={`${selected.instanceId}-${panelEpoch}`}
                 block={selected}
                 pending={updateConfig.isPending || removeBlock.isPending}
                 onChange={(config) =>
@@ -265,7 +274,7 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
                 }}
               />
               <ConditionBuilder
-                key={`cond-${selected.instanceId}`}
+                key={`cond-${selected.instanceId}-${panelEpoch}`}
                 block={selected}
                 earlierBlocks={study.blocks.slice(0, study.blocks.findIndex((b) => b.instanceId === selected.instanceId))}
                 pending={setCondition.isPending}
@@ -274,6 +283,7 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
                 }
               />
               <BlockVisibilityField
+                key={`vis-${selected.instanceId}-${panelEpoch}`}
                 studyId={study.id}
                 instanceId={selected.instanceId}
                 current={selected.showIfCondition}
