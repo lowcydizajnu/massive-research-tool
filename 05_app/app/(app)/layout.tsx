@@ -43,7 +43,12 @@ export default async function AppLayout({
     <TRPCReactProvider>
       <NewStudyProvider>
         <div className="flex min-h-screen flex-col gap-3 bg-[var(--color-surface-page)] p-3">
-          <TopBar workspaceName={workspace.name} userInitials={initials} />
+          <TopBar
+            workspaceName={workspace.name}
+            userInitials={initials}
+            displayName={user?.displayName ?? null}
+            email={user?.email ?? null}
+          />
           {/* Each surface composes the area right of the rail (Studies = one
               work-surface card; Builder = stage pill + work surface + right panel). */}
           <div className="flex flex-1 gap-3">
