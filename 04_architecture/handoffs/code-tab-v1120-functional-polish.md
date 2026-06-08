@@ -1,10 +1,10 @@
-# Code tab handoff — V1.12 functional-polish bundle
+# Code tab handoff — V1.12 functional-polish bundle (updated 2026-06-08)
 
 V1.11.3 is the latest tagged release (right-panel re-seed-after-undo/redo). Project owner has identified a large bundle of functional gaps the tool needs before V1.13 (Participants + Prolific) and V2.0 (AI features). This handoff bundles them as **V1.12 — functional polish**, with each section self-contained so you can land them as separate PRs in whatever order makes sense.
 
-**Total estimate: ~6-8 weeks Code-tab time** if all sections land before V1.12 tag, or split into V1.12.x sub-releases as appetite allows.
+**Total estimate: ~10-12 weeks Code-tab time** after owner's 2026-06-08 answers expanded Sections A3 (realistic-complex demo studies; ~1.5 weeks), C2 (full block-type catalogue with 15 new blocks + 6 meta affordances; ~3 weeks), and F (granular theme controls + 13 platform presets including FB / X / Instagram / TikTok / news / forum etc.; ~4 weeks). Code tab can land sections as separate PRs + ship V1.12.0 / V1.12.1 / ... sub-releases as items mature; one V1.12 audit log + tag at the end of the bundle OR per-sub-release.
 
-**Order this is written in: roughly small-to-large.** Sections A-C are quick wins; D-F are medium; G-I are larger; J-K are my proposed additions to consider.
+**Order this is written in: roughly small-to-large.** Sections A-B are quick wins; C-E are medium; F is the biggest (visual theme + platform presets); G-K are smaller additions.
 
 ---
 
@@ -33,16 +33,51 @@ Wireframe gate: `03_design/wireframes/account-settings.md` (write it before the 
 
 ### A3. Demo data toggle in Settings
 
-Owner wants a way to "explore all functionalities" without manually creating content. Two-part fix:
+**Owner answer (2026-06-08):** generated but **realistic, not simple — mostly complex** — owner wants demo studies that exercise every functionality and show the app in a believable shape (so the tool can be evaluated against actual research scenarios, not Lorem Ipsum placeholders).
 
-- **In Settings → Workspace**, add a toggle: **"Show demo content."** When ON, the workspace surfaces inject a curated seeded set of studies, a sample preregistration, sample comments, sample replications, sample participants/responses. Per-user setting (Clerk `publicMetadata.demoMode = true`); resets to OFF on first real study creation.
-- Reuse the existing `scripts/seed-network-demo.ts` (the dev seeder); package it as a callable that runs ONCE for the workspace when the toggle is flipped on, prefixing every seeded entity with a `demo_` tag so they're filterable. Toggling OFF hides them from the UI but doesn't delete (so the user can flip back).
+- **In Settings → Workspace**, add a toggle: **"Show demo content."** When ON, the workspace surfaces inject a curated set of demo studies at varying complexity + realistic responses + comments + activity + replications. Per-workspace setting + reset switch.
+- Per-workspace flag `workspace.demo_seeded_at timestamptz` + `is_demo boolean DEFAULT false` on `experiment` / `experiment_version` / `response` / `response_item` / `comment` / `mention` / `notification` / `activity_event` / `follow`. Demo rows live in real tables but filtered out of real aggregates (e.g., `Browse` shows demo studies only when `demoMode = true`; production analytics never count them).
+- Toggle OFF hides demo content from UI but doesn't delete — researcher can flip back.
 
-Storage: a `demo_seeded_at timestamptz` column on `workspace` + a `is_demo boolean DEFAULT false` on `experiment`/`response`/`comment`/etc. so the demo content can be filtered out of real research aggregates.
+**Curated demo studies to author** (~6-8 studies covering full complexity range):
 
-Onboarding hook: new sign-ups land on `/studies` with the demo content already on by default; an empty-state banner says "Showing demo content — toggle off in Settings → Workspace once you start your own studies."
+1. **"What makes a headline credible?"** (Hanna's misinformation study — the canonical Pennycook-style example we've been referencing throughout the build). 12 blocks. Two conditions (control vs warning-labeled headlines). Likert + multiple-choice + free-text + attention-check + demographics. Preregistered to OSF with a realistic abstract. ~200 fake completed responses across both conditions. Comments + 2 replications. Status: **preregistered + running**.
 
-ADR needed? Small — `ADR-0023 — demo-data semantics` could record the "demo-tagged rows live in real tables, hidden by filter, never deleted" pattern. Optional; this could just live in a comment in the seed script.
+2. **"Brand affinity NPS — Q3 2026 pulse"** — simple consumer research NPS survey. 5 blocks. NPS + multiple-choice + dropdown (industry) + free-text follow-up + demographics. Published (no preregistration). ~150 fake responses. Status: **published + closed**.
+
+3. **"Pilot: Conjoint analysis of laptop preferences"** — research pilot with the new conjoint/MaxDiff block (when shipped). 8 blocks. Demographics + multiple ranking trials + reaction time. Conditions: 3 random orderings. Comments showing back-and-forth between co-authors. ~30 responses (small pilot). Status: **published pilot, draft for full study**.
+
+4. **"Longitudinal: Daily mood + sleep" (Wave 1)** — multi-wave study setup. 6 blocks per wave (likert + slider + audio recording + free-text). Branching: only show fatigue questions if sleep < 6h. ~80 responses across 5 days. Status: **preregistered + running** (Wave 1 of planned 3).
+
+5. **"Voting intent + social media exposure"** — politically-charged study using the social-post block + new media blocks. 15 blocks. Multiple conditions × media exposure design. AND/OR conditioning (V1.10). Sensitive demographics with prefer-not-to-say everywhere. Multiple replications by other workspaces (cross-workspace forks per ADR-0018). Status: **preregistered, awaiting OSF approval**.
+
+6. **"Replication: Pennycook 2021"** — Sofia's replication of study #1 above. Forked from Hanna's study; small variations (different stimuli set). Demonstrates the replications navigation flow. Status: **preregistered + running**.
+
+7. **"Draft: Influence of TikTok recommendation on attitude"** — work-in-progress; in Builder. Half-filled. Shows what a study looks like mid-construction. Status: **draft, unsaved changes**.
+
+8. **"Archived: Failed pilot — needs redesign"** — archived study showing the archive state.
+
+**Each demo study includes:**
+- Realistic title + abstract written in researcher's voice (not "Demo Study #3")
+- 5-15 blocks of various module types using V1.6's 9 modules + the new V1.12 blocks
+- Conditions defined where appropriate (using V1.10's AND/OR builder)
+- Branching/skip rules (V1.9.0)
+- 30-300 fake responses (cluster-sampled from realistic distributions — likert responses skewed by condition, demographics matching real population estimates)
+- Comments from "Maya Okonkwo" + "Hanna Kowalczyk" + "Sofia Marsh" reviewing each other's work (the personas from `02_product/personas/`)
+- Activity events emitted properly so the Activity destination shows real-feeling activity
+- For preregistered studies: a fake OSF DOI in the format `10.17605/OSF.IO/<fake>` + a note in the UI that this is demo (links don't resolve)
+
+**Implementation approach:**
+- New file `scripts/seed-demo-workspace.ts` (separate from `seed-network-demo.ts` which is for dev e2e). Imports realistic block configs from a `scripts/demo-studies/` directory — each demo study is a `.ts` file exporting its definition.
+- Idempotent: first run seeds + records `workspace.demo_seeded_at`; subsequent runs no-op (researcher can `Reset demo content` to re-seed).
+- Fake-response generator: per-block-type plausible-distribution sampler (likert ~ normal(4, 1.2); free-text picked from a curated 20-line pool per block; demographics matched to real US/global distributions per Census/Pew data).
+- Audio recordings (when that block ships): use a curated set of 5-second public-domain audio clips for the demo responses. License-clean.
+
+ADR-0023 — Demo-data semantics (write at scaffold time). Captures: demo rows live in real tables filtered by `is_demo`; never counted in production aggregates; never federated to Browse for non-demo viewers; never push to real OSF.
+
+Wireframe gate: `03_design/wireframes/settings-workspace.md` — where the toggle lives + the "Reset demo content" affordance.
+
+Estimate: ~1.5 weeks (authoring the 6-8 studies is the bulk; ~2-3 days per study at quality bar).
 
 ### A4. Preview tab opens as modal or new tab (not inline)
 
@@ -122,27 +157,82 @@ Auto-freeze on preregistration: per ADR-0003, when a study preregisters, all int
 
 `isAnswerEmpty`: returns true (no answer to be empty about).
 
-### C2. More block types (TBD per owner screenshots)
+### C2. More block types (owner screenshot received 2026-06-08; full spec below)
 
-Owner: "Adding more blocks types - attached screenshots."
+Owner sent the Typeform "Add form elements" panel as the target. ~30 elements shown; below is the breakdown of which become MRT blocks for V1.12, which become study-level settings (not blocks), which are research-specific additions beyond the screenshot, and which are out of scope.
 
-**No screenshots attached to the message** — please send them and I'll spec each block type. Likely candidates based on common survey tools:
+Every new block follows the standard `CoreModuleDef` shape from ADR-0001: `key`, `version`, `responseSchema`, `isAnswerEmpty`, optional `validateAnswer`, Builder Configure form, participant runtime render, results summarization in `getResults`, CSV column extraction. Tests per block.
 
-- **Likert grid / matrix** (multiple rows × likert columns; common in Big Five personality batteries, satisfaction surveys)
-- **NPS (Net Promoter Score)** (0-10 scale with specific labeling; widely used)
-- **Semantic differential** (bipolar adjective pairs, e.g., "weak ↔ strong" on a 7-point scale)
-- **File upload** (participant uploads a file — photo, voice recording, document)
-- **Date / time picker**
-- **Number input with unit** (e.g., "$_____ per week")
-- **Slider matrix** (multiple sliders on one screen)
-- **Conjoint / discrete choice** (research-specific, more niche)
-- **Open-ended audio recording** (browser MediaRecorder API)
-- **Reaction time task** (precise-timing JS module)
-- **MaxDiff / best-worst scaling**
+**Group 1 — Standard form blocks** (~10 days; each is ~0.5-1 day of work)
 
-Each new block needs the standard module shape: `responseSchema`, `isAnswerEmpty`, optional `validateAnswer`, Builder Configure form, participant runtime render, results summarization in `getResults`, CSV column extraction. Tests in the per-module path.
+| Block | `core/` key | `responseSchema` shape | Notes |
+|---|---|---|---|
+| Email | `email@1.0.0` | `{value: string (email format)}` | Format validation via Zod; optional double-entry confirm |
+| Phone Number | `phone@1.0.0` | `{value: string, country: ISO2}` | `libphonenumber-js` for parsing; per-country format hints |
+| Address | `address@1.0.0` | `{street, city, state, postal, country}` | Structured fields; optional autocomplete via a free address API later |
+| Website / URL | `url@1.0.0` | `{value: string (url format)}` | Format validation; optional Open Graph preview render in Results |
+| Contact Info | `contact@1.0.0` | `{name, email, phone?}` | Combined block for cases where researcher wants name+email+phone on one screen |
+| Number | `number@1.0.0` | `{value: number, unit?: string}` | Min/max validation; optional unit suffix ("$ per week"); decimal-precision setting |
+| Date | `date@1.0.0` | `{value: ISO8601 date}` | Min/max date; default-today option; optional time component (date+time variant) |
+| Yes/No | `yes-no@1.0.0` | `{value: 'yes' \| 'no'}` | Two big buttons; configurable as Yes/No or True/False or custom binary labels |
+| Dropdown | `dropdown@1.0.0` | `{selected: string}` | Single-select via native `<select>`; UX variant of multiple-choice for long option lists (10+); optional searchable |
+| Picture Choice | `picture-choice@1.0.0` | `{selected: string \| string[]}` | Image-based options; single or multi-select; uses ADR-0003 R2 upload for option images; researcher-deterministic option shuffle option |
 
-When owner sends the screenshots, write a fresh sub-handoff for each block listing the exact schema + UX.
+**Group 2 — Rating & ranking** (~3 days)
+
+| Block | `core/` key | `responseSchema` shape | Notes |
+|---|---|---|---|
+| NPS (Net Promoter Score) | `nps@1.0.0` | `{score: 0..10}` | 0-10 with "Not at all likely / Extremely likely" anchors; standard NPS labeling; Results auto-calculates Promoter/Passive/Detractor segments |
+| Rating (stars) | `rating-stars@1.0.0` | `{value: 1..N}` | Configurable 1-5, 1-7, 1-10 stars or hearts; half-star option; required vs optional |
+| Matrix / Likert grid | `matrix@1.0.0` | `{rows: Record<rowKey, scaleValue>}` | Multiple rows × likert columns; common in personality batteries (Big Five) + satisfaction surveys; per-row required toggle; row randomization option |
+
+**Group 3 — Research-specific** (~5 days; not in the Typeform screenshot but high-value for MRT users)
+
+| Block | `core/` key | `responseSchema` shape | Notes |
+|---|---|---|---|
+| Audio recording | `audio-record@1.0.0` | `{r2_key: string, duration_ms: number}` | Browser MediaRecorder; max-duration limit; R2 upload via ADR-0003; participant must consent (extra prompt before record) |
+| Reaction time | `reaction-time@1.0.0` | `{rt_ms: number, response: string}` | Precise JS timing for stimulus → response latency; client-side `performance.now()`; per-stimulus warmup option |
+| Visual analogue scale (VAS) | `vas@1.0.0` | `{value: 0..100}` | Slider variant with NO numeric markers (continuous unmarked scale); standard pain/mood research instrument |
+| Semantic differential | `semdiff@1.0.0` | `{value: 1..7}` | Bipolar adjective pairs (e.g., "weak ↔ strong" on 7-point); configurable anchor labels per pair |
+| MaxDiff / best-worst scaling | `maxdiff@1.0.0` | `{best: itemKey, worst: itemKey}` | From a set of N items, pick best AND worst; classic preference elicitation; multi-trial setup |
+
+**Group 4 — Out of scope V1.12** (defer or skip)
+
+- **File Upload** (general file, not specifically audio/image) — defer to V1.13; needs virus scanning + size limits + storage cost considerations beyond R2's hot tier. Note an ADR-amendment when adding.
+- **Signature** — defer; canvas-drawn signature has low research value (most consent uses checkbox); revisit if requested.
+- **Payment (Stripe)** — out of scope; not research-related; if a researcher needs to pay participants, Prolific handles that in V1.13.
+- **Scheduler** (calendar booking) — out of scope; Calendly-style booking is for interviews not surveys; revisit if owner needs it.
+- **Legal** — already covered by the consent screen at `/take/[studyId]/start` (V1.5) + the optional consent block in V1.12 Section G.
+- **Clarify with AI / FAQ with AI** — out of scope; these are V2.0 AI features per the roadmap.
+
+**Group 5 — Meta affordances** (not blocks; ~3-4 days)
+
+These are not modules; they're study-level settings or layout primitives.
+
+- **Welcome Screen** — study-level setting (in Overview tab from Section B1 OR a new "Intro" block kind). Researcher writes a title + subtitle + intro paragraph + "Start" button. Shown to participants before block #1. Storage: `experiment_version.welcome_screen jsonb` (rides with snapshot).
+- **End Screen** — study-level setting. Shown after the last block before the existing "Thank you" complete page (V1.5). Researcher writes a custom thank-you + optional redirect URL + optional debriefing text. Storage: `experiment_version.end_screen jsonb`.
+- **Multi-Question Page** — layout setting per block-group. Allow rendering N blocks on one scrollable page instead of one-per-page. Researcher toggles "Multi-question screen" on a group; participant sees them together. Conflicts with V1.5's "per-question SSR for analytics fidelity" (ADR-0013) → needs a small ADR amendment: per-screen routing still uses distinct URLs (`/take/.../q3-5` carries multiple blocks), preserving Clarity heatmaps at the screen level rather than per-question.
+- **Question Group** — grouping affordance in the Builder. Researcher wraps blocks in a group with a name + collapsible header. Pure UI organization; doesn't affect participant runtime by default unless paired with Multi-Question Page.
+- **Partial Submit Point** (save-and-continue-later) — defer; needs an anonymous-resume token + email-link mechanism not currently in the runtime; significant scope; revisit V1.13+.
+- **Redirect to URL** (after study completion) — study-level setting. Researcher provides a URL; participant is redirected after the End Screen. Standard for Prolific completion-code redirects. Storage: `experiment_version.redirect_url`.
+
+**Per-block standard work (every new block has):**
+1. Schema definition in `server/modules/registry.ts`
+2. `validateAnswer` for any non-trivial constraints
+3. `isAnswerEmpty` honest about empty states
+4. Builder Configure form fields
+5. Participant runtime render (mobile-responsive per Section K mini-list)
+6. Results summarization in `getResults` (sensible default; e.g., NPS = Promoter/Passive/Detractor segments)
+7. CSV column extraction in `stringifyAnswer`
+8. Unit tests for shape + extraction + summarization
+9. Re-seed the Neon production catalogue when shipping (per V1.7.2 hotfix pattern)
+
+**Per-block ADR consideration:**
+- Picture Choice + Audio recording need ADR-0003 R2 upload wiring + virus-scan policy.
+- Reaction time needs an ADR-amendment to ADR-0013 (client-side timing escape hatch; precision guarantees).
+- MaxDiff needs an ADR for multi-trial setup semantics (how trials relate to a single `response_item` row).
+
+**Estimate for Section C2 expanded: ~3 weeks** (was ~1 week before screenshots). Code tab can ship in waves: Group 1 → Group 2 → Group 3 → meta affordances. Group 1 alone is huge value.
 
 ---
 
@@ -231,24 +321,122 @@ ADR-0023 (or similar) — `Replication graph queries + depth limits` — recursi
 
 ---
 
-## Section F — Visual theme / layout editor (~2-3 weeks; the biggest item)
+## Section F — Visual theme / layout editor (~4 weeks; the biggest item)
 
 Owner: "Design of research should be determined by researcher because everything need to be controlled by researcher. We should add some visual editor for entire research, theme or layout (like default survey or Facebook platform)."
 
-This is **researcher-controlled per-study theming + layout**. Decoupled from the workspace-level design language (warm parchment + Plex Serif), each study can ship to participants with a custom appearance.
+**Owner answer (2026-06-08):** "More granular — primitives might be good start point — but for some reason researchers want to have more granular control to keep study more accurate and reduce some noise which might affect the outcomes. Also we should add some defined layouts like social media (FB, X, Instagram, TikTok), news pages, business portal, lifestyle website, forum, blog..."
 
-### F1. Theme primitives
+The owner's point about **ecological validity** is research-critical: a study about misinformation on Facebook is more believable if participants see something that LOOKS like Facebook. The platform presets aren't just cosmetic — they're a methodological feature that reduces "research-context noise" (participants behaving differently because the study LOOKS like a survey rather than the real platform being studied).
 
-A study's theme is a record of overridable CSS tokens (per ADR-0007's adapter discipline — vendor styling stays isolated):
+This is **researcher-controlled per-study theming + layout** with deep granularity + platform-mimicking presets. Decoupled from the workspace-level design language (warm parchment + Plex Serif), each study can ship to participants with a custom appearance — including UI that visually mimics a target platform.
 
-- **Brand colors**: primary, accent, background, text (4 colors at minimum)
-- **Typography**: heading font, body font (curated list of ~8 web-safe + Google Fonts options)
-- **Logo / favicon**: optional image upload (R2 per ADR-0003)
-- **Border radius**, **shadow depth** (one of 3-4 visual styles: minimal / soft / sharp / playful)
-- **Background pattern** (subtle: dots / lines / blank / parchment / gradient)
-- **Footer text** (researcher-customizable; replaces the default "Powered by Massive Research Tool")
+### F1. Theme primitives (granular, per owner)
 
-Stored as `experiment_version.theme` (jsonb on the version; rides with the snapshot per ADR-0012; preregistered versions freeze the theme).
+A study's theme is a record of overridable CSS tokens (per ADR-0007's adapter discipline — vendor styling stays isolated). The full surface, granular for research-grade control:
+
+**Colors (8 tokens):**
+- Primary brand
+- Secondary / accent
+- Page background
+- Surface (card/panel background)
+- Text primary
+- Text muted
+- Border
+- Success / Error / Warning (semantic colors)
+
+**Typography (5 controls):**
+- Heading font (curated list ~12 options: Plex Serif / Plex Sans / Inter / Helvetica / Arial / Georgia / Times / Roboto / Open Sans / Lato / Source Sans / system-ui)
+- Body font (same list)
+- Mono font (Plex Mono / SF Mono / Menlo / Courier)
+- Base size (12-18px)
+- Line height (1.3 / 1.5 / 1.7)
+
+**Layout (6 controls):**
+- Container width (narrow 480px / medium 640px / wide 800px / full)
+- Per-question screen vs multi-question screen (paired with C2 Group 5)
+- Progress indicator (percentage bar / step counter / dot pagination / none)
+- Navigation buttons (Back+Next / Next only / keyboard-only)
+- Question alignment (centered / left)
+- Block density (compact / normal / spacious — controls padding between blocks)
+
+**Visual primitives (5 controls):**
+- Border radius (sharp 0 / soft 4 / rounded 8 / pill 16+)
+- Shadow depth (none / subtle / soft / pronounced)
+- Background pattern (blank / dots / lines / grid / parchment / custom-upload)
+- Button style (filled / outlined / ghost / underline)
+- Input style (bordered / underlined / filled / minimal)
+
+**Branding (3 controls):**
+- Logo (R2 upload per ADR-0003; rendered top-left of every page)
+- Favicon (R2 upload; injected as `<link rel="icon">` on `/take/*` routes)
+- Footer text (markdown; default "Powered by Massive Research Tool" — researcher can override or remove on paid plans)
+
+**Per-block-type overrides (granular control owner asked for):**
+Each block type exposes 3-5 styling slots researcher can override:
+- Multiple choice / Picture choice: option style (cards / list / pills), selected highlight, option font
+- Likert / Matrix: scale color (anchored on primary), label position (above / inline / below), row spacing
+- Slider / VAS: track color, thumb style, label position
+- Free text: input background, character counter visibility, placeholder style
+- Social-post / news/feed block: per-platform overrides (see F1.5 platform presets)
+
+Stored as `experiment_version.theme` (jsonb on the version; rides with the snapshot per ADR-0012; preregistered versions freeze the theme exactly so a replication years later renders identically).
+
+### F1.5. Platform layout presets (owner-requested 2026-06-08)
+
+Each preset is a **complete theme + layout + block-rendering bundle** that makes the participant runtime visually mimic a target platform. Critical for ecological-validity research where the "look" of the medium being studied matters.
+
+**Initial preset list:**
+
+1. **Academic** — current MRT default (warm parchment + Plex Serif + modular floating cards). Researcher-honest, neutral, "this is clearly a research instrument."
+2. **Clinical / Medical** — light blue + Inter + minimal cards + plain borders + "Powered by Massive Research Tool" removable. For health studies that need to look like NHS / Mayo Clinic / hospital intake forms.
+3. **Modern survey** — white + Inter + sharp corners + progress bar. For when "looks like Typeform/SurveyMonkey" is the desired baseline.
+4. **Playful** — light pastels + rounded + soft shadows + Comic-adjacent typography. For children / youth studies.
+5. **Facebook** — FB blue (#1877F2) header + Helvetica/Segoe + rounded white cards on light gray bg + FB-style block headers (avatar + name + timestamp). The `core/social-post` block renders as a real-looking FB post with like/comment/share buttons (UI only, non-functional). Critical for misinformation/social-media research.
+6. **X (Twitter)** — black bg + monochrome accent + condensed Helvetica + tweet-style cards with engagement icons (reply/repost/heart/views). Social-post block renders as a tweet thread.
+7. **Instagram** — gradient header (purple-pink-orange) + Helvetica + image-forward layout (large image area; small text below) + heart/comment/share icons. Picture-choice block emphasized over text.
+8. **TikTok** — black bg + bottom-up scroll feel + bright accent (#FE2C55) + heavy use of vertical video aspect ratios + emoji-heavy. Video block (when shipped) renders as fullscreen with side action bar.
+9. **News site** — newspaper-style with serif headline + sans-serif body + sidebar + byline + datestamp + "Subscribe" CTA (mocked). For headline-credibility research (the canonical use case).
+10. **Business portal** — corporate enterprise look: navy/gray + Inter + structured forms + multi-column layouts + "Submit to HR" CTA. For workplace surveys / B2B research.
+11. **Lifestyle website** — magazine-style + warm photography + serif/sans mix + ample whitespace. For wellness / lifestyle / consumer attitude research.
+12. **Forum** — Reddit/Discord-style threaded layout + monospace usernames + voting affordances. For online-community-behavior research.
+13. **Blog** — Medium-style: minimal + reading-focused + large headers + author byline + clap/share at bottom. For long-form attitude research.
+
+**How a preset is structured:**
+
+Each preset is a TypeScript module at `lib/themes/presets/<preset-key>.ts` exporting:
+```ts
+export const facebookPreset: ThemePreset = {
+  key: 'facebook',
+  name: 'Facebook',
+  description: 'Mimics the Facebook web feed.',
+  tokens: { /* the 22-token theme primitives above */ },
+  layout: { /* the layout primitives above */ },
+  blockOverrides: {
+    'core/social-post': FacebookSocialPostRenderer, // alternative React component
+    'core/multiple-choice': FacebookPollRenderer,    // looks like FB Poll
+    // … per block type
+  },
+  warnings: [
+    'Mimicking Facebook may affect participant trust; declare in your consent screen.',
+  ],
+};
+```
+
+The participant runtime checks `experiment_version.theme.preset_key` — when set, the runtime imports the preset module, applies its tokens as CSS variables, applies its layout settings, and uses its `blockOverrides` to swap in alternate block renderers where defined.
+
+**Choosing a preset doesn't lock the researcher in** — they can pick a preset as a baseline + override individual tokens / per-block-type styling on top. The Design stage shows preset + overrides separately so researchers can see what they've changed.
+
+**Methodological / ethical warnings per preset:**
+- The Design stage surfaces warnings when a researcher picks a mimicking preset (FB/X/Instagram/TikTok): "This preset mimics a real platform. Consider declaring this in your consent screen + with your IRB."
+- The preregistration narrative (B1 Overview tab) auto-includes the preset name as part of the design-section so the methodology is documented.
+
+**Preset budget for V1.12 ship:**
+- Academic + Clinical + Modern survey + Playful (the original 4) — non-mimicking; safer to ship; ~2 days total to author.
+- Facebook + X + News site + Business portal (the 4 highest-research-value mimicking presets) — ~1 day each to author + author-quality test.
+- Instagram + TikTok + Lifestyle + Forum + Blog (the rest) — could ship as a Wave 2 in V1.12.x sub-release if V1.12 timeline tightens.
+
+ADR-0024 (Section F5) covers the architectural locks for presets: preset module shape, block-override-renderer contract, security (still no scripts, no arbitrary CSS — preset modules are vetted-by-us code, not user content), and the methodological-warnings discipline.
 
 ### F2. Layout primitives
 
@@ -279,16 +467,21 @@ Plus an "Import from URL" feature: paste a URL, scrape the favicon + dominant co
 
 The participant runtime's root layout reads `experiment_version.theme + layout` and injects them as CSS variables on the page root. Per ADR-0013, this happens server-side in the per-question SSR render. No client-side theme switching for participants.
 
-### F5. ADR-0024 — Per-study theming
+### F5. ADR-0024 — Per-study theming + platform presets
 
 The architecture decision. Covers:
 
-- Theme + layout as jsonb on `experiment_version` (rides with the snapshot; preregistered = frozen theme).
-- Themes are version-scoped, not study-scoped — a researcher can A/B test "academic vs modern" by publishing two versions with different themes.
-- Branding limits (no scripts, no arbitrary CSS — only the curated token surface) so we can't be used as an attack vector against participants.
-- The workspace's design language (`tokens.css` + brief v0.6) stays the RESEARCHER-side language; per-study themes only affect the participant runtime.
+- **Theme + layout + preset_key** as jsonb on `experiment_version.theme` (rides with the snapshot per ADR-0012; preregistered = frozen theme exactly; replications years from now render identically).
+- **Themes are version-scoped, not study-scoped** — a researcher can A/B test "Facebook vs Academic" by publishing two versions with different presets + comparing engagement.
+- **Preset modules are vetted code we ship**, not user content. The `lib/themes/presets/*.ts` files are TypeScript modules in the repo; researchers pick from them but can't author new presets in V1.12 (that's a V1.13+ marketplace question per ADR-0008 substrate).
+- **Per-block-type renderer overrides** are CONTRACTED — each preset's `blockOverrides[blockKey]` must implement the same `BlockViewProps` contract as the default renderer (`{block, value, onChange}`); the runtime swaps renderers at SSR time per ADR-0013. No client-side dynamic swapping.
+- **Branding limits**: no scripts, no arbitrary CSS, no remote font URLs beyond our curated list. Researcher-customizable values are pre-validated against allowlists (color = valid CSS color; font = one of curated names; pattern = one of `none|dots|lines|grid|parchment|custom-upload`). Custom logo/favicon uploads go through R2 + content-type validation per ADR-0003.
+- **Methodological warning surface** — mimicking presets (FB/X/Instagram/TikTok/news/forum/blog) carry a `warnings: string[]` field surfaced in the Design stage UI; the Overview tab (Section B1) auto-injects the chosen preset into the methodology section so IRB/preregistration captures the visual context.
+- **Per-block-type granular overrides** — researcher can override ~3-5 styling slots per block type (e.g., multiple-choice option style; likert label position) within a controlled `blockStyleOverrides: Record<blockKey, Partial<BlockStyles>>` map. Schema-validated; unknown keys rejected.
+- **The workspace's design language** (`tokens.css` + brief v0.6 — warm parchment + Plex Serif + modular floating cards) stays the RESEARCHER-side language; per-study themes only affect the participant runtime at `/take/*`. Researcher-side Builder/Whiteboard/Studies/Browse/Activity/etc. are unchanged.
+- **No CSS-in-JS at runtime** — themes resolve to CSS variables at SSR time per ADR-0013, injected into a `<style>` block on the per-question page. Zero client-side theme switching for participants (deterministic for analytics).
 
-Wireframe gate: `03_design/wireframes/design-stage.md`.
+Wireframe gate: `03_design/wireframes/design-stage.md` — Design stage UI (preset picker + granular controls panel + live preview); `03_design/wireframes/design-stage-presets-gallery.md` for the preset showcase.
 
 ---
 
@@ -361,23 +554,41 @@ If there's slack in V1.12, these are quick gems:
 
 ---
 
-## Sequencing recommendation
+## Sequencing recommendation (updated 2026-06-08)
 
-Bundle as PR streams Code tab can land in any order:
+Bundle as PR streams Code tab can land in any order. Given the expanded scope, Code tab's recent cadence (6 tagged releases in 4 days), and the high authoring cost of A3 demo content + F platform presets, splitting into V1.12.0 / V1.12.1 / ... sub-releases is probably cleaner than one giant V1.12 bundle.
 
-- **PR 1 (small wins)** — A1 sign-out + A2 profile + A3 demo toggle + A4 Preview modal (~1 week)
-- **PR 2 (Overview + PDF)** — B1 Overview tab + B2 PDF export (~1 week)
-- **PR 3 (embedded media)** — C1 image/video/text/link blocks (~1 week)
-- **PR 4 (block types — gated on screenshots)** — C2 (awaiting owner)
-- **PR 5 (export builder + dictionary + explorer)** — D1 + D2 + D3 (~2 weeks)
-- **PR 6 (replications nav)** — E1 + E2 + E3 (~1-2 weeks)
-- **PR 7 (visual theme editor — biggest)** — F1-F5 + ADR-0024 (~2-3 weeks)
-- **PR 8 (philosophy reinforcements)** — G (~3 days; folds into PR 7 if convenient)
-- **PR 9 (UX wins)** — H autosave indicator + I public preview URL + J onboarding tour + K mini-list (~2 weeks total; can split)
+**Wave 1 — quick wins (~1.5 weeks; ship as V1.12.0):**
+- PR 1: A1 sign-out + A2 profile + A4 Preview-as-modal (~1 week)
+- PR 2: H autosave indicator + I public preview URL (~1 week, parallel to PR 1)
 
-If all PRs land, tag `v1.12.0` at the end with a single audit log mirroring the V1.8 / V1.7 pattern.
+**Wave 2 — Overview + media + first block-type batch (~2.5 weeks; ship as V1.12.1):**
+- PR 3: B1 Overview tab + B2 PDF export (~1 week)
+- PR 4: C1 embedded content blocks (image/video/text/link) (~1 week)
+- PR 5: C2 Group 1 standard form blocks (email/phone/address/url/contact/number/date/yes-no/dropdown/picture-choice) (~1.5 weeks)
 
-Alternatively, ship sub-releases (V1.12.0, V1.12.1, …) per PR. Up to Code tab — both patterns have worked.
+**Wave 3 — research blocks + rating/ranking + demo content (~3 weeks; ship as V1.12.2):**
+- PR 6: C2 Group 2 rating/ranking (NPS/stars/matrix) + Group 3 research-specific (audio/reaction-time/VAS/semantic-differential/MaxDiff) (~1.5 weeks)
+- PR 7: A3 realistic-complex demo studies + ADR-0023 demo-data semantics (~1.5 weeks; could parallelize with PR 6)
+
+**Wave 4 — replications nav + export builder (~3 weeks; ship as V1.12.3):**
+- PR 8: E1+E2+E3 replications navigation + ADR-0025 (~1.5 weeks)
+- PR 9: D1+D2+D3 export builder + dictionary + explorer (~2 weeks; parallelize with PR 8)
+
+**Wave 5 — visual theme + platform presets (~4 weeks; ship as V1.12.4 — the big one):**
+- PR 10: F1 granular theme primitives + F2 layout + F4 SSR runtime + ADR-0024 (~1.5 weeks)
+- PR 11: F1.5 platform presets first 4 (Academic/Clinical/Modern/Playful) (~3 days)
+- PR 12: F1.5 platform presets — mimicking quartet (FB/X/News/Business portal) (~1 week)
+- PR 13: F1.5 remaining presets (Instagram/TikTok/Lifestyle/Forum/Blog) (~1 week)
+- PR 14: F3 Design stage UI + F5 ADR-0024 finalization + G researcher-controlled copy (~5 days)
+- PR 15: C2 Group 5 meta affordances (Welcome / End / Multi-Q page / Question Group / Redirect) — folds into the Design stage UI work (~3 days)
+
+**Wave 6 — onboarding tour + UX wins + sign-off (~1.5 weeks; ship as V1.12.5):**
+- PR 16: J onboarding tour (pairs with demo content from PR 7) (~1 week)
+- PR 17: K Cmd+K palette + saved comment drafts + better empty states + mobile audit (~1 week, parallel)
+- PR 18: bulk study operations (if owner picks "keep in V1.12") (~3 days)
+
+After each Wave: deploy + smoke + audit log entry + sub-tag (v1.12.0, v1.12.1, ...). Or bundle into one big V1.12 deploy at the end — Code tab's call. Per ADR-0016 deploy pattern + the deploy:verify procedure.
 
 ---
 
@@ -415,13 +626,20 @@ Each wireframe Code tab writes BEFORE building the UI per CLAUDE.md phase-gate r
 
 ---
 
-## Open questions for owner
+## Open questions — answered by owner 2026-06-08
 
-1. **Block types screenshots** — please send so I can spec each (Section C2).
-2. **Demo content style** — should the seeded demo studies be hand-curated realistic examples (more work to author, but feel professional) OR auto-generated placeholders (faster but feel like Lorem Ipsum)?
-3. **Visual theme editor scope** — is the Section F primitives list (colors / fonts / logo / radius / shadow / pattern / footer) what you have in mind, or do you want more granular control (e.g., per-block-type styling)?
-4. **Public preview URL expiry default** — 7 days reasonable, or different?
-5. **Bulk study operations** — top priority or skippable for V1.12?
+1. ✅ **Block types screenshots received.** Section C2 expanded with full spec (Group 1 standard form, Group 2 rating/ranking, Group 3 research-specific, Group 4 out-of-scope, Group 5 meta affordances). ~3 weeks of new block work.
+2. ✅ **Demo content style**: **generated but realistic — mostly complex, not Lorem Ipsum.** Owner needs studies to test functionality + see app in believable shape. Section A3 now lists 6-8 curated demo studies (misinformation / NPS / conjoint / longitudinal / political / replication / draft / archived) authored at quality bar with realistic blocks + responses + comments + replications. ~1.5 weeks authoring effort.
+3. ✅ **Visual theme editor scope**: **more granular** + add platform layout presets. Section F now spans 22 theme tokens + 6 layout controls + per-block-type style overrides + 13 platform presets (Academic / Clinical / Modern survey / Playful + Facebook / X / Instagram / TikTok / News / Business portal / Lifestyle / Forum / Blog). Section F estimate expanded from ~2-3 weeks to ~4 weeks. Methodological-warning surface added for mimicking presets.
+4. ✅ **Public preview URL expiry**: 7-day default confirmed.
+5. ⏳ **Bulk study operations** — owner asked for explanation. Bulk operations let a researcher select multiple study rows via checkboxes + perform an action on all selected at once (Archive multiple / Duplicate multiple / Export multiple as zip / Tag multiple / Delete multiple). Saves clicks for researchers managing 20+ studies. **Verdict pending — keep in V1.12 K mini-list, push to V1.13, or skip indefinitely?**
+
+## Open questions — new this round
+
+- **Demo OSF DOIs** — fake DOIs in the demo studies are clearly non-resolvable; should the demo-mode UI show a small "demo only" badge on the OSF link to make this clear, or rely on the workspace-level "Show demo content" banner?
+- **Platform preset for mimicking** — your IRB / ethics review: should mimicking presets require an explicit researcher acknowledgment before use ("I understand this preset visually mimics Facebook; I have IRB approval where applicable")? Adds friction; honest about the methodological implications.
+- **Bulk operations priority** (per #5 above).
+- **More platforms beyond the 9 listed** — Reddit, LinkedIn, YouTube comments, Discord, WhatsApp/iMessage? Any prioritized?
 
 ---
 
