@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { Plus, Undo2 } from "lucide-react";
 import Link from "next/link";
 import type { Route } from "next";
 import { useEffect, useState } from "react";
@@ -19,6 +19,7 @@ import {
   normalizeCondition,
   summarizeClause,
 } from "@/lib/whiteboard/conditions";
+import { useBlockHistory } from "@/lib/whiteboard/use-block-history";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 import { ConditionBuilder } from "./condition-builder";
@@ -75,6 +76,10 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
     });
   };
   const setCondition = api.studies.setBlockCondition.useMutation({ onSuccess: () => void invalidate() });
+  const setBlocksMut = api.studies.setBlocks.useMutation({ onSuccess: () => void invalidate() });
+  const { canUndo, undo } = useBlockHistory(study.id, study.blocks, (blocks) =>
+    setBlocksMut.mutate({ studyId: study.id, blocks }),
+  );
 
   // Conditions drive the canvas wires (drag a Condition node → a block to gate it).
   const conditions = api.studies.listConditions.useQuery({ studyId: study.id });
@@ -146,6 +151,16 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={undo}
+                disabled={!canUndo || setBlocksMut.isPending}
+                title="Undo last change"
+                aria-label="Undo last change"
+                className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-1.5 text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)] disabled:opacity-40"
+              >
+                <Undo2 className="size-4" aria-hidden />
+              </button>
               <div role="group" aria-label="Whiteboard view" className="flex items-center gap-1 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-0.5 text-[length:var(--text-small)]">
                 {(["canvas", "list"] as const).map((v) => (
                   <button
