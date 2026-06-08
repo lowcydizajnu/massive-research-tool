@@ -7,6 +7,7 @@ import {
   normalizeCondition,
   operatorsForKey,
   isConditionSource,
+  summarizeCondition,
   type ConditionGroup,
 } from "../conditions";
 
@@ -76,5 +77,31 @@ describe("type-aware menus", () => {
     expect(operatorsForKey("free-text")).toContain("contains");
     expect(isConditionSource("social-post")).toBe(false);
     expect(isConditionSource("likert-7")).toBe(true);
+  });
+});
+
+describe("flat 'answered' link + summary (V1.10.1)", () => {
+  it("'answered' = source has any answer, ignores value", () => {
+    expect(evaluateClause({ value: 3 }, "answered", [])).toBe(true);
+    expect(evaluateClause({ selected: ["x"] }, "answered", [])).toBe(true);
+    expect(evaluateClause(null, "answered", [])).toBe(false);
+    expect(evaluateClause(undefined, "answered", [])).toBe(false);
+  });
+  it("'answered' leads every type-aware operator menu (flat by default)", () => {
+    expect(operatorsForKey("likert-7")[0]).toBe("answered");
+    expect(operatorsForKey("multiple-choice")[0]).toBe("answered");
+    expect(operatorsForKey("free-text")[0]).toBe("answered");
+  });
+  it("summarizeCondition renders a readable tag", () => {
+    const nameOf = (id: string) => ({ a: "Post 1", b: "Q2" })[id] ?? id;
+    const g: ConditionGroup = {
+      op: "or",
+      clauses: [
+        { fromInstanceId: "a", operator: "answered", value: [] },
+        { fromInstanceId: "b", operator: "gte", value: ["5"] },
+      ],
+    };
+    expect(summarizeCondition(g, nameOf)).toBe("Post 1 is answered OR Q2 is at least 5");
+    expect(summarizeCondition(null, nameOf)).toBeNull();
   });
 });

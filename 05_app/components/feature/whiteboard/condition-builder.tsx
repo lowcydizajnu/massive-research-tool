@@ -55,7 +55,9 @@ export function ConditionBuilder({
   };
 
   const save = () => {
-    const clean = clauses.filter((c) => c.fromInstanceId && c.value.some((v) => v.trim() !== ""));
+    const clean = clauses.filter(
+      (c) => c.fromInstanceId && (c.operator === "answered" || c.value.some((v) => v.trim() !== "")),
+    );
     onSave(clean.length ? { op, clauses: clean } : null);
   };
 
@@ -115,6 +117,7 @@ export function ConditionBuilder({
               const ops = src ? operatorsForKey(src.key) : (["eq"] as Operator[]);
               const isList = LIST_VALUE.includes(c.operator);
               const isBetween = c.operator === "between";
+              const noValue = c.operator === "answered";
               return (
                 <li key={i} className="flex flex-col gap-1 rounded-[var(--radius-md)] bg-[var(--color-surface-subtle)] p-2">
                   <div className="flex items-center gap-1">
@@ -158,7 +161,7 @@ export function ConditionBuilder({
                         </option>
                       ))}
                     </select>
-                    {isBetween ? (
+                    {noValue ? null : isBetween ? (
                       <>
                         <input
                           aria-label="Min"

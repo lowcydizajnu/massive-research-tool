@@ -4,6 +4,7 @@ import { GripVertical, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { move } from "@/lib/whiteboard/reorder";
+import { normalizeCondition, summarizeCondition } from "@/lib/whiteboard/conditions";
 
 import { StageTabs } from "@/components/chrome/stage-tabs";
 import { ConditionBuilder } from "@/components/feature/whiteboard/condition-builder";
@@ -95,13 +96,20 @@ export function BuilderWorkspace({
   const reorderBlocks = api.studies.reorderBlocks.useMutation({ onSuccess: () => void invalidate() });
   const setCondition = api.studies.setBlockCondition.useMutation({ onSuccess: () => void invalidate() });
   const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [overIdx, setOverIdx] = useState<number | null>(null);
   const dropAt = (to: number) => {
-    if (dragIdx === null || dragIdx === to) return setDragIdx(null);
+    const from = dragIdx;
+    setDragIdx(null);
+    setOverIdx(null);
+    if (from === null || from === to) return;
     reorderBlocks.mutate({
       studyId: study.id,
-      order: move(study.blocks, dragIdx, to).map((b) => b.instanceId),
+      order: move(study.blocks, from, to).map((b) => b.instanceId),
     });
-    setDragIdx(null);
+  };
+  const nameOf = (id: string) => {
+    const b = study.blocks.find((x) => x.instanceId === id);
+    return b ? b.title?.trim() || b.name : id;
   };
 
   const selected = study.blocks.find((b) => b.instanceId === selectedId) ?? null;
@@ -156,25 +164,37 @@ export function BuilderWorkspace({
                 {study.blocks.map((b, i) => (
                   <li
                     key={b.instanceId}
-                    onDragOver={(e) => e.preventDefault()}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      if (overIdx !== i) setOverIdx(i);
+                    }}
                     onDrop={() => dropAt(i)}
-                    className={cn("flex items-stretch gap-1", dragIdx === i && "opacity-50")}
+                    className={cn("transition-opacity duration-150", dragIdx === i && "opacity-40")}
                   >
-                    <span
-                      draggable
-                      onDragStart={() => setDragIdx(i)}
-                      onDragEnd={() => setDragIdx(null)}
-                      aria-label="Drag to reorder"
-                      className="flex shrink-0 cursor-grab items-center rounded-[var(--radius-md)] px-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)] active:cursor-grabbing"
-                    >
-                      <GripVertical className="size-4" aria-hidden />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <BlockCard
-                        block={b}
-                        selected={b.instanceId === selectedId}
-                        onSelect={() => setSelectedId(b.instanceId)}
-                      />
+                    {overIdx === i && dragIdx !== null && dragIdx !== i ? (
+                      <div className="mb-2 h-0.5 rounded-full bg-[var(--color-primary)]" aria-hidden />
+                    ) : null}
+                    <div className="flex items-stretch gap-1">
+                      <span
+                        draggable
+                        onDragStart={() => setDragIdx(i)}
+                        onDragEnd={() => {
+                          setDragIdx(null);
+                          setOverIdx(null);
+                        }}
+                        aria-label="Drag to reorder"
+                        className="flex shrink-0 cursor-grab items-center rounded-[var(--radius-md)] px-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)] active:cursor-grabbing"
+                      >
+                        <GripVertical className="size-4" aria-hidden />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <BlockCard
+                          block={b}
+                          selected={b.instanceId === selectedId}
+                          onSelect={() => setSelectedId(b.instanceId)}
+                          conditionLabel={summarizeCondition(normalizeCondition(b.showIf, b.branchRules), nameOf)}
+                        />
+                      </div>
                     </div>
                   </li>
                 ))}
@@ -387,10 +407,12 @@ function BlockCard({
   block,
   selected,
   onSelect,
+  conditionLabel,
 }: {
   block: StudyBlock;
   selected: boolean;
   onSelect: () => void;
+  conditionLabel?: string | null;
 }) {
   return (
     <button
@@ -411,6 +433,11 @@ function BlockCard({
         <div className="font-mono text-[length:var(--text-mono)] text-[var(--color-text-muted)]">
           {block.key} · {block.version}
         </div>
+        {conditionLabel ? (
+          <div className="mt-1 inline-block rounded-full bg-[var(--color-primary-subtle)] px-1.5 py-0.5 text-[length:var(--text-small)] text-[var(--color-primary-text-on-subtle)]">
+            Shown if {conditionLabel}
+          </div>
+        ) : null}
       </div>
       <span
         className={cn(

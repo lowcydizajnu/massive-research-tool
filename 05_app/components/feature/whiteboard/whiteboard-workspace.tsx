@@ -13,7 +13,7 @@ import { ModulePicker } from "@/components/feature/builder/module-picker";
 import { api } from "@/lib/trpc/react";
 import type { StudyDetail } from "@/server/trpc/routers/studies";
 
-import { normalizeCondition } from "@/lib/whiteboard/conditions";
+import { isConditionSource, normalizeCondition } from "@/lib/whiteboard/conditions";
 
 import { ConditionBuilder } from "./condition-builder";
 import { WhiteboardCanvas } from "./whiteboard-canvas";
@@ -67,19 +67,23 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
     setBlockConditions(blockId, b.showIfCondition.filter((s) => s !== slug));
   };
 
-  // Quick block→block wire (ADR-0021 amendment): adds an equality clause to the
-  // target's condition (full editing is the right-panel ConditionBuilder).
+  // Block→block wire (ADR-0021 amendment): create a FLAT connection (no modal) —
+  // "answered" links the source to the target unconditionally. Refine it to a
+  // real condition (operator + value) in the right-panel ConditionBuilder. A
+  // block may have multiple incoming wires (multiple sources → OR by default).
   const connectBranch = (targetId: string, sourceId: string) => {
     const target = study.blocks.find((x) => x.instanceId === targetId);
     const source = study.blocks.find((x) => x.instanceId === sourceId);
     if (!target || !source) return;
-    const value = window
-      .prompt(`Show "${target.title?.trim() || target.name}" only if the answer to "${source.title?.trim() || source.name}" equals (you can refine in the panel):`)
-      ?.trim();
-    if (!value) return;
+    setSelectedId(targetId); // open the target's panel to refine
+    if (!isConditionSource(source.key)) return; // a stimulus has no answer to gate on
     const existing = normalizeCondition(target.showIf, target.branchRules);
-    const clauses = [...(existing?.clauses ?? []), { fromInstanceId: sourceId, operator: "eq" as const, value: [value] }];
-    setCondition.mutate({ studyId: study.id, instanceId: targetId, showIf: { op: existing?.op ?? "and", clauses } });
+    if (existing?.clauses.some((c) => c.fromInstanceId === sourceId)) return; // already wired
+    const clauses = [
+      ...(existing?.clauses ?? []),
+      { fromInstanceId: sourceId, operator: "answered" as const, value: [] },
+    ];
+    setCondition.mutate({ studyId: study.id, instanceId: targetId, showIf: { op: existing?.op ?? "or", clauses } });
   };
   const disconnectBranch = (targetId: string, sourceId: string) => {
     const target = study.blocks.find((x) => x.instanceId === targetId);
