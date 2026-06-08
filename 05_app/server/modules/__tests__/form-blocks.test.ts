@@ -53,3 +53,38 @@ describe("V1.12 C2 form blocks", () => {
     expect(def("dropdown").isComplete({ prompt: "Pick", options: ["A"] })).toBe(true);
   });
 });
+
+describe("V1.12 C2 batch 2 (phone/address/contact/picture-choice)", () => {
+  it("registers all four as response-collecting", () => {
+    for (const k of ["phone", "address", "contact", "picture-choice"]) {
+      expect(def(k).collectsResponse).toBe(true);
+      expect(def(k).responseSchema).not.toBeNull();
+    }
+  });
+
+  it("phone accepts E.164-ish, rejects junk", () => {
+    expect(ok("phone", { value: "+1 555 123 4567" })).toBe(true);
+    expect(ok("phone", { value: "abc" })).toBe(false);
+    expect(ok("phone", { value: "" })).toBe(true);
+  });
+
+  it("address isAnswerEmpty true only when all fields blank", () => {
+    expect(def("address").isAnswerEmpty!({})).toBe(true);
+    expect(def("address").isAnswerEmpty!({ city: "Kraków" })).toBe(false);
+  });
+
+  it("contact validates email when present; empty when no name+email", () => {
+    expect(ok("contact", { email: "h@e.com" })).toBe(true);
+    expect(ok("contact", { email: "nope" })).toBe(false);
+    expect(def("contact").isAnswerEmpty!({ phone: "123" })).toBe(true); // name+email blank
+    expect(def("contact").isAnswerEmpty!({ name: "Hanna" })).toBe(false);
+  });
+
+  it("picture-choice requires selections within the configured URLs", () => {
+    const cfg = { imageUrls: ["https://a.png", "https://b.png"] };
+    expect(ok("picture-choice", { selected: ["https://a.png"] }, cfg)).toBe(true);
+    expect(ok("picture-choice", { selected: ["https://z.png"] }, cfg)).toBe(false);
+    expect(def("picture-choice").isAnswerEmpty!({ selected: [] })).toBe(true);
+    expect(def("picture-choice").isComplete({ prompt: "Pick", imageUrls: ["https://a.png"] })).toBe(true);
+  });
+});

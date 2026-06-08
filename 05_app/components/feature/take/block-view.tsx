@@ -28,6 +28,10 @@ export function BlockView({ block, seed }: { block: RuntimeBlock; seed?: string 
   if (block.key === "date") return <SimpleFieldInput config={block.config} type="date" />;
   if (block.key === "yes-no") return <YesNoInput config={block.config} />;
   if (block.key === "dropdown") return <DropdownInput config={block.config} />;
+  if (block.key === "phone") return <SimpleFieldInput config={block.config} type="tel" />;
+  if (block.key === "address") return <AddressInput config={block.config} />;
+  if (block.key === "contact") return <ContactInput config={block.config} />;
+  if (block.key === "picture-choice") return <PictureChoiceInput config={block.config} />;
   // Unknown module — render nothing rather than crash the runtime.
   return (
     <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
@@ -430,9 +434,10 @@ function SimpleFieldInput({
   type,
 }: {
   config: Record<string, unknown>;
-  type: "email" | "url" | "date";
+  type: "email" | "url" | "date" | "tel";
 }) {
-  const placeholder = type === "email" ? "name@example.com" : type === "url" ? "https://…" : undefined;
+  const placeholder =
+    type === "email" ? "name@example.com" : type === "url" ? "https://…" : type === "tel" ? "+1 555 123 4567" : undefined;
   return (
     <div className="flex flex-col gap-2">
       <label htmlFor="value" className={PROMPT_CLS}>
@@ -504,5 +509,76 @@ function DropdownInput({ config }: { config: Record<string, unknown> }) {
         ))}
       </select>
     </div>
+  );
+}
+
+/* ---------- V1.12 C2 batch 2: phone (above) / address / contact / picture-choice ---------- */
+
+function AddressInput({ config }: { config: Record<string, unknown> }) {
+  const fields: { name: string; label: string; autoComplete: string }[] = [
+    { name: "street", label: "Street address", autoComplete: "street-address" },
+    { name: "city", label: "City", autoComplete: "address-level2" },
+    { name: "state", label: "State / region", autoComplete: "address-level1" },
+    { name: "postal", label: "Postal code", autoComplete: "postal-code" },
+    { name: "country", label: "Country", autoComplete: "country-name" },
+  ];
+  return (
+    <fieldset className="flex flex-col gap-2">
+      <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
+      {fields.map((f) => (
+        <label key={f.name} className="flex flex-col gap-1">
+          <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">{f.label}</span>
+          <input type="text" name={f.name} autoComplete={f.autoComplete} className={FIELD_CLS} />
+        </label>
+      ))}
+    </fieldset>
+  );
+}
+
+function ContactInput({ config }: { config: Record<string, unknown> }) {
+  const fields: { name: string; label: string; type: string; autoComplete: string }[] = [
+    { name: "name", label: "Name", type: "text", autoComplete: "name" },
+    { name: "email", label: "Email", type: "email", autoComplete: "email" },
+    { name: "phone", label: "Phone (optional)", type: "tel", autoComplete: "tel" },
+  ];
+  return (
+    <fieldset className="flex flex-col gap-2">
+      <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
+      {fields.map((f) => (
+        <label key={f.name} className="flex flex-col gap-1">
+          <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">{f.label}</span>
+          <input type={f.type} name={f.name} autoComplete={f.autoComplete} className={FIELD_CLS} />
+        </label>
+      ))}
+    </fieldset>
+  );
+}
+
+function PictureChoiceInput({ config }: { config: Record<string, unknown> }) {
+  const multiple = config.multiple === true;
+  const urls = (Array.isArray(config.imageUrls) ? (config.imageUrls as unknown[]).map(str) : []).filter(
+    (u) => u.trim() !== "",
+  );
+  return (
+    <fieldset className="flex flex-col gap-2">
+      <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        {urls.map((url, i) => (
+          <label
+            key={`${i}-${url}`}
+            className="flex cursor-pointer flex-col items-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-2 hover:bg-[var(--color-surface-subtle)] has-[:checked]:border-[var(--color-primary)] has-[:checked]:bg-[var(--color-primary-subtle)]"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element -- researcher-supplied URL */}
+            <img src={url} alt={`Option ${i + 1}`} className="h-28 w-full rounded-[var(--radius-sm)] object-cover" />
+            <input
+              type={multiple ? "checkbox" : "radio"}
+              name="mc"
+              value={url}
+              className="size-4 accent-[var(--color-primary)]"
+            />
+          </label>
+        ))}
+      </div>
+    </fieldset>
   );
 }
