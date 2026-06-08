@@ -443,7 +443,14 @@ function SimpleFieldInput({
       <label htmlFor="value" className={PROMPT_CLS}>
         {str(config.prompt)}
       </label>
-      <input id="value" type={type} name="value" placeholder={placeholder} className={FIELD_CLS} />
+      <input
+        id="value"
+        type={type}
+        name="value"
+        placeholder={placeholder}
+        required={config.required === true}
+        className={FIELD_CLS}
+      />
     </div>
   );
 }
@@ -458,7 +465,7 @@ function NumberInput({ config }: { config: Record<string, unknown> }) {
         {str(config.prompt)}
       </label>
       <div className="flex items-center gap-2">
-        <input id="value" type="number" name="value" min={min} max={max} className={FIELD_CLS} />
+        <input id="value" type="number" name="value" min={min} max={max} required={config.required === true} className={FIELD_CLS} />
         {unit ? (
           <span className="shrink-0 text-[length:var(--text-small)] text-[var(--color-text-muted)]">{unit}</span>
         ) : null}
@@ -482,7 +489,7 @@ function YesNoInput({ config }: { config: Record<string, unknown> }) {
             key={o.v}
             className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-4 py-3 text-[length:var(--text-body)] text-[var(--color-text-primary)] hover:bg-[var(--color-surface-subtle)]"
           >
-            <input type="radio" name="value" value={o.v} className="size-4 accent-[var(--color-primary)]" />
+            <input type="radio" name="value" value={o.v} required={config.required === true} className="size-4 accent-[var(--color-primary)]" />
             {o.label}
           </label>
         ))}
@@ -498,7 +505,7 @@ function DropdownInput({ config }: { config: Record<string, unknown> }) {
       <label htmlFor="value" className={PROMPT_CLS}>
         {str(config.prompt)}
       </label>
-      <select id="value" name="value" defaultValue="" className={FIELD_CLS}>
+      <select id="value" name="value" defaultValue="" required={config.required === true} className={FIELD_CLS}>
         <option value="" disabled>
           Choose…
         </option>
