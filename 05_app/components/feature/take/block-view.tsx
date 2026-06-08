@@ -3,45 +3,54 @@ import type { RuntimeBlock } from "@/server/runtime/participant";
 
 /**
  * Participant-facing render of a block (participant-runtime.md). Server
- * component — the likert input is native radios inside the page's form, so no
- * client JS is needed. Distinct from the researcher Builder's block rendering
- * (ADR-0013: participant UI doesn't reuse researcher chrome).
+ * component — inputs are native, inside the page's form, so no client JS is
+ * needed (except reaction-time). On a multi-block group screen (ADR-0028) every
+ * input is namespaced with `namePrefix` (e.g. `${instanceId}__`) so fields from
+ * different blocks never collide; single-block screens pass "" → unchanged.
  */
-export function BlockView({ block, seed }: { block: RuntimeBlock; seed?: string }) {
-  if (block.key === "social-post") return <SocialPostView config={block.config} />;
-  if (block.key === "likert-7") return <Likert7Input config={block.config} />;
-  if (block.key === "multiple-choice")
-    return <MultipleChoiceInput config={block.config} seed={seed} />;
-  if (block.key === "free-text") return <FreeTextInput config={block.config} />;
-  if (block.key === "slider") return <SliderInput config={block.config} />;
-  if (block.key === "ranking") return <RankingInput config={block.config} />;
-  if (block.key === "attention-check") return <AttentionCheckInput config={block.config} />;
-  if (block.key === "demographics") return <DemographicsInput config={block.config} />;
-  // V1.12 C1 — embedded content (stimulus-only).
-  if (block.key === "text") return <TextView config={block.config} />;
-  if (block.key === "image") return <ImageView config={block.config} />;
-  if (block.key === "video") return <VideoView config={block.config} />;
-  if (block.key === "link") return <LinkView config={block.config} />;
+export function BlockView({
+  block,
+  seed,
+  namePrefix = "",
+}: {
+  block: RuntimeBlock;
+  seed?: string;
+  namePrefix?: string;
+}) {
+  const c = block.config;
+  const np = namePrefix;
+  if (block.key === "social-post") return <SocialPostView config={c} />;
+  if (block.key === "likert-7") return <Likert7Input config={c} np={np} />;
+  if (block.key === "multiple-choice") return <MultipleChoiceInput config={c} seed={seed} np={np} />;
+  if (block.key === "free-text") return <FreeTextInput config={c} np={np} />;
+  if (block.key === "slider") return <SliderInput config={c} np={np} />;
+  if (block.key === "ranking") return <RankingInput config={c} np={np} />;
+  if (block.key === "attention-check") return <AttentionCheckInput config={c} np={np} />;
+  if (block.key === "demographics") return <DemographicsInput config={c} np={np} />;
+  // V1.12 C1 — embedded content (stimulus-only; no inputs → no prefix).
+  if (block.key === "text") return <TextView config={c} />;
+  if (block.key === "image") return <ImageView config={c} />;
+  if (block.key === "video") return <VideoView config={c} />;
+  if (block.key === "link") return <LinkView config={c} />;
   // V1.12 C2 — standard form blocks.
-  if (block.key === "email") return <SimpleFieldInput config={block.config} type="email" />;
-  if (block.key === "url") return <SimpleFieldInput config={block.config} type="url" />;
-  if (block.key === "number") return <NumberInput config={block.config} />;
-  if (block.key === "date") return <SimpleFieldInput config={block.config} type="date" />;
-  if (block.key === "yes-no") return <YesNoInput config={block.config} />;
-  if (block.key === "dropdown") return <DropdownInput config={block.config} />;
-  if (block.key === "phone") return <SimpleFieldInput config={block.config} type="tel" />;
-  if (block.key === "address") return <AddressInput config={block.config} />;
-  if (block.key === "contact") return <ContactInput config={block.config} />;
-  if (block.key === "picture-choice") return <PictureChoiceInput config={block.config} />;
-  // V1.12 Wave 3 — numeric research scales.
-  if (block.key === "nps") return <NpsInput config={block.config} />;
-  if (block.key === "rating-stars") return <StarRatingInput config={block.config} />;
-  if (block.key === "vas") return <VasInput config={block.config} />;
-  if (block.key === "matrix-grid") return <MatrixGridInput config={block.config} />;
-  if (block.key === "semantic-differential") return <SemanticDifferentialInput config={block.config} />;
-  if (block.key === "reaction-time") return <ReactionTimeInput config={block.config} />;
-  if (block.key === "maxdiff") return <MaxDiffInput config={block.config} />;
-  // Unknown module — render nothing rather than crash the runtime.
+  if (block.key === "email") return <SimpleFieldInput config={c} type="email" np={np} />;
+  if (block.key === "url") return <SimpleFieldInput config={c} type="url" np={np} />;
+  if (block.key === "number") return <NumberInput config={c} np={np} />;
+  if (block.key === "date") return <SimpleFieldInput config={c} type="date" np={np} />;
+  if (block.key === "yes-no") return <YesNoInput config={c} np={np} />;
+  if (block.key === "dropdown") return <DropdownInput config={c} np={np} />;
+  if (block.key === "phone") return <SimpleFieldInput config={c} type="tel" np={np} />;
+  if (block.key === "address") return <AddressInput config={c} np={np} />;
+  if (block.key === "contact") return <ContactInput config={c} np={np} />;
+  if (block.key === "picture-choice") return <PictureChoiceInput config={c} np={np} />;
+  // V1.12 Wave 3 — research scales.
+  if (block.key === "nps") return <NpsInput config={c} np={np} />;
+  if (block.key === "rating-stars") return <StarRatingInput config={c} np={np} />;
+  if (block.key === "vas") return <VasInput config={c} np={np} />;
+  if (block.key === "matrix-grid") return <MatrixGridInput config={c} np={np} />;
+  if (block.key === "semantic-differential") return <SemanticDifferentialInput config={c} np={np} />;
+  if (block.key === "reaction-time") return <ReactionTimeInput config={c} namePrefix={np} />;
+  if (block.key === "maxdiff") return <MaxDiffInput config={c} np={np} />;
   return (
     <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
       (This question type isn’t available.)
@@ -51,6 +60,9 @@ export function BlockView({ block, seed }: { block: RuntimeBlock; seed?: string 
 
 function str(v: unknown): string {
   return typeof v === "string" ? v : "";
+}
+function num(v: unknown, fallback: number): number {
+  return typeof v === "number" && Number.isFinite(v) ? v : fallback;
 }
 
 /** Participant-deterministic shuffle (seeded by the response id) so the same
@@ -70,6 +82,10 @@ function seededShuffle<T>(items: T[], seed: string): T[] {
   return out;
 }
 
+const FIELD_CLS =
+  "w-full rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-3 py-2 text-[length:var(--text-body)] text-[var(--color-text-primary)]";
+const PROMPT_CLS = "text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]";
+
 function SocialPostView({ config }: { config: Record<string, unknown> }) {
   const headline = str(config.headline);
   const body = str(config.body);
@@ -77,41 +93,30 @@ function SocialPostView({ config }: { config: Record<string, unknown> }) {
   return (
     <article className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] p-4">
       {source ? (
-        <div className="text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)]">
-          {source}
-        </div>
+        <div className="text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)]">{source}</div>
       ) : null}
       {headline ? (
         <h2 className="font-serif text-[length:var(--text-title)] font-medium text-[var(--color-text-primary)]">
           {headline}
         </h2>
       ) : null}
-      {body ? (
-        <p className="text-[length:var(--text-body)] text-[var(--color-text-primary)]">{body}</p>
-      ) : null}
+      {body ? <p className="text-[length:var(--text-body)] text-[var(--color-text-primary)]">{body}</p> : null}
     </article>
   );
 }
 
-function Likert7Input({ config }: { config: Record<string, unknown> }) {
-  const prompt = str(config.prompt);
+function Likert7Input({ config, np }: { config: Record<string, unknown>; np: string }) {
   const left = str(config.leftAnchor) || "Strongly disagree";
   const right = str(config.rightAnchor) || "Strongly agree";
-  const points = [1, 2, 3, 4, 5, 6, 7];
   return (
     <fieldset className="flex flex-col gap-3">
-      <legend className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">
-        {prompt}
-      </legend>
+      <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
       <div className="flex items-end justify-between gap-2">
-        {points.map((n) => (
-          <label
-            key={n}
-            className="flex flex-1 cursor-pointer flex-col items-center gap-1 text-[length:var(--text-small)] text-[var(--color-text-secondary)]"
-          >
+        {[1, 2, 3, 4, 5, 6, 7].map((n) => (
+          <label key={n} className="flex flex-1 cursor-pointer flex-col items-center gap-1 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
             <input
               type="radio"
-              name="value"
+              name={`${np}value`}
               value={n}
               aria-label={`${n} of 7${n === 1 ? ` — ${left}` : n === 7 ? ` — ${right}` : ""}`}
               className="size-4 accent-[var(--color-primary)]"
@@ -128,33 +133,16 @@ function Likert7Input({ config }: { config: Record<string, unknown> }) {
   );
 }
 
-function MultipleChoiceInput({
-  config,
-  seed,
-}: {
-  config: Record<string, unknown>;
-  seed?: string;
-}) {
-  const prompt = str(config.prompt);
+function MultipleChoiceInput({ config, seed, np }: { config: Record<string, unknown>; seed?: string; np: string }) {
   const multiple = config.multiple === true;
   const raw = Array.isArray(config.options) ? (config.options as unknown[]).map(str) : [];
   const options = config.randomizeOrder === true && seed ? seededShuffle(raw, seed) : raw;
   return (
     <fieldset className="flex flex-col gap-2">
-      <legend className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">
-        {prompt}
-      </legend>
+      <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
       {options.map((opt, i) => (
-        <label
-          key={`${i}-${opt}`}
-          className="flex items-center gap-2 text-[length:var(--text-body)] text-[var(--color-text-primary)]"
-        >
-          <input
-            type={multiple ? "checkbox" : "radio"}
-            name="mc"
-            value={opt}
-            className="size-4 accent-[var(--color-primary)]"
-          />
+        <label key={`${i}-${opt}`} className="flex items-center gap-2 text-[length:var(--text-body)] text-[var(--color-text-primary)]">
+          <input type={multiple ? "checkbox" : "radio"} name={`${np}mc`} value={opt} className="size-4 accent-[var(--color-primary)]" />
           <span>{opt}</span>
         </label>
       ))}
@@ -162,50 +150,36 @@ function MultipleChoiceInput({
   );
 }
 
-function FreeTextInput({ config }: { config: Record<string, unknown> }) {
-  const prompt = str(config.prompt);
+function FreeTextInput({ config, np }: { config: Record<string, unknown>; np: string }) {
   const longForm = config.longForm === true;
   const maxLength = typeof config.maxLength === "number" ? config.maxLength : undefined;
-  const cls =
-    "w-full rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-3 py-2 text-[length:var(--text-body)] text-[var(--color-text-primary)]";
   return (
     <div className="flex flex-col gap-2">
-      <label
-        htmlFor="ft"
-        className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]"
-      >
-        {prompt}
+      <label htmlFor={`${np}text`} className={PROMPT_CLS}>
+        {str(config.prompt)}
       </label>
       {longForm ? (
-        <textarea id="ft" name="text" rows={5} maxLength={maxLength} className={cls} />
+        <textarea id={`${np}text`} name={`${np}text`} rows={5} maxLength={maxLength} className={FIELD_CLS} />
       ) : (
-        <input id="ft" type="text" name="text" maxLength={maxLength} className={cls} />
+        <input id={`${np}text`} type="text" name={`${np}text`} maxLength={maxLength} className={FIELD_CLS} />
       )}
     </div>
   );
 }
 
-function num(v: unknown, fallback: number): number {
-  return typeof v === "number" && Number.isFinite(v) ? v : fallback;
-}
-
-function SliderInput({ config }: { config: Record<string, unknown> }) {
-  const prompt = str(config.prompt);
+function SliderInput({ config, np }: { config: Record<string, unknown>; np: string }) {
   const min = num(config.min, 0);
   const max = num(config.max, 100);
   const step = num(config.step, 1);
   return (
     <div className="flex flex-col gap-2">
-      <label
-        htmlFor="sl"
-        className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]"
-      >
-        {prompt}
+      <label htmlFor={`${np}value`} className={PROMPT_CLS}>
+        {str(config.prompt)}
       </label>
       <input
-        id="sl"
+        id={`${np}value`}
         type="range"
-        name="value"
+        name={`${np}value`}
         min={min}
         max={max}
         step={step}
@@ -220,26 +194,19 @@ function SliderInput({ config }: { config: Record<string, unknown> }) {
   );
 }
 
-function RankingInput({ config }: { config: Record<string, unknown> }) {
-  const prompt = str(config.prompt);
+function RankingInput({ config, np }: { config: Record<string, unknown>; np: string }) {
   const items = Array.isArray(config.items) ? (config.items as unknown[]).map(str) : [];
   const positions = items.map((_, i) => i + 1);
   return (
     <fieldset className="flex flex-col gap-2">
-      <legend className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">
-        {prompt}
-      </legend>
-      <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-        Assign a rank to each item (1 = highest).
-      </p>
+      <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
+      <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">Assign a rank to each item (1 = highest).</p>
       {items.map((item, i) => (
         <div key={`${i}-${item}`} className="flex items-center justify-between gap-2">
-          <input type="hidden" name={`item_${i}`} value={item} />
-          <span className="min-w-0 truncate text-[length:var(--text-body)] text-[var(--color-text-primary)]">
-            {item}
-          </span>
+          <input type="hidden" name={`${np}item_${i}`} value={item} />
+          <span className="min-w-0 truncate text-[length:var(--text-body)] text-[var(--color-text-primary)]">{item}</span>
           <select
-            name={`rank_${i}`}
+            name={`${np}rank_${i}`}
             aria-label={`Rank for ${item}`}
             defaultValue={i + 1}
             className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-1 text-[length:var(--text-body)]"
@@ -256,20 +223,14 @@ function RankingInput({ config }: { config: Record<string, unknown> }) {
   );
 }
 
-function AttentionCheckInput({ config }: { config: Record<string, unknown> }) {
-  const prompt = str(config.prompt);
+function AttentionCheckInput({ config, np }: { config: Record<string, unknown>; np: string }) {
   const options = Array.isArray(config.options) ? (config.options as unknown[]).map(str) : [];
   return (
     <fieldset className="flex flex-col gap-2">
-      <legend className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">
-        {prompt}
-      </legend>
+      <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
       {options.map((opt, i) => (
-        <label
-          key={`${i}-${opt}`}
-          className="flex items-center gap-2 text-[length:var(--text-body)] text-[var(--color-text-primary)]"
-        >
-          <input type="radio" name="value" value={opt} className="size-4 accent-[var(--color-primary)]" />
+        <label key={`${i}-${opt}`} className="flex items-center gap-2 text-[length:var(--text-body)] text-[var(--color-text-primary)]">
+          <input type="radio" name={`${np}value`} value={opt} className="size-4 accent-[var(--color-primary)]" />
           <span>{opt}</span>
         </label>
       ))}
@@ -277,31 +238,21 @@ function AttentionCheckInput({ config }: { config: Record<string, unknown> }) {
   );
 }
 
-function DemographicsInput({ config }: { config: Record<string, unknown> }) {
-  const cls =
-    "rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-3 py-2 text-[length:var(--text-body)] text-[var(--color-text-primary)]";
-  const genderOptions = [
-    "Woman",
-    "Man",
-    "Non-binary",
-    "Prefer to self-describe",
-    "Prefer not to say",
-  ];
+function DemographicsInput({ config, np }: { config: Record<string, unknown>; np: string }) {
+  const genderOptions = ["Woman", "Man", "Non-binary", "Prefer to self-describe", "Prefer not to say"];
   return (
     <div className="flex flex-col gap-3">
-      <div className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">
-        About you
-      </div>
+      <div className={PROMPT_CLS}>About you</div>
       {config.askAge !== false ? (
         <label className="flex flex-col gap-1">
           <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">Age</span>
-          <input type="number" name="age" min={0} max={120} className={cls} />
+          <input type="number" name={`${np}age`} min={0} max={120} className={FIELD_CLS} />
         </label>
       ) : null}
       {config.askGender !== false ? (
         <label className="flex flex-col gap-1">
           <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">Gender</span>
-          <select name="gender" defaultValue="" className={cls}>
+          <select name={`${np}gender`} defaultValue="" className={FIELD_CLS}>
             <option value="">Select…</option>
             {genderOptions.map((g) => (
               <option key={g} value={g}>
@@ -313,17 +264,15 @@ function DemographicsInput({ config }: { config: Record<string, unknown> }) {
       ) : null}
       {config.askCountry !== false ? (
         <label className="flex flex-col gap-1">
-          <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
-            Country of residence
-          </span>
-          <input type="text" name="country" autoComplete="country-name" className={cls} />
+          <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">Country of residence</span>
+          <input type="text" name={`${np}country`} autoComplete="country-name" className={FIELD_CLS} />
         </label>
       ) : null}
     </div>
   );
 }
 
-/* ---------- V1.12 C1: embedded content (stimulus-only) ---------- */
+/* ---------- C1: embedded content (stimulus-only) ---------- */
 
 function TextView({ config }: { config: Record<string, unknown> }) {
   const md = str(config.contentMd);
@@ -345,22 +294,13 @@ function ImageView({ config }: { config: Record<string, unknown> }) {
   if (!url) return null;
   return (
     <figure className="flex flex-col gap-2">
-      {/* eslint-disable-next-line @next/next/no-img-element -- researcher-supplied arbitrary URL; next/image needs configured domains */}
-      <img
-        src={url}
-        alt={str(config.alt)}
-        className="max-h-[480px] w-full rounded-[var(--radius-md)] object-contain"
-      />
-      {caption ? (
-        <figcaption className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-          {caption}
-        </figcaption>
-      ) : null}
+      {/* eslint-disable-next-line @next/next/no-img-element -- researcher-supplied arbitrary URL */}
+      <img src={url} alt={str(config.alt)} className="max-h-[480px] w-full rounded-[var(--radius-md)] object-contain" />
+      {caption ? <figcaption className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">{caption}</figcaption> : null}
     </figure>
   );
 }
 
-/** Resolve a YouTube/Vimeo URL to its embed URL; null = treat as a direct file. */
 function embedUrl(url: string): string | null {
   const yt = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]{6,})/);
   if (yt) return `https://www.youtube.com/embed/${yt[1]}`;
@@ -390,11 +330,7 @@ function VideoView({ config }: { config: Record<string, unknown> }) {
           <video src={url} controls className="h-full w-full" />
         )}
       </div>
-      {caption ? (
-        <figcaption className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-          {caption}
-        </figcaption>
-      ) : null}
+      {caption ? <figcaption className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">{caption}</figcaption> : null}
     </figure>
   );
 }
@@ -417,73 +353,56 @@ function LinkView({ config }: { config: Record<string, unknown> }) {
       rel="noreferrer noopener"
       className="flex flex-col gap-1 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-4 hover:bg-[var(--color-surface-subtle)]"
     >
-      <span className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">
-        {title || url}
-      </span>
+      <span className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">{title || url}</span>
       {description ? (
-        <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
-          {description}
-        </span>
+        <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">{description}</span>
       ) : null}
       <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">{host}</span>
     </a>
   );
 }
 
-/* ---------- V1.12 C2: standard form blocks ---------- */
+/* ---------- C2: standard form blocks ---------- */
 
-const FIELD_CLS =
-  "w-full rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-3 py-2 text-[length:var(--text-body)] text-[var(--color-text-primary)]";
-const PROMPT_CLS =
-  "text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]";
-
-/** email / url / date — a single typed text field named "value". */
 function SimpleFieldInput({
   config,
   type,
+  np,
 }: {
   config: Record<string, unknown>;
   type: "email" | "url" | "date" | "tel";
+  np: string;
 }) {
   const placeholder =
     type === "email" ? "name@example.com" : type === "url" ? "https://…" : type === "tel" ? "+1 555 123 4567" : undefined;
   return (
     <div className="flex flex-col gap-2">
-      <label htmlFor="value" className={PROMPT_CLS}>
+      <label htmlFor={`${np}value`} className={PROMPT_CLS}>
         {str(config.prompt)}
       </label>
-      <input
-        id="value"
-        type={type}
-        name="value"
-        placeholder={placeholder}
-        required={config.required === true}
-        className={FIELD_CLS}
-      />
+      <input id={`${np}value`} type={type} name={`${np}value`} placeholder={placeholder} required={config.required === true} className={FIELD_CLS} />
     </div>
   );
 }
 
-function NumberInput({ config }: { config: Record<string, unknown> }) {
+function NumberInput({ config, np }: { config: Record<string, unknown>; np: string }) {
   const unit = str(config.unit);
   const min = typeof config.min === "number" ? config.min : undefined;
   const max = typeof config.max === "number" ? config.max : undefined;
   return (
     <div className="flex flex-col gap-2">
-      <label htmlFor="value" className={PROMPT_CLS}>
+      <label htmlFor={`${np}value`} className={PROMPT_CLS}>
         {str(config.prompt)}
       </label>
       <div className="flex items-center gap-2">
-        <input id="value" type="number" name="value" min={min} max={max} required={config.required === true} className={FIELD_CLS} />
-        {unit ? (
-          <span className="shrink-0 text-[length:var(--text-small)] text-[var(--color-text-muted)]">{unit}</span>
-        ) : null}
+        <input id={`${np}value`} type="number" name={`${np}value`} min={min} max={max} required={config.required === true} className={FIELD_CLS} />
+        {unit ? <span className="shrink-0 text-[length:var(--text-small)] text-[var(--color-text-muted)]">{unit}</span> : null}
       </div>
     </div>
   );
 }
 
-function YesNoInput({ config }: { config: Record<string, unknown> }) {
+function YesNoInput({ config, np }: { config: Record<string, unknown>; np: string }) {
   const yes = str(config.yesLabel) || "Yes";
   const no = str(config.noLabel) || "No";
   return (
@@ -498,7 +417,7 @@ function YesNoInput({ config }: { config: Record<string, unknown> }) {
             key={o.v}
             className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-4 py-3 text-[length:var(--text-body)] text-[var(--color-text-primary)] hover:bg-[var(--color-surface-subtle)]"
           >
-            <input type="radio" name="value" value={o.v} required={config.required === true} className="size-4 accent-[var(--color-primary)]" />
+            <input type="radio" name={`${np}value`} value={o.v} required={config.required === true} className="size-4 accent-[var(--color-primary)]" />
             {o.label}
           </label>
         ))}
@@ -507,14 +426,14 @@ function YesNoInput({ config }: { config: Record<string, unknown> }) {
   );
 }
 
-function DropdownInput({ config }: { config: Record<string, unknown> }) {
+function DropdownInput({ config, np }: { config: Record<string, unknown>; np: string }) {
   const options = Array.isArray(config.options) ? (config.options as unknown[]).map(str) : [];
   return (
     <div className="flex flex-col gap-2">
-      <label htmlFor="value" className={PROMPT_CLS}>
+      <label htmlFor={`${np}value`} className={PROMPT_CLS}>
         {str(config.prompt)}
       </label>
-      <select id="value" name="value" defaultValue="" required={config.required === true} className={FIELD_CLS}>
+      <select id={`${np}value`} name={`${np}value`} defaultValue="" required={config.required === true} className={FIELD_CLS}>
         <option value="" disabled>
           Choose…
         </option>
@@ -528,10 +447,8 @@ function DropdownInput({ config }: { config: Record<string, unknown> }) {
   );
 }
 
-/* ---------- V1.12 C2 batch 2: phone (above) / address / contact / picture-choice ---------- */
-
-function AddressInput({ config }: { config: Record<string, unknown> }) {
-  const fields: { name: string; label: string; autoComplete: string }[] = [
+function AddressInput({ config, np }: { config: Record<string, unknown>; np: string }) {
+  const fields = [
     { name: "street", label: "Street address", autoComplete: "street-address" },
     { name: "city", label: "City", autoComplete: "address-level2" },
     { name: "state", label: "State / region", autoComplete: "address-level1" },
@@ -544,15 +461,15 @@ function AddressInput({ config }: { config: Record<string, unknown> }) {
       {fields.map((f) => (
         <label key={f.name} className="flex flex-col gap-1">
           <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">{f.label}</span>
-          <input type="text" name={f.name} autoComplete={f.autoComplete} className={FIELD_CLS} />
+          <input type="text" name={`${np}${f.name}`} autoComplete={f.autoComplete} className={FIELD_CLS} />
         </label>
       ))}
     </fieldset>
   );
 }
 
-function ContactInput({ config }: { config: Record<string, unknown> }) {
-  const fields: { name: string; label: string; type: string; autoComplete: string }[] = [
+function ContactInput({ config, np }: { config: Record<string, unknown>; np: string }) {
+  const fields = [
     { name: "name", label: "Name", type: "text", autoComplete: "name" },
     { name: "email", label: "Email", type: "email", autoComplete: "email" },
     { name: "phone", label: "Phone (optional)", type: "tel", autoComplete: "tel" },
@@ -563,18 +480,16 @@ function ContactInput({ config }: { config: Record<string, unknown> }) {
       {fields.map((f) => (
         <label key={f.name} className="flex flex-col gap-1">
           <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">{f.label}</span>
-          <input type={f.type} name={f.name} autoComplete={f.autoComplete} className={FIELD_CLS} />
+          <input type={f.type} name={`${np}${f.name}`} autoComplete={f.autoComplete} className={FIELD_CLS} />
         </label>
       ))}
     </fieldset>
   );
 }
 
-function PictureChoiceInput({ config }: { config: Record<string, unknown> }) {
+function PictureChoiceInput({ config, np }: { config: Record<string, unknown>; np: string }) {
   const multiple = config.multiple === true;
-  const urls = (Array.isArray(config.imageUrls) ? (config.imageUrls as unknown[]).map(str) : []).filter(
-    (u) => u.trim() !== "",
-  );
+  const urls = (Array.isArray(config.imageUrls) ? (config.imageUrls as unknown[]).map(str) : []).filter((u) => u.trim() !== "");
   return (
     <fieldset className="flex flex-col gap-2">
       <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
@@ -586,12 +501,7 @@ function PictureChoiceInput({ config }: { config: Record<string, unknown> }) {
           >
             {/* eslint-disable-next-line @next/next/no-img-element -- researcher-supplied URL */}
             <img src={url} alt={`Option ${i + 1}`} className="h-28 w-full rounded-[var(--radius-sm)] object-cover" />
-            <input
-              type={multiple ? "checkbox" : "radio"}
-              name="mc"
-              value={url}
-              className="size-4 accent-[var(--color-primary)]"
-            />
+            <input type={multiple ? "checkbox" : "radio"} name={`${np}mc`} value={url} className="size-4 accent-[var(--color-primary)]" />
           </label>
         ))}
       </div>
@@ -599,9 +509,9 @@ function PictureChoiceInput({ config }: { config: Record<string, unknown> }) {
   );
 }
 
-/* ---------- V1.12 Wave 3: numeric research scales ---------- */
+/* ---------- Wave 3: research scales ---------- */
 
-function NpsInput({ config }: { config: Record<string, unknown> }) {
+function NpsInput({ config, np }: { config: Record<string, unknown>; np: string }) {
   const left = str(config.leftLabel) || "Not at all likely";
   const right = str(config.rightLabel) || "Extremely likely";
   return (
@@ -615,7 +525,7 @@ function NpsInput({ config }: { config: Record<string, unknown> }) {
           >
             <input
               type="radio"
-              name="value"
+              name={`${np}value`}
               value={n}
               required={config.required === true}
               aria-label={`${n}${n === 0 ? ` — ${left}` : n === 10 ? ` — ${right}` : ""}`}
@@ -633,9 +543,8 @@ function NpsInput({ config }: { config: Record<string, unknown> }) {
   );
 }
 
-function StarRatingInput({ config }: { config: Record<string, unknown> }) {
+function StarRatingInput({ config, np }: { config: Record<string, unknown>; np: string }) {
   const max = typeof config.max === "number" ? config.max : 5;
-  // Radios in reverse so a CSS sibling hover/checked highlights stars up to N.
   return (
     <fieldset className="flex flex-col gap-2">
       <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
@@ -643,15 +552,11 @@ function StarRatingInput({ config }: { config: Record<string, unknown> }) {
         {Array.from({ length: max }, (_, i) => {
           const v = i + 1;
           return (
-            <label key={v} className="cursor-pointer text-[length:var(--text-display)] leading-none text-[var(--color-text-muted)] hover:text-[var(--color-warning-text-on-subtle)] has-[:checked]:text-[var(--color-warning-text-on-subtle)]">
-              <input
-                type="radio"
-                name="value"
-                value={v}
-                required={config.required === true}
-                aria-label={`${v} of ${max} stars`}
-                className="sr-only"
-              />
+            <label
+              key={v}
+              className="cursor-pointer text-[length:var(--text-display)] leading-none text-[var(--color-text-muted)] hover:text-[var(--color-warning-text-on-subtle)] has-[:checked]:text-[var(--color-warning-text-on-subtle)]"
+            >
+              <input type="radio" name={`${np}value`} value={v} required={config.required === true} aria-label={`${v} of ${max} stars`} className="sr-only" />
               <span aria-hidden>★</span>
             </label>
           );
@@ -661,26 +566,17 @@ function StarRatingInput({ config }: { config: Record<string, unknown> }) {
   );
 }
 
-function VasInput({ config }: { config: Record<string, unknown> }) {
+function VasInput({ config, np }: { config: Record<string, unknown>; np: string }) {
   const min = num(config.min, 0);
   const max = num(config.max, 100);
   const left = str(config.leftLabel);
   const right = str(config.rightLabel);
   return (
     <div className="flex flex-col gap-2">
-      <label htmlFor="value" className={PROMPT_CLS}>
+      <label htmlFor={`${np}value`} className={PROMPT_CLS}>
         {str(config.prompt)}
       </label>
-      <input
-        id="value"
-        type="range"
-        name="value"
-        min={min}
-        max={max}
-        step="any"
-        defaultValue={(min + max) / 2}
-        className="w-full accent-[var(--color-primary)]"
-      />
+      <input id={`${np}value`} type="range" name={`${np}value`} min={min} max={max} step="any" defaultValue={(min + max) / 2} className="w-full accent-[var(--color-primary)]" />
       <div className="flex justify-between text-[length:var(--text-small)] text-[var(--color-text-muted)]">
         <span>{left || String(min)}</span>
         <span>{right || String(max)}</span>
@@ -689,24 +585,24 @@ function VasInput({ config }: { config: Record<string, unknown> }) {
   );
 }
 
-/* ---------- V1.12 Wave 3: composite scales ---------- */
+/* ---------- Wave 3: composite scales ---------- */
 
-function MatrixGridInput({ config }: { config: Record<string, unknown> }) {
+function MatrixGridInput({ config, np }: { config: Record<string, unknown>; np: string }) {
   const rows = Array.isArray(config.rows) ? (config.rows as unknown[]).map(str) : [];
   const columns = Array.isArray(config.columns) ? (config.columns as unknown[]).map(str) : [];
   const required = config.required === true;
   return (
     <fieldset className="flex flex-col gap-2">
       <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
-      <input type="hidden" name="rowCount" value={rows.length} />
+      <input type="hidden" name={`${np}rowCount`} value={rows.length} />
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-[length:var(--text-small)]">
           <thead>
             <tr>
               <th />
-              {columns.map((c, j) => (
+              {columns.map((col, j) => (
                 <th key={j} className="px-2 py-1 text-center font-medium text-[var(--color-text-secondary)]">
-                  {c}
+                  {col}
                 </th>
               ))}
             </tr>
@@ -715,16 +611,9 @@ function MatrixGridInput({ config }: { config: Record<string, unknown> }) {
             {rows.map((row, i) => (
               <tr key={i} className="border-t border-[var(--color-border-subtle)]">
                 <td className="py-2 pr-3 text-[var(--color-text-primary)]">{row}</td>
-                {columns.map((c, j) => (
+                {columns.map((col, j) => (
                   <td key={j} className="px-2 py-2 text-center">
-                    <input
-                      type="radio"
-                      name={`row_${i}`}
-                      value={c}
-                      required={required}
-                      aria-label={`${row}: ${c}`}
-                      className="size-4 accent-[var(--color-primary)]"
-                    />
+                    <input type="radio" name={`${np}row_${i}`} value={col} required={required} aria-label={`${row}: ${col}`} className="size-4 accent-[var(--color-primary)]" />
                   </td>
                 ))}
               </tr>
@@ -736,7 +625,7 @@ function MatrixGridInput({ config }: { config: Record<string, unknown> }) {
   );
 }
 
-function SemanticDifferentialInput({ config }: { config: Record<string, unknown> }) {
+function SemanticDifferentialInput({ config, np }: { config: Record<string, unknown>; np: string }) {
   const left = Array.isArray(config.leftLabels) ? (config.leftLabels as unknown[]).map(str) : [];
   const right = Array.isArray(config.rightLabels) ? (config.rightLabels as unknown[]).map(str) : [];
   const points = typeof config.points === "number" ? config.points : 7;
@@ -745,38 +634,27 @@ function SemanticDifferentialInput({ config }: { config: Record<string, unknown>
   return (
     <fieldset className="flex flex-col gap-3">
       <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
-      <input type="hidden" name="rowCount" value={pairs} />
+      <input type="hidden" name={`${np}rowCount`} value={pairs} />
       {Array.from({ length: pairs }, (_, i) => (
         <div key={i} className="flex items-center gap-3">
-          <span className="w-24 shrink-0 text-right text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
-            {left[i]}
-          </span>
+          <span className="w-24 shrink-0 text-right text-[length:var(--text-small)] text-[var(--color-text-secondary)]">{left[i]}</span>
           <div className="flex flex-1 justify-between">
             {Array.from({ length: points }, (_, p) => (
               <label key={p} className="cursor-pointer">
-                <input
-                  type="radio"
-                  name={`row_${i}`}
-                  value={p + 1}
-                  required={required}
-                  aria-label={`${left[i]} to ${right[i]}: ${p + 1} of ${points}`}
-                  className="size-4 accent-[var(--color-primary)]"
-                />
+                <input type="radio" name={`${np}row_${i}`} value={p + 1} required={required} aria-label={`${left[i]} to ${right[i]}: ${p + 1} of ${points}`} className="size-4 accent-[var(--color-primary)]" />
               </label>
             ))}
           </div>
-          <span className="w-24 shrink-0 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
-            {right[i]}
-          </span>
+          <span className="w-24 shrink-0 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">{right[i]}</span>
         </div>
       ))}
     </fieldset>
   );
 }
 
-/* ---------- V1.12 Wave 3: MaxDiff (best–worst) ---------- */
+/* ---------- Wave 3: MaxDiff ---------- */
 
-function MaxDiffInput({ config }: { config: Record<string, unknown> }) {
+function MaxDiffInput({ config, np }: { config: Record<string, unknown>; np: string }) {
   const items = Array.isArray(config.items) ? (config.items as unknown[]).map(str) : [];
   const required = config.required === true;
   return (
@@ -795,10 +673,10 @@ function MaxDiffInput({ config }: { config: Record<string, unknown> }) {
             <tr key={i} className="border-t border-[var(--color-border-subtle)]">
               <td className="py-2 pr-3 text-[var(--color-text-primary)]">{item}</td>
               <td className="px-2 py-2 text-center">
-                <input type="radio" name="best" value={item} required={required} aria-label={`Best: ${item}`} className="size-4 accent-[var(--color-primary)]" />
+                <input type="radio" name={`${np}best`} value={item} required={required} aria-label={`Best: ${item}`} className="size-4 accent-[var(--color-primary)]" />
               </td>
               <td className="px-2 py-2 text-center">
-                <input type="radio" name="worst" value={item} required={required} aria-label={`Worst: ${item}`} className="size-4 accent-[var(--color-primary)]" />
+                <input type="radio" name={`${np}worst`} value={item} required={required} aria-label={`Worst: ${item}`} className="size-4 accent-[var(--color-primary)]" />
               </td>
             </tr>
           ))}
