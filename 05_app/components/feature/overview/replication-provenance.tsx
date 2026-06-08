@@ -17,7 +17,7 @@ export type Provenance = {
  * vs. the parent (added / removed / modified blocks), from `diffBlocks`. The
  * researcher's own notes live in the editable "Notes on changes" field.
  */
-export function ReplicationProvenance({ parent }: { parent: Provenance }) {
+export function ReplicationProvenance({ parent, studyId }: { parent: Provenance; studyId: string }) {
   const d = parent.diff;
   const changed = d ? d.added.length + d.removed.length + d.changed.length : 0;
 
@@ -88,6 +88,13 @@ export function ReplicationProvenance({ parent }: { parent: Provenance }) {
           </ul>
         )}
       </div>
+
+      <Link
+        href={`/studies/${studyId}/replications` as Route}
+        className="self-start text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] underline-offset-2 hover:underline"
+      >
+        View full lineage →
+      </Link>
     </section>
   );
 }
