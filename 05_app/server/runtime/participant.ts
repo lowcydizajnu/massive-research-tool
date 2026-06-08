@@ -11,7 +11,8 @@ import {
   responseItem,
 } from "@/server/db/schema";
 import { conditionWithSources, evaluateCondition } from "@/lib/whiteboard/conditions";
-import { readBlocks, type BlockInstance } from "@/server/modules/blocks";
+import { deriveScreens, type Screen } from "@/lib/whiteboard/screens";
+import { readBlocks, readGroups, type BlockInstance } from "@/server/modules/blocks";
 import { getModuleDef } from "@/server/modules/registry";
 
 /**
@@ -91,6 +92,33 @@ export function resolveVisibleBlocks(
     const cond = conditionWithSources(b.showIf, b.branchRules, earlier);
     if (isVisible(b, conditionSlug) && evaluateCondition(cond, answers)) out.push(b);
     earlier.add(b.instanceId);
+  }
+  return out;
+}
+
+/**
+ * The visible SCREENS for a response (ADR-0028) — the runtime's per-screen
+ * navigation unit. Arm-filters blocks, derives screens (contiguous group runs +
+ * lone blocks), then evaluates each screen's condition against answers from
+ * EARLIER screens (a group's `showIf` governs the whole screen; a single
+ * screen's is the lone block's `showIf`/legacy branchRules). A strict
+ * generalization of `resolveVisibleBlocks`: with no groups, screens map 1:1 to
+ * visible blocks with identical visibility.
+ */
+export function resolveVisibleScreens(
+  snapshot: unknown,
+  conditionSlug: string,
+  answers: Record<string, unknown>,
+): Screen[] {
+  const armBlocks = (readBlocks(snapshot) as RuntimeBlock[]).filter((b) => isVisible(b, conditionSlug));
+  const screens = deriveScreens(armBlocks, readGroups(snapshot));
+  const earlier = new Set<string>();
+  const out: Screen[] = [];
+  for (const sc of screens) {
+    const branchRules = sc.kind === "single" ? sc.blocks[0]?.branchRules : undefined;
+    const cond = conditionWithSources(sc.showIf, branchRules, earlier);
+    if (evaluateCondition(cond, answers)) out.push(sc);
+    for (const b of sc.blocks) earlier.add(b.instanceId);
   }
   return out;
 }
