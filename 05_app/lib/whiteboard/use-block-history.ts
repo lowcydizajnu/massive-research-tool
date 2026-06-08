@@ -36,36 +36,52 @@ function toInput(b: StudyBlock): BlockSnapshotInput {
 
 const MAX = 50;
 
+type History = { past: string[]; future: string[] };
+
 /**
- * Edit-history for a study's blocks (Builder + Whiteboard undo). Watches the
- * blocks and, on each *user* change, pushes the prior snapshot onto a per-study
- * stack kept in sessionStorage (so it survives switching between Builder and
- * Whiteboard; cleared when the tab closes). `undo()` restores the previous
- * snapshot via `onRestore` (the `setBlocks` mutation) without re-recording it.
+ * Undo/redo history for a study's blocks (Builder + Whiteboard). Watches the
+ * blocks and, on each *user* change, pushes the prior snapshot onto `past` and
+ * clears `future`; the per-study history is kept in sessionStorage (survives
+ * switching between Builder and Whiteboard; cleared when the tab closes).
+ * `undo()`/`redo()` restore a snapshot via `onRestore` (the `setBlocks`
+ * mutation) without re-recording it. All restores write the working draft only —
+ * saved versions and frozen preregistrations are never touched.
  */
 export function useBlockHistory(
   studyId: string,
   blocks: StudyBlock[],
   onRestore: (blocks: BlockSnapshotInput[]) => void,
 ) {
-  const storageKey = `mrt-undo:${studyId}`;
+  const storageKey = `mrt-history:${studyId}`;
   const serialized = useMemo(() => JSON.stringify(blocks.map(toInput)), [blocks]);
-  const [stack, setStack] = useState<string[]>([]);
+  const [hist, setHist] = useState<History>({ past: [], future: [] });
   const restoring = useRef(false);
   const baseline = useRef<string | null>(null);
 
-  // Hydrate the stack from the prior in-tab state.
+  const persist = useCallback(
+    (h: History): History => {
+      try {
+        sessionStorage.setItem(storageKey, JSON.stringify(h));
+      } catch {
+        /* ignore */
+      }
+      return h;
+    },
+    [storageKey],
+  );
+
+  // Hydrate from the prior in-tab state.
   useEffect(() => {
     try {
       const raw = sessionStorage.getItem(storageKey);
-      if (raw) setStack(JSON.parse(raw) as string[]);
+      if (raw) setHist(JSON.parse(raw) as History);
     } catch {
       /* ignore */
     }
   }, [storageKey]);
 
   // Capture distinct states. The first observed state is the baseline (not an
-  // edit); a change caused by undo is skipped so it doesn't re-enter the stack.
+  // edit); a change caused by undo/redo is skipped so it doesn't re-enter.
   useEffect(() => {
     if (baseline.current === null) {
       baseline.current = serialized;
@@ -77,33 +93,32 @@ export function useBlockHistory(
       baseline.current = serialized;
       return;
     }
-    setStack((s) => {
-      const next = [...s, baseline.current as string].slice(-MAX);
-      try {
-        sessionStorage.setItem(storageKey, JSON.stringify(next));
-      } catch {
-        /* ignore */
-      }
-      return next;
-    });
+    const prior = baseline.current;
     baseline.current = serialized;
-  }, [serialized, storageKey]);
+    setHist((h) => persist({ past: [...h.past, prior].slice(-MAX), future: [] }));
+  }, [serialized, persist]);
 
   const undo = useCallback(() => {
-    setStack((s) => {
-      if (s.length === 0) return s;
-      const prev = s[s.length - 1];
-      const next = s.slice(0, -1);
-      try {
-        sessionStorage.setItem(storageKey, JSON.stringify(next));
-      } catch {
-        /* ignore */
-      }
+    setHist((h) => {
+      if (h.past.length === 0 || baseline.current === null) return h;
+      const target = h.past[h.past.length - 1];
+      const present = baseline.current;
       restoring.current = true;
-      onRestore(JSON.parse(prev) as BlockSnapshotInput[]);
-      return next;
+      onRestore(JSON.parse(target) as BlockSnapshotInput[]);
+      return persist({ past: h.past.slice(0, -1), future: [...h.future, present] });
     });
-  }, [onRestore, storageKey]);
+  }, [onRestore, persist]);
 
-  return { canUndo: stack.length > 0, undo };
+  const redo = useCallback(() => {
+    setHist((h) => {
+      if (h.future.length === 0 || baseline.current === null) return h;
+      const target = h.future[h.future.length - 1];
+      const present = baseline.current;
+      restoring.current = true;
+      onRestore(JSON.parse(target) as BlockSnapshotInput[]);
+      return persist({ past: [...h.past, present], future: h.future.slice(0, -1) });
+    });
+  }, [onRestore, persist]);
+
+  return { canUndo: hist.past.length > 0, canRedo: hist.future.length > 0, undo, redo };
 }
