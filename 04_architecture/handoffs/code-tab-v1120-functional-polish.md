@@ -594,6 +594,8 @@ If there's slack in V1.12, these are quick gems:
 
 ## Section L — Block grouping + experimental parts (owner-added 2026-06-08, ~1.5 weeks)
 
+> **Owner clarification (2026-06-08, post-v1.12.0):** A group is not just visual — **a group IS one screen.** Its member blocks render together on a single participant screen, and the participant moves between screens with **Next / Back** buttons. So grouping ⇒ multi-question-per-screen by default (the L1 "one screen per group" + C2-Group-5 "Multi-Question Page" become the SAME thing — a group is the screen unit). Conditioning applies at the group/screen level (a conditioned group's whole screen is shown or skipped, per the V1.10 AND/OR engine), and **transition / "option" screens** (`core/transition`, L2) sit BETWEEN groups and experimental parts as their own standalone screens. Net: the participant runtime's unit of navigation becomes the **screen** (a group, or a lone ungrouped block, or a transition), with Back/Next paging — not strictly one-block-per-page. This is the load-bearing amendment to ADR-0013 for Section L (per-screen routing carries the group's member ids; Back is now a first-class control).
+
 Owner asked for two compositional affordances that are foundational for serious experimental design and don't exist today (today blocks are a flat list):
 
 ### L1. Question Groups with anchor artifacts
