@@ -282,11 +282,9 @@ export function BuilderWorkspace({
                       {groupStart ? (
                         <div className="flex items-center gap-2 pl-7">
                           <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">⊞ Group screen</span>
-                          <input
+                          <GroupTitleInput
                             value={group?.title ?? ""}
-                            placeholder="Group title"
-                            onChange={(e) => renameGroup(b.groupId!, e.target.value)}
-                            className="rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-0.5 text-[length:var(--text-small)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+                            onCommit={(t) => renameGroup(b.groupId!, t)}
                           />
                         </div>
                       ) : null}
@@ -634,5 +632,27 @@ function DetailRow({ label, children }: { label: string; children: React.ReactNo
       </span>
       {children}
     </div>
+  );
+}
+
+/** Group-title field that commits only on blur / Enter (not per keystroke), so
+ *  renaming a group doesn't fire an autosave on every letter (Section L). */
+function GroupTitleInput({ value, onCommit }: { value: string; onCommit: (v: string) => void }) {
+  const [v, setV] = useState(value);
+  useEffect(() => setV(value), [value]);
+  const commit = () => {
+    if (v !== value) onCommit(v);
+  };
+  return (
+    <input
+      value={v}
+      placeholder="Group title"
+      onChange={(e) => setV(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur();
+      }}
+      className="rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-0.5 text-[length:var(--text-small)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+    />
   );
 }
