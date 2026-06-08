@@ -108,6 +108,16 @@ For each vendor:
 | **Migration target** | Native HTML5 DnD (what we had pre-V1.11) or another sortable lib; a migration swaps the wrapper, since order is just the `blocks` array order (ADR-0012). |
 | **Cost-ceiling trigger** | None — MIT, no SaaS tier, no per-seat cost. Revisit only on a React-major incompatibility or unmaintained status (ADR-0022 triggers). |
 
+## @react-pdf/renderer (Study PDF export — per ADR-0027)
+
+| | |
+| --- | --- |
+| **What we use it for** | V1.12 B2 "Export study as PDF" — server-side rendering of the study document (cover + abstract + hypotheses + sections + block appendix + citation + prereg receipt). Researcher-only. |
+| **Behind an adapter** | No server adapter — it's a rendering library, confined to one document component (`05_app/components/feature/overview/study-pdf.tsx`) + the one route that buffers it (`05_app/app/(app)/studies/[id]/export-pdf/route.ts`). Everything it renders comes from our own data; no `@react-pdf/*` type leaks elsewhere. |
+| **Deliberate exceptions** | (none — the two-file boundary holds.) |
+| **Migration target** | Browser print-to-PDF (the ADR-0027 Option B fallback) or another server PDF lib; a migration rewrites the one document component. |
+| **Cost-ceiling trigger** | None — MIT, no SaaS tier. Operational note: must run on the Node runtime + be in `next.config` `serverExternalPackages` (not bundled). Revisit on a React/Node-major incompatibility or Vercel bundle/runtime cost (ADR-0027 triggers). |
+
 ## Review discipline
 
 When opening a PR that touches an adapter or adds a vendor SDK import:
