@@ -3,7 +3,7 @@ import type { Route } from "next";
 import { notFound, redirect } from "next/navigation";
 
 import { BlockView } from "@/components/feature/take/block-view";
-import { Card, PreviewRibbon, Progress } from "@/components/feature/take/parts";
+import { Card, ScreenHeader } from "@/components/feature/take/parts";
 import { getRuntimeScreen } from "@/server/runtime/participant";
 
 import { answerAction } from "../../actions";
@@ -40,8 +40,7 @@ export default async function ScreenPage({
 
   return (
     <Card>
-      {s.mode === "preview" ? <PreviewRibbon /> : null}
-      <Progress position={s.position} total={s.total} />
+      <ScreenHeader position={s.position} total={s.total} preview={s.mode === "preview"} />
 
       <form action={answerAction} className="flex flex-col gap-6">
         <input type="hidden" name="studyId" value={studyId} />
