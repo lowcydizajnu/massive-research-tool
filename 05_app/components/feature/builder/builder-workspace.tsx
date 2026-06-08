@@ -1,6 +1,6 @@
 "use client";
 
-import { GripVertical, Plus, Undo2 } from "lucide-react";
+import { GripVertical, Plus, Redo2, Undo2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { SortableList } from "@/components/feature/whiteboard/sortable-list";
@@ -103,7 +103,7 @@ export function BuilderWorkspace({
   const reorderBlocks = api.studies.reorderBlocks.useMutation({ onSuccess: () => void invalidate() });
   const setCondition = api.studies.setBlockCondition.useMutation({ onSuccess: () => void invalidate() });
   const setBlocksMut = api.studies.setBlocks.useMutation({ onSuccess: () => void invalidate() });
-  const { canUndo, undo } = useBlockHistory(study.id, study.blocks, (blocks) =>
+  const { canUndo, canRedo, undo, redo } = useBlockHistory(study.id, study.blocks, (blocks) =>
     setBlocksMut.mutate({ studyId: study.id, blocks }),
   );
   const [pendingReorder, setPendingReorder] = useState<{ order: string[]; items: string[] } | null>(null);
@@ -160,6 +160,16 @@ export function BuilderWorkspace({
                 className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-1.5 text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)] disabled:opacity-40"
               >
                 <Undo2 className="size-4" aria-hidden />
+              </button>
+              <button
+                type="button"
+                onClick={redo}
+                disabled={!canRedo || setBlocksMut.isPending}
+                title="Redo"
+                aria-label="Redo last undone change"
+                className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-1.5 text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)] disabled:opacity-40"
+              >
+                <Redo2 className="size-4" aria-hidden />
               </button>
               <ModeToggle studyId={study.id} mode="builder" />
               <button
