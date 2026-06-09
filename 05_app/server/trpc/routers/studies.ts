@@ -1497,7 +1497,12 @@ export const studiesRouter = router({
     .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
       const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
       const blocks = pruneForwardConditions(input.blocks as unknown as BlockInstance[]);
-      // Keep only groups that still have ≥1 member block.
+      // A group needs ≥2 members — dissolve any that fell to 1 (or 0): clear the
+      // lone member's groupId so it becomes a normal block (ADR-0028).
+      const counts = new Map<string, number>();
+      for (const b of blocks) if (b.groupId) counts.set(b.groupId, (counts.get(b.groupId) ?? 0) + 1);
+      const dissolve = new Set([...counts].filter(([, n]) => n < 2).map(([id]) => id));
+      for (const b of blocks) if (b.groupId && dissolve.has(b.groupId)) delete b.groupId;
       const used = new Set(blocks.map((b) => b.groupId).filter(Boolean));
       const groups = input.groups.filter((g) => used.has(g.id));
       const snap =
