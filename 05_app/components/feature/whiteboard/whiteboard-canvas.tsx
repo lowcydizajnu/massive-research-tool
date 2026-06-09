@@ -51,6 +51,8 @@ export function WhiteboardCanvas({
   onConnectBranch,
   onDisconnectBranch,
   onRegroup,
+  onConnectGroupArm,
+  onDisconnectGroupArm,
 }: {
   study: StudyDetail;
   conditions: WhiteboardCondition[];
@@ -63,6 +65,9 @@ export function WhiteboardCanvas({
   onDisconnectBranch?: (targetId: string, sourceId: string) => void;
   /** Drag a block into a group container (groupId) or out (null) — ADR-0028. */
   onRegroup?: (blockId: string, groupId: string | null) => void;
+  /** Wire a Condition (arm) to a group container → gate the whole group by it. */
+  onConnectGroupArm?: (groupId: string, slug: string) => void;
+  onDisconnectGroupArm?: (groupId: string, slug: string) => void;
 }) {
   const saved = study.whiteboardViewport.nodePositions ?? {};
   const condName = useMemo(() => {
@@ -185,8 +190,24 @@ export function WhiteboardCanvas({
           style: { stroke: "var(--color-primary)" },
         }));
       }),
+      // Group arm wires (Condition node → group container): a group is gated by an
+      // arm when EVERY member block carries that arm (ADR-0028). One edge per such slug.
+      ...study.groups.flatMap((g) => {
+        const members = study.blocks.filter((b) => b.groupId === g.id);
+        if (members.length === 0) return [];
+        const shared = members[0].showIfCondition.filter((slug) =>
+          members.every((m) => m.showIfCondition.includes(slug)),
+        );
+        return shared.map((slug) => ({
+          id: `g:${slug}->${GROUP_PREFIX}${g.id}`,
+          source: conditionNodeId(slug),
+          target: `${GROUP_PREFIX}${g.id}`,
+          markerEnd: { type: MarkerType.ArrowClosed },
+          style: { stroke: "var(--color-primary)" },
+        }));
+      }),
     ],
-    [study.blocks, onSelectBlock],
+    [study.blocks, study.groups, onSelectBlock],
   );
 
   const [nodes, setNodes, onNodesChange] = useNodesState(computedNodes);
@@ -257,25 +278,36 @@ export function WhiteboardCanvas({
   const onConnect = useCallback(
     (c: Connection) => {
       if (!c.source || !c.target || c.target.startsWith(COND_PREFIX)) return;
+      // Condition → group container: gate the whole group by that arm (ADR-0028).
+      if (c.target.startsWith(GROUP_PREFIX)) {
+        if (c.source.startsWith(COND_PREFIX)) {
+          onConnectGroupArm?.(c.target.slice(GROUP_PREFIX.length), c.source.slice(COND_PREFIX.length));
+        }
+        return;
+      }
       if (c.source.startsWith(COND_PREFIX)) {
         onConnectCondition?.(c.target, c.source.slice(COND_PREFIX.length));
       } else if (c.source !== c.target) {
         onConnectBranch?.(c.target, c.source); // block → block
       }
     },
-    [onConnectCondition, onConnectBranch],
+    [onConnectCondition, onConnectBranch, onConnectGroupArm],
   );
   const onEdgesDelete = useCallback(
     (deleted: Edge[]) => {
       for (const e of deleted) {
-        if (e.source.startsWith(COND_PREFIX)) {
+        if (e.target.startsWith(GROUP_PREFIX)) {
+          if (e.source.startsWith(COND_PREFIX)) {
+            onDisconnectGroupArm?.(e.target.slice(GROUP_PREFIX.length), e.source.slice(COND_PREFIX.length));
+          }
+        } else if (e.source.startsWith(COND_PREFIX)) {
           onDisconnectCondition?.(e.target, e.source.slice(COND_PREFIX.length));
         } else {
           onDisconnectBranch?.(e.target, e.source); // block → block branch wire
         }
       }
     },
-    [onDisconnectCondition, onDisconnectBranch],
+    [onDisconnectCondition, onDisconnectBranch, onDisconnectGroupArm],
   );
 
   const vp = study.whiteboardViewport;

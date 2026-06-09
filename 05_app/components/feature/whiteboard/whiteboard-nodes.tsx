@@ -32,6 +32,8 @@ export type GroupNodeType = Node<GroupNodeData, "group">;
 export function GroupNode({ data }: NodeProps<GroupNodeType>) {
   return (
     <div className="relative h-full w-full rounded-[var(--radius-md)] border-2 border-dashed border-[var(--color-primary)] bg-[var(--color-primary-subtle)] opacity-60">
+      {/* Target handle: drop a Condition wire here to gate the whole group by arm. */}
+      <Handle type="target" position={Position.Left} className="!size-2 !bg-[var(--color-primary)]" />
       <span className="absolute left-2 top-1 text-[length:var(--text-small)] font-medium text-[var(--color-primary-text-on-subtle)]">
         ⊞ {data.label || "Group"}
       </span>
