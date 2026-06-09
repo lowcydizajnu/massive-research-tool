@@ -16,7 +16,6 @@ import {
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import type { CSSProperties, ReactNode } from "react";
 
 /** Props to spread onto the drag-handle element (the grip). */
@@ -92,8 +91,11 @@ function SortableRow({
 }) {
   const { setNodeRef, setActivatorNodeRef, transform, transition, isDragging, attributes, listeners } =
     useSortable({ id });
+  // Translate only — never scale. dnd-kit otherwise puts scaleX/scaleY in the
+  // transform to morph a dragged item to the size of the one it passes, which
+  // vertically stretches a short row (e.g. a group header) over a tall card.
   const style: CSSProperties = {
-    transform: CSS.Transform.toString(transform),
+    transform: transform ? `translate3d(${Math.round(transform.x)}px, ${Math.round(transform.y)}px, 0)` : undefined,
     transition,
     zIndex: isDragging ? 10 : undefined,
     opacity: isDragging ? 0.6 : 1,

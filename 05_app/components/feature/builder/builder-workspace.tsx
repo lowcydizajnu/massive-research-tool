@@ -389,7 +389,7 @@ export function BuilderWorkspace({
                     const group = study.groups.find((g) => g.id === gid);
                     const collapsed = collapsedGroups.has(gid);
                     return (
-                      <div className="mt-2 flex flex-wrap items-center gap-2 rounded-t-[var(--radius-md)] border-l-2 border-[var(--color-primary)] bg-[var(--color-primary-subtle)] px-2 py-1.5">
+                      <div className="mt-2 flex flex-wrap items-center gap-2 rounded-t-[var(--radius-md)] border-l-2 border-[var(--color-primary)] bg-[var(--color-primary-subtle)]/40 px-2 py-1.5">
                         <span
                           ref={handle.ref}
                           {...handle.attributes}
@@ -442,7 +442,7 @@ export function BuilderWorkspace({
                   const isLastMember = grouped && (!next || next.groupId !== b.groupId);
                   const collapsed = grouped && collapsedGroups.has(b.groupId!);
                   const groupCls = grouped
-                    ? cn("border-l-2 border-[var(--color-primary)] bg-[var(--color-primary-subtle)] px-2", isLastMember && "rounded-b-[var(--radius-md)] pb-2")
+                    ? cn("border-l-2 border-[var(--color-primary)] bg-[var(--color-primary-subtle)]/40 px-2", isLastMember && "rounded-b-[var(--radius-md)] pb-2")
                     : "mt-2 border-l-2 border-transparent pl-2";
 
                   // Collapsed member → thin one-liner (still draggable).
