@@ -1,5 +1,6 @@
 "use client";
 
+import { Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { api } from "@/lib/trpc/react";
@@ -35,6 +36,7 @@ export function ModulePicker({
   });
   const [q, setQ] = useState("");
   const [selectedRef, setSelectedRef] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -84,25 +86,50 @@ export function ModulePicker({
                   {cm.blockCount} block{cm.blockCount === 1 ? "" : "s"} · group
                 </span>
               </span>
-              <button
-                type="button"
-                disabled={insertingModule}
-                onClick={() => onInsertCustomModule?.(cm.id)}
-                className="shrink-0 rounded-[var(--radius-sm)] bg-[var(--color-primary)] px-2 py-0.5 text-[length:var(--text-small)] font-medium text-white disabled:opacity-60"
-              >
-                Insert
-              </button>
-              {onRemoveCustomModule ? (
-                <button
-                  type="button"
-                  onClick={() => onRemoveCustomModule(cm.id)}
-                  aria-label={`Delete module ${cm.name}`}
-                  title="Delete module"
-                  className="shrink-0 rounded-[var(--radius-sm)] px-1 text-[length:var(--text-small)] text-[var(--color-text-muted)] hover:text-[var(--color-danger-text-on-subtle)]"
-                >
-                  ×
-                </button>
-              ) : null}
+              {confirmDeleteId === cm.id ? (
+                <span className="flex shrink-0 items-center gap-1">
+                  <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">Delete?</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onRemoveCustomModule?.(cm.id);
+                      setConfirmDeleteId(null);
+                    }}
+                    className="rounded-[var(--radius-sm)] bg-[var(--color-danger)] px-2 py-0.5 text-[length:var(--text-small)] font-medium text-white"
+                  >
+                    Delete
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDeleteId(null)}
+                    className="rounded-[var(--radius-sm)] px-1.5 py-0.5 text-[length:var(--text-small)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
+                  >
+                    Cancel
+                  </button>
+                </span>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    disabled={insertingModule}
+                    onClick={() => onInsertCustomModule?.(cm.id)}
+                    className="shrink-0 rounded-[var(--radius-sm)] bg-[var(--color-primary)] px-2 py-0.5 text-[length:var(--text-small)] font-medium text-white disabled:opacity-60"
+                  >
+                    Insert
+                  </button>
+                  {onRemoveCustomModule ? (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteId(cm.id)}
+                      aria-label={`Delete module ${cm.name}`}
+                      title="Delete this saved module"
+                      className="shrink-0 rounded-[var(--radius-sm)] p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)] hover:text-[var(--color-danger-text-on-subtle)]"
+                    >
+                      <Trash2 className="size-3.5" aria-hidden />
+                    </button>
+                  ) : null}
+                </>
+              )}
             </div>
           ))}
         </div>
