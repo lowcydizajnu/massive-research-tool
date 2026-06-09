@@ -1542,6 +1542,7 @@ export const studiesRouter = router({
     return rows.map((r) => ({
       id: r.id,
       name: r.name,
+      definition: r.definition as CustomModuleDefinition,
       blockCount: (r.definition as CustomModuleDefinition).blocks?.length ?? 0,
     }));
   }),
@@ -1574,11 +1575,16 @@ export const studiesRouter = router({
       return { id: row.id };
     }),
 
-  /** Overwrite an existing module's definition from a (now-edited) group it was
-   *  inserted from — "Update module" vs "Save as new" (ADR-0029). */
+  /**
+   * Overwrite an existing module from a (now-edited) group it was inserted from,
+   * then PROPAGATE the new definition into every other group across the
+   * workspace's working drafts that was inserted from this module — re-materialised
+   * with fresh ids in place. Frozen versions (preregistrations/named) are separate
+   * snapshots and are never touched, so preregistration-safety holds (ADR-0029).
+   */
   updateCustomModule: writeProcedure
     .input(z.object({ moduleId: z.string().uuid(), studyId: z.string().uuid(), groupId: z.string() }))
-    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+    .mutation(async ({ ctx, input }): Promise<{ ok: true; propagated: number }> => {
       const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
       const members = (readBlocks(tip.version.definitionSnapshot) as BlockInstance[]).filter(
         (b) => b.groupId === input.groupId,
@@ -1592,7 +1598,45 @@ export const studiesRouter = router({
         .where(and(eq(customModule.id, input.moduleId), eq(customModule.tenantId, ctx.workspace.id)))
         .returning({ id: customModule.id });
       if (res.length === 0) throw new TRPCError({ code: "NOT_FOUND", message: "Module not found." });
-      return { ok: true };
+
+      // Propagate into other working-draft usages (replace each usage group's
+      // member blocks; keep its own title/condition/group id). Skip the source group.
+      const exps = await db
+        .select({ id: experiment.id, versionId: experimentVersion.id, snapshot: experimentVersion.definitionSnapshot })
+        .from(experiment)
+        .innerJoin(experimentVersion, eq(experiment.currentVersionId, experimentVersion.id))
+        .where(eq(experiment.tenantId, ctx.workspace.id));
+      let propagated = 0;
+      for (const e of exps) {
+        const groups = readGroups(e.snapshot);
+        const targetIds = new Set(
+          groups
+            .filter((g) => g.moduleId === input.moduleId && !(e.id === input.studyId && g.id === input.groupId))
+            .map((g) => g.id),
+        );
+        if (targetIds.size === 0) continue;
+        const blocks = readBlocks(e.snapshot) as BlockInstance[];
+        const out: BlockInstance[] = [];
+        const done = new Set<string>();
+        for (const b of blocks) {
+          if (b.groupId && targetIds.has(b.groupId)) {
+            if (!done.has(b.groupId)) {
+              out.push(...definitionToBlocks(definition, b.groupId, () => ulid()));
+              done.add(b.groupId);
+            }
+          } else {
+            out.push(b);
+          }
+        }
+        const snap = e.snapshot && typeof e.snapshot === "object" ? (e.snapshot as Record<string, unknown>) : {};
+        await db
+          .update(experimentVersion)
+          .set({ definitionSnapshot: { ...snap, blocks: out }, moduleVersionLocks: locksFromBlocks(out) })
+          .where(eq(experimentVersion.id, e.versionId));
+        await db.update(experiment).set({ updatedAt: new Date() }).where(eq(experiment.id, e.id));
+        propagated += targetIds.size;
+      }
+      return { ok: true, propagated };
     }),
 
   /** Insert a saved module into a study as a new group (fresh ids — copy). */

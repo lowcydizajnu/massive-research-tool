@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { SortableList } from "@/components/feature/whiteboard/sortable-list";
 import { useBlockHistory } from "@/lib/whiteboard/use-block-history";
 import { regroupAfterMove } from "@/lib/whiteboard/screens";
+import { groupToDefinition } from "@/lib/custom-modules";
 import {
   conditionWithSources,
   newlyBrokenByReorder,
@@ -275,12 +276,24 @@ export function BuilderWorkspace({
     },
   });
   const removeModuleMut = api.studies.removeCustomModule.useMutation({ onSuccess: () => void customModulesQ.refetch() });
+  const [confirmUpdate, setConfirmUpdate] = useState<{ moduleId: string; groupId: string; name: string } | null>(null);
   const updateModuleMut = api.studies.updateCustomModule.useMutation({
-    onSuccess: () => {
-      setSavedMsg("Module updated.");
+    onSuccess: (data) => {
+      setConfirmUpdate(null);
+      setSavedMsg(
+        data.propagated > 0
+          ? `Module updated · ${data.propagated} other use${data.propagated === 1 ? "" : "s"} synced.`
+          : "Module updated.",
+      );
       void customModulesQ.refetch();
+      void invalidate();
     },
   });
+  // A group differs from its source module → only then offer "Update".
+  const groupDiffersFromModule = (gid: string, title: string | undefined, def: unknown): boolean => {
+    const members = study.blocks.filter((b) => b.groupId === gid) as unknown as Parameters<typeof groupToDefinition>[0];
+    return JSON.stringify(groupToDefinition(members, title)) !== JSON.stringify(def);
+  };
   const armsForGroup = (groupId: string): string[] => {
     const members = study.blocks.filter((b) => b.groupId === groupId);
     if (!members.length) return [];
@@ -502,19 +515,40 @@ export function BuilderWorkspace({
                               : null;
                             const btnCls =
                               "rounded-[var(--radius-sm)] px-1.5 py-0.5 text-[length:var(--text-small)] text-[var(--color-primary-text-on-subtle)] hover:bg-[var(--color-primary-subtle)]";
-                            return sourceModule ? (
-                              <span className="flex items-center gap-1">
+                            if (!sourceModule) {
+                              return (
                                 <button
                                   type="button"
-                                  disabled={updateModuleMut.isPending}
-                                  onClick={() =>
-                                    updateModuleMut.mutate({ moduleId: sourceModule.id, studyId: study.id, groupId: gid })
-                                  }
-                                  title={`Overwrite the "${sourceModule.name}" module with this group`}
+                                  onClick={() => {
+                                    setSavingGroupId(gid);
+                                    setModuleName(group?.title ?? "");
+                                  }}
+                                  title="Save this group as a reusable module"
                                   className={btnCls}
                                 >
-                                  ⤴ Update “{sourceModule.name}”
+                                  ＋ Save as module
                                 </button>
+                              );
+                            }
+                            const changed = groupDiffersFromModule(gid, group?.title, sourceModule.definition);
+                            return (
+                              <span className="flex items-center gap-1">
+                                {changed ? (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setConfirmUpdate({ moduleId: sourceModule.id, groupId: gid, name: sourceModule.name })
+                                    }
+                                    title={`Update the "${sourceModule.name}" module everywhere it's used`}
+                                    className={btnCls}
+                                  >
+                                    ⤴ Update “{sourceModule.name}”
+                                  </button>
+                                ) : (
+                                  <span className="text-[length:var(--text-small)] text-[var(--color-primary-text-on-subtle)] opacity-70">
+                                    ✓ module “{sourceModule.name}”
+                                  </span>
+                                )}
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -526,18 +560,6 @@ export function BuilderWorkspace({
                                   Save as new
                                 </button>
                               </span>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setSavingGroupId(gid);
-                                  setModuleName(group?.title ?? "");
-                                }}
-                                title="Save this group as a reusable module"
-                                className={btnCls}
-                              >
-                                ＋ Save as module
-                              </button>
                             );
                           })()
                         )}
@@ -857,6 +879,22 @@ export function BuilderWorkspace({
           setPendingReorder(null);
         }}
         onCancel={() => setPendingReorder(null)}
+      />
+
+      <ConfirmDialog
+        open={confirmUpdate !== null}
+        title={confirmUpdate ? `Update the “${confirmUpdate.name}” module?` : "Update module?"}
+        body="This overwrites the saved module with this group, and updates every other draft study that uses it to match (their copies are replaced). To leave those studies as they are, choose “Save as new” instead."
+        confirmLabel="Update everywhere"
+        onConfirm={() => {
+          if (confirmUpdate)
+            updateModuleMut.mutate({
+              moduleId: confirmUpdate.moduleId,
+              studyId: study.id,
+              groupId: confirmUpdate.groupId,
+            });
+        }}
+        onCancel={() => setConfirmUpdate(null)}
       />
     </>
   );
