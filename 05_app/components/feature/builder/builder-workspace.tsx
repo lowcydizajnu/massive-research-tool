@@ -106,16 +106,15 @@ export function BuilderWorkspace({
   // local state keyed by block id, which a restore doesn't change). Normal edits
   // don't bump it, so typing isn't interrupted.
   const [panelEpoch, setPanelEpoch] = useState(0);
-  const setBlocksMut = api.studies.setBlocks.useMutation({
+  const setGroupsMut = api.studies.setGroups.useMutation({
     onSuccess: () => {
       void invalidate();
       setPanelEpoch((e) => e + 1);
     },
   });
-  const { canUndo, canRedo, undo, redo } = useBlockHistory(study.id, study.blocks, (blocks) =>
-    setBlocksMut.mutate({ studyId: study.id, blocks }),
+  const { canUndo, canRedo, undo, redo } = useBlockHistory(study.id, study.blocks, study.groups, (snap) =>
+    setGroupsMut.mutate({ studyId: study.id, blocks: snap.blocks, groups: snap.groups }),
   );
-  const setGroupsMut = api.studies.setGroups.useMutation({ onSuccess: () => void invalidate() });
 
   // Convert the read-shaped StudyBlock back to the write (BlockInstance) shape.
   const toInstance = (b: StudyBlock, groupId: string | null) => ({
@@ -244,7 +243,7 @@ export function BuilderWorkspace({
               <button
                 type="button"
                 onClick={undo}
-                disabled={!canUndo || setBlocksMut.isPending}
+                disabled={!canUndo || setGroupsMut.isPending}
                 title="Undo last change"
                 aria-label="Undo last change"
                 className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-1.5 text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)] disabled:opacity-40"
@@ -254,7 +253,7 @@ export function BuilderWorkspace({
               <button
                 type="button"
                 onClick={redo}
-                disabled={!canRedo || setBlocksMut.isPending}
+                disabled={!canRedo || setGroupsMut.isPending}
                 title="Redo"
                 aria-label="Redo last undone change"
                 className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-1.5 text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)] disabled:opacity-40"

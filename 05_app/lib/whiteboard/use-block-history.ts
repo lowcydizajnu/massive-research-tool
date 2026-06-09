@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ConditionGroup } from "@/lib/whiteboard/conditions";
 import type { StudyBlock } from "@/server/trpc/routers/studies";
 
-/** The block shape `studies.setBlocks` accepts (restore payload). */
+/** The block shape `studies.setGroups` accepts (restore payload). */
 export type BlockSnapshotInput = {
   instanceId: string;
   source: string;
@@ -16,9 +16,17 @@ export type BlockSnapshotInput = {
   visibility?: { showIfCondition?: string[] };
   branchRules?: { fromInstanceId: string; equals: string }[];
   showIf?: ConditionGroup;
+  groupId?: string;
 };
 
-/** Project a StudyBlock to the restore payload (drops display-only fields). */
+export type GroupSnapshot = { id: string; title?: string; showIf?: ConditionGroup };
+
+/** A full structure snapshot — blocks (with group membership) + group metadata.
+ *  Undo/redo restores BOTH so grouping is never silently lost (ADR-0028). */
+export type StructureSnapshot = { blocks: BlockSnapshotInput[]; groups: GroupSnapshot[] };
+
+/** Project a StudyBlock to the restore payload (drops display-only fields, keeps
+ *  group membership). */
 function toInput(b: StudyBlock): BlockSnapshotInput {
   const out: BlockSnapshotInput = {
     instanceId: b.instanceId,
@@ -31,6 +39,7 @@ function toInput(b: StudyBlock): BlockSnapshotInput {
   if (b.showIfCondition.length) out.visibility = { showIfCondition: b.showIfCondition };
   if (b.branchRules.length) out.branchRules = b.branchRules;
   if (b.showIf) out.showIf = b.showIf;
+  if (b.groupId) out.groupId = b.groupId;
   return out;
 }
 
@@ -39,21 +48,25 @@ const MAX = 50;
 type History = { past: string[]; future: string[] };
 
 /**
- * Undo/redo history for a study's blocks (Builder + Whiteboard). Watches the
- * blocks and, on each *user* change, pushes the prior snapshot onto `past` and
- * clears `future`; the per-study history is kept in sessionStorage (survives
- * switching between Builder and Whiteboard; cleared when the tab closes).
- * `undo()`/`redo()` restore a snapshot via `onRestore` (the `setBlocks`
- * mutation) without re-recording it. All restores write the working draft only —
- * saved versions and frozen preregistrations are never touched.
+ * Undo/redo history for a study's structure — blocks AND groups (Builder +
+ * Whiteboard). Watches both and, on each *user* change, pushes the prior snapshot
+ * onto `past` and clears `future`; per-study history lives in sessionStorage
+ * (survives switching Builder ↔ Whiteboard; cleared when the tab closes).
+ * `undo()`/`redo()` restore a snapshot via `onRestore` (the `setGroups` mutation,
+ * which writes blocks + groups together) without re-recording it. All restores
+ * write the working draft only — saved versions/preregistrations are untouched.
  */
 export function useBlockHistory(
   studyId: string,
   blocks: StudyBlock[],
-  onRestore: (blocks: BlockSnapshotInput[]) => void,
+  groups: GroupSnapshot[],
+  onRestore: (snapshot: StructureSnapshot) => void,
 ) {
   const storageKey = `mrt-history:${studyId}`;
-  const serialized = useMemo(() => JSON.stringify(blocks.map(toInput)), [blocks]);
+  const serialized = useMemo(
+    () => JSON.stringify({ blocks: blocks.map(toInput), groups }),
+    [blocks, groups],
+  );
   const [hist, setHist] = useState<History>({ past: [], future: [] });
   const restoring = useRef(false);
   const baseline = useRef<string | null>(null);
@@ -104,7 +117,7 @@ export function useBlockHistory(
       const target = h.past[h.past.length - 1];
       const present = baseline.current;
       restoring.current = true;
-      onRestore(JSON.parse(target) as BlockSnapshotInput[]);
+      onRestore(JSON.parse(target) as StructureSnapshot);
       return persist({ past: h.past.slice(0, -1), future: [...h.future, present] });
     });
   }, [onRestore, persist]);
@@ -115,7 +128,7 @@ export function useBlockHistory(
       const target = h.future[h.future.length - 1];
       const present = baseline.current;
       restoring.current = true;
-      onRestore(JSON.parse(target) as BlockSnapshotInput[]);
+      onRestore(JSON.parse(target) as StructureSnapshot);
       return persist({ past: [...h.past, present], future: h.future.slice(0, -1) });
     });
   }, [onRestore, persist]);
