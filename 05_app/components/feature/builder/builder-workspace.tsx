@@ -1,6 +1,6 @@
 "use client";
 
-import { GripVertical, Plus, Redo2, Undo2 } from "lucide-react";
+import { GripVertical, Plus, Redo2, Trash2, Undo2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { SortableList } from "@/components/feature/whiteboard/sortable-list";
@@ -162,6 +162,16 @@ export function BuilderWorkspace({
     const blocks = study.blocks.map((b) => toInstance(b, b.groupId));
     const groups = study.groups.map((g) => (g.id === groupId ? { ...g, title } : g));
     setGroupsMut.mutate({ studyId: study.id, blocks, groups });
+  };
+  // Remove a whole group (the inserted module) from the study — deletes all its
+  // member blocks at once. Does NOT touch the saved module template.
+  const [confirmRemoveGroup, setConfirmRemoveGroup] = useState<string | null>(null);
+  const removeGroup = (groupId: string) => {
+    const blocks = study.blocks.filter((b) => b.groupId !== groupId).map((b) => toInstance(b, b.groupId));
+    const usedIds = new Set(blocks.map((b) => b.groupId).filter(Boolean) as string[]);
+    const groups = study.groups.filter((g) => g.id !== groupId && usedIds.has(g.id));
+    setGroupsMut.mutate({ studyId: study.id, blocks, groups });
+    if (selectedId && !blocks.some((b) => b.instanceId === selectedId)) setSelectedId(null);
   };
   // Top-level segments: each is a lone block or a whole group (one draggable
   // unit). A group's handle drags the whole group; member grips reorder within.
@@ -563,6 +573,15 @@ export function BuilderWorkspace({
                             );
                           })()
                         )}
+                        <button
+                          type="button"
+                          onClick={() => setConfirmRemoveGroup(gid)}
+                          title="Remove this group (and its blocks) from the study"
+                          aria-label="Remove group from study"
+                          className="ml-auto shrink-0 rounded-[var(--radius-sm)] p-1 text-[var(--color-primary-text-on-subtle)] hover:bg-[var(--color-primary-subtle)] hover:text-[var(--color-danger-text-on-subtle)]"
+                        >
+                          <Trash2 className="size-4" aria-hidden />
+                        </button>
                       </div>
                     );
                   }
@@ -895,6 +914,19 @@ export function BuilderWorkspace({
             });
         }}
         onCancel={() => setConfirmUpdate(null)}
+      />
+
+      <ConfirmDialog
+        open={confirmRemoveGroup !== null}
+        title="Remove this group from the study?"
+        body="This deletes the group and all of its blocks from this study. Any saved module it came from is not affected."
+        confirmLabel="Remove group"
+        tone="danger"
+        onConfirm={() => {
+          if (confirmRemoveGroup) removeGroup(confirmRemoveGroup);
+          setConfirmRemoveGroup(null);
+        }}
+        onCancel={() => setConfirmRemoveGroup(null)}
       />
     </>
   );
