@@ -92,6 +92,32 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
     const groups = study.groups.filter((g) => usedIds.has(g.id));
     setGroupsMut.mutate({ studyId: study.id, blocks, groups });
   };
+  // Gate a whole group by an arm (ADR-0028): wiring a Condition node → a group
+  // container sets/clears that arm on EVERY member block (runtime already filters
+  // by arm at the block level, so the group screen only shows for that arm).
+  const persistGroupArm = (groupId: string, armOf: (b: StudyBlock) => string[]) => {
+    const blocks = study.blocks.map((b) => {
+      const arms = b.groupId === groupId ? armOf(b) : b.showIfCondition;
+      return {
+        instanceId: b.instanceId,
+        source: b.source,
+        key: b.key,
+        version: b.version,
+        config: b.config,
+        ...(b.title ? { title: b.title } : {}),
+        ...(arms.length ? { visibility: { showIfCondition: arms } } : {}),
+        ...(b.branchRules.length ? { branchRules: b.branchRules } : {}),
+        ...(b.showIf ? { showIf: b.showIf } : {}),
+        ...(b.groupId ? { groupId: b.groupId } : {}),
+      };
+    });
+    const usedIds = new Set(blocks.map((b) => b.groupId).filter(Boolean) as string[]);
+    setGroupsMut.mutate({ studyId: study.id, blocks, groups: study.groups.filter((g) => usedIds.has(g.id)) });
+  };
+  const connectGroupArm = (groupId: string, slug: string) =>
+    persistGroupArm(groupId, (b) => (b.showIfCondition.includes(slug) ? b.showIfCondition : [...b.showIfCondition, slug]));
+  const disconnectGroupArm = (groupId: string, slug: string) =>
+    persistGroupArm(groupId, (b) => b.showIfCondition.filter((s) => s !== slug));
   const requestReorder = (order: string[], movedId: string) => {
     const byId = new Map(study.blocks.map((b) => [b.instanceId, b]));
     const regrouped = regroupAfterMove(
@@ -275,9 +301,11 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
                 onConnectBranch={connectBranch}
                 onDisconnectBranch={disconnectBranch}
                 onRegroup={regroupOnCanvas}
+                onConnectGroupArm={connectGroupArm}
+                onDisconnectGroupArm={disconnectGroupArm}
               />
               <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-                {"Drag a wire from one block to another to branch on its answer (you’ll set the trigger value); or from a Condition node to a block to gate it by arm. Select a wire and press Delete to remove it."}
+                {"Drag a wire from one block to another to branch on its answer; or from a Condition node to a block (or a group box) to gate it by arm. Drag a block into a group box to add it to that screen, or out to remove it; drag a group box to move the whole group. Select a wire and press Delete to remove it."}
                 {(conditions.data ?? []).length === 0
                   ? " Add conditions in Builder’s Conditions section to wire arm-visibility too."
                   : ""}
