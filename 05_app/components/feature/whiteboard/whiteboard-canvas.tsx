@@ -160,15 +160,24 @@ export function WhiteboardCanvas({
 
   const computedEdges = useMemo<Edge[]>(
     () => [
-      // Condition-arm wires (Condition node → block).
-      ...study.blocks.flatMap((b) =>
-        b.showIfCondition.map((slug) => ({
-          id: `e:${slug}->${b.instanceId}`,
-          source: conditionNodeId(slug),
-          target: b.instanceId,
-          markerEnd: { type: MarkerType.ArrowClosed },
-        })),
-      ),
+      // Condition-arm wires (Condition node → block) — but NOT arms that gate the
+      // whole group (those draw once to the group container below, ADR-0028).
+      ...study.blocks.flatMap((b) => {
+        const groupArms = b.groupId
+          ? (() => {
+              const members = study.blocks.filter((x) => x.groupId === b.groupId);
+              return members[0].showIfCondition.filter((s) => members.every((m) => m.showIfCondition.includes(s)));
+            })()
+          : [];
+        return b.showIfCondition
+          .filter((slug) => !groupArms.includes(slug))
+          .map((slug) => ({
+            id: `e:${slug}->${b.instanceId}`,
+            source: conditionNodeId(slug),
+            target: b.instanceId,
+            markerEnd: { type: MarkerType.ArrowClosed },
+          }));
+      }),
       // Answer-based condition wires (block → block) from the effective condition,
       // one per clause, labelled op + value. Only clauses from EARLIER blocks are
       // valid (a forward clause left by a reorder is ignored — stays consistent).

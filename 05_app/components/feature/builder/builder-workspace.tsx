@@ -192,13 +192,11 @@ export function BuilderWorkspace({
   // SortableContext → members can be dragged OUT to the top level (regrouped on
   // drop), reordered, or pulled into a group (ADR-0028).
   const GH = "gh:";
+  // Members stay in the list even when collapsed (rendered as thin one-liners),
+  // so they remain draggable + the group bg stays contiguous.
   const listIds = (): string[] =>
     buildSegments().flatMap((s) =>
-      s.kind === "group"
-        ? collapsedGroups.has(s.id)
-          ? [`${GH}${s.id}`]
-          : [`${GH}${s.id}`, ...s.members.map((m) => m.instanceId)]
-        : [s.block.instanceId],
+      s.kind === "group" ? [`${GH}${s.id}`, ...s.members.map((m) => m.instanceId)] : [s.block.instanceId],
     );
   // Commit a final block order (each block carries its final groupId) with the
   // broken-condition guard.
@@ -381,23 +379,23 @@ export function BuilderWorkspace({
                 ids={listIds()}
                 onReorder={onListReorder}
                 ariaLabel="Study blocks and groups"
-                className="flex flex-col gap-2"
+                className="flex flex-col"
               >
                 {(id, handle) => {
-                  // Group header row — its grip drags the whole group.
+                  // Group header row — its grip drags the whole group. Solid tint +
+                  // rounded top; members below share the tint with no gap (one block).
                   if (id.startsWith(GH)) {
                     const gid = id.slice(GH.length);
                     const group = study.groups.find((g) => g.id === gid);
-                    const members = study.blocks.filter((b) => b.groupId === gid);
                     const collapsed = collapsedGroups.has(gid);
                     return (
-                      <div className="flex flex-wrap items-center gap-2 border-l-2 border-[var(--color-primary)] bg-[var(--color-primary-subtle)]/25 py-1 pl-2">
+                      <div className="mt-2 flex flex-wrap items-center gap-2 rounded-t-[var(--radius-md)] border-l-2 border-[var(--color-primary)] bg-[var(--color-primary-subtle)] px-2 py-1.5">
                         <span
                           ref={handle.ref}
                           {...handle.attributes}
                           {...handle.listeners}
                           aria-label="Drag group to reorder"
-                          className="flex shrink-0 cursor-grab touch-none items-center rounded-[var(--radius-md)] px-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)] active:cursor-grabbing"
+                          className="flex shrink-0 cursor-grab touch-none items-center rounded-[var(--radius-md)] px-1 text-[var(--color-primary-text-on-subtle)] active:cursor-grabbing"
                         >
                           <GripVertical className="size-4" aria-hidden />
                         </span>
@@ -405,19 +403,19 @@ export function BuilderWorkspace({
                           type="button"
                           onClick={() => toggleCollapse(gid)}
                           aria-label={collapsed ? "Expand group" : "Collapse group"}
-                          className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+                          className="text-[var(--color-primary-text-on-subtle)]"
                         >
                           {collapsed ? "▸" : "▾"}
                         </button>
-                        <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">⊞ Group screen</span>
+                        <span className="text-[length:var(--text-small)] font-medium text-[var(--color-primary-text-on-subtle)]">⊞ Group screen</span>
                         <GroupTitleInput value={group?.title ?? ""} onCommit={(t) => renameGroup(gid, t)} />
                         {(conditionsQ.data ?? []).length > 0 ? (
-                          <span className="flex flex-wrap items-center gap-2 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                          <span className="flex flex-wrap items-center gap-2 text-[length:var(--text-small)] text-[var(--color-primary-text-on-subtle)]">
                             <span>Show if:</span>
                             {(conditionsQ.data ?? []).map((c) => {
                               const on = armsForGroup(gid).includes(c.slug);
                               return (
-                                <label key={c.slug} className="flex cursor-pointer items-center gap-1 text-[var(--color-text-secondary)]">
+                                <label key={c.slug} className="flex cursor-pointer items-center gap-1">
                                   <input
                                     type="checkbox"
                                     checked={on}
@@ -430,9 +428,6 @@ export function BuilderWorkspace({
                             })}
                           </span>
                         ) : null}
-                        {collapsed ? (
-                          <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">· {members.length} questions</span>
-                        ) : null}
                       </div>
                     );
                   }
@@ -443,13 +438,39 @@ export function BuilderWorkspace({
                   const b = study.blocks[i];
                   if (!b) return null;
                   const grouped = !!b.groupId;
+                  const next = study.blocks[i + 1];
+                  const isLastMember = grouped && (!next || next.groupId !== b.groupId);
+                  const collapsed = grouped && collapsedGroups.has(b.groupId!);
+                  const groupCls = grouped
+                    ? cn("border-l-2 border-[var(--color-primary)] bg-[var(--color-primary-subtle)] px-2", isLastMember && "rounded-b-[var(--radius-md)] pb-2")
+                    : "mt-2 border-l-2 border-transparent pl-2";
+
+                  // Collapsed member → thin one-liner (still draggable).
+                  if (collapsed) {
+                    return (
+                      <div className={cn("flex items-center gap-1 py-0.5", groupCls)}>
+                        <span
+                          ref={handle.ref}
+                          {...handle.attributes}
+                          {...handle.listeners}
+                          aria-label="Drag to reorder"
+                          className="flex shrink-0 cursor-grab touch-none items-center rounded-[var(--radius-md)] px-1 text-[var(--color-text-muted)] active:cursor-grabbing"
+                        >
+                          <GripVertical className="size-3.5" aria-hidden />
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedId(b.instanceId)}
+                          className="truncate text-left text-[length:var(--text-small)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+                        >
+                          {b.title?.trim() || b.name}
+                        </button>
+                      </div>
+                    );
+                  }
+
                   return (
-                    <div
-                      className={cn(
-                        "flex items-stretch gap-1 border-l-2 pl-2",
-                        grouped ? "border-[var(--color-primary)] bg-[var(--color-primary-subtle)]/25" : "border-transparent",
-                      )}
-                    >
+                    <div className={cn("flex items-stretch gap-1", groupCls, grouped && "py-0.5")}>
                       <span
                         ref={handle.ref}
                         {...handle.attributes}
