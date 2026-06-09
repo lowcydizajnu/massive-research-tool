@@ -14,10 +14,19 @@ export function ModulePicker({
   onInsert,
   onClose,
   pending,
+  customModules = [],
+  onInsertCustomModule,
+  onRemoveCustomModule,
+  insertingModule = false,
 }: {
   onInsert: (m: { source: string; key: string; version: string }) => void;
   onClose: () => void;
   pending: boolean;
+  /** Workspace's saved group templates (ADR-0029). */
+  customModules?: { id: string; name: string; blockCount: number }[];
+  onInsertCustomModule?: (id: string) => void;
+  onRemoveCustomModule?: (id: string) => void;
+  insertingModule?: boolean;
 }) {
   // Always refetch on open so a stale (e.g. pre-seed empty) cache can't persist.
   const { data: modules, isLoading } = api.modules.list.useQuery(undefined, {
@@ -56,6 +65,48 @@ export function ModulePicker({
         onChange={(e) => setQ(e.target.value)}
         className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-1.5 text-[length:var(--text-body)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
       />
+
+      {customModules.length > 0 && q.trim() === "" ? (
+        <div className="flex flex-col gap-1 border-b border-[var(--color-border-subtle)] pb-2">
+          <span className="px-2 text-[length:var(--text-small)] font-medium text-[var(--color-text-muted)]">
+            Your saved modules
+          </span>
+          {customModules.map((cm) => (
+            <div
+              key={cm.id}
+              className="flex items-center gap-2 rounded-[var(--radius-md)] px-2 py-1 hover:bg-[var(--color-surface-subtle)]"
+            >
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">
+                  {cm.name}
+                </span>
+                <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                  {cm.blockCount} block{cm.blockCount === 1 ? "" : "s"} · group
+                </span>
+              </span>
+              <button
+                type="button"
+                disabled={insertingModule}
+                onClick={() => onInsertCustomModule?.(cm.id)}
+                className="shrink-0 rounded-[var(--radius-sm)] bg-[var(--color-primary)] px-2 py-0.5 text-[length:var(--text-small)] font-medium text-white disabled:opacity-60"
+              >
+                Insert
+              </button>
+              {onRemoveCustomModule ? (
+                <button
+                  type="button"
+                  onClick={() => onRemoveCustomModule(cm.id)}
+                  aria-label={`Delete module ${cm.name}`}
+                  title="Delete module"
+                  className="shrink-0 rounded-[var(--radius-sm)] px-1 text-[length:var(--text-small)] text-[var(--color-text-muted)] hover:text-[var(--color-danger-text-on-subtle)]"
+                >
+                  ×
+                </button>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       <ul role="listbox" aria-label="Modules" className="flex-1 overflow-auto">
         {isLoading ? (

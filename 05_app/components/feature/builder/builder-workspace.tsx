@@ -244,6 +244,27 @@ export function BuilderWorkspace({
   // Gate a whole group by an arm: set/clear the arm on every member (runtime
   // filters by arm at the block level). Mirrors the Whiteboard's group wire.
   const conditionsQ = api.studies.listConditions.useQuery({ studyId: study.id });
+
+  // Custom composite modules (ADR-0029): save a group as a reusable template,
+  // insert one as a new group, delete one.
+  const customModulesQ = api.studies.listCustomModules.useQuery();
+  const [savingGroupId, setSavingGroupId] = useState<string | null>(null);
+  const [moduleName, setModuleName] = useState("");
+  const saveModuleMut = api.studies.saveGroupAsModule.useMutation({
+    onSuccess: () => {
+      setSavingGroupId(null);
+      setModuleName("");
+      setSavedMsg("Saved as a reusable module.");
+      void customModulesQ.refetch();
+    },
+  });
+  const insertModuleMut = api.studies.insertCustomModule.useMutation({
+    onSuccess: () => {
+      setPickerOpen(false);
+      void invalidate();
+    },
+  });
+  const removeModuleMut = api.studies.removeCustomModule.useMutation({ onSuccess: () => void customModulesQ.refetch() });
   const armsForGroup = (groupId: string): string[] => {
     const members = study.blocks.filter((b) => b.groupId === groupId);
     if (!members.length) return [];
@@ -428,6 +449,49 @@ export function BuilderWorkspace({
                             })}
                           </span>
                         ) : null}
+                        {savingGroupId === gid ? (
+                          <span className="flex items-center gap-1">
+                            <input
+                              autoFocus
+                              value={moduleName}
+                              onChange={(e) => setModuleName(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" && moduleName.trim())
+                                  saveModuleMut.mutate({ studyId: study.id, groupId: gid, name: moduleName.trim() });
+                                if (e.key === "Escape") setSavingGroupId(null);
+                              }}
+                              placeholder="Module name"
+                              className="rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-0.5 text-[length:var(--text-small)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+                            />
+                            <button
+                              type="button"
+                              disabled={!moduleName.trim() || saveModuleMut.isPending}
+                              onClick={() => saveModuleMut.mutate({ studyId: study.id, groupId: gid, name: moduleName.trim() })}
+                              className="rounded-[var(--radius-sm)] bg-[var(--color-primary)] px-2 py-0.5 text-[length:var(--text-small)] font-medium text-white disabled:opacity-50"
+                            >
+                              Save
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSavingGroupId(null)}
+                              className="text-[length:var(--text-small)] text-[var(--color-primary-text-on-subtle)]"
+                            >
+                              Cancel
+                            </button>
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSavingGroupId(gid);
+                              setModuleName(group?.title ?? "");
+                            }}
+                            title="Save this group as a reusable module"
+                            className="rounded-[var(--radius-sm)] px-1.5 py-0.5 text-[length:var(--text-small)] text-[var(--color-primary-text-on-subtle)] hover:bg-[var(--color-primary-subtle)]"
+                          >
+                            ＋ Save as module
+                          </button>
+                        )}
                       </div>
                     );
                   }
@@ -541,6 +605,10 @@ export function BuilderWorkspace({
                   pending={addBlock.isPending}
                   onClose={() => setPickerOpen(false)}
                   onInsert={(m) => addBlock.mutate({ studyId: study.id, ...m })}
+                  customModules={customModulesQ.data ?? []}
+                  insertingModule={insertModuleMut.isPending}
+                  onInsertCustomModule={(id) => insertModuleMut.mutate({ studyId: study.id, customModuleId: id })}
+                  onRemoveCustomModule={(id) => removeModuleMut.mutate({ id })}
                 />
               ) : null}
             </div>

@@ -9,6 +9,7 @@ import { db } from "@/server/db/client";
 import { emit } from "@/server/events/emit";
 import {
   condition as conditionTable,
+  customModule,
   experiment,
   experimentVersion,
   member,
@@ -17,6 +18,11 @@ import {
   responseItem,
   user,
 } from "@/server/db/schema";
+import {
+  type CustomModuleDefinition,
+  definitionToBlocks,
+  groupToDefinition,
+} from "@/lib/custom-modules";
 import {
   openRecruitment as runtimeOpenRecruitment,
   startResponse as runtimeStartResponse,
@@ -1515,6 +1521,78 @@ export const studiesRouter = router({
         .where(eq(experimentVersion.id, tip.version.id));
       await db.update(experiment).set({ updatedAt: new Date() }).where(eq(experiment.id, input.studyId));
       return { ok: true };
+    }),
+
+  /* ---------- Custom composite modules (ADR-0029) ---------- */
+
+  /** Workspace's saved group templates (newest first). */
+  listCustomModules: workspaceProcedure.query(async ({ ctx }) => {
+    const rows = await db
+      .select({ id: customModule.id, name: customModule.name, definition: customModule.definition })
+      .from(customModule)
+      .where(eq(customModule.tenantId, ctx.workspace.id))
+      .orderBy(desc(customModule.createdAt));
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      blockCount: (r.definition as CustomModuleDefinition).blocks?.length ?? 0,
+    }));
+  }),
+
+  /** Delete a saved module (tenant-scoped). */
+  removeCustomModule: writeProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      await db
+        .delete(customModule)
+        .where(and(eq(customModule.id, input.id), eq(customModule.tenantId, ctx.workspace.id)));
+      return { ok: true };
+    }),
+
+  /** Save a study group as a reusable workspace module (copy-on-save template). */
+  saveGroupAsModule: writeProcedure
+    .input(z.object({ studyId: z.string().uuid(), groupId: z.string(), name: z.string().trim().min(1).max(120) }))
+    .mutation(async ({ ctx, input }): Promise<{ id: string }> => {
+      const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+      const members = (readBlocks(tip.version.definitionSnapshot) as BlockInstance[]).filter(
+        (b) => b.groupId === input.groupId,
+      );
+      if (members.length === 0) throw new TRPCError({ code: "BAD_REQUEST", message: "That group has no blocks." });
+      const title = readGroups(tip.version.definitionSnapshot).find((g) => g.id === input.groupId)?.title;
+      const definition = groupToDefinition(members, title);
+      const [row] = await db
+        .insert(customModule)
+        .values({ tenantId: ctx.workspace.id, name: input.name, definition, createdBy: ctx.dbUser.id })
+        .returning({ id: customModule.id });
+      return { id: row.id };
+    }),
+
+  /** Insert a saved module into a study as a new group (fresh ids — copy). */
+  insertCustomModule: writeProcedure
+    .input(z.object({ studyId: z.string().uuid(), customModuleId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }): Promise<{ groupId: string }> => {
+      const [mod] = await db
+        .select()
+        .from(customModule)
+        .where(and(eq(customModule.id, input.customModuleId), eq(customModule.tenantId, ctx.workspace.id)))
+        .limit(1);
+      if (!mod) throw new TRPCError({ code: "NOT_FOUND", message: "Module not found." });
+      const def = mod.definition as CustomModuleDefinition;
+      const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+      const existing = readBlocks(tip.version.definitionSnapshot) as BlockInstance[];
+      const groupId = ulid();
+      const blocks = [...existing, ...definitionToBlocks(def, groupId, () => ulid())];
+      const groups = [...readGroups(tip.version.definitionSnapshot), { id: groupId, title: def.title ?? mod.name }];
+      const snap =
+        tip.version.definitionSnapshot && typeof tip.version.definitionSnapshot === "object"
+          ? (tip.version.definitionSnapshot as Record<string, unknown>)
+          : {};
+      await db
+        .update(experimentVersion)
+        .set({ definitionSnapshot: { ...snap, blocks, groups }, moduleVersionLocks: locksFromBlocks(blocks) })
+        .where(eq(experimentVersion.id, tip.version.id));
+      await db.update(experiment).set({ updatedAt: new Date() }).where(eq(experiment.id, input.studyId));
+      return { groupId };
     }),
 
   /**

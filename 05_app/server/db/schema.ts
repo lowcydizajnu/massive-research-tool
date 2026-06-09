@@ -163,6 +163,25 @@ export const member = pgTable(
   ],
 );
 
+/**
+ * Custom composite module (ADR-0029) — a reusable group template, workspace-
+ * scoped. `definition` is `{ title?: string, blocks: SavedBlock[] }`; inserting
+ * one copies its blocks into a study (fresh ids), so it's a template, not a link.
+ */
+export const customModule = pgTable("custom_module", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => workspace.id),
+  name: text("name").notNull(),
+  definition: jsonb("definition").notNull(),
+  createdBy: uuid("created_by")
+    .notNull()
+    .references(() => user.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 /* ---------- module catalogue (data-model 02 / ADR-0012) ---------- */
 
 // NB: exported as `moduleTable`, NOT `module` — `module` is the CommonJS module
