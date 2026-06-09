@@ -162,6 +162,64 @@ export function BuilderWorkspace({
     const groups = study.groups.map((g) => (g.id === groupId ? { ...g, title } : g));
     setGroupsMut.mutate({ studyId: study.id, blocks, groups });
   };
+  // Move a whole group up/down past the adjacent top-level item (a lone block or
+  // another group) — groups are draggable on the Whiteboard; these are the
+  // Builder's reliable keyboard-friendly equivalent (ADR-0028).
+  const moveGroup = (groupId: string, dir: -1 | 1) => {
+    const segs: { key: string; blocks: typeof study.blocks }[] = [];
+    const seen = new Set<string>();
+    for (const b of study.blocks) {
+      if (b.groupId) {
+        if (seen.has(b.groupId)) continue;
+        seen.add(b.groupId);
+        segs.push({ key: `g:${b.groupId}`, blocks: study.blocks.filter((x) => x.groupId === b.groupId) });
+      } else {
+        segs.push({ key: `b:${b.instanceId}`, blocks: [b] });
+      }
+    }
+    const i = segs.findIndex((s) => s.key === `g:${groupId}`);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= segs.length) return;
+    [segs[i], segs[j]] = [segs[j], segs[i]];
+    const ordered = segs.flatMap((s) => s.blocks);
+    const blocks = ordered.map((b) => toInstance(b, b.groupId));
+    const usedIds = new Set(blocks.map((b) => b.groupId).filter(Boolean) as string[]);
+    setGroupsMut.mutate({ studyId: study.id, blocks, groups: study.groups.filter((g) => usedIds.has(g.id)) });
+  };
+  // Gate a whole group by an arm: set/clear the arm on every member (runtime
+  // filters by arm at the block level). Mirrors the Whiteboard's group wire.
+  const conditionsQ = api.studies.listConditions.useQuery({ studyId: study.id });
+  const armsForGroup = (groupId: string): string[] => {
+    const members = study.blocks.filter((b) => b.groupId === groupId);
+    if (!members.length) return [];
+    return members[0].showIfCondition.filter((s) => members.every((m) => m.showIfCondition.includes(s)));
+  };
+  const setGroupArm = (groupId: string, slug: string, on: boolean) => {
+    const blocks = study.blocks.map((b) => {
+      const arms =
+        b.groupId !== groupId
+          ? b.showIfCondition
+          : on
+            ? b.showIfCondition.includes(slug)
+              ? b.showIfCondition
+              : [...b.showIfCondition, slug]
+            : b.showIfCondition.filter((s) => s !== slug);
+      return {
+        instanceId: b.instanceId,
+        source: b.source,
+        key: b.key,
+        version: b.version,
+        config: b.config,
+        ...(b.title ? { title: b.title } : {}),
+        ...(arms.length ? { visibility: { showIfCondition: arms } } : {}),
+        ...(b.branchRules.length ? { branchRules: b.branchRules } : {}),
+        ...(b.showIf ? { showIf: b.showIf } : {}),
+        ...(b.groupId ? { groupId: b.groupId } : {}),
+      };
+    });
+    const usedIds = new Set(blocks.map((b) => b.groupId).filter(Boolean) as string[]);
+    setGroupsMut.mutate({ studyId: study.id, blocks, groups: study.groups.filter((g) => usedIds.has(g.id)) });
+  };
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const toggleCollapse = (groupId: string) =>
     setCollapsedGroups((prev) => {
@@ -321,7 +379,7 @@ export function BuilderWorkspace({
                   return (
                     <div className="flex flex-col gap-2">
                       {groupStart ? (
-                        <div className="flex items-center gap-2 pl-7">
+                        <div className="flex flex-wrap items-center gap-2 pl-7">
                           <button
                             type="button"
                             onClick={() => toggleCollapse(b.groupId!)}
@@ -332,6 +390,58 @@ export function BuilderWorkspace({
                           </button>
                           <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">⊞ Group screen</span>
                           <GroupTitleInput value={group?.title ?? ""} onCommit={(t) => renameGroup(b.groupId!, t)} />
+                          <span className="flex items-center" role="group" aria-label="Move group">
+                            <button
+                              type="button"
+                              onClick={() => moveGroup(b.groupId!, -1)}
+                              aria-label="Move group up"
+                              className="rounded-[var(--radius-sm)] px-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)] hover:text-[var(--color-text-primary)]"
+                            >
+                              ↑
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => moveGroup(b.groupId!, 1)}
+                              aria-label="Move group down"
+                              className="rounded-[var(--radius-sm)] px-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)] hover:text-[var(--color-text-primary)]"
+                            >
+                              ↓
+                            </button>
+                          </span>
+                          {/* Gate the whole screen by arm (ADR-0028). */}
+                          {(conditionsQ.data ?? []).length > 0 ? (
+                            <select
+                              aria-label="Show this group only for arm"
+                              value=""
+                              onChange={(e) => {
+                                if (e.target.value) setGroupArm(b.groupId!, e.target.value, true);
+                              }}
+                              className="rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-1.5 py-0.5 text-[length:var(--text-small)] text-[var(--color-text-secondary)]"
+                            >
+                              <option value="">+ Show if arm…</option>
+                              {(conditionsQ.data ?? [])
+                                .filter((c) => !armsForGroup(b.groupId!).includes(c.slug))
+                                .map((c) => (
+                                  <option key={c.slug} value={c.slug}>
+                                    {c.name}
+                                  </option>
+                                ))}
+                            </select>
+                          ) : null}
+                          {armsForGroup(b.groupId!).map((slug) => {
+                            const cond = (conditionsQ.data ?? []).find((c) => c.slug === slug);
+                            return (
+                              <button
+                                key={slug}
+                                type="button"
+                                onClick={() => setGroupArm(b.groupId!, slug, false)}
+                                title="Remove arm gate"
+                                className="rounded-full bg-[var(--color-primary-subtle)] px-2 py-0.5 text-[length:var(--text-small)] text-[var(--color-primary-text-on-subtle)] hover:line-through"
+                              >
+                                Arm: {cond?.name ?? slug} ×
+                              </button>
+                            );
+                          })}
                           {isCollapsed ? (
                             <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">· {memberCount} questions</span>
                           ) : null}
