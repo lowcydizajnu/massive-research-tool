@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 
 import { SortableList } from "@/components/feature/whiteboard/sortable-list";
 import { useBlockHistory } from "@/lib/whiteboard/use-block-history";
-import { regroupAfterMove } from "@/lib/whiteboard/screens";
 import {
   conditionWithSources,
   newlyBrokenByReorder,
@@ -162,29 +161,64 @@ export function BuilderWorkspace({
     const groups = study.groups.map((g) => (g.id === groupId ? { ...g, title } : g));
     setGroupsMut.mutate({ studyId: study.id, blocks, groups });
   };
-  // Move a whole group up/down past the adjacent top-level item (a lone block or
-  // another group) — groups are draggable on the Whiteboard; these are the
-  // Builder's reliable keyboard-friendly equivalent (ADR-0028).
-  const moveGroup = (groupId: string, dir: -1 | 1) => {
-    const segs: { key: string; blocks: typeof study.blocks }[] = [];
+  // Top-level segments: each is a lone block or a whole group (one draggable
+  // unit). A group's handle drags the whole group; member grips reorder within.
+  type Segment =
+    | { kind: "block"; key: string; block: StudyBlock }
+    | { kind: "group"; key: string; id: string; group?: StudyDetail["groups"][number]; members: StudyBlock[] };
+  const buildSegments = (): Segment[] => {
+    const segs: Segment[] = [];
     const seen = new Set<string>();
     for (const b of study.blocks) {
       if (b.groupId) {
         if (seen.has(b.groupId)) continue;
         seen.add(b.groupId);
-        segs.push({ key: `g:${b.groupId}`, blocks: study.blocks.filter((x) => x.groupId === b.groupId) });
+        segs.push({
+          kind: "group",
+          key: `g:${b.groupId}`,
+          id: b.groupId,
+          group: study.groups.find((g) => g.id === b.groupId),
+          members: study.blocks.filter((x) => x.groupId === b.groupId),
+        });
       } else {
-        segs.push({ key: `b:${b.instanceId}`, blocks: [b] });
+        segs.push({ kind: "block", key: b.instanceId, block: b });
       }
     }
-    const i = segs.findIndex((s) => s.key === `g:${groupId}`);
-    const j = i + dir;
-    if (i < 0 || j < 0 || j >= segs.length) return;
-    [segs[i], segs[j]] = [segs[j], segs[i]];
-    const ordered = segs.flatMap((s) => s.blocks);
+    return segs;
+  };
+  // Persist a new block order (broken-condition guard → confirm or commit).
+  const persistOrder = (ordered: StudyBlock[]) => {
+    const broken = newlyBrokenByReorder(study.blocks, ordered);
     const blocks = ordered.map((b) => toInstance(b, b.groupId));
     const usedIds = new Set(blocks.map((b) => b.groupId).filter(Boolean) as string[]);
-    setGroupsMut.mutate({ studyId: study.id, blocks, groups: study.groups.filter((g) => usedIds.has(g.id)) });
+    const groups = study.groups.filter((g) => usedIds.has(g.id));
+    if (broken.length === 0) {
+      setGroupsMut.mutate({ studyId: study.id, blocks, groups });
+      return;
+    }
+    setPendingReorder({
+      blocks,
+      groups,
+      items: broken.map((b) => `"${nameOf(b.targetId)}": ${summarizeClause(b.clause, nameOf)}`),
+    });
+  };
+  const reorderSegments = (keys: string[]) => {
+    const byKey = new Map(buildSegments().map((s) => [s.key, s]));
+    const ordered = keys
+      .map((k) => byKey.get(k))
+      .filter(Boolean)
+      .flatMap((s) => (s!.kind === "group" ? s!.members : [s!.block]));
+    persistOrder(ordered);
+  };
+  const reorderWithinGroup = (groupId: string, memberIds: string[]) => {
+    const ordered = buildSegments().flatMap((s) =>
+      s.kind === "group" && s.id === groupId
+        ? memberIds.map((id) => s.members.find((m) => m.instanceId === id)!).filter(Boolean)
+        : s.kind === "group"
+          ? s.members
+          : [s.block],
+    );
+    persistOrder(ordered);
   };
   // Gate a whole group by an arm: set/clear the arm on every member (runtime
   // filters by arm at the block level). Mirrors the Whiteboard's group wire.
@@ -239,26 +273,6 @@ export function BuilderWorkspace({
   };
   // A drag-reorder also recomputes group membership from drop neighbors + keeps
   // groups contiguous (ADR-0028 #3+#8), then persists blocks + groups together.
-  const requestReorder = (order: string[], movedId: string) => {
-    const byId = new Map(study.blocks.map((b) => [b.instanceId, b]));
-    const minimal = order.map((id) => ({ instanceId: id, groupId: byId.get(id)?.groupId ?? null }));
-    const regrouped = regroupAfterMove(minimal, movedId);
-    const orderedStudyBlocks = regrouped.map((r) => ({ ...byId.get(r.instanceId)!, groupId: r.groupId }));
-    const broken = newlyBrokenByReorder(study.blocks, orderedStudyBlocks);
-    const blocks = regrouped.map((r) => toInstance(byId.get(r.instanceId)!, r.groupId));
-    const usedIds = new Set(blocks.map((b) => b.groupId).filter(Boolean) as string[]);
-    const groups = study.groups.filter((g) => usedIds.has(g.id));
-    if (broken.length === 0) {
-      setGroupsMut.mutate({ studyId: study.id, blocks, groups });
-      return;
-    }
-    setPendingReorder({
-      blocks,
-      groups,
-      items: broken.map((b) => `"${nameOf(b.targetId)}": ${summarizeClause(b.clause, nameOf)}`),
-    });
-  };
-
   const selected = study.blocks.find((b) => b.instanceId === selectedId) ?? null;
 
   useEffect(() => {
@@ -341,113 +355,21 @@ export function BuilderWorkspace({
               </p>
             ) : (
               <SortableList
-                ids={study.blocks.map((b) => b.instanceId)}
-                onReorder={requestReorder}
-                ariaLabel="Study blocks"
+                ids={buildSegments().map((s) => s.key)}
+                onReorder={reorderSegments}
+                ariaLabel="Study blocks and groups"
                 className="flex flex-col gap-2"
               >
-                {(id, handle) => {
-                  const i = study.blocks.findIndex((b) => b.instanceId === id);
-                  const b = study.blocks[i];
-                  if (!b) return null;
-                  const prev = study.blocks[i - 1];
-                  const grouped = !!b.groupId;
-                  const groupStart = grouped && (!prev || prev.groupId !== b.groupId);
-                  const group = grouped ? study.groups.find((g) => g.id === b.groupId) : null;
-                  const isCollapsed = grouped && collapsedGroups.has(b.groupId!);
-                  const memberCount = grouped ? study.blocks.filter((x) => x.groupId === b.groupId).length : 0;
-                  // Collapsed: render non-first members as a thin one-liner (kept in
-                  // the DnD list so reordering still works).
-                  if (grouped && !groupStart && isCollapsed) {
+                {(key, handle) => {
+                  const seg = buildSegments().find((s) => s.key === key);
+                  if (!seg) return null;
+
+                  // A lone block — one draggable row.
+                  if (seg.kind === "block") {
+                    const b = seg.block;
+                    const i = study.blocks.findIndex((x) => x.instanceId === b.instanceId);
                     return (
-                      <div className="flex items-center gap-1 border-l-2 border-[var(--color-primary)] pl-2">
-                        <span
-                          ref={handle.ref}
-                          {...handle.attributes}
-                          {...handle.listeners}
-                          aria-label="Drag to reorder"
-                          className="flex shrink-0 cursor-grab touch-none items-center rounded-[var(--radius-md)] px-1 text-[var(--color-text-muted)] active:cursor-grabbing"
-                        >
-                          <GripVertical className="size-3.5" aria-hidden />
-                        </span>
-                        <span className="truncate text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-                          {b.title?.trim() || b.name}
-                        </span>
-                      </div>
-                    );
-                  }
-                  return (
-                    <div className="flex flex-col gap-2">
-                      {groupStart ? (
-                        <div className="flex flex-wrap items-center gap-2 pl-7">
-                          <button
-                            type="button"
-                            onClick={() => toggleCollapse(b.groupId!)}
-                            aria-label={isCollapsed ? "Expand group" : "Collapse group"}
-                            className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
-                          >
-                            {isCollapsed ? "▸" : "▾"}
-                          </button>
-                          <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">⊞ Group screen</span>
-                          <GroupTitleInput value={group?.title ?? ""} onCommit={(t) => renameGroup(b.groupId!, t)} />
-                          <span className="flex items-center" role="group" aria-label="Move group">
-                            <button
-                              type="button"
-                              onClick={() => moveGroup(b.groupId!, -1)}
-                              aria-label="Move group up"
-                              className="rounded-[var(--radius-sm)] px-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)] hover:text-[var(--color-text-primary)]"
-                            >
-                              ↑
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => moveGroup(b.groupId!, 1)}
-                              aria-label="Move group down"
-                              className="rounded-[var(--radius-sm)] px-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)] hover:text-[var(--color-text-primary)]"
-                            >
-                              ↓
-                            </button>
-                          </span>
-                          {/* Gate the whole screen by arm (ADR-0028). */}
-                          {(conditionsQ.data ?? []).length > 0 ? (
-                            <select
-                              aria-label="Show this group only for arm"
-                              value=""
-                              onChange={(e) => {
-                                if (e.target.value) setGroupArm(b.groupId!, e.target.value, true);
-                              }}
-                              className="rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-1.5 py-0.5 text-[length:var(--text-small)] text-[var(--color-text-secondary)]"
-                            >
-                              <option value="">+ Show if arm…</option>
-                              {(conditionsQ.data ?? [])
-                                .filter((c) => !armsForGroup(b.groupId!).includes(c.slug))
-                                .map((c) => (
-                                  <option key={c.slug} value={c.slug}>
-                                    {c.name}
-                                  </option>
-                                ))}
-                            </select>
-                          ) : null}
-                          {armsForGroup(b.groupId!).map((slug) => {
-                            const cond = (conditionsQ.data ?? []).find((c) => c.slug === slug);
-                            return (
-                              <button
-                                key={slug}
-                                type="button"
-                                onClick={() => setGroupArm(b.groupId!, slug, false)}
-                                title="Remove arm gate"
-                                className="rounded-full bg-[var(--color-primary-subtle)] px-2 py-0.5 text-[length:var(--text-small)] text-[var(--color-primary-text-on-subtle)] hover:line-through"
-                              >
-                                Arm: {cond?.name ?? slug} ×
-                              </button>
-                            );
-                          })}
-                          {isCollapsed ? (
-                            <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">· {memberCount} questions</span>
-                          ) : null}
-                        </div>
-                      ) : null}
-                      <div className={cn("flex items-stretch gap-1", grouped && "border-l-2 border-[var(--color-primary)] pl-2")}>
+                      <div className="flex items-stretch gap-1 border-l-2 border-transparent pl-2">
                         <span
                           ref={handle.ref}
                           {...handle.attributes}
@@ -472,17 +394,8 @@ export function BuilderWorkspace({
                             )}
                           />
                         </div>
-                        <div className="flex shrink-0 items-center">
-                          {grouped ? (
-                            <button
-                              type="button"
-                              onClick={() => ungroup(b.instanceId)}
-                              title="Remove from group"
-                              className="rounded-[var(--radius-sm)] px-1.5 py-1 text-[length:var(--text-small)] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)]"
-                            >
-                              Ungroup
-                            </button>
-                          ) : i > 0 ? (
+                        {i > 0 ? (
+                          <div className="flex shrink-0 items-center">
                             <button
                               type="button"
                               onClick={() => groupWithAbove(i)}
@@ -491,9 +404,116 @@ export function BuilderWorkspace({
                             >
                               Group ↑
                             </button>
-                          ) : null}
-                        </div>
+                          </div>
+                        ) : null}
                       </div>
+                    );
+                  }
+
+                  // A group — one draggable unit (the header grip drags it all);
+                  // members reorder via a nested sortable.
+                  const { id: gid, group, members } = seg;
+                  const collapsed = collapsedGroups.has(gid);
+                  return (
+                    <div className="rounded-[var(--radius-md)] border-l-2 border-[var(--color-primary)] bg-[var(--color-primary-subtle)]/20 pl-2">
+                      <div className="flex flex-wrap items-center gap-2 py-1">
+                        <span
+                          ref={handle.ref}
+                          {...handle.attributes}
+                          {...handle.listeners}
+                          aria-label="Drag group to reorder"
+                          className="flex shrink-0 cursor-grab touch-none items-center rounded-[var(--radius-md)] px-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)] active:cursor-grabbing"
+                        >
+                          <GripVertical className="size-4" aria-hidden />
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => toggleCollapse(gid)}
+                          aria-label={collapsed ? "Expand group" : "Collapse group"}
+                          className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+                        >
+                          {collapsed ? "▸" : "▾"}
+                        </button>
+                        <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">⊞ Group screen</span>
+                        <GroupTitleInput value={group?.title ?? ""} onCommit={(t) => renameGroup(gid, t)} />
+                        {(conditionsQ.data ?? []).length > 0 ? (
+                          <span className="flex flex-wrap items-center gap-2 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                            <span>Show if:</span>
+                            {(conditionsQ.data ?? []).map((c) => {
+                              const on = armsForGroup(gid).includes(c.slug);
+                              return (
+                                <label
+                                  key={c.slug}
+                                  className="flex cursor-pointer items-center gap-1 text-[var(--color-text-secondary)]"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={on}
+                                    onChange={() => setGroupArm(gid, c.slug, !on)}
+                                    className="size-3.5 accent-[var(--color-primary)]"
+                                  />
+                                  <span>{c.name}</span>
+                                </label>
+                              );
+                            })}
+                          </span>
+                        ) : null}
+                        {collapsed ? (
+                          <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">· {members.length} questions</span>
+                        ) : null}
+                      </div>
+                      {!collapsed ? (
+                        <SortableList
+                          ids={members.map((m) => m.instanceId)}
+                          onReorder={(mids) => reorderWithinGroup(gid, mids)}
+                          ariaLabel={`${group?.title ?? "Group"} questions`}
+                          className="flex flex-col gap-2 pb-2"
+                        >
+                          {(mid, mHandle) => {
+                            const m = members.find((x) => x.instanceId === mid);
+                            if (!m) return null;
+                            const mi = study.blocks.findIndex((x) => x.instanceId === mid);
+                            return (
+                              <div className="flex items-stretch gap-1">
+                                <span
+                                  ref={mHandle.ref}
+                                  {...mHandle.attributes}
+                                  {...mHandle.listeners}
+                                  aria-label="Drag to reorder within group"
+                                  className="flex shrink-0 cursor-grab touch-none items-center rounded-[var(--radius-md)] px-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)] active:cursor-grabbing"
+                                >
+                                  <GripVertical className="size-4" aria-hidden />
+                                </span>
+                                <div className="min-w-0 flex-1">
+                                  <BlockCard
+                                    block={m}
+                                    selected={m.instanceId === selectedId}
+                                    onSelect={() => setSelectedId(m.instanceId)}
+                                    conditionLabel={summarizeCondition(
+                                      conditionWithSources(
+                                        m.showIf,
+                                        m.branchRules,
+                                        new Set(study.blocks.slice(0, mi).map((x) => x.instanceId)),
+                                      ),
+                                      nameOf,
+                                    )}
+                                  />
+                                </div>
+                                <div className="flex shrink-0 items-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => ungroup(m.instanceId)}
+                                    title="Remove from group"
+                                    className="rounded-[var(--radius-sm)] px-1.5 py-1 text-[length:var(--text-small)] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)]"
+                                  >
+                                    Ungroup
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          }}
+                        </SortableList>
+                      ) : null}
                     </div>
                   );
                 }}
