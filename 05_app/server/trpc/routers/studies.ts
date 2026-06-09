@@ -1496,7 +1496,14 @@ export const studiesRouter = router({
         studyId: z.string().uuid(),
         blocks: z.array(blockInstanceSchema).max(200),
         groups: z
-          .array(z.object({ id: z.string(), title: z.string().max(200).optional(), showIf: conditionGroupSchema.optional() }))
+          .array(
+            z.object({
+              id: z.string(),
+              title: z.string().max(200).optional(),
+              showIf: conditionGroupSchema.optional(),
+              moduleId: z.string().optional(),
+            }),
+          )
           .max(50),
       }),
     )
@@ -1567,6 +1574,27 @@ export const studiesRouter = router({
       return { id: row.id };
     }),
 
+  /** Overwrite an existing module's definition from a (now-edited) group it was
+   *  inserted from — "Update module" vs "Save as new" (ADR-0029). */
+  updateCustomModule: writeProcedure
+    .input(z.object({ moduleId: z.string().uuid(), studyId: z.string().uuid(), groupId: z.string() }))
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+      const members = (readBlocks(tip.version.definitionSnapshot) as BlockInstance[]).filter(
+        (b) => b.groupId === input.groupId,
+      );
+      if (members.length === 0) throw new TRPCError({ code: "BAD_REQUEST", message: "That group has no blocks." });
+      const title = readGroups(tip.version.definitionSnapshot).find((g) => g.id === input.groupId)?.title;
+      const definition = groupToDefinition(members, title);
+      const res = await db
+        .update(customModule)
+        .set({ definition, updatedAt: new Date() })
+        .where(and(eq(customModule.id, input.moduleId), eq(customModule.tenantId, ctx.workspace.id)))
+        .returning({ id: customModule.id });
+      if (res.length === 0) throw new TRPCError({ code: "NOT_FOUND", message: "Module not found." });
+      return { ok: true };
+    }),
+
   /** Insert a saved module into a study as a new group (fresh ids — copy). */
   insertCustomModule: writeProcedure
     .input(z.object({ studyId: z.string().uuid(), customModuleId: z.string().uuid() }))
@@ -1582,7 +1610,11 @@ export const studiesRouter = router({
       const existing = readBlocks(tip.version.definitionSnapshot) as BlockInstance[];
       const groupId = ulid();
       const blocks = [...existing, ...definitionToBlocks(def, groupId, () => ulid())];
-      const groups = [...readGroups(tip.version.definitionSnapshot), { id: groupId, title: def.title ?? mod.name }];
+      // Remember the source module so the group can later Update it vs Save-as-new.
+      const groups = [
+        ...readGroups(tip.version.definitionSnapshot),
+        { id: groupId, title: def.title ?? mod.name, moduleId: mod.id },
+      ];
       const snap =
         tip.version.definitionSnapshot && typeof tip.version.definitionSnapshot === "object"
           ? (tip.version.definitionSnapshot as Record<string, unknown>)

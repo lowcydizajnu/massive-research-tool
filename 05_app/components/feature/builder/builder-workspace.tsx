@@ -251,11 +251,21 @@ export function BuilderWorkspace({
   const [savingGroupId, setSavingGroupId] = useState<string | null>(null);
   const [moduleName, setModuleName] = useState("");
   const saveModuleMut = api.studies.saveGroupAsModule.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
+      const gid = savingGroupId;
       setSavingGroupId(null);
       setModuleName("");
       setSavedMsg("Saved as a reusable module.");
       void customModulesQ.refetch();
+      // Link the group to the new module so later edits offer "Update" vs "Save as new".
+      if (gid) {
+        const blocks = study.blocks.map((b) => toInstance(b, b.groupId));
+        const usedIds = new Set(blocks.map((b) => b.groupId).filter(Boolean) as string[]);
+        const groups = study.groups
+          .filter((g) => usedIds.has(g.id))
+          .map((g) => (g.id === gid ? { ...g, moduleId: data.id } : g));
+        setGroupsMut.mutate({ studyId: study.id, blocks, groups });
+      }
     },
   });
   const insertModuleMut = api.studies.insertCustomModule.useMutation({
@@ -265,6 +275,12 @@ export function BuilderWorkspace({
     },
   });
   const removeModuleMut = api.studies.removeCustomModule.useMutation({ onSuccess: () => void customModulesQ.refetch() });
+  const updateModuleMut = api.studies.updateCustomModule.useMutation({
+    onSuccess: () => {
+      setSavedMsg("Module updated.");
+      void customModulesQ.refetch();
+    },
+  });
   const armsForGroup = (groupId: string): string[] => {
     const members = study.blocks.filter((b) => b.groupId === groupId);
     if (!members.length) return [];
@@ -480,17 +496,50 @@ export function BuilderWorkspace({
                             </button>
                           </span>
                         ) : (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSavingGroupId(gid);
-                              setModuleName(group?.title ?? "");
-                            }}
-                            title="Save this group as a reusable module"
-                            className="rounded-[var(--radius-sm)] px-1.5 py-0.5 text-[length:var(--text-small)] text-[var(--color-primary-text-on-subtle)] hover:bg-[var(--color-primary-subtle)]"
-                          >
-                            ＋ Save as module
-                          </button>
+                          (() => {
+                            const sourceModule = group?.moduleId
+                              ? (customModulesQ.data ?? []).find((m) => m.id === group.moduleId)
+                              : null;
+                            const btnCls =
+                              "rounded-[var(--radius-sm)] px-1.5 py-0.5 text-[length:var(--text-small)] text-[var(--color-primary-text-on-subtle)] hover:bg-[var(--color-primary-subtle)]";
+                            return sourceModule ? (
+                              <span className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  disabled={updateModuleMut.isPending}
+                                  onClick={() =>
+                                    updateModuleMut.mutate({ moduleId: sourceModule.id, studyId: study.id, groupId: gid })
+                                  }
+                                  title={`Overwrite the "${sourceModule.name}" module with this group`}
+                                  className={btnCls}
+                                >
+                                  ⤴ Update “{sourceModule.name}”
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSavingGroupId(gid);
+                                    setModuleName(group?.title ?? "");
+                                  }}
+                                  className={btnCls}
+                                >
+                                  Save as new
+                                </button>
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSavingGroupId(gid);
+                                  setModuleName(group?.title ?? "");
+                                }}
+                                title="Save this group as a reusable module"
+                                className={btnCls}
+                              >
+                                ＋ Save as module
+                              </button>
+                            );
+                          })()
                         )}
                       </div>
                     );

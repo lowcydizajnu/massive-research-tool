@@ -52,6 +52,9 @@ export type StudyGroup = {
   title?: string;
   /** Screen-level visibility — the whole group shows/skips as a unit. */
   showIf?: import("@/lib/whiteboard/conditions").ConditionGroup;
+  /** The custom module this group was inserted from (ADR-0029) — enables
+   *  "Update module" vs "Save as new" once the group is edited. */
+  moduleId?: string;
 };
 
 /** Read the question-group metadata out of a definition_snapshot. */

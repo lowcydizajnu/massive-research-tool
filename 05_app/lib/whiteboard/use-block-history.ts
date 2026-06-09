@@ -19,7 +19,7 @@ export type BlockSnapshotInput = {
   groupId?: string;
 };
 
-export type GroupSnapshot = { id: string; title?: string; showIf?: ConditionGroup };
+export type GroupSnapshot = { id: string; title?: string; showIf?: ConditionGroup; moduleId?: string };
 
 /** A full structure snapshot — blocks (with group membership) + group metadata.
  *  Undo/redo restores BOTH so grouping is never silently lost (ADR-0028). */
