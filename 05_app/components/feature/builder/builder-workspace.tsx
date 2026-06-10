@@ -286,6 +286,12 @@ export function BuilderWorkspace({
     },
   });
   const removeModuleMut = api.studies.removeCustomModule.useMutation({ onSuccess: () => void customModulesQ.refetch() });
+  const saveBlockMut = api.studies.saveBlockAsModule.useMutation({
+    onSuccess: () => {
+      setSavedMsg("Saved as a reusable block.");
+      void customModulesQ.refetch();
+    },
+  });
   const [confirmUpdate, setConfirmUpdate] = useState<{ moduleId: string; groupId: string; name: string } | null>(null);
   const updateModuleMut = api.studies.updateCustomModule.useMutation({
     onSuccess: (data) => {
@@ -781,6 +787,9 @@ export function BuilderWorkspace({
                 removeBlock.mutate({ studyId: study.id, instanceId: selected.instanceId });
                 setSelectedId(null);
               }}
+              onSaveAsModule={(name) =>
+                saveBlockMut.mutate({ studyId: study.id, instanceId: selected.instanceId, name })
+              }
             />
             <BlockVisibilityField
               key={`vis-${selected.instanceId}-${panelEpoch}`}

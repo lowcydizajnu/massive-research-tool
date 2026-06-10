@@ -41,6 +41,7 @@ export function BlockView({
   if (block.key === "dropdown") return <DropdownInput config={c} np={np} />;
   if (block.key === "phone") return <SimpleFieldInput config={c} type="tel" np={np} />;
   if (block.key === "address") return <AddressInput config={c} np={np} />;
+  if (block.key === "field-group") return <FieldGroupInput config={c} np={np} />;
   if (block.key === "contact") return <ContactInput config={c} np={np} />;
   if (block.key === "picture-choice") return <PictureChoiceInput config={c} np={np} />;
   // V1.12 Wave 3 — research scales.
@@ -464,6 +465,70 @@ function AddressInput({ config, np }: { config: Record<string, unknown>; np: str
           <input type="text" name={`${np}${f.name}`} autoComplete={f.autoComplete} className={FIELD_CLS} />
         </label>
       ))}
+    </fieldset>
+  );
+}
+
+/** Composite field-group (ADR-0030) — researcher-defined fields on one card.
+ *  The hidden `fkeys` input (key:type pairs) tells the server action which
+ *  namespaced fields to read back (the matrix `rowCount` trick). */
+function FieldGroupInput({ config, np }: { config: Record<string, unknown>; np: string }) {
+  type Spec = { key: string; label: string; type: string; required?: boolean; options?: string[] };
+  const fields = (Array.isArray(config.fields) ? (config.fields as Spec[]) : []).filter(
+    (f) => f && typeof f.key === "string" && /^[a-z0-9_]+$/.test(f.key),
+  );
+  return (
+    <fieldset className="flex flex-col gap-2">
+      <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
+      <input type="hidden" name={`${np}fkeys`} value={fields.map((f) => `${f.key}:${f.type}`).join(",")} />
+      {fields.map((f) => {
+        const name = `${np}f_${f.key}`;
+        const label = (
+          <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">{f.label}</span>
+        );
+        if (f.type === "dropdown") {
+          return (
+            <label key={f.key} className="flex flex-col gap-1">
+              {label}
+              <select name={name} defaultValue="" required={f.required === true} className={FIELD_CLS}>
+                <option value="" disabled>
+                  Choose…
+                </option>
+                {(f.options ?? [])
+                  .filter((o) => o.trim() !== "")
+                  .map((o, i) => (
+                    <option key={`${i}-${o}`} value={o}>
+                      {o}
+                    </option>
+                  ))}
+              </select>
+            </label>
+          );
+        }
+        if (f.type === "yes-no") {
+          return (
+            <div key={f.key} className="flex flex-col gap-1">
+              {label}
+              <div className="flex gap-4">
+                {["yes", "no"].map((v) => (
+                  <label key={v} className="flex items-center gap-1.5 text-[length:var(--text-body)] text-[var(--color-text-primary)]">
+                    <input type="radio" name={name} value={v} required={f.required === true} className="size-4 accent-[var(--color-primary)]" />
+                    {v === "yes" ? "Yes" : "No"}
+                  </label>
+                ))}
+              </div>
+            </div>
+          );
+        }
+        const inputType =
+          f.type === "number" ? "number" : f.type === "email" ? "email" : f.type === "phone" ? "tel" : f.type === "date" ? "date" : "text";
+        return (
+          <label key={f.key} className="flex flex-col gap-1">
+            {label}
+            <input type={inputType} name={name} required={f.required === true} className={FIELD_CLS} />
+          </label>
+        );
+      })}
     </fieldset>
   );
 }

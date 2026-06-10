@@ -1575,6 +1575,24 @@ export const studiesRouter = router({
       return { id: row.id };
     }),
 
+  /** Save ONE configured block as a reusable workspace module (ADR-0030) — a
+   *  1-block template; insertCustomModule adds those as a plain block (no group). */
+  saveBlockAsModule: writeProcedure
+    .input(z.object({ studyId: z.string().uuid(), instanceId: z.string(), name: z.string().trim().min(1).max(120) }))
+    .mutation(async ({ ctx, input }): Promise<{ id: string }> => {
+      const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+      const block = (readBlocks(tip.version.definitionSnapshot) as BlockInstance[]).find(
+        (b) => b.instanceId === input.instanceId,
+      );
+      if (!block) throw new TRPCError({ code: "NOT_FOUND", message: "Block not found." });
+      const definition = groupToDefinition([block], input.name);
+      const [row] = await db
+        .insert(customModule)
+        .values({ tenantId: ctx.workspace.id, name: input.name, definition, createdBy: ctx.dbUser.id })
+        .returning({ id: customModule.id });
+      return { id: row.id };
+    }),
+
   /**
    * Overwrite an existing module from a (now-edited) group it was inserted from,
    * then PROPAGATE the new definition into every other group across the
@@ -1652,13 +1670,18 @@ export const studiesRouter = router({
       const def = mod.definition as CustomModuleDefinition;
       const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
       const existing = readBlocks(tip.version.definitionSnapshot) as BlockInstance[];
+      // A 1-block template (ADR-0030) inserts as a plain block — no 1-member
+      // group (those auto-dissolve by design). Multi-block → a new group.
+      const single = def.blocks.length === 1;
       const groupId = ulid();
-      const blocks = [...existing, ...definitionToBlocks(def, groupId, () => ulid())];
+      const inserted = definitionToBlocks(def, groupId, () => ulid()).map((b) =>
+        single ? { ...b, groupId: undefined } : b,
+      );
+      const blocks = [...existing, ...inserted];
       // Remember the source module so the group can later Update it vs Save-as-new.
-      const groups = [
-        ...readGroups(tip.version.definitionSnapshot),
-        { id: groupId, title: def.title ?? mod.name, moduleId: mod.id },
-      ];
+      const groups = single
+        ? readGroups(tip.version.definitionSnapshot)
+        : [...readGroups(tip.version.definitionSnapshot), { id: groupId, title: def.title ?? mod.name, moduleId: mod.id }];
       const snap =
         tip.version.definitionSnapshot && typeof tip.version.definitionSnapshot === "object"
           ? (tip.version.definitionSnapshot as Record<string, unknown>)
