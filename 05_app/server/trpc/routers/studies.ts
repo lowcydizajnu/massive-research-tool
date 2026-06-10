@@ -1331,7 +1331,7 @@ export const studiesRouter = router({
    * modified (amber). Read-only; tenant-scoped.
    */
   compareVersions: workspaceProcedure
-    .input(z.object({ studyId: z.string().uuid(), vs: z.string().uuid() }))
+    .input(z.object({ studyId: z.string().uuid(), vs: z.union([z.string().uuid(), z.literal("origin")]) }))
     .query(async ({ ctx, input }): Promise<VersionCompare> => {
       const [exp] = await db
         .select()
@@ -1340,22 +1340,44 @@ export const studiesRouter = router({
         .limit(1);
       if (!exp) throw new TRPCError({ code: "NOT_FOUND" });
 
-      const [ver] = await db
-        .select({
-          kind: experimentVersion.kind,
-          versionNumber: experimentVersion.versionNumber,
-          name: experimentVersion.name,
-          snapshot: experimentVersion.definitionSnapshot,
-        })
-        .from(experimentVersion)
-        .where(
-          and(eq(experimentVersion.id, input.vs), eq(experimentVersion.experimentId, input.studyId)),
-        )
-        .limit(1);
-      if (!ver) throw new TRPCError({ code: "NOT_FOUND" });
+      // vs = "origin" → juxtapose a replication against the study it was
+      // replicated from (ADR-0018 gating: visible if public or same workspace).
+      let rightBlocks: BlockInstance[];
+      let verLabel: string;
+      if (input.vs === "origin") {
+        if (!exp.forkOfExperimentId) throw new TRPCError({ code: "BAD_REQUEST", message: "Not a replication." });
+        const meta = await studyMeta(exp.forkOfExperimentId);
+        if (!meta || !(meta.exp.forkableBy === "public" || meta.exp.tenantId === ctx.workspace.id)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "The original study isn’t visible to you." });
+        }
+        rightBlocks = meta.blocks;
+        verLabel = `Original — “${meta.exp.title}”`;
+      } else {
+        const [ver] = await db
+          .select({
+            kind: experimentVersion.kind,
+            versionNumber: experimentVersion.versionNumber,
+            name: experimentVersion.name,
+            snapshot: experimentVersion.definitionSnapshot,
+          })
+          .from(experimentVersion)
+          .where(
+            and(eq(experimentVersion.id, input.vs), eq(experimentVersion.experimentId, input.studyId)),
+          )
+          .limit(1);
+        if (!ver) throw new TRPCError({ code: "NOT_FOUND" });
+        rightBlocks = readBlocks(ver.snapshot);
+        verLabel =
+          ver.kind === "autosave"
+            ? "Draft"
+            : ver.kind === "named"
+              ? `v${ver.versionNumber}${ver.name ? ` — ${ver.name}` : ""}`
+              : ver.kind === "preregistered"
+                ? `Preregistration v${ver.versionNumber}`
+                : `Published v${ver.versionNumber}`;
+      }
 
       const leftBlocks = await studyTipBlocks(exp); // working copy (child)
-      const rightBlocks = readBlocks(ver.snapshot); // chosen version (parent)
       const diff = diffBlocks(rightBlocks, leftBlocks);
       const addedIds = new Set(diff.added.map((b) => b.instanceId));
       const removedIds = new Set(diff.removed.map((b) => b.instanceId));
@@ -1376,17 +1398,8 @@ export const studiesRouter = router({
         };
       };
 
-      const verLabel =
-        ver.kind === "autosave"
-          ? "Draft"
-          : ver.kind === "named"
-            ? `v${ver.versionNumber}${ver.name ? ` — ${ver.name}` : ""}`
-            : ver.kind === "preregistered"
-              ? `Preregistration v${ver.versionNumber}`
-              : `Published v${ver.versionNumber}`;
-
       return {
-        leftLabel: "Working copy",
+        leftLabel: input.vs === "origin" ? "Your replication (working copy)" : "Working copy",
         rightLabel: verLabel,
         left: leftBlocks.map((b) => toNode(b, "left")),
         right: rightBlocks.map((b) => toNode(b, "right")),

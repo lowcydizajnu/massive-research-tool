@@ -89,9 +89,13 @@ const LEGEND: { color: string; label: string }[] = [
  */
 export function CompareView({ studyId, initialVs }: { studyId: string; initialVs?: string }) {
   const versions = api.studies.listVersions.useQuery({ studyId });
+  const study = api.studies.get.useQuery({ id: studyId });
+  const isReplication = study.data?.isReplication === true;
   const frozen = (versions.data ?? []).filter((v) => v.kind !== "autosave");
   const [vs, setVs] = useState<string | undefined>(initialVs);
-  const effectiveVs = vs ?? frozen[frozen.length - 1]?.id;
+  // A replication defaults to juxtaposing against its ORIGINAL study (ADR-0018);
+  // otherwise the latest frozen version (ADR-0020 §A6).
+  const effectiveVs = vs ?? (isReplication ? "origin" : frozen[frozen.length - 1]?.id);
 
   const cmp = api.studies.compareVersions.useQuery(
     { studyId, vs: effectiveVs ?? "" },
@@ -108,7 +112,8 @@ export function CompareView({ studyId, initialVs }: { studyId: string; initialVs
             onChange={(e) => setVs(e.target.value)}
             className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-1 text-[length:var(--text-small)]"
           >
-            {frozen.length === 0 ? <option value="">No saved versions yet</option> : null}
+            {isReplication ? <option value="origin">Original study (replication source)</option> : null}
+            {frozen.length === 0 && !isReplication ? <option value="">No saved versions yet</option> : null}
             {frozen.map((v) => (
               <option key={v.id} value={v.id}>
                 {v.kind === "named"

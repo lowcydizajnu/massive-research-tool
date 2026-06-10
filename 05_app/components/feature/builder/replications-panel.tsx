@@ -53,6 +53,14 @@ export function ReplicationsPanel({ studyId }: { studyId: string }) {
             {parent.authorName ? ` · ${parent.authorName}` : ""}
           </span>
           <Divergence diff={parent.diff} />
+          {parent.diff ? (
+            <Link
+              href={`/studies/${studyId}/build/whiteboard/compare?vs=origin` as Route}
+              className="self-start text-[length:var(--text-small)] font-medium text-[var(--color-primary)] underline-offset-2 hover:underline"
+            >
+              Compare side by side →
+            </Link>
+          ) : null}
         </section>
       ) : null}
 
