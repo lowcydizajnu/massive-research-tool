@@ -84,6 +84,19 @@ function extractAnswer(moduleKey: string, prefix: string, fd: FormData): unknown
     }
     return { values };
   }
+  if (moduleKey === "field-group") {
+    // `fkeys` carries key:type pairs (ADR-0030); the runtime re-validates keys +
+    // per-field formats against the block's config, so this only selects extraction.
+    const values: Record<string, string | number> = {};
+    for (const entry of String(g("fkeys") ?? "").split(",")) {
+      const [key, type] = entry.split(":");
+      if (!key) continue;
+      const raw = g(`f_${key}`);
+      if (raw == null || String(raw) === "") continue;
+      values[key] = type === "number" ? Number(raw) : String(raw);
+    }
+    return { values };
+  }
   if (moduleKey === "maxdiff") {
     return { best: String(g("best") ?? ""), worst: String(g("worst") ?? "") };
   }

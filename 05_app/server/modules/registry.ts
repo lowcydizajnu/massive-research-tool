@@ -823,6 +823,116 @@ const contactBlock: CoreModuleDef = {
   isComplete: (c) => typeof c.prompt === "string" && c.prompt.trim().length > 0,
 };
 
+/**
+ * Composite field-group (ADR-0030) — the "editable Address": ONE block whose
+ * sub-fields the researcher defines in config (add/remove/relabel/type). Records
+ * one structured answer `{values: {fieldKey: …}}` (same family as matrix-grid).
+ */
+const FIELD_TYPES = ["text", "number", "email", "phone", "date", "dropdown", "yes-no"] as const;
+const fieldSpecSchema = z.object({
+  /** Stable slug — frozen after creation so data stays joinable across renames. */
+  key: z.string().regex(/^[a-z0-9_]+$/),
+  label: z.string(),
+  type: z.enum(FIELD_TYPES),
+  required: z.boolean().optional(),
+  /** Dropdown choices (dropdown type only). */
+  options: z.array(z.string()).optional(),
+});
+type FieldSpec = z.infer<typeof fieldSpecSchema>;
+const readFields = (c: Record<string, unknown>): FieldSpec[] =>
+  Array.isArray(c.fields) ? (c.fields as FieldSpec[]) : [];
+
+const fieldGroupBlock: CoreModuleDef = {
+  source: "core",
+  key: "field-group",
+  version: "1.0.0",
+  name: "Custom field group",
+  description:
+    "One card with fields you define — add, remove, rename, and type each field (like an editable Address). Records one combined answer.",
+  categoryTags: ["form", "custom"],
+  configSchema: z.object({
+    prompt: z.string(),
+    required: z.boolean(),
+    fields: z.array(fieldSpecSchema),
+  }),
+  defaultConfig: {
+    prompt: "",
+    required: true,
+    fields: [
+      { key: "field_1", label: "Field 1", type: "text" },
+      { key: "field_2", label: "Field 2", type: "text" },
+    ],
+  },
+  jsonSchema: {
+    type: "object",
+    properties: {
+      prompt: { type: "string" },
+      required: { type: "boolean" },
+      fields: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            key: { type: "string", pattern: "^[a-z0-9_]+$" },
+            label: { type: "string" },
+            type: { type: "string", enum: [...FIELD_TYPES] },
+            required: { type: "boolean" },
+            options: { type: "array", items: { type: "string" } },
+          },
+          required: ["key", "label", "type"],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: ["prompt", "fields"],
+    additionalProperties: false,
+  },
+  collectsResponse: true,
+  responseSchema: z.object({
+    values: z.record(z.string(), z.union([z.string().max(2000), z.number()])),
+  }),
+  isAnswerEmpty: (a) => {
+    const values =
+      a && typeof a === "object" && (a as Record<string, unknown>).values
+        ? ((a as Record<string, unknown>).values as Record<string, unknown>)
+        : {};
+    return Object.values(values).every((v) => v == null || String(v).trim() === "");
+  },
+  validateAnswer: (a, config) => {
+    const fields = readFields(config);
+    const byKey = new Map(fields.map((f) => [f.key, f]));
+    const values = ((a as Record<string, unknown>).values ?? {}) as Record<string, unknown>;
+    // No stray keys outside the configured fields.
+    for (const k of Object.keys(values)) if (!byKey.has(k)) return false;
+    for (const f of fields) {
+      const raw = values[f.key];
+      const s = raw == null ? "" : String(raw).trim();
+      if (s === "") {
+        if (f.required === true) return false;
+        continue;
+      }
+      if (f.type === "number" && (typeof raw !== "number" || !Number.isFinite(raw))) return false;
+      if (f.type === "email" && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s)) return false;
+      if (f.type === "yes-no" && s !== "yes" && s !== "no") return false;
+      if (f.type === "dropdown" && !(f.options ?? []).includes(s)) return false;
+    }
+    return true;
+  },
+  isComplete: (c) => {
+    const fields = readFields(c);
+    return (
+      typeof c.prompt === "string" &&
+      c.prompt.trim().length > 0 &&
+      fields.length > 0 &&
+      fields.every(
+        (f) =>
+          f.label.trim().length > 0 &&
+          (f.type !== "dropdown" || (f.options ?? []).filter((o) => o.trim() !== "").length > 0),
+      )
+    );
+  },
+};
+
 const pictureChoiceBlock: CoreModuleDef = {
   source: "core",
   key: "picture-choice",
@@ -1212,6 +1322,7 @@ export const MODULE_REGISTRY: CoreModuleDef[] = [
   phoneBlock,
   addressBlock,
   contactBlock,
+  fieldGroupBlock,
   pictureChoiceBlock,
   socialPost,
   socialPostV2,
