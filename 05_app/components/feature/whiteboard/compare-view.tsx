@@ -26,12 +26,19 @@ function toFlow(nodes: CompareNode[]): { rfNodes: Node[]; rfEdges: Edge[] } {
     position: { x: 0, y: i * 110 },
     data: { label: `Condition: ${slug}` },
   }));
-  const blockNodes: Node[] = nodes.map((n, i) => ({
-    id: n.instanceId,
-    type: "compareBlock",
-    position: { x: 300, y: i * 120 },
-    data: { label: n.name, ref: n.ref, status: n.status },
-  }));
+  // Modified nodes grow with their change lines — keep vertical rhythm by
+  // advancing the next node's y past the extra lines (~16px each).
+  let y = 0;
+  const blockNodes: Node[] = nodes.map((n) => {
+    const node: Node = {
+      id: n.instanceId,
+      type: "compareBlock",
+      position: { x: 300, y },
+      data: { label: n.name, ref: n.ref, status: n.status, changes: n.changes },
+    };
+    y += 120 + Math.min(n.changes?.length ?? 0, 5) * 18;
+    return node;
+  });
   const rfEdges: Edge[] = nodes.flatMap((n) =>
     n.showIfCondition.map((slug) => ({
       id: `e:${slug}->${n.instanceId}`,
