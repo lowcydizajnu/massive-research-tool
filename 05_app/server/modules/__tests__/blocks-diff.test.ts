@@ -135,3 +135,15 @@ describe("alignBlocksForDiff (id-less forks, e.g. seeded demos)", () => {
     expect(aligned[0].instanceId).toBe("same");
   });
 });
+
+import { groupChangeLine } from "@/server/modules/blocks";
+
+describe("groupChangeLine", () => {
+  it("covers grouped / ungrouped / moved / unchanged", () => {
+    expect(groupChangeLine(null, "Demographics")).toBe("~ Grouped under “Demographics”");
+    expect(groupChangeLine("Demographics", null)).toBe("~ Removed from group “Demographics”");
+    expect(groupChangeLine("A", "B")).toBe("~ Moved from group “A” to “B”");
+    expect(groupChangeLine("Same", "Same")).toBeNull();
+    expect(groupChangeLine(null, null)).toBeNull();
+  });
+});

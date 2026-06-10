@@ -315,3 +315,15 @@ export function alignBlocksForDiff(
   });
   return { aligned, idMap };
 }
+
+/** Change line for a block whose screen-group membership differs between two
+ *  versions (compare view); null = no grouping change. Titles compare loosely
+ *  (group ids differ across forks). Pure. */
+export function groupChangeLine(oldTitle: string | null, newTitle: string | null): string | null {
+  const a = oldTitle?.trim() || null;
+  const b = newTitle?.trim() || null;
+  if (a === b) return null;
+  if (a === null) return `~ Grouped under “${b}”`;
+  if (b === null) return `~ Removed from group “${a}”`;
+  return `~ Moved from group “${a}” to “${b}”`;
+}
