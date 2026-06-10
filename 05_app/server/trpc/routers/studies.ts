@@ -41,6 +41,8 @@ import {
   validateConfig,
 } from "@/server/modules/blocks";
 import { getModuleDef } from "@/server/modules/registry";
+import { protocolText } from "@/server/modules/protocol-text";
+import { diffLines } from "@/lib/diff-lines";
 import { publicProcedure, router, workspaceProcedure, writeProcedure } from "@/server/trpc/trpc";
 
 /**
@@ -210,14 +212,18 @@ async function loadForkSource(studyId: string, callerUserId: string) {
 }
 
 /** Current-tip blocks of an experiment (for the replication diff). */
-async function studyTipBlocks(exp: typeof experiment.$inferSelect): Promise<BlockInstance[]> {
-  if (!exp.currentVersionId) return [];
+async function studyTipSnapshot(exp: typeof experiment.$inferSelect): Promise<unknown> {
+  if (!exp.currentVersionId) return {};
   const [v] = await db
     .select({ snapshot: experimentVersion.definitionSnapshot })
     .from(experimentVersion)
     .where(eq(experimentVersion.id, exp.currentVersionId))
     .limit(1);
-  return readBlocks(v?.snapshot);
+  return v?.snapshot ?? {};
+}
+
+async function studyTipBlocks(exp: typeof experiment.$inferSelect): Promise<BlockInstance[]> {
+  return readBlocks(await studyTipSnapshot(exp));
 }
 
 /** Cross-tenant load of an experiment + its tip blocks + author name (ADR-0018 replications read). */
@@ -458,6 +464,8 @@ export type VersionCompare = {
   rightLabel: string;
   left: CompareNode[];
   right: CompareNode[];
+  /** GitHub-style protocol-text diff (ADR-0031): old = right, new = left. */
+  textDiff: import("@/lib/diff-lines").DiffLine[];
 };
 
 /** A single version rendered read-only for preview (ADR-0019). */
@@ -1347,6 +1355,7 @@ export const studiesRouter = router({
       // vs = "origin" → juxtapose a replication against the study it was
       // replicated from (ADR-0018 gating: visible if public or same workspace).
       let rightBlocks: BlockInstance[];
+      let rightSnapshot: unknown;
       let verLabel: string;
       if (input.vs === "origin") {
         if (!exp.forkOfExperimentId) throw new TRPCError({ code: "BAD_REQUEST", message: "Not a replication." });
@@ -1355,6 +1364,7 @@ export const studiesRouter = router({
           throw new TRPCError({ code: "FORBIDDEN", message: "The original study isn’t visible to you." });
         }
         rightBlocks = meta.blocks;
+        rightSnapshot = await studyTipSnapshot(meta.exp);
         verLabel = `Original — “${meta.exp.title}”`;
       } else {
         const [ver] = await db
@@ -1371,6 +1381,7 @@ export const studiesRouter = router({
           .limit(1);
         if (!ver) throw new TRPCError({ code: "NOT_FOUND" });
         rightBlocks = readBlocks(ver.snapshot);
+        rightSnapshot = ver.snapshot;
         verLabel =
           ver.kind === "autosave"
             ? "Draft"
@@ -1381,7 +1392,8 @@ export const studiesRouter = router({
                 : `Published v${ver.versionNumber}`;
       }
 
-      const leftBlocks = await studyTipBlocks(exp); // working copy (child)
+      const leftSnapshot = await studyTipSnapshot(exp); // working copy (child)
+      const leftBlocks = readBlocks(leftSnapshot);
       const diff = diffBlocks(rightBlocks, leftBlocks);
       const addedIds = new Set(diff.added.map((b) => b.instanceId));
       const removedIds = new Set(diff.removed.map((b) => b.instanceId));
@@ -1417,6 +1429,9 @@ export const studiesRouter = router({
         rightLabel: verLabel,
         left: leftBlocks.map((b) => toNode(b, "left")),
         right: rightBlocks.map((b) => toNode(b, "right")),
+        // GitHub-style protocol text diff (ADR-0031): old = the chosen version /
+        // original, new = the working copy.
+        textDiff: diffLines(protocolText(rightSnapshot), protocolText(leftSnapshot)),
       };
     }),
 

@@ -100,6 +100,7 @@ export function CompareView({ studyId, initialVs }: { studyId: string; initialVs
   const isReplication = study.data?.isReplication === true;
   const frozen = (versions.data ?? []).filter((v) => v.kind !== "autosave");
   const [vs, setVs] = useState<string | undefined>(initialVs);
+  const [view, setView] = useState<"visual" | "text">("visual");
   // A replication defaults to juxtaposing against its ORIGINAL study (ADR-0018);
   // otherwise the latest frozen version (ADR-0020 §A6).
   const effectiveVs = vs ?? (isReplication ? "origin" : frozen[frozen.length - 1]?.id);
@@ -140,6 +141,24 @@ export function CompareView({ studyId, initialVs }: { studyId: string; initialVs
             </span>
           ))}
         </div>
+        <div role="tablist" aria-label="Compare view" className="ml-auto flex items-center gap-1 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-0.5">
+          {(["visual", "text"] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              role="tab"
+              aria-selected={view === v}
+              onClick={() => setView(v)}
+              className={
+                view === v
+                  ? "rounded-[var(--radius-sm)] bg-[var(--color-primary-subtle)] px-2 py-0.5 text-[length:var(--text-small)] font-medium text-[var(--color-primary-text-on-subtle)]"
+                  : "rounded-[var(--radius-sm)] px-2 py-0.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
+              }
+            >
+              {v === "visual" ? "Visual" : "Text diff"}
+            </button>
+          ))}
+        </div>
       </div>
 
       {!effectiveVs ? (
@@ -152,12 +171,61 @@ export function CompareView({ studyId, initialVs }: { studyId: string; initialVs
         <p role="alert" className="text-[length:var(--text-small)] text-[var(--color-danger-text-on-subtle)]">
           Couldn’t load the comparison.
         </p>
+      ) : view === "text" ? (
+        <TextDiff
+          oldLabel={cmp.data.rightLabel}
+          newLabel={cmp.data.leftLabel}
+          lines={cmp.data.textDiff}
+        />
       ) : (
         <div className="flex flex-col gap-3 md:flex-row">
           <CompareSide label={cmp.data.leftLabel} nodes={cmp.data.left} />
           <CompareSide label={cmp.data.rightLabel} nodes={cmp.data.right} />
         </div>
       )}
+    </div>
+  );
+}
+
+/** Unified GitHub-style protocol diff (ADR-0031): − old, + new, mono, tinted rows. */
+function TextDiff({
+  oldLabel,
+  newLabel,
+  lines,
+}: {
+  oldLabel: string;
+  newLabel: string;
+  lines: { type: "same" | "added" | "removed"; text: string }[];
+}) {
+  const changed = lines.filter((l) => l.type !== "same").length;
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+        <span className="rounded-sm bg-[var(--color-danger-subtle)] px-1 text-[var(--color-danger-text-on-subtle)]">− {oldLabel}</span>{" "}
+        <span className="rounded-sm bg-[var(--color-success-subtle)] px-1 text-[var(--color-success-text-on-subtle)]">+ {newLabel}</span>
+        {changed === 0 ? " · No differences — the protocols read identically." : ` · ${changed} changed line${changed === 1 ? "" : "s"}`}
+      </p>
+      <div className="overflow-auto rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)]">
+        <pre className="m-0 p-0 font-mono text-[length:var(--text-mono)] leading-relaxed">
+          {lines.map((l, i) => (
+            <div
+              key={i}
+              className={
+                l.type === "added"
+                  ? "bg-[var(--color-success-subtle)] px-3 text-[var(--color-success-text-on-subtle)]"
+                  : l.type === "removed"
+                    ? "bg-[var(--color-danger-subtle)] px-3 text-[var(--color-danger-text-on-subtle)]"
+                    : "px-3 text-[var(--color-text-secondary)]"
+              }
+            >
+              <span aria-hidden className="inline-block w-4 select-none opacity-70">
+                {l.type === "added" ? "+" : l.type === "removed" ? "−" : " "}
+              </span>
+              {l.text || " "}
+            </div>
+          ))}
+        </pre>
+      </div>
     </div>
   );
 }
