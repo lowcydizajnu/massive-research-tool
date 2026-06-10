@@ -270,3 +270,48 @@ export function summarizeConfigDiff(oldBlock: BlockInstance, newBlock: BlockInst
   }
   return out;
 }
+
+/**
+ * Align a child block list to its parent for diffing when instanceIds can't be
+ * trusted (e.g. seeded forks): blocks already matching by id stay; leftover
+ * children adopt a leftover parent's id when content-identical (same module ref
+ * + config), then when same module ref in order (≈ modified) — GitHub-style
+ * rename detection. Returns the aligned copy + childId → alignedId map. Pure.
+ */
+export function alignBlocksForDiff(
+  parent: BlockInstance[],
+  child: BlockInstance[],
+): { aligned: BlockInstance[]; idMap: Map<string, string> } {
+  const parentIds = new Set(parent.map((b) => b.instanceId));
+  const childIds = new Set(child.map((b) => b.instanceId));
+  const freeParents = parent.filter((b) => !childIds.has(b.instanceId));
+  const claimed = new Set<string>();
+  const idMap = new Map<string, string>();
+
+  const refOfB = (b: BlockInstance) => `${b.source}/${b.key}@${b.version}`;
+  // Pass 1: identical content (ref + config).
+  for (const c of child) {
+    if (parentIds.has(c.instanceId)) continue;
+    const match = freeParents.find(
+      (p) => !claimed.has(p.instanceId) && refOfB(p) === refOfB(c) && stableConfig(p.config) === stableConfig(c.config),
+    );
+    if (match) {
+      claimed.add(match.instanceId);
+      idMap.set(c.instanceId, match.instanceId);
+    }
+  }
+  // Pass 2: same module ref, in order (likely the same block, edited).
+  for (const c of child) {
+    if (parentIds.has(c.instanceId) || idMap.has(c.instanceId)) continue;
+    const match = freeParents.find((p) => !claimed.has(p.instanceId) && refOfB(p) === refOfB(c));
+    if (match) {
+      claimed.add(match.instanceId);
+      idMap.set(c.instanceId, match.instanceId);
+    }
+  }
+  const aligned = child.map((c) => {
+    const to = idMap.get(c.instanceId);
+    return to ? { ...c, instanceId: to } : c;
+  });
+  return { aligned, idMap };
+}
