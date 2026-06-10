@@ -94,3 +94,44 @@ describe("summarizeConfigDiff (compare Modified detail)", () => {
     expect(summarizeConfigDiff(blk({ prompt: "P" }), blk({ prompt: "P" }))).toEqual([]);
   });
 });
+
+import { alignBlocksForDiff, diffBlocks as diffB } from "@/server/modules/blocks";
+
+describe("alignBlocksForDiff (id-less forks, e.g. seeded demos)", () => {
+  const mk = (instanceId: string, key: string, config: Record<string, unknown>): BlockInstance => ({
+    instanceId,
+    source: "core",
+    key,
+    version: "1.0.0",
+    config,
+  });
+
+  it("pairs content-identical blocks despite different ids → unchanged", () => {
+    const parent = [mk("p1", "likert-7", { prompt: "A" }), mk("p2", "free-text", { prompt: "B" })];
+    const child = [mk("c1", "likert-7", { prompt: "A" }), mk("c2", "free-text", { prompt: "B" })];
+    const { aligned } = alignBlocksForDiff(parent, child);
+    const d = diffB(parent, aligned);
+    expect(d.added).toHaveLength(0);
+    expect(d.removed).toHaveLength(0);
+    expect(d.unchangedCount).toBe(2);
+  });
+
+  it("pairs same-type edited blocks in order → modified, extras stay added", () => {
+    const parent = [mk("p1", "likert-7", { prompt: "Old" })];
+    const child = [mk("c1", "likert-7", { prompt: "New" }), mk("c2", "attention-check", { prompt: "X" })];
+    const { aligned, idMap } = alignBlocksForDiff(parent, child);
+    expect(idMap.get("c1")).toBe("p1");
+    const d = diffB(parent, aligned);
+    expect(d.changed.map((b) => b.instanceId)).toEqual(["p1"]);
+    expect(d.added.map((b) => b.instanceId)).toEqual(["c2"]);
+    expect(d.removed).toHaveLength(0);
+  });
+
+  it("leaves true id matches alone", () => {
+    const parent = [mk("same", "likert-7", { prompt: "A" })];
+    const child = [mk("same", "likert-7", { prompt: "B" })];
+    const { aligned, idMap } = alignBlocksForDiff(parent, child);
+    expect(idMap.size).toBe(0);
+    expect(aligned[0].instanceId).toBe("same");
+  });
+});

@@ -31,6 +31,7 @@ import { getFrameworkDef } from "@/server/frameworks/registry";
 import {
   type BlockDiff,
   type BlockInstance,
+  alignBlocksForDiff,
   blockDisplay,
   diffBlocks,
   locksFromBlocks,
@@ -1061,8 +1062,9 @@ export const studiesRouter = router({
             title: meta.exp.title,
             authorName: meta.authorName,
             canSeeDetail: visible,
-            // How THIS study diverged from its parent.
-            diff: visible ? diffBlocks(meta.blocks, selfBlocks) : null,
+            // How THIS study diverged from its parent (content-aligned so
+            // seeded/imported forks without preserved ids still diff sanely).
+            diff: visible ? diffBlocks(meta.blocks, alignBlocksForDiff(meta.blocks, selfBlocks).aligned) : null,
           };
         }
       }
@@ -1086,8 +1088,8 @@ export const studiesRouter = router({
           title: child.title,
           authorName: u?.name ?? "",
           canSeeDetail: visible,
-          // How the child diverged from THIS study.
-          diff: meta ? diffBlocks(selfBlocks, meta.blocks) : null,
+          // How the child diverged from THIS study (content-aligned, as above).
+          diff: meta ? diffBlocks(selfBlocks, alignBlocksForDiff(selfBlocks, meta.blocks).aligned) : null,
         });
       }
       return { parent, children };
@@ -1394,7 +1396,11 @@ export const studiesRouter = router({
 
       const leftSnapshot = await studyTipSnapshot(exp); // working copy (child)
       const leftBlocks = readBlocks(leftSnapshot);
-      const diff = diffBlocks(rightBlocks, leftBlocks);
+      // Forks made in the product preserve instanceIds, but seeded/imported ones
+      // may not — align by content first so identical blocks pair up (ADR-0018).
+      const { aligned: alignedLeft, idMap } = alignBlocksForDiff(rightBlocks, leftBlocks);
+      const alignedIdOf = (id: string) => idMap.get(id) ?? id;
+      const diff = diffBlocks(rightBlocks, alignedLeft);
       const addedIds = new Set(diff.added.map((b) => b.instanceId));
       const removedIds = new Set(diff.removed.map((b) => b.instanceId));
       const changedIds = new Set(diff.changed.map((b) => b.instanceId));
@@ -1404,16 +1410,17 @@ export const studiesRouter = router({
       const rightById = new Map(rightBlocks.map((b) => [b.instanceId, b]));
       const changeLines = new Map<string, string[]>();
       for (const l of leftBlocks) {
-        const r = rightById.get(l.instanceId);
-        if (r && changedIds.has(l.instanceId)) changeLines.set(l.instanceId, summarizeConfigDiff(r, l));
+        const r = rightById.get(alignedIdOf(l.instanceId));
+        if (r && changedIds.has(alignedIdOf(l.instanceId))) changeLines.set(l.instanceId, summarizeConfigDiff(r, l));
       }
 
       const toNode = (b: BlockInstance, side: "left" | "right"): CompareNode => {
         const d = blockDisplay(b);
+        const diffId = side === "left" ? alignedIdOf(b.instanceId) : b.instanceId;
         let status: CompareStatus = "unchanged";
-        if (changedIds.has(b.instanceId)) status = "modified";
-        else if (side === "left" && addedIds.has(b.instanceId)) status = "added";
-        else if (side === "right" && removedIds.has(b.instanceId)) status = "removed";
+        if (changedIds.has(diffId)) status = "modified";
+        else if (side === "left" && addedIds.has(diffId)) status = "added";
+        else if (side === "right" && removedIds.has(diffId)) status = "removed";
         return {
           instanceId: b.instanceId,
           name: d.name,
