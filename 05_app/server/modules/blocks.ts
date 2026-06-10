@@ -191,3 +191,82 @@ export function diffBlocks(parent: BlockInstance[], child: BlockInstance[]): Blo
   }
   return { added, removed, changed, unchangedCount };
 }
+
+/* ---------- config-level diff summaries (ADR-0020 §A6 + V1.14.1 follow-up) ---------- */
+
+const shorten = (v: unknown, max = 28): string => {
+  const s = typeof v === "string" ? v : JSON.stringify(v);
+  return s.length > max ? `${s.slice(0, max - 1)}…` : s;
+};
+
+const humanizeKey = (key: string): string =>
+  key
+    .replace(/([A-Z])/g, " $1")
+    .replace(/^./, (c) => c.toUpperCase())
+    .trim();
+
+type AnyField = { key: string; label?: string; type?: string; required?: boolean; options?: string[] };
+
+/** Field-group `fields` diff by frozen key → "+ Field …" / "− Field …" / "~ Field …". */
+function diffFieldSpecs(oldF: AnyField[], newF: AnyField[]): string[] {
+  const out: string[] = [];
+  const byOld = new Map(oldF.map((f) => [f.key, f]));
+  const byNew = new Map(newF.map((f) => [f.key, f]));
+  for (const f of newF) if (!byOld.has(f.key)) out.push(`+ Field “${f.label ?? f.key}”`);
+  for (const f of oldF) if (!byNew.has(f.key)) out.push(`− Field “${f.label ?? f.key}”`);
+  for (const f of newF) {
+    const o = byOld.get(f.key);
+    if (!o) continue;
+    const what: string[] = [];
+    if (o.label !== f.label) what.push(`renamed “${o.label}” → “${f.label}”`);
+    if (o.type !== f.type) what.push(`type ${o.type} → ${f.type}`);
+    if ((o.required === true) !== (f.required === true)) what.push(f.required ? "now required" : "now optional");
+    if (JSON.stringify(o.options ?? []) !== JSON.stringify(f.options ?? [])) what.push("options changed");
+    if (what.length) out.push(`~ Field “${o.label ?? o.key}”: ${what.join(", ")}`);
+  }
+  return out;
+}
+
+/**
+ * Human-readable summary of WHAT changed between two configs of the same block
+ * (compare view's Modified nodes). Field-group fields diff by key; string
+ * arrays list additions/removals; scalars show old → new. Pure.
+ */
+export function summarizeConfigDiff(oldBlock: BlockInstance, newBlock: BlockInstance): string[] {
+  const out: string[] = [];
+  const oldRef = `${oldBlock.source}/${oldBlock.key}@${oldBlock.version}`;
+  const newRef = `${newBlock.source}/${newBlock.key}@${newBlock.version}`;
+  if (oldRef !== newRef) out.push(`~ Module ${oldRef} → ${newRef}`);
+
+  const oc = oldBlock.config ?? {};
+  const nc = newBlock.config ?? {};
+  for (const key of new Set([...Object.keys(oc), ...Object.keys(nc)])) {
+    const a = oc[key];
+    const b = nc[key];
+    if (JSON.stringify(a) === JSON.stringify(b)) continue;
+    if (key === "fields" && Array.isArray(a) && Array.isArray(b)) {
+      out.push(...diffFieldSpecs(a as AnyField[], b as AnyField[]));
+      continue;
+    }
+    if (!(key in nc)) {
+      out.push(`− ${humanizeKey(key)}`);
+      continue;
+    }
+    if (!(key in oc)) {
+      out.push(`+ ${humanizeKey(key)}: ${shorten(b)}`);
+      continue;
+    }
+    if (Array.isArray(a) && Array.isArray(b) && a.every((x) => typeof x === "string") && b.every((x) => typeof x === "string")) {
+      const added = (b as string[]).filter((x) => !(a as string[]).includes(x));
+      const removed = (a as string[]).filter((x) => !(b as string[]).includes(x));
+      const bits = [
+        ...added.map((x) => `+ “${shorten(x, 18)}”`),
+        ...removed.map((x) => `− “${shorten(x, 18)}”`),
+      ];
+      out.push(`~ ${humanizeKey(key)}: ${bits.length ? bits.join(", ") : "reordered"}`);
+      continue;
+    }
+    out.push(`~ ${humanizeKey(key)}: ${shorten(a)} → ${shorten(b)}`);
+  }
+  return out;
+}

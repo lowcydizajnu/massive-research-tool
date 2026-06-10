@@ -37,6 +37,7 @@ import {
   readBlocks,
   readOverview,
   readGroups,
+  summarizeConfigDiff,
   validateConfig,
 } from "@/server/modules/blocks";
 import { getModuleDef } from "@/server/modules/registry";
@@ -446,6 +447,9 @@ export type CompareNode = {
   ref: string;
   status: CompareStatus;
   showIfCondition: string[];
+  /** For `modified` nodes: human-readable lines of WHAT changed in the config
+   *  (e.g. field-group fields added/removed/renamed). */
+  changes?: string[];
 };
 
 /** Side-by-side compare of the working copy (left) vs a chosen version (right). */
@@ -1383,6 +1387,15 @@ export const studiesRouter = router({
       const removedIds = new Set(diff.removed.map((b) => b.instanceId));
       const changedIds = new Set(diff.changed.map((b) => b.instanceId));
 
+      // For modified blocks: WHAT changed inside the config (field-group fields
+      // added/removed/renamed, option edits, scalar old → new).
+      const rightById = new Map(rightBlocks.map((b) => [b.instanceId, b]));
+      const changeLines = new Map<string, string[]>();
+      for (const l of leftBlocks) {
+        const r = rightById.get(l.instanceId);
+        if (r && changedIds.has(l.instanceId)) changeLines.set(l.instanceId, summarizeConfigDiff(r, l));
+      }
+
       const toNode = (b: BlockInstance, side: "left" | "right"): CompareNode => {
         const d = blockDisplay(b);
         let status: CompareStatus = "unchanged";
@@ -1395,6 +1408,7 @@ export const studiesRouter = router({
           ref: d.ref,
           status,
           showIfCondition: b.visibility?.showIfCondition ?? [],
+          ...(status === "modified" && side === "left" ? { changes: changeLines.get(b.instanceId) ?? [] } : {}),
         };
       };
 

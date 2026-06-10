@@ -45,3 +45,52 @@ describe("diffBlocks (ADR-0018 replication divergence)", () => {
     expect(d).toEqual({ added: [], removed: [], changed: [], unchangedCount: 2 });
   });
 });
+
+import { summarizeConfigDiff } from "@/server/modules/blocks";
+
+const blk = (config: Record<string, unknown>, over: Partial<BlockInstance> = {}): BlockInstance => ({
+  instanceId: "x",
+  source: "core",
+  key: "field-group",
+  version: "1.0.0",
+  config,
+  ...over,
+});
+
+describe("summarizeConfigDiff (compare Modified detail)", () => {
+  it("diffs field-group fields by key: added, removed, renamed/retyped", () => {
+    const out = summarizeConfigDiff(
+      blk({
+        fields: [
+          { key: "street", label: "Street", type: "text" },
+          { key: "state", label: "State", type: "text" },
+        ],
+      }),
+      blk({
+        fields: [
+          { key: "street", label: "Street address", type: "text", required: true },
+          { key: "consent", label: "Consent", type: "yes-no" },
+        ],
+      }),
+    );
+    expect(out).toContain("+ Field “Consent”");
+    expect(out).toContain("− Field “State”");
+    expect(out.some((l) => l.startsWith("~ Field “Street”") && l.includes("renamed") && l.includes("now required"))).toBe(true);
+  });
+
+  it("summarizes scalar + string-array config changes", () => {
+    const out = summarizeConfigDiff(
+      blk({ prompt: "Old?", options: ["A", "B"] }, { key: "multiple-choice" }),
+      blk({ prompt: "New?", options: ["A", "C"] }, { key: "multiple-choice" }),
+    );
+    expect(out.some((l) => l.startsWith("~ Prompt:") && l.includes("→"))).toBe(true);
+    expect(out.some((l) => l.startsWith("~ Options:") && l.includes("+ “C”") && l.includes("− “B”"))).toBe(true);
+  });
+
+  it("notes a module version bump and stays empty when nothing changed", () => {
+    expect(
+      summarizeConfigDiff(blk({ prompt: "P" }), blk({ prompt: "P" }, { version: "2.0.0" }))[0],
+    ).toMatch(/~ Module .*1\.0\.0 → .*2\.0\.0/);
+    expect(summarizeConfigDiff(blk({ prompt: "P" }), blk({ prompt: "P" }))).toEqual([]);
+  });
+});
