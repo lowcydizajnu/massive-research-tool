@@ -34,6 +34,7 @@ import {
   alignBlocksForDiff,
   blockDisplay,
   diffBlocks,
+  groupChangeLine,
   locksFromBlocks,
   readBlocks,
   readOverview,
@@ -457,6 +458,9 @@ export type CompareNode = {
   /** For `modified` nodes: human-readable lines of WHAT changed in the config
    *  (e.g. field-group fields added/removed/renamed). */
   changes?: string[];
+  /** Screen-group membership on THIS side (ADR-0028) — drawn as a container. */
+  groupId?: string;
+  groupTitle?: string;
 };
 
 /** Side-by-side compare of the working copy (left) vs a chosen version (right). */
@@ -1405,13 +1409,28 @@ export const studiesRouter = router({
       const removedIds = new Set(diff.removed.map((b) => b.instanceId));
       const changedIds = new Set(diff.changed.map((b) => b.instanceId));
 
+      // Screen-group titles per side (ADR-0028) — drawn as containers; a block
+      // whose membership differs counts as modified ("Grouped under …").
+      const leftGroupTitle = new Map(readGroups(leftSnapshot).map((g) => [g.id, g.title ?? "Untitled group"]));
+      const rightGroupTitle = new Map(readGroups(rightSnapshot).map((g) => [g.id, g.title ?? "Untitled group"]));
+      const groupTitleOf = (b: BlockInstance, side: "left" | "right"): string | null =>
+        b.groupId ? ((side === "left" ? leftGroupTitle : rightGroupTitle).get(b.groupId) ?? "Untitled group") : null;
+
       // For modified blocks: WHAT changed inside the config (field-group fields
-      // added/removed/renamed, option edits, scalar old → new).
+      // added/removed/renamed, option edits, scalar old → new) + group moves.
       const rightById = new Map(rightBlocks.map((b) => [b.instanceId, b]));
       const changeLines = new Map<string, string[]>();
+      const groupChanged = new Set<string>();
       for (const l of leftBlocks) {
         const r = rightById.get(alignedIdOf(l.instanceId));
-        if (r && changedIds.has(alignedIdOf(l.instanceId))) changeLines.set(l.instanceId, summarizeConfigDiff(r, l));
+        if (!r) continue;
+        const lines = changedIds.has(alignedIdOf(l.instanceId)) ? summarizeConfigDiff(r, l) : [];
+        const gLine = groupChangeLine(groupTitleOf(r, "right"), groupTitleOf(l, "left"));
+        if (gLine) {
+          lines.push(gLine);
+          groupChanged.add(l.instanceId);
+        }
+        if (lines.length) changeLines.set(l.instanceId, lines);
       }
 
       const toNode = (b: BlockInstance, side: "left" | "right"): CompareNode => {
@@ -1421,13 +1440,16 @@ export const studiesRouter = router({
         if (changedIds.has(diffId)) status = "modified";
         else if (side === "left" && addedIds.has(diffId)) status = "added";
         else if (side === "right" && removedIds.has(diffId)) status = "removed";
+        if (side === "left" && status === "unchanged" && groupChanged.has(b.instanceId)) status = "modified";
+        const gTitle = groupTitleOf(b, side);
         return {
           instanceId: b.instanceId,
           name: d.name,
           ref: d.ref,
           status,
           showIfCondition: b.visibility?.showIfCondition ?? [],
-          ...(status === "modified" && side === "left" ? { changes: changeLines.get(b.instanceId) ?? [] } : {}),
+          ...(side === "left" && status === "modified" ? { changes: changeLines.get(b.instanceId) ?? [] } : {}),
+          ...(b.groupId ? { groupId: b.groupId, groupTitle: gTitle ?? undefined } : {}),
         };
       };
 
@@ -2791,6 +2813,10 @@ export const studiesRouter = router({
     .mutation(async ({ ctx, input }): Promise<{ id: string }> => {
       const source = await loadForkSource(input.studyId, ctx.dbUser.id);
       const blocks = readBlocks(source.version.definitionSnapshot);
+      // A replication carries the WHOLE protocol: groups (minus moduleId — a
+      // workspace-local custom-module link) + the Overview document (ADR-0028/0029).
+      const groups = readGroups(source.version.definitionSnapshot).map(({ moduleId: _drop, ...g }) => g);
+      const overview = readOverview(source.version.definitionSnapshot);
       const sourceConditions = await conditionsForVersion(source.version.id);
 
       const newId = await db.transaction(async (tx) => {
@@ -2811,7 +2837,7 @@ export const studiesRouter = router({
             experimentId: exp.id,
             versionNumber: 0, // autosave is the unnumbered "Draft" (ADR-0012 amendment)
             kind: "autosave",
-            definitionSnapshot: { blocks },
+            definitionSnapshot: { blocks, groups, overview },
             moduleVersionLocks: locksFromBlocks(blocks),
             createdBy: ctx.dbUser.id,
           })

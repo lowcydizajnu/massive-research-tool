@@ -10,12 +10,17 @@ import { conditionNodeId } from "@/lib/whiteboard/graph";
 import { api } from "@/lib/trpc/react";
 import type { CompareNode } from "@/server/trpc/routers/studies";
 
-import { ConditionNode } from "./whiteboard-nodes";
+import { ConditionNode, GroupNode } from "./whiteboard-nodes";
 import { CompareBlockNode } from "./whiteboard-compare-nodes";
 
-const nodeTypes = { compareBlock: CompareBlockNode, condition: ConditionNode };
+const nodeTypes = { compareBlock: CompareBlockNode, condition: ConditionNode, group: GroupNode };
 
-/** Lay out one version's compare nodes (block column + condition entry-points). */
+/**
+ * Lay out one version's compare nodes (block column + condition entry-points).
+ * Contiguous blocks sharing a groupId render inside a screen-group container
+ * (ADR-0028), mirroring the live whiteboard; modified nodes grow with their
+ * change lines, so the layout advances past each node's real height.
+ */
 function toFlow(nodes: CompareNode[]): { rfNodes: Node[]; rfEdges: Edge[] } {
   const condOrder: string[] = [];
   for (const n of nodes) for (const s of n.showIfCondition) if (!condOrder.includes(s)) condOrder.push(s);
@@ -26,19 +31,58 @@ function toFlow(nodes: CompareNode[]): { rfNodes: Node[]; rfEdges: Edge[] } {
     position: { x: 0, y: i * 110 },
     data: { label: `Condition: ${slug}` },
   }));
-  // Modified nodes grow with their change lines — keep vertical rhythm by
-  // advancing the next node's y past the extra lines (~16px each).
+
+  const heightOf = (n: CompareNode) => 96 + Math.min(n.changes?.length ?? 0, 5) * 18;
+  const PAD = 16;
+  const HEADER = 26;
+  const GAP = 14;
+  const VGAP = 28;
+  const out: Node[] = [...condNodes];
   let y = 0;
-  const blockNodes: Node[] = nodes.map((n) => {
-    const node: Node = {
-      id: n.instanceId,
-      type: "compareBlock",
-      position: { x: 300, y },
-      data: { label: n.name, ref: n.ref, status: n.status, changes: n.changes },
-    };
-    y += 120 + Math.min(n.changes?.length ?? 0, 5) * 18;
-    return node;
-  });
+  let i = 0;
+  while (i < nodes.length) {
+    const n = nodes[i];
+    if (n.groupId) {
+      const gid = n.groupId;
+      const members: CompareNode[] = [];
+      while (i < nodes.length && nodes[i].groupId === gid) members.push(nodes[i++]);
+      const inner = members.reduce((acc, m) => acc + heightOf(m), 0) + GAP * (members.length - 1);
+      const containerId = `grp:${gid}`;
+      out.push({
+        id: containerId,
+        type: "group",
+        position: { x: 300 - PAD, y },
+        draggable: false,
+        selectable: false,
+        zIndex: 0,
+        data: { label: n.groupTitle ?? "Group" },
+        style: { width: 260 + 2 * PAD, height: HEADER + inner + PAD },
+      } as Node);
+      let my = HEADER;
+      for (const m of members) {
+        out.push({
+          id: m.instanceId,
+          type: "compareBlock",
+          parentId: containerId,
+          position: { x: PAD, y: my },
+          zIndex: 1,
+          data: { label: m.name, ref: m.ref, status: m.status, changes: m.changes },
+        } as Node);
+        my += heightOf(m) + GAP;
+      }
+      y += HEADER + inner + PAD + VGAP;
+    } else {
+      out.push({
+        id: n.instanceId,
+        type: "compareBlock",
+        position: { x: 300, y },
+        data: { label: n.name, ref: n.ref, status: n.status, changes: n.changes },
+      });
+      y += heightOf(n) + VGAP;
+      i += 1;
+    }
+  }
+
   const rfEdges: Edge[] = nodes.flatMap((n) =>
     n.showIfCondition.map((slug) => ({
       id: `e:${slug}->${n.instanceId}`,
@@ -47,7 +91,7 @@ function toFlow(nodes: CompareNode[]): { rfNodes: Node[]; rfEdges: Edge[] } {
       markerEnd: { type: MarkerType.ArrowClosed },
     })),
   );
-  return { rfNodes: [...condNodes, ...blockNodes], rfEdges };
+  return { rfNodes: out, rfEdges };
 }
 
 function CompareSide({ label, nodes }: { label: string; nodes: CompareNode[] }) {
