@@ -44,3 +44,32 @@ describe("study themes (ADR-0024)", () => {
     expect(themeToCssVars(THEME_PRESETS.modern)["--radius-md"]).toBe("0px");
   });
 });
+
+import { PRESET_WARNINGS, requiresAcknowledgment } from "@/lib/themes/themes";
+import { getBlockOverride } from "@/components/feature/take/block-overrides";
+
+describe("mimicking presets (Wave 5 quartet, ADR-0024)", () => {
+  it("quartet presets exist, validate, and carry warnings; baselines carry none", () => {
+    for (const key of ["facebook", "x", "news", "business"] as const) {
+      expect(studyThemeSchema.safeParse(THEME_PRESETS[key]).success).toBe(true);
+      expect(PRESET_WARNINGS[key].length).toBeGreaterThan(0);
+    }
+    for (const key of ["academic", "clinical", "modern", "playful", "custom"] as const) {
+      expect(PRESET_WARNINGS[key]).toEqual([]);
+    }
+  });
+
+  it("requiresAcknowledgment gates mimicking presets until acknowledged", () => {
+    expect(requiresAcknowledgment(THEME_PRESETS.facebook)).toBe(true);
+    expect(requiresAcknowledgment({ ...THEME_PRESETS.facebook, mimicAcknowledged: true })).toBe(false);
+    expect(requiresAcknowledgment(THEME_PRESETS.academic)).toBe(false);
+  });
+
+  it("block-override contract: facebook/x restyle social-post; others fall back", () => {
+    expect(getBlockOverride("facebook", "social-post")).not.toBeNull();
+    expect(getBlockOverride("x", "social-post")).not.toBeNull();
+    expect(getBlockOverride("facebook", "likert-7")).toBeNull();
+    expect(getBlockOverride("academic", "social-post")).toBeNull();
+    expect(getBlockOverride(undefined, "social-post")).toBeNull();
+  });
+});

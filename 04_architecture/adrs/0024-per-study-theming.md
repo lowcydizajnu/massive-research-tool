@@ -33,9 +33,13 @@ Researchers need to control what participants see — appearance is methodology 
 - Platform-mimicking presets (Facebook/X/News/…), per-block renderer overrides, and the IRB acknowledgment modal are **Wave 5 continued** — this ADR fixes the storage/validation/application substrate they'll plug into (`presetKey` + future `warnings` field).
 - Participant-copy overrides (Section G) will ride the same snapshot pattern (`copy` field) later.
 
+## Amendment (2026-06-10) — mimicking quartet + acknowledgment + renderer overrides
+
+Wave 5's platform-mimicking quartet shipped on this substrate: presets **facebook / x / news / business** with `PRESET_WARNINGS` (researcher-language ethics/disclosure warnings). Saving a warned preset requires the researcher's explicit acknowledgment — the Design stage shows the warnings + a disclosure checkbox, the acknowledgment is stored in the theme (`mimicAcknowledged`, frozen with the snapshot), and `studies.setTheme` rejects unacknowledged warned themes server-side (PRECONDITION_FAILED). The **per-block renderer override contract** also landed: `getBlockOverride(presetKey, blockKey)` maps to vetted server components in-repo (never user content); facebook/x override `social-post` (feed-post / tweet stimulus fidelity); everything else falls back to the default renderer under the preset's tokens. Density gained a third knob (`--take-field-gap`, within-block spacing) and block prompts/legends now use the heading-font token, so the typography controls visibly apply. Still queued: Overview auto-injection of the chosen preset into methodology, Wave 5b presets (Instagram/TikTok/lifestyle/forum/blog), input-level overrides beyond stimuli.
+
 ## Revisit triggers
 
-- Mimicking presets land → add `warnings: string[]` + IRB acknowledgment storage + Overview auto-injection.
+- Overview auto-injection of the chosen mimicking preset into the methodology section (queued from the handoff's IRB block).
 - Demand for custom fonts/logos → R2 upload path (ADR-0003) + content-type validation.
 - Per-block-type style overrides → the contracted `blockStyleOverrides` map from the handoff (schema-validated).
 - A theme marketplace → revisit "presets are vetted code only".

@@ -1,4 +1,5 @@
 import { ReactionTimeInput } from "@/components/feature/take/reaction-time-input";
+import { getBlockOverride } from "@/components/feature/take/block-overrides";
 import type { RuntimeBlock } from "@/server/runtime/participant";
 
 /**
@@ -12,13 +13,18 @@ export function BlockView({
   block,
   seed,
   namePrefix = "",
+  presetKey,
 }: {
   block: RuntimeBlock;
   seed?: string;
   namePrefix?: string;
+  /** Active theme preset (ADR-0024) — mimicking presets may override a block's renderer. */
+  presetKey?: string;
 }) {
   const c = block.config;
   const np = namePrefix;
+  const Override = getBlockOverride(presetKey, block.key);
+  if (Override) return <>{Override({ config: c })}</>;
   if (block.key === "social-post") return <SocialPostView config={c} />;
   if (block.key === "likert-7") return <Likert7Input config={c} np={np} />;
   if (block.key === "multiple-choice") return <MultipleChoiceInput config={c} seed={seed} np={np} />;
@@ -85,7 +91,8 @@ function seededShuffle<T>(items: T[], seed: string): T[] {
 
 const FIELD_CLS =
   "w-full rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-3 py-2 text-[length:var(--text-body)] text-[var(--color-text-primary)]";
-const PROMPT_CLS = "text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]";
+const PROMPT_CLS =
+  "font-serif text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]";
 
 function SocialPostView({ config }: { config: Record<string, unknown> }) {
   const headline = str(config.headline);
@@ -110,7 +117,7 @@ function Likert7Input({ config, np }: { config: Record<string, unknown>; np: str
   const left = str(config.leftAnchor) || "Strongly disagree";
   const right = str(config.rightAnchor) || "Strongly agree";
   return (
-    <fieldset className="flex flex-col gap-3">
+    <fieldset className="flex flex-col gap-[var(--take-field-gap,1rem)]">
       <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
       <div className="flex items-end justify-between gap-2">
         {[1, 2, 3, 4, 5, 6, 7].map((n) => (
@@ -139,7 +146,7 @@ function MultipleChoiceInput({ config, seed, np }: { config: Record<string, unkn
   const raw = Array.isArray(config.options) ? (config.options as unknown[]).map(str) : [];
   const options = config.randomizeOrder === true && seed ? seededShuffle(raw, seed) : raw;
   return (
-    <fieldset className="flex flex-col gap-2">
+    <fieldset className="flex flex-col gap-[var(--take-field-gap,1rem)]">
       <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
       {options.map((opt, i) => (
         <label key={`${i}-${opt}`} className="flex items-center gap-2 text-[length:var(--text-body)] text-[var(--color-text-primary)]">
@@ -155,7 +162,7 @@ function FreeTextInput({ config, np }: { config: Record<string, unknown>; np: st
   const longForm = config.longForm === true;
   const maxLength = typeof config.maxLength === "number" ? config.maxLength : undefined;
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-[var(--take-field-gap,1rem)]">
       <label htmlFor={`${np}text`} className={PROMPT_CLS}>
         {str(config.prompt)}
       </label>
@@ -173,7 +180,7 @@ function SliderInput({ config, np }: { config: Record<string, unknown>; np: stri
   const max = num(config.max, 100);
   const step = num(config.step, 1);
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-[var(--take-field-gap,1rem)]">
       <label htmlFor={`${np}value`} className={PROMPT_CLS}>
         {str(config.prompt)}
       </label>
@@ -199,7 +206,7 @@ function RankingInput({ config, np }: { config: Record<string, unknown>; np: str
   const items = Array.isArray(config.items) ? (config.items as unknown[]).map(str) : [];
   const positions = items.map((_, i) => i + 1);
   return (
-    <fieldset className="flex flex-col gap-2">
+    <fieldset className="flex flex-col gap-[var(--take-field-gap,1rem)]">
       <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
       <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">Assign a rank to each item (1 = highest).</p>
       {items.map((item, i) => (
@@ -227,7 +234,7 @@ function RankingInput({ config, np }: { config: Record<string, unknown>; np: str
 function AttentionCheckInput({ config, np }: { config: Record<string, unknown>; np: string }) {
   const options = Array.isArray(config.options) ? (config.options as unknown[]).map(str) : [];
   return (
-    <fieldset className="flex flex-col gap-2">
+    <fieldset className="flex flex-col gap-[var(--take-field-gap,1rem)]">
       <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
       {options.map((opt, i) => (
         <label key={`${i}-${opt}`} className="flex items-center gap-2 text-[length:var(--text-body)] text-[var(--color-text-primary)]">
@@ -242,7 +249,7 @@ function AttentionCheckInput({ config, np }: { config: Record<string, unknown>; 
 function DemographicsInput({ config, np }: { config: Record<string, unknown>; np: string }) {
   const genderOptions = ["Woman", "Man", "Non-binary", "Prefer to self-describe", "Prefer not to say"];
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-[var(--take-field-gap,1rem)]">
       <div className={PROMPT_CLS}>About you</div>
       {config.askAge !== false ? (
         <label className="flex flex-col gap-1">
@@ -294,7 +301,7 @@ function ImageView({ config }: { config: Record<string, unknown> }) {
   const caption = str(config.caption);
   if (!url) return null;
   return (
-    <figure className="flex flex-col gap-2">
+    <figure className="flex flex-col gap-[var(--take-field-gap,1rem)]">
       {/* eslint-disable-next-line @next/next/no-img-element -- researcher-supplied arbitrary URL */}
       <img src={url} alt={str(config.alt)} className="max-h-[480px] w-full rounded-[var(--radius-md)] object-contain" />
       {caption ? <figcaption className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">{caption}</figcaption> : null}
@@ -316,7 +323,7 @@ function VideoView({ config }: { config: Record<string, unknown> }) {
   if (!url) return null;
   const embed = embedUrl(url);
   return (
-    <figure className="flex flex-col gap-2">
+    <figure className="flex flex-col gap-[var(--take-field-gap,1rem)]">
       <div className="aspect-video w-full overflow-hidden rounded-[var(--radius-md)] bg-black">
         {embed ? (
           <iframe
@@ -377,7 +384,7 @@ function SimpleFieldInput({
   const placeholder =
     type === "email" ? "name@example.com" : type === "url" ? "https://…" : type === "tel" ? "+1 555 123 4567" : undefined;
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-[var(--take-field-gap,1rem)]">
       <label htmlFor={`${np}value`} className={PROMPT_CLS}>
         {str(config.prompt)}
       </label>
@@ -391,7 +398,7 @@ function NumberInput({ config, np }: { config: Record<string, unknown>; np: stri
   const min = typeof config.min === "number" ? config.min : undefined;
   const max = typeof config.max === "number" ? config.max : undefined;
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-[var(--take-field-gap,1rem)]">
       <label htmlFor={`${np}value`} className={PROMPT_CLS}>
         {str(config.prompt)}
       </label>
@@ -407,7 +414,7 @@ function YesNoInput({ config, np }: { config: Record<string, unknown>; np: strin
   const yes = str(config.yesLabel) || "Yes";
   const no = str(config.noLabel) || "No";
   return (
-    <fieldset className="flex flex-col gap-2">
+    <fieldset className="flex flex-col gap-[var(--take-field-gap,1rem)]">
       <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
       <div className="flex gap-2">
         {[
@@ -430,7 +437,7 @@ function YesNoInput({ config, np }: { config: Record<string, unknown>; np: strin
 function DropdownInput({ config, np }: { config: Record<string, unknown>; np: string }) {
   const options = Array.isArray(config.options) ? (config.options as unknown[]).map(str) : [];
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-[var(--take-field-gap,1rem)]">
       <label htmlFor={`${np}value`} className={PROMPT_CLS}>
         {str(config.prompt)}
       </label>
@@ -457,7 +464,7 @@ function AddressInput({ config, np }: { config: Record<string, unknown>; np: str
     { name: "country", label: "Country", autoComplete: "country-name" },
   ];
   return (
-    <fieldset className="flex flex-col gap-2">
+    <fieldset className="flex flex-col gap-[var(--take-field-gap,1rem)]">
       <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
       {fields.map((f) => (
         <label key={f.name} className="flex flex-col gap-1">
@@ -478,7 +485,7 @@ function FieldGroupInput({ config, np }: { config: Record<string, unknown>; np: 
     (f) => f && typeof f.key === "string" && /^[a-z0-9_]+$/.test(f.key),
   );
   return (
-    <fieldset className="flex flex-col gap-2">
+    <fieldset className="flex flex-col gap-[var(--take-field-gap,1rem)]">
       <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
       <input type="hidden" name={`${np}fkeys`} value={fields.map((f) => `${f.key}:${f.type}`).join(",")} />
       {fields.map((f) => {
@@ -540,7 +547,7 @@ function ContactInput({ config, np }: { config: Record<string, unknown>; np: str
     { name: "phone", label: "Phone (optional)", type: "tel", autoComplete: "tel" },
   ];
   return (
-    <fieldset className="flex flex-col gap-2">
+    <fieldset className="flex flex-col gap-[var(--take-field-gap,1rem)]">
       <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
       {fields.map((f) => (
         <label key={f.name} className="flex flex-col gap-1">
@@ -556,7 +563,7 @@ function PictureChoiceInput({ config, np }: { config: Record<string, unknown>; n
   const multiple = config.multiple === true;
   const urls = (Array.isArray(config.imageUrls) ? (config.imageUrls as unknown[]).map(str) : []).filter((u) => u.trim() !== "");
   return (
-    <fieldset className="flex flex-col gap-2">
+    <fieldset className="flex flex-col gap-[var(--take-field-gap,1rem)]">
       <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {urls.map((url, i) => (
@@ -580,7 +587,7 @@ function NpsInput({ config, np }: { config: Record<string, unknown>; np: string 
   const left = str(config.leftLabel) || "Not at all likely";
   const right = str(config.rightLabel) || "Extremely likely";
   return (
-    <fieldset className="flex flex-col gap-3">
+    <fieldset className="flex flex-col gap-[var(--take-field-gap,1rem)]">
       <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
       <div className="flex flex-wrap gap-1">
         {Array.from({ length: 11 }, (_, n) => (
@@ -611,7 +618,7 @@ function NpsInput({ config, np }: { config: Record<string, unknown>; np: string 
 function StarRatingInput({ config, np }: { config: Record<string, unknown>; np: string }) {
   const max = typeof config.max === "number" ? config.max : 5;
   return (
-    <fieldset className="flex flex-col gap-2">
+    <fieldset className="flex flex-col gap-[var(--take-field-gap,1rem)]">
       <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
       <div className="flex gap-1">
         {Array.from({ length: max }, (_, i) => {
@@ -637,7 +644,7 @@ function VasInput({ config, np }: { config: Record<string, unknown>; np: string 
   const left = str(config.leftLabel);
   const right = str(config.rightLabel);
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-[var(--take-field-gap,1rem)]">
       <label htmlFor={`${np}value`} className={PROMPT_CLS}>
         {str(config.prompt)}
       </label>
@@ -657,7 +664,7 @@ function MatrixGridInput({ config, np }: { config: Record<string, unknown>; np: 
   const columns = Array.isArray(config.columns) ? (config.columns as unknown[]).map(str) : [];
   const required = config.required === true;
   return (
-    <fieldset className="flex flex-col gap-2">
+    <fieldset className="flex flex-col gap-[var(--take-field-gap,1rem)]">
       <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
       <input type="hidden" name={`${np}rowCount`} value={rows.length} />
       <div className="overflow-x-auto">
@@ -697,7 +704,7 @@ function SemanticDifferentialInput({ config, np }: { config: Record<string, unkn
   const pairs = Math.min(left.length, right.length);
   const required = config.required === true;
   return (
-    <fieldset className="flex flex-col gap-3">
+    <fieldset className="flex flex-col gap-[var(--take-field-gap,1rem)]">
       <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
       <input type="hidden" name={`${np}rowCount`} value={pairs} />
       {Array.from({ length: pairs }, (_, i) => (
@@ -723,7 +730,7 @@ function MaxDiffInput({ config, np }: { config: Record<string, unknown>; np: str
   const items = Array.isArray(config.items) ? (config.items as unknown[]).map(str) : [];
   const required = config.required === true;
   return (
-    <fieldset className="flex flex-col gap-2">
+    <fieldset className="flex flex-col gap-[var(--take-field-gap,1rem)]">
       <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
       <table className="w-full border-collapse text-[length:var(--text-small)]">
         <thead>

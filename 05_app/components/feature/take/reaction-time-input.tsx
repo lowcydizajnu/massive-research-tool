@@ -62,8 +62,8 @@ export function ReactionTimeInput({
     "flex min-h-[140px] w-full items-center justify-center rounded-[var(--radius-md)] border text-[length:var(--text-display)] font-medium";
 
   return (
-    <div className="flex flex-col gap-3">
-      <p className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">
+    <div className="flex flex-col gap-[var(--take-field-gap,1rem)]">
+      <p className="font-serif text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">
         {prompt}
       </p>
       <input type="hidden" name={`${namePrefix}value`} value={rt ?? ""} readOnly />

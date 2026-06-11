@@ -44,7 +44,7 @@ import {
 } from "@/server/modules/blocks";
 import { getModuleDef } from "@/server/modules/registry";
 import { protocolText } from "@/server/modules/protocol-text";
-import { readTheme, studyThemeSchema } from "@/lib/themes/themes";
+import { readTheme, requiresAcknowledgment, studyThemeSchema } from "@/lib/themes/themes";
 import { diffLines } from "@/lib/diff-lines";
 import { publicProcedure, router, workspaceProcedure, writeProcedure } from "@/server/trpc/trpc";
 
@@ -1774,6 +1774,14 @@ export const studiesRouter = router({
   setTheme: writeProcedure
     .input(z.object({ studyId: z.string().uuid(), theme: studyThemeSchema }))
     .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      // Mimicking presets carry methodological/ethics warnings — saving one
+      // requires the researcher's explicit acknowledgment (ADR-0024).
+      if (requiresAcknowledgment(input.theme)) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "This look mimics a real platform — please acknowledge the disclosure requirements first.",
+        });
+      }
       const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
       const snap =
         tip.version.definitionSnapshot && typeof tip.version.definitionSnapshot === "object"

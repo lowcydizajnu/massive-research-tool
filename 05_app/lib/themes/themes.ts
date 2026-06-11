@@ -32,7 +32,7 @@ const hex = z.string().regex(/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/);
 const fontKey = z.enum(Object.keys(FONT_STACKS) as [FontKey, ...FontKey[]]);
 
 export const studyThemeSchema = z.object({
-  presetKey: z.enum(["academic", "clinical", "modern", "playful", "custom"]),
+  presetKey: z.enum(["academic", "clinical", "modern", "playful", "facebook", "x", "news", "business", "custom"]),
   colors: z.object({
     page: hex,
     card: hex,
@@ -54,6 +54,9 @@ export const studyThemeSchema = z.object({
     progress: z.enum(["bar", "steps", "none"]),
     backButton: z.boolean(),
   }),
+  /** Researcher's acknowledgment of a mimicking preset's methodological/ethics
+   *  warnings (ADR-0024) — required server-side for presets that carry warnings. */
+  mimicAcknowledged: z.boolean().optional(),
 });
 export type StudyTheme = z.infer<typeof studyThemeSchema>;
 
@@ -89,6 +92,36 @@ export const THEME_PRESETS: Record<Exclude<StudyTheme["presetKey"], "custom">, S
     shape: { radius: "pill", density: "spacious" },
     layout: { width: "medium", progress: "bar", backButton: true },
   },
+  // Platform-mimicking presets (Wave 5 quartet, ADR-0024): ecological-validity
+  // stimuli looks. They carry warnings + require researcher acknowledgment.
+  facebook: {
+    presetKey: "facebook",
+    colors: { page: "#F0F2F5", card: "#FFFFFF", text: "#050505", muted: "#65676B", accent: "#0866FF" },
+    typography: { headingFont: "helvetica", bodyFont: "helvetica", baseSize: "M" },
+    shape: { radius: "rounded", density: "normal" },
+    layout: { width: "medium", progress: "none", backButton: false },
+  },
+  x: {
+    presetKey: "x",
+    colors: { page: "#000000", card: "#16181C", text: "#E7E9EA", muted: "#71767B", accent: "#1D9BF0" },
+    typography: { headingFont: "system-ui", bodyFont: "system-ui", baseSize: "M" },
+    shape: { radius: "rounded", density: "compact" },
+    layout: { width: "narrow", progress: "none", backButton: false },
+  },
+  news: {
+    presetKey: "news",
+    colors: { page: "#FFFFFF", card: "#FFFFFF", text: "#121212", muted: "#5A5A5A", accent: "#BB1919" },
+    typography: { headingFont: "georgia", bodyFont: "helvetica", baseSize: "M" },
+    shape: { radius: "sharp", density: "normal" },
+    layout: { width: "wide", progress: "none", backButton: true },
+  },
+  business: {
+    presetKey: "business",
+    colors: { page: "#F5F7FA", card: "#FFFFFF", text: "#1F2937", muted: "#6B7280", accent: "#0A66C2" },
+    typography: { headingFont: "inter", bodyFont: "inter", baseSize: "M" },
+    shape: { radius: "soft", density: "normal" },
+    layout: { width: "medium", progress: "steps", backButton: true },
+  },
 };
 
 export const PRESET_DESCRIPTIONS: Record<Exclude<StudyTheme["presetKey"], "custom">, string> = {
@@ -96,7 +129,46 @@ export const PRESET_DESCRIPTIONS: Record<Exclude<StudyTheme["presetKey"], "custo
   clinical: "Calm blue + Inter — for medical and health studies.",
   modern: "White, sharp, minimal — survey-tool aesthetic.",
   playful: "Soft pastel + round — for children and youth studies.",
+  facebook: "Mimics a Facebook feed — social-post stimuli render as feed posts.",
+  x: "Mimics X (Twitter) — dark timeline; posts render as tweets.",
+  news: "Mimics a news site — serif headlines on white.",
+  business: "Mimics a corporate portal — calm blue business chrome.",
 };
+
+/**
+ * Methodological/ethics warnings per preset (ADR-0024). Non-empty ⇒ the
+ * researcher must acknowledge before the theme can be saved (server-enforced);
+ * surfaced in the Design stage so consent/IRB materials disclose the simulation.
+ */
+export const PRESET_WARNINGS: Record<StudyTheme["presetKey"], string[]> = {
+  academic: [],
+  clinical: [],
+  modern: [],
+  playful: [],
+  custom: [],
+  facebook: [
+    "Participants may believe they are on the real platform — your consent text must disclose that the appearance is simulated.",
+    "Platform mimicry can trigger deception-review requirements with your IRB / ethics board.",
+    "The mimicked look is for research stimuli only; do not reuse it outside this study.",
+  ],
+  x: [
+    "Participants may believe they are on the real platform — your consent text must disclose that the appearance is simulated.",
+    "Platform mimicry can trigger deception-review requirements with your IRB / ethics board.",
+    "The mimicked look is for research stimuli only; do not reuse it outside this study.",
+  ],
+  news: [
+    "Participants may believe they are reading a real news site — disclose the simulation in your consent text.",
+    "Fabricated news stimuli can trigger deception-review requirements with your IRB / ethics board.",
+  ],
+  business: [
+    "Participants may believe they are on a real company portal — disclose the simulation in your consent text.",
+  ],
+};
+
+/** Does this theme require an explicit researcher acknowledgment to save? */
+export function requiresAcknowledgment(t: StudyTheme): boolean {
+  return PRESET_WARNINGS[t.presetKey].length > 0 && t.mimicAcknowledged !== true;
+}
 
 /** Read the theme out of a definition_snapshot; Academic default when absent/invalid. */
 export function readTheme(snapshot: unknown): StudyTheme {
@@ -118,10 +190,10 @@ const SIZES: Record<StudyTheme["typography"]["baseSize"], { small: string; body:
   M: { small: "13px", body: "15px", emphasis: "15px", title: "19px" },
   L: { small: "14px", body: "17px", emphasis: "17px", title: "21px" },
 };
-const DENSITY: Record<StudyTheme["shape"]["density"], { cardPad: string; blockGap: string }> = {
-  compact: { cardPad: "1.25rem", blockGap: "1rem" },
-  normal: { cardPad: "2rem", blockGap: "1.5rem" },
-  spacious: { cardPad: "2.75rem", blockGap: "2.25rem" },
+const DENSITY: Record<StudyTheme["shape"]["density"], { cardPad: string; blockGap: string; fieldGap: string }> = {
+  compact: { cardPad: "1.25rem", blockGap: "1rem", fieldGap: "0.625rem" },
+  normal: { cardPad: "2rem", blockGap: "1.75rem", fieldGap: "1rem" },
+  spacious: { cardPad: "2.75rem", blockGap: "2.5rem", fieldGap: "1.5rem" },
 };
 export const WIDTHS: Record<StudyTheme["layout"]["width"], string> = {
   narrow: "480px",
@@ -159,5 +231,6 @@ export function themeToCssVars(t: StudyTheme): Record<string, string> {
     "--radius-lg": RADII[t.shape.radius].lg,
     "--take-card-pad": DENSITY[t.shape.density].cardPad,
     "--take-block-gap": DENSITY[t.shape.density].blockGap,
+    "--take-field-gap": DENSITY[t.shape.density].fieldGap,
   };
 }
