@@ -51,7 +51,7 @@ export default async function ScreenPage({
           return (
             <div key={b.instanceId}>
               <input type="hidden" name="blocks" value={`${b.instanceId}|${b.key}|${prefix}`} />
-              <BlockView block={b} seed={sessionId} namePrefix={prefix} />
+              <BlockView block={b} seed={sessionId} namePrefix={prefix} presetKey={s.theme.presetKey} />
             </div>
           );
         })}

@@ -10,6 +10,7 @@ import {
   FONT_LABELS,
   FONT_STACKS,
   PRESET_DESCRIPTIONS,
+  PRESET_WARNINGS,
   THEME_PRESETS,
   WIDTHS,
   themeToCssVars,
@@ -51,6 +52,9 @@ function contrast(hexA: string, hexB: string): number {
 export function DesignWorkspace({ studyId, initialTheme }: { studyId: string; initialTheme: StudyTheme }) {
   const [theme, setTheme] = useState<StudyTheme>(initialTheme);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
+  /** A mimicking preset awaiting the researcher's acknowledgment (ADR-0024). */
+  const [pendingMimic, setPendingMimic] = useState<keyof typeof THEME_PRESETS | null>(null);
+  const [ackChecked, setAckChecked] = useState(false);
   const setThemeMut = api.studies.setTheme.useMutation({
     onSuccess: () => setSavedMsg("Theme saved."),
     onError: () => setSavedMsg("Couldn’t save the theme — check the values."),
@@ -95,7 +99,15 @@ export function DesignWorkspace({ studyId, initialTheme }: { studyId: string; in
                   type="radio"
                   name="preset"
                   checked={active}
-                  onChange={() => commit(structuredClone(p))}
+                  onChange={() => {
+                    if (PRESET_WARNINGS[key].length > 0) {
+                      setPendingMimic(key);
+                      setAckChecked(false);
+                    } else {
+                      setPendingMimic(null);
+                      commit(structuredClone(p));
+                    }
+                  }}
                   className="size-4 accent-[var(--color-primary)]"
                 />
                 <span className="flex min-w-0 flex-1 flex-col">
@@ -116,6 +128,54 @@ export function DesignWorkspace({ studyId, initialTheme }: { studyId: string; in
           })}
           {theme.presetKey === "custom" ? (
             <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">Custom — tweaked from a preset.</p>
+          ) : null}
+          {pendingMimic ? (
+            <div className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--color-warning-text-on-subtle)] bg-[var(--color-warning-subtle)] p-3">
+              <p className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-warning-text-on-subtle)]">
+                Before using the “{pendingMimic}” look
+              </p>
+              <ul className="flex list-disc flex-col gap-1 pl-4 text-[length:var(--text-small)] text-[var(--color-warning-text-on-subtle)]">
+                {PRESET_WARNINGS[pendingMimic].map((w, i) => (
+                  <li key={i}>{w}</li>
+                ))}
+              </ul>
+              <label className="flex items-start gap-2 text-[length:var(--text-small)] text-[var(--color-warning-text-on-subtle)]">
+                <input
+                  type="checkbox"
+                  checked={ackChecked}
+                  onChange={(e) => setAckChecked(e.target.checked)}
+                  className="mt-0.5 size-4 accent-[var(--color-primary)]"
+                />
+                I understand, and I will disclose the simulated appearance in my consent and ethics materials.
+              </label>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={!ackChecked}
+                  onClick={() => {
+                    const p = structuredClone(THEME_PRESETS[pendingMimic]);
+                    setPendingMimic(null);
+                    commit({ ...p, mimicAcknowledged: true });
+                  }}
+                  className="rounded-[var(--radius-md)] bg-[var(--color-primary)] px-3 py-1 text-[length:var(--text-small)] font-medium text-white disabled:opacity-50"
+                >
+                  Apply look
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPendingMimic(null)}
+                  className="text-[length:var(--text-small)] text-[var(--color-warning-text-on-subtle)]"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : null}
+          {!pendingMimic && PRESET_WARNINGS[theme.presetKey].length > 0 ? (
+            <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+              ✓ Simulation acknowledged — remember the disclosure in your consent text. Social-post blocks render in the
+              platform’s native style.
+            </p>
           ) : null}
         </fieldset>
 
