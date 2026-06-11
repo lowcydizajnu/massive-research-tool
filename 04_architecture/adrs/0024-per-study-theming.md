@@ -1,0 +1,47 @@
+# ADR 0024 — Per-study participant theming + presets
+
+- **Status:** accepted
+- **Date:** 2026-06-10
+- **Deciders:** project owner, Claude (agent)
+- **Tags:** theming, participant-runtime, ADR-0012-amendment, ADR-0013-related
+
+## Context
+
+Researchers need to control what participants see — appearance is methodology (ecological validity; "research-context noise" changes behaviour). The workspace's design language (warm parchment + Plex Serif) is the RESEARCHER-side language; a study needs its own participant-facing look, frozen with preregistration, carried by replications. Handoff Section F (V1.12, Wave 5).
+
+## Decision
+
+**Theme rides in `definition_snapshot.theme`** (NOT a new column — deviating from the handoff's jsonb-column sketch to follow the established ADR-0012 pattern used by `overview`/`groups`): zero migration, frozen-with-preregistration for free, copied by fork (replications render identically), diffable by the protocol-text serializer later.
+
+- **Shape (`lib/themes/types.ts`):** `StudyTheme = { presetKey, colors {page, card, text, muted, accent}, typography {headingFont, bodyFont, baseSize S|M|L}, shape {radius sharp|soft|rounded|pill, density compact|normal|spacious}, layout {width narrow|medium|wide, progress bar|steps|none, backButton } }`. All enums + colors validated server-side by zod allowlists (color = strict hex; fonts = curated keys only). No scripts, no arbitrary CSS, no remote fonts.
+- **Application (ADR-0013-consistent):** the take pages resolve the theme **server-side** to a CSS-variable override map on a wrapper element, overriding the SAME token names the take components already consume (`--color-surface-page`, `--color-surface-canvas`, `--font-serif`, `--radius-md`, …). No client-side theme switching; deterministic for analytics. Layout primitives (page width, progress style, Back visibility) are read in the take page render.
+- **Source of truth at render:** the participant's session version's snapshot (question/complete pages); the start page uses the study's current version. Draft edits therefore show in preview immediately; frozen versions keep their frozen theme.
+- **Presets are vetted code we ship** (`lib/themes/presets.ts`): Academic (default = today's look), Clinical, Modern, Playful. Researchers pick + tweak primitives; they cannot author presets (marketplace question, ADR-0008 substrate).
+- **Surface:** a new **Design** stage tab (wireframe `03_design/wireframes/design-stage.md`): preset picker + granular primitives + live sample; saves via `studies.setTheme` (write role, tip only).
+
+## Options considered
+
+- **Snapshot field (chosen)** — consistency with overview/groups, no migration, freeze + fork semantics free.
+- **`experiment_version.theme` jsonb column** (handoff sketch) — same semantics but needs a migration and a second write path; rejected for consistency.
+- **Study-scoped theme (on experiment)** — rejected: preregistered look must freeze; version-scoped enables A/B of presets across published versions.
+- **Tailwind class swapping / CSS-in-JS at runtime** — rejected: ADR-0013 server-rendered MPA; CSS variables on a wrapper are zero-JS.
+
+## Consequences
+
+- Old snapshots have no `theme` → Academic defaults apply (pure `readTheme` fallback).
+- The researcher-side workspace look is untouched; only `/take/*` (and the Design sample) respond to themes.
+- Platform-mimicking presets (Facebook/X/News/…), per-block renderer overrides, and the IRB acknowledgment modal are **Wave 5 continued** — this ADR fixes the storage/validation/application substrate they'll plug into (`presetKey` + future `warnings` field).
+- Participant-copy overrides (Section G) will ride the same snapshot pattern (`copy` field) later.
+
+## Revisit triggers
+
+- Mimicking presets land → add `warnings: string[]` + IRB acknowledgment storage + Overview auto-injection.
+- Demand for custom fonts/logos → R2 upload path (ADR-0003) + content-type validation.
+- Per-block-type style overrides → the contracted `blockStyleOverrides` map from the handoff (schema-validated).
+- A theme marketplace → revisit "presets are vetted code only".
+
+## References
+
+- Handoff Section F: `04_architecture/handoffs/code-tab-v1120-functional-polish.md`.
+- ADR-0012 (snapshot model), ADR-0013 (participant runtime SSR), ADR-0018 (fork copies snapshot).
+- Wireframe: `03_design/wireframes/design-stage.md`.

@@ -13,6 +13,7 @@ import {
 import { conditionWithSources, evaluateCondition } from "@/lib/whiteboard/conditions";
 import { deriveScreens, type Screen } from "@/lib/whiteboard/screens";
 import { readBlocks, readGroups, type BlockInstance } from "@/server/modules/blocks";
+import { readTheme, type StudyTheme } from "@/lib/themes/themes";
 import { getModuleDef } from "@/server/modules/registry";
 
 /**
@@ -452,6 +453,8 @@ export async function recordAnswer(input: {
 
 export type RuntimeScreenView = {
   studyTitle: string;
+  /** Per-study participant theme (ADR-0024), from the session version's snapshot. */
+  theme: StudyTheme;
   mode: ResponseMode;
   conditionSlug: string;
   screen: Screen;
@@ -492,6 +495,7 @@ export async function getRuntimeScreen(input: {
 
   return {
     studyTitle: row.title,
+    theme: readTheme(row.snapshot),
     mode: row.resp.mode as ResponseMode,
     conditionSlug: row.conditionSlug,
     screen: screens[input.screenIndex],

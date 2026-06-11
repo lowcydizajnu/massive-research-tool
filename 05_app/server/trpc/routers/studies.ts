@@ -44,6 +44,7 @@ import {
 } from "@/server/modules/blocks";
 import { getModuleDef } from "@/server/modules/registry";
 import { protocolText } from "@/server/modules/protocol-text";
+import { readTheme, studyThemeSchema } from "@/lib/themes/themes";
 import { diffLines } from "@/lib/diff-lines";
 import { publicProcedure, router, workspaceProcedure, writeProcedure } from "@/server/trpc/trpc";
 
@@ -379,6 +380,8 @@ export type StudyDetail = {
   overview: import("@/server/modules/blocks").StudyOverview;
   /** Question groups (ADR-0028); members reference these by `block.groupId`. */
   groups: import("@/server/modules/blocks").StudyGroup[];
+  /** Participant-facing theme (ADR-0024); Academic defaults when never set. */
+  theme: import("@/lib/themes/themes").StudyTheme;
 };
 
 /** Whiteboard canvas viewport state (ADR-0020). Empty object = fit-to-screen. */
@@ -984,6 +987,7 @@ export const studiesRouter = router({
         whiteboardViewport: (row.version?.whiteboardViewport as WhiteboardViewport | null) ?? {},
         overview: readOverview(row.version?.definitionSnapshot),
         groups: readGroups(row.version?.definitionSnapshot),
+        theme: readTheme(row.version?.definitionSnapshot),
       };
     }),
 
@@ -1763,6 +1767,24 @@ export const studiesRouter = router({
         .where(eq(experimentVersion.id, tip.version.id));
       await db.update(experiment).set({ updatedAt: new Date() }).where(eq(experiment.id, input.studyId));
       return { groupId };
+    }),
+
+  /** Save the study's participant theme (ADR-0024) — rides in the snapshot
+   *  (frozen by preregistration, copied by fork). Allowlist-validated. */
+  setTheme: writeProcedure
+    .input(z.object({ studyId: z.string().uuid(), theme: studyThemeSchema }))
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+      const snap =
+        tip.version.definitionSnapshot && typeof tip.version.definitionSnapshot === "object"
+          ? (tip.version.definitionSnapshot as Record<string, unknown>)
+          : {};
+      await db
+        .update(experimentVersion)
+        .set({ definitionSnapshot: { ...snap, theme: input.theme } })
+        .where(eq(experimentVersion.id, tip.version.id));
+      await db.update(experiment).set({ updatedAt: new Date() }).where(eq(experiment.id, input.studyId));
+      return { ok: true };
     }),
 
   /**
@@ -2817,6 +2839,7 @@ export const studiesRouter = router({
       // workspace-local custom-module link) + the Overview document (ADR-0028/0029).
       const groups = readGroups(source.version.definitionSnapshot).map(({ moduleId: _drop, ...g }) => g);
       const overview = readOverview(source.version.definitionSnapshot);
+      const theme = readTheme(source.version.definitionSnapshot);
       const sourceConditions = await conditionsForVersion(source.version.id);
 
       const newId = await db.transaction(async (tx) => {
@@ -2837,7 +2860,7 @@ export const studiesRouter = router({
             experimentId: exp.id,
             versionNumber: 0, // autosave is the unnumbered "Draft" (ADR-0012 amendment)
             kind: "autosave",
-            definitionSnapshot: { blocks, groups, overview },
+            definitionSnapshot: { blocks, groups, overview, theme },
             moduleVersionLocks: locksFromBlocks(blocks),
             createdBy: ctx.dbUser.id,
           })

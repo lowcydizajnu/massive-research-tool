@@ -6,9 +6,7 @@
  * answers persist on every navigation.
  */
 export default function TakeLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex min-h-screen justify-center bg-[var(--color-surface-page)] px-4 py-10">
-      <main className="w-full max-w-[640px]">{children}</main>
-    </div>
-  );
+  // The per-study themed shell (take/[studyId]/layout.tsx, ADR-0024) owns the
+  // page background, width, and CSS-variable overrides.
+  return <>{children}</>;
 }

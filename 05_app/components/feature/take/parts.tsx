@@ -2,7 +2,7 @@
 
 export function Card({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-4 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-8 shadow-[var(--shadow-md)]">
+    <div className="flex flex-col gap-4 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-[var(--take-card-pad,2rem)] shadow-[var(--shadow-md)]">
       {children}
     </div>
   );
@@ -28,20 +28,26 @@ export function ScreenHeader({
   position,
   total,
   preview,
+  progress = "bar",
 }: {
   position: number;
   total: number;
   preview: boolean;
+  /** Researcher-chosen progress style (ADR-0024): bar / step counter / none. */
+  progress?: "bar" | "steps" | "none";
 }) {
   const pct = total > 0 ? Math.round(((position + 1) / total) * 100) : 0;
+  if (progress === "none" && !preview) return null;
   return (
-    <div className="-mx-8 -mt-8 mb-1 flex flex-col">
-      <div className="h-1.5 w-full overflow-hidden rounded-t-[var(--radius-lg)] bg-[var(--color-surface-subtle)]">
-        <div className="h-full bg-[var(--color-primary)] transition-[width]" style={{ width: `${pct}%` }} />
-      </div>
-      <div className="flex items-center justify-between px-8 pt-3">
+    <div className="mx-[calc(-1*var(--take-card-pad,2rem))] mt-[calc(-1*var(--take-card-pad,2rem))] mb-1 flex flex-col">
+      {progress === "bar" ? (
+        <div className="h-1.5 w-full overflow-hidden rounded-t-[var(--radius-lg)] bg-[var(--color-surface-subtle)]">
+          <div className="h-full bg-[var(--color-primary)] transition-[width]" style={{ width: `${pct}%` }} />
+        </div>
+      ) : null}
+      <div className="flex items-center justify-between px-[var(--take-card-pad,2rem)] pt-3">
         <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-          Page {position + 1} of {total}
+          {progress === "none" ? "" : `Page ${position + 1} of ${total}`}
         </span>
         {preview ? (
           <span className="rounded-full bg-[var(--color-warning-subtle)] px-2 py-0.5 text-[length:var(--text-small)] font-medium text-[var(--color-warning-text-on-subtle)]">
