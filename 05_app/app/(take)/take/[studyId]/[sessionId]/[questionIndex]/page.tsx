@@ -40,9 +40,9 @@ export default async function ScreenPage({
 
   return (
     <Card>
-      <ScreenHeader position={s.position} total={s.total} preview={s.mode === "preview"} />
+      <ScreenHeader position={s.position} total={s.total} preview={s.mode === "preview"} progress={s.theme.layout.progress} />
 
-      <form action={answerAction} className="flex flex-col gap-6">
+      <form action={answerAction} className="flex flex-col gap-[var(--take-block-gap,1.5rem)]">
         <input type="hidden" name="studyId" value={studyId} />
         <input type="hidden" name="responseId" value={sessionId} />
         <input type="hidden" name="questionIndex" value={index} />
@@ -63,7 +63,7 @@ export default async function ScreenPage({
         ) : null}
 
         <div className="flex items-center gap-3">
-          {index > 0 ? (
+          {index > 0 && s.theme.layout.backButton ? (
             <Link
               href={`/take/${studyId}/${sessionId}/${index - 1}` as Route}
               className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-4 py-2.5 text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
