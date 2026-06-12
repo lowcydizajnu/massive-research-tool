@@ -156,7 +156,8 @@ const socialPostV2: CoreModuleDef = {
     veracityGroundTruth: z.enum(["true", "false", "misleading", "unverified"]),
     topicTags: z.array(z.string()),
     imageUrl: z.union([z.string().url(), z.literal("")]),
-    shareCountVisible: z.boolean(),
+    /** Legacy toggle (pre-engagement); counts now show whenever they are > 0. */
+    shareCountVisible: z.boolean().optional(),
     // Engagement controls (ADR-0024 mimicking presets): researcher-set numbers
     // shown by platform-styled renderers. Optional + additive (old configs valid).
     likesCount: z.number().int().min(0).max(100_000_000).optional(),
@@ -173,7 +174,6 @@ const socialPostV2: CoreModuleDef = {
     veracityGroundTruth: "unverified",
     topicTags: [],
     imageUrl: "",
-    shareCountVisible: false,
     likesCount: 0,
     commentsCount: 0,
     sharesCount: 0,
@@ -201,8 +201,22 @@ const socialPostV2: CoreModuleDef = {
     required: ["headline", "source", "veracityGroundTruth"],
     additionalProperties: false,
   },
-  collectsResponse: false,
-  responseSchema: null,
+  // The post MEASURES engagement (owner 2026-06-10): participants may Like /
+  // Share / comment, and the interaction is recorded as this block's answer
+  // (exposure is recorded even with no interaction — liked/shared false).
+  collectsResponse: true,
+  responseSchema: z.object({
+    liked: z.boolean(),
+    shared: z.boolean(),
+    comment: z.string().max(2000).optional(),
+  }),
+  // Never blocks the participant — interacting with a stimulus is always optional.
+  isAnswerEmpty: () => false,
+  validateAnswer: (a, config) => {
+    const comment = (a as { comment?: unknown }).comment;
+    if (config.allowComments === false && typeof comment === "string" && comment.trim() !== "") return false;
+    return true;
+  },
   isComplete: (c) =>
     typeof c.headline === "string" &&
     c.headline.trim().length > 0 &&

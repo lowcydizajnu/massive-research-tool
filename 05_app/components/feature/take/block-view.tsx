@@ -23,9 +23,11 @@ export function BlockView({
 }) {
   const c = block.config;
   const np = namePrefix;
+  // v1 social-post blocks don't record interactions — render them inert.
+  const interactive = block.key !== "social-post" || block.version !== "1.0.0";
   const Override = getBlockOverride(presetKey, block.key);
-  if (Override) return <>{Override({ config: c })}</>;
-  if (block.key === "social-post") return <SocialPostView config={c} />;
+  if (Override) return <>{Override({ config: c, np, interactive })}</>;
+  if (block.key === "social-post") return <SocialPostView config={c} np={np} interactive={interactive} />;
   if (block.key === "likert-7") return <Likert7Input config={c} np={np} />;
   if (block.key === "multiple-choice") return <MultipleChoiceInput config={c} seed={seed} np={np} />;
   if (block.key === "free-text") return <FreeTextInput config={c} np={np} />;
@@ -94,10 +96,22 @@ const FIELD_CLS =
 const PROMPT_CLS =
   "font-serif text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]";
 
-function SocialPostView({ config }: { config: Record<string, unknown> }) {
+function SocialPostView({
+  config,
+  np = "",
+  interactive = true,
+}: {
+  config: Record<string, unknown>;
+  np?: string;
+  interactive?: boolean;
+}) {
   const headline = str(config.headline);
   const body = str(config.body);
   const source = str(config.source);
+  const likes = typeof config.likesCount === "number" && config.likesCount > 0 ? config.likesCount : null;
+  const comments = typeof config.commentsCount === "number" && config.commentsCount > 0 ? config.commentsCount : null;
+  const shares = typeof config.sharesCount === "number" && config.sharesCount > 0 ? config.sharesCount : null;
+  const allowComments = config.allowComments !== false;
   return (
     <article className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] p-4">
       {source ? (
@@ -109,6 +123,33 @@ function SocialPostView({ config }: { config: Record<string, unknown> }) {
         </h2>
       ) : null}
       {body ? <p className="text-[length:var(--text-body)] text-[var(--color-text-primary)]">{body}</p> : null}
+      {likes || comments || shares ? (
+        <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+          {likes ? `${likes} likes` : ""}
+          {comments && allowComments ? ` · ${comments} comments` : ""}
+          {shares ? ` · ${shares} shares` : ""}
+        </span>
+      ) : null}
+      {interactive ? (
+        <div className="flex items-center gap-4 border-t border-[var(--color-border-subtle)] pt-2 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+          <label className="flex cursor-pointer items-center gap-1">
+            <input type="checkbox" name={`${np}liked`} className="peer sr-only" />
+            <span className="peer-checked:font-bold peer-checked:text-[var(--color-primary)]">👍 Like</span>
+          </label>
+          <label className="flex cursor-pointer items-center gap-1">
+            <input type="checkbox" name={`${np}shared`} className="peer sr-only" />
+            <span className="peer-checked:font-bold peer-checked:text-[var(--color-primary)]">↪ Share</span>
+          </label>
+        </div>
+      ) : null}
+      {interactive && allowComments ? (
+        <input
+          type="text"
+          name={`${np}comment`}
+          placeholder="Write a comment…"
+          className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-3 py-1.5 text-[length:var(--text-small)] text-[var(--color-text-primary)] outline-none"
+        />
+      ) : null}
     </article>
   );
 }

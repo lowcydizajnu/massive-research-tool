@@ -25,10 +25,10 @@ describe("module response schemas (ADR-0014 answer validation)", () => {
     expect(schema.safeParse({}).success).toBe(false);
   });
 
-  it("social-post v2.0.0 adds veracity + tags and stays a stimulus", () => {
+  it("social-post v2.0.0 adds veracity + tags; collects engagement interactions (ADR-0024)", () => {
     const m = getModuleDef("core", "social-post", "2.0.0")!;
-    expect(m.collectsResponse).toBe(false);
-    expect(m.responseSchema).toBeNull();
+    expect(m.collectsResponse).toBe(true);
+    expect(m.responseSchema).not.toBeNull();
     expect(m.configSchema.safeParse({
       headline: "h", body: "b", source: "s",
       veracityGroundTruth: "misleading", topicTags: ["vaccines"],
@@ -124,5 +124,30 @@ describe("config-membership / range validation (PR-2 hardening)", () => {
     expect(ft.responseSchema!.safeParse({ text: "x".repeat(10001) }).success).toBe(false);
     const mc = getModuleDef("core", "multiple-choice", "1.0.0")!;
     expect(mc.responseSchema!.safeParse({ selected: ["x".repeat(501)] }).success).toBe(false);
+  });
+});
+
+import { getModuleDef as getDef } from "@/server/modules/registry";
+
+describe("social-post v2 engagement interactions (ADR-0024)", () => {
+  const def = getDef("core", "social-post", "2.0.0")!;
+  it("collects an interaction answer; v1 stays a pure stimulus", () => {
+    expect(def.collectsResponse).toBe(true);
+    expect(def.responseSchema!.safeParse({ liked: true, shared: false }).success).toBe(true);
+    expect(def.responseSchema!.safeParse({ liked: true, shared: false, comment: "lol" }).success).toBe(true);
+    expect(getDef("core", "social-post", "1.0.0")!.collectsResponse).toBe(false);
+  });
+  it("never blocks the participant (interaction is optional)", () => {
+    expect(def.isAnswerEmpty!({ liked: false, shared: false })).toBe(false);
+  });
+  it("rejects a comment when the researcher disabled comments", () => {
+    expect(def.validateAnswer!({ liked: false, shared: false, comment: "hi" }, { allowComments: false })).toBe(false);
+    expect(def.validateAnswer!({ liked: false, shared: false }, { allowComments: false })).toBe(true);
+    expect(def.validateAnswer!({ liked: false, shared: false, comment: "hi" }, { allowComments: true })).toBe(true);
+  });
+  it("default config carries engagement controls (no legacy shareCountVisible)", () => {
+    expect(def.configSchema.safeParse(def.defaultConfig).success).toBe(true);
+    expect("likesCount" in def.defaultConfig && "allowComments" in def.defaultConfig).toBe(true);
+    expect("shareCountVisible" in def.defaultConfig).toBe(false);
   });
 });

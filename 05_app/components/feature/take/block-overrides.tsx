@@ -12,7 +12,35 @@ const num = (v: unknown): number | null => (typeof v === "number" && Number.isFi
 const fmt = (n: number): string =>
   n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M` : n >= 1_000 ? `${(n / 1_000).toFixed(1).replace(/\.0$/, "")}K` : String(n);
 
-type OverrideProps = { config: Record<string, unknown> };
+type OverrideProps = {
+  config: Record<string, unknown>;
+  /** Input namespace (group screens) — interactions post as `${np}liked` etc. */
+  np?: string;
+  /** social-post v1 blocks don't record interactions — render them inert. */
+  interactive?: boolean;
+};
+
+/** Like/Share as pure-HTML checkbox toggles (no client JS, ADR-0013): the
+ *  checked state restyles via peer-checked and posts with the screen's form. */
+function Toggle({
+  name,
+  label,
+  activeCls,
+  disabled,
+}: {
+  name: string;
+  label: string;
+  activeCls: string;
+  disabled?: boolean;
+}) {
+  if (disabled) return <span>{label}</span>;
+  return (
+    <label className="flex cursor-pointer items-center gap-1">
+      <input type="checkbox" name={name} className="peer sr-only" />
+      <span className={`peer-checked:font-bold ${activeCls}`}>{label}</span>
+    </label>
+  );
+}
 
 /** Researcher-set engagement (social-post v2 config, ADR-0024). */
 function engagement(config: Record<string, unknown>) {
@@ -27,12 +55,11 @@ function engagement(config: Record<string, unknown>) {
 }
 
 /** Facebook-style feed post (social-post stimulus under the facebook preset). */
-function FacebookSocialPost({ config }: OverrideProps) {
+function FacebookSocialPost({ config, np = "", interactive = true }: OverrideProps) {
   const source = str(config.source) || "Shared page";
   const headline = str(config.headline);
   const body = str(config.body);
   const e = engagement(config);
-  const showCounts = config.shareCountVisible === true;
   return (
     <article className="flex flex-col gap-2 rounded-[8px] border border-[#E4E6EB] bg-white p-3 text-[#050505] shadow-sm">
       <div className="flex items-center gap-2">
@@ -49,7 +76,7 @@ function FacebookSocialPost({ config }: OverrideProps) {
       </div>
       {headline ? <p className="text-[15px] font-semibold">{headline}</p> : null}
       {body ? <p className="text-[15px] leading-snug">{body}</p> : null}
-      {showCounts && (e.likes || e.comments || e.shares) ? (
+      {e.likes || e.comments || e.shares ? (
         <span className="text-[12px] text-[#65676B]">
           {e.likes ? `👍 ${fmt(e.likes)}` : ""}
           {e.comments && e.allowComments ? ` · ${fmt(e.comments)} comments` : ""}
@@ -57,22 +84,29 @@ function FacebookSocialPost({ config }: OverrideProps) {
         </span>
       ) : null}
       <div className="flex items-center justify-between border-t border-[#E4E6EB] pt-1 text-[13px] text-[#65676B]">
-        <span>👍 Like</span>
+        <Toggle name={`${np}liked`} label="👍 Like" activeCls="peer-checked:text-[#0866FF]" disabled={!interactive} />
         {e.allowComments ? <span>💬 Comment</span> : null}
-        <span>↪ Share</span>
+        <Toggle name={`${np}shared`} label="↪ Share" activeCls="peer-checked:text-[#0866FF]" disabled={!interactive} />
       </div>
+      {e.allowComments && interactive ? (
+        <input
+          type="text"
+          name={`${np}comment`}
+          placeholder="Write a comment…"
+          className="rounded-full border border-[#E4E6EB] bg-[#F0F2F5] px-3 py-1.5 text-[13px] text-[#050505] outline-none"
+        />
+      ) : null}
     </article>
   );
 }
 
 /** X (Twitter)-style post (social-post stimulus under the x preset). */
-function XSocialPost({ config }: OverrideProps) {
+function XSocialPost({ config, np = "", interactive = true }: OverrideProps) {
   const source = str(config.source) || "account";
   const e = engagement(config);
   const handle = (e.handle || source.toLowerCase().replace(/[^a-z0-9_]+/g, "_")).replace(/^@/, "").slice(0, 15) || "account";
   const headline = str(config.headline);
   const body = str(config.body);
-  const showCounts = config.shareCountVisible === true;
   return (
     <article className="flex gap-3 rounded-[16px] border border-[#2F3336] bg-[#000000] p-4 text-[#E7E9EA]">
       <span
@@ -89,24 +123,31 @@ function XSocialPost({ config }: OverrideProps) {
         {headline ? <span className="text-[15px] font-semibold">{headline}</span> : null}
         {body ? <span className="text-[15px] leading-snug">{body}</span> : null}
         <span className="flex justify-between pt-1 text-[13px] text-[#71767B]">
-          {e.allowComments ? <span>💬 {showCounts && e.comments ? fmt(e.comments) : ""}</span> : null}
-          <span>🔁 {showCounts && e.shares ? fmt(e.shares) : ""}</span>
-          <span>♥ {showCounts && e.likes ? fmt(e.likes) : ""}</span>
+          {e.allowComments ? <span>💬 {e.comments ? fmt(e.comments) : ""}</span> : null}
+          <Toggle name={`${np}shared`} label={`🔁 ${e.shares ? fmt(e.shares) : ""}`} activeCls="peer-checked:text-[#00BA7C]" disabled={!interactive} />
+          <Toggle name={`${np}liked`} label={`♥ ${e.likes ? fmt(e.likes) : ""}`} activeCls="peer-checked:text-[#F91880]" disabled={!interactive} />
           <span>↗</span>
         </span>
+        {e.allowComments && interactive ? (
+          <input
+            type="text"
+            name={`${np}comment`}
+            placeholder="Post your reply"
+            className="mt-1 rounded-full border border-[#2F3336] bg-transparent px-3 py-1.5 text-[13px] text-[#E7E9EA] outline-none placeholder:text-[#71767B]"
+          />
+        ) : null}
       </div>
     </article>
   );
 }
 
 /** Instagram-style post card (social-post under the instagram preset). */
-function InstagramSocialPost({ config }: OverrideProps) {
+function InstagramSocialPost({ config, np = "", interactive = true }: OverrideProps) {
   const source = str(config.source) || "account";
   const e = engagement(config);
   const handle = (e.handle || source.toLowerCase().replace(/[^a-z0-9_.]+/g, "_")).replace(/^@/, "").slice(0, 20) || "account";
   const headline = str(config.headline);
   const body = str(config.body);
-  const showCounts = config.shareCountVisible === true;
   return (
     <article className="flex flex-col rounded-[4px] border border-[#DBDBDB] bg-white text-[#262626]">
       <div className="flex items-center gap-2 p-3">
@@ -120,16 +161,27 @@ function InstagramSocialPost({ config }: OverrideProps) {
         <span className="text-[16px] font-semibold leading-snug">{headline || body}</span>
       </div>
       <div className="flex items-center gap-3 px-3 pt-2 text-[20px]">
-        <span>♥</span>
+        <Toggle name={`${np}liked`} label="♥" activeCls="peer-checked:text-[#FF3040]" disabled={!interactive} />
         {e.allowComments ? <span>💬</span> : null}
-        <span>↗</span>
+        <Toggle name={`${np}shared`} label="↗" activeCls="peer-checked:text-[#0095F6]" disabled={!interactive} />
       </div>
       <div className="flex flex-col gap-1 p-3 pt-1 text-[14px]">
-        {showCounts && e.likes ? <span className="font-semibold">{fmt(e.likes)} likes</span> : null}
+        {e.likes ? <span className="font-semibold">{fmt(e.likes)} likes</span> : null}
         {headline && body ? (
           <span>
             <span className="font-semibold">{handle}</span> {body}
           </span>
+        ) : null}
+        {e.comments && e.allowComments ? (
+          <span className="text-[#8E8E8E]">View all {fmt(e.comments)} comments</span>
+        ) : null}
+        {e.allowComments && interactive ? (
+          <input
+            type="text"
+            name={`${np}comment`}
+            placeholder="Add a comment…"
+            className="border-t border-[#EFEFEF] pt-2 text-[13px] text-[#262626] outline-none placeholder:text-[#8E8E8E]"
+          />
         ) : null}
       </div>
     </article>
@@ -137,17 +189,16 @@ function InstagramSocialPost({ config }: OverrideProps) {
 }
 
 /** Forum-thread post (social-post under the forum preset). */
-function ForumSocialPost({ config }: OverrideProps) {
+function ForumSocialPost({ config, np = "", interactive = true }: OverrideProps) {
   const source = str(config.source) || "user";
   const e = engagement(config);
   const headline = str(config.headline);
   const body = str(config.body);
-  const showCounts = config.shareCountVisible === true;
   return (
     <article className="flex gap-3 rounded-[4px] border border-[#CCCCCC] bg-white p-3 text-[#1A1A1B]">
       <div className="flex shrink-0 flex-col items-center gap-0.5 text-[13px] text-[#787C7E]">
-        <span>▲</span>
-        <span className="font-bold text-[#1A1A1B]">{showCounts && e.likes ? fmt(e.likes) : "·"}</span>
+        <Toggle name={`${np}liked`} label="▲" activeCls="peer-checked:text-[#FF4500]" disabled={!interactive} />
+        <span className="font-bold text-[#1A1A1B]">{e.likes ? fmt(e.likes) : "·"}</span>
         <span>▼</span>
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -156,9 +207,19 @@ function ForumSocialPost({ config }: OverrideProps) {
         </span>
         {headline ? <span className="text-[16px] font-semibold leading-snug">{headline}</span> : null}
         {body ? <span className="text-[14px] leading-snug">{body}</span> : null}
-        <span className="pt-1 text-[12px] font-semibold text-[#787C7E]">
-          {e.allowComments ? `💬 ${showCounts && e.comments ? `${fmt(e.comments)} comments` : "Comments"} · ` : ""}↗ Share · ⋯
+        <span className="flex items-center gap-2 pt-1 text-[12px] font-semibold text-[#787C7E]">
+          {e.allowComments ? <span>💬 {e.comments ? `${fmt(e.comments)} comments` : "Comments"}</span> : null}
+          <Toggle name={`${np}shared`} label="↗ Share" activeCls="peer-checked:text-[#3B6EBF]" disabled={!interactive} />
+          <span>⋯</span>
         </span>
+        {e.allowComments && interactive ? (
+          <input
+            type="text"
+            name={`${np}comment`}
+            placeholder="Add a comment"
+            className="rounded-[4px] border border-[#CCCCCC] px-2 py-1 text-[13px] text-[#1A1A1B] outline-none"
+          />
+        ) : null}
       </div>
     </article>
   );
