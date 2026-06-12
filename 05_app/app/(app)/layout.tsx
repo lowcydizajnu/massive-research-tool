@@ -1,28 +1,18 @@
 import { redirect } from "next/navigation";
 
-import { LeftRail } from "@/components/chrome/left-rail";
-import { TopBar } from "@/components/chrome/top-bar";
 import { NewStudyProvider } from "@/components/feature/new-study/provider";
 import { TRPCReactProvider } from "@/lib/trpc/react";
-import { auth } from "@/server/adapters/auth";
 import { getServerApi } from "@/server/trpc/server";
 
 /**
- * Authenticated app shell — the canonical modular surface (studies-destination
- * wireframe): a floating top-bar cap over a row of [left rail · work-surface
- * card]. The right context panel is collapsed on destinations (no object
- * selected), so it's omitted here until an object surface needs it.
+ * Authenticated shell — providers + onboarding guard only. The chrome lives in
+ * the two sibling route groups (IA v0.4, ADR-0032): `(workspace)` renders the
+ * destination chrome (TopBar + LeftRail), `(study)` renders the slim focused
+ * top bar. The mode switch IS the URL — no client branching here.
  *
  * Routes under (app) are protected by middleware.ts. A signed-in user who
  * hasn't finished onboarding has no workspace yet → send them back to /signup.
  */
-function initialsFrom(name: string, email: string): string {
-  const source = name.trim() || email;
-  const parts = source.split(/\s+/).filter(Boolean);
-  const letters = parts.length >= 2 ? parts[0][0] + parts[1][0] : source.slice(0, 2);
-  return letters.toUpperCase();
-}
-
 export default async function AppLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
@@ -36,25 +26,11 @@ export default async function AppLayout({
   }
   if (!workspace) redirect("/signup");
 
-  const user = await auth.getCurrentUser();
-  const initials = user ? initialsFrom(user.displayName, user.email) : "··";
-
   return (
     <TRPCReactProvider>
       <NewStudyProvider>
-        <div className="flex min-h-screen flex-col gap-3 bg-[var(--color-surface-page)] p-3">
-          <TopBar
-            workspaceName={workspace.name}
-            userInitials={initials}
-            displayName={user?.displayName ?? null}
-            email={user?.email ?? null}
-          />
-          {/* Each surface composes the area right of the rail (Studies = one
-              work-surface card; Builder = stage pill + work surface + right panel). */}
-          <div className="flex flex-1 gap-3">
-            <LeftRail />
-            {children}
-          </div>
+        <div className="flex min-h-screen flex-col bg-[var(--color-surface-page)]">
+          {children}
         </div>
       </NewStudyProvider>
     </TRPCReactProvider>

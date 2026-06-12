@@ -42,7 +42,7 @@ The top bar is a flat flush strip (no boxed card — per owner: "make nav part o
 - **Default** — chrome as drawn; all menu items enabled.
 - **Loading** — title shows "Study" placeholder until the studies.get cache fills (existing breadcrumb behavior).
 - **Empty** — n/a (the route only exists for an existing study).
-- **Partial** — viewer-role user: Archive hidden (write mutation); exports remain.
+- **Partial** — viewer-role user: Archive visible but server-rejected (writeProcedure), matching every other Builder write surface — the client doesn't role-gate visually anywhere yet.
 - **Error** — Archive failure surfaces the standard mutation toast; menu stays open-able.
 - **Success / optimistic** — Archive navigates to `/studies` after the mutation resolves (no optimistic redirect — the study disappears from the default list, so a failed archive must not strand the user).
 
