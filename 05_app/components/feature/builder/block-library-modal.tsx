@@ -230,6 +230,7 @@ function LibraryCard({
   dragPayload,
   onDragStart,
   onDragEnd,
+  action,
 }: {
   id: string;
   icon: LucideIcon;
@@ -246,6 +247,8 @@ function LibraryCard({
   dragPayload?: { source: string; key: string; version: string };
   onDragStart?: (payload: { source: string; key: string; version: string }, e: React.DragEvent) => void;
   onDragEnd?: () => void;
+  /** Optional inline action (e.g. the publish toggle on your own modules). */
+  action?: React.ReactNode;
 }) {
   return (
     <div
@@ -284,6 +287,7 @@ function LibraryCard({
       <span className="mt-auto self-start rounded-full bg-[var(--color-surface-subtle)] px-2 py-0.5 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
         {badge}
       </span>
+      {action}
     </div>
   );
 }
@@ -603,6 +607,25 @@ export function BlockLibraryModal({
                       onToggleCheck={() => toggleCheck(`custom:${m.id}`)}
                       onPick={() => setSelectedRef(`custom:${m.id}`)}
                       onAdd={() => onInsertCustomModule?.(m.id)}
+                      action={
+                        onTogglePublic ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onTogglePublic(m.id, !m.isPublic);
+                            }}
+                            className={cn(
+                              "self-start rounded-full px-2 py-0.5 text-[length:var(--text-small)] font-medium",
+                              m.isPublic
+                                ? "bg-[var(--color-success-subtle)] text-[var(--color-success-text-on-subtle)]"
+                                : "border border-[var(--color-border-subtle)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]",
+                            )}
+                          >
+                            {m.isPublic ? "✓ In Community — unpublish" : "Publish to Community"}
+                          </button>
+                        ) : undefined
+                      }
                     />
                   ))}
                 </div>

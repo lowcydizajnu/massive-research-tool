@@ -257,14 +257,6 @@ export function ConfigureForm({
         )
       ) : null}
 
-      <button
-        type="button"
-        onClick={onRemove}
-        disabled={pending}
-        className="self-start rounded-[var(--radius-md)] px-2 py-1 text-[length:var(--text-small)] font-medium text-[var(--color-danger)] hover:bg-[var(--color-danger-subtle)] disabled:opacity-60"
-      >
-        Remove block
-      </button>
     </div>
   );
 }
