@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 
 import { FollowButton } from "@/components/feature/follow/follow-button";
 import { ReplicateButton } from "@/components/feature/browse/replicate-button";
+import { UseAsTemplateButton } from "@/components/feature/browse/use-as-template-button";
 import { getServerApi } from "@/server/trpc/server";
 import type { PublicStudyDetail } from "@/server/trpc/routers/studies";
 
@@ -71,6 +72,7 @@ export default async function PublicStudyPage({
           ) : null}
         </div>
         <ReplicateButton studyId={detail.studyId} className="px-4 py-2" />
+        <UseAsTemplateButton studyId={detail.studyId} />
       </div>
 
       <section className="flex flex-col gap-2">

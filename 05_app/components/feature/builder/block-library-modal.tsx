@@ -61,7 +61,8 @@ type Category =
   | "Media & stimuli"
   | "Social"
   | "Research tools"
-  | "Your blocks";
+  | "Your blocks"
+  | "Community";
 
 const CATEGORIES: Category[] = [
   "All",
@@ -74,6 +75,7 @@ const CATEGORIES: Category[] = [
   "Social",
   "Research tools",
   "Your blocks",
+  "Community",
 ];
 
 /** tag → categories (a block belongs to every category any of its tags maps to). */
@@ -153,6 +155,7 @@ const CAT_TILE: Record<Category, string> = {
   Social: "bg-[var(--color-danger-subtle)] text-[var(--color-danger-text-on-subtle)]",
   "Research tools": "bg-[var(--color-warning-subtle)] text-[var(--color-warning-text-on-subtle)]",
   "Your blocks": "bg-[var(--color-accent-subtle)] text-[var(--color-accent-text-on-subtle)]",
+  Community: "bg-[var(--color-success-subtle)] text-[var(--color-success-text-on-subtle)]",
 };
 
 const RECENT_KEY = "mrt-recent-blocks";
@@ -177,6 +180,8 @@ type CustomModule = {
   id: string;
   name: string;
   blockCount: number;
+  /** Published to the cross-workspace Community library (ADR-0038). */
+  isPublic?: boolean;
   /** The saved blocks — feeds the details-pane preview (configs are real). */
   definition?: { blocks?: { source: string; key: string; version: string; config: Record<string, unknown> }[] };
 };
@@ -293,6 +298,7 @@ export function BlockLibraryModal({
   insertingModule = false,
   onDragStateChange,
   onBulkInsert,
+  onTogglePublic,
 }: {
   onInsert: (m: { source: string; key: string; version: string }) => void;
   onClose: () => void;
@@ -309,6 +315,8 @@ export function BlockLibraryModal({
     blocks: { source: string; key: string; version: string }[];
     customModuleIds: string[];
   }) => Promise<void>;
+  /** Publish/unpublish one of YOUR modules to the Community library (ADR-0038). */
+  onTogglePublic?: (id: string, isPublic: boolean) => void;
 }) {
   const { data: modules, isLoading } = api.modules.list.useQuery(undefined, {
     refetchOnMount: "always",
@@ -344,12 +352,21 @@ export function BlockLibraryModal({
     () => (modules ?? []).map((m) => ({ ...m, cats: categoriesOf(m.categoryTags) })),
     [modules],
   );
+  // Community modules (ADR-0038): published by any workspace; copy-on-insert.
+  const communityQ = api.studies.listCommunityModules.useQuery(undefined, {
+    enabled: !!onInsertCustomModule,
+  });
+  const community = (communityQ.data ?? []).filter((m) => !m.mine);
 
   const counts = useMemo(() => {
-    const c = new Map<Category, number>([["All", all.length], ["Your blocks", customModules.length]]);
+    const c = new Map<Category, number>([
+      ["All", all.length],
+      ["Your blocks", customModules.length],
+      ["Community", community.length],
+    ]);
     for (const m of all) for (const k of m.cats) c.set(k, (c.get(k) ?? 0) + 1);
     return c;
-  }, [all, customModules.length]);
+  }, [all, customModules.length, community.length]);
 
   const ql = q.trim().toLowerCase();
   const matches = (text: string) => !ql || text.toLowerCase().includes(ql);
@@ -360,9 +377,14 @@ export function BlockLibraryModal({
     cat === "All" || cat === "Your blocks"
       ? customModules.filter((m) => matches(m.name))
       : [];
+  const filteredCommunity =
+    cat === "All" || cat === "Community"
+      ? community.filter((m) => matches(`${m.name} ${m.authorName}`))
+      : [];
 
   const selected = all.find((m) => refOf(m) === selectedRef) ?? null;
   const selectedCustom = customModules.find((m) => `custom:${m.id}` === selectedRef) ?? null;
+  const selectedCommunity = community.find((m) => `community:${m.id}` === selectedRef) ?? null;
 
   const recentBlocks =
     cat === "All" && !ql
@@ -388,7 +410,10 @@ export function BlockLibraryModal({
   const runBulk = async () => {
     if (!onBulkInsert || checkedIds.size === 0) return;
     const blocks = all.filter((m) => checkedIds.has(refOf(m)));
-    const customIds = customModules.filter((m) => checkedIds.has(`custom:${m.id}`)).map((m) => m.id);
+    const customIds = [
+      ...customModules.filter((m) => checkedIds.has(`custom:${m.id}`)).map((m) => m.id),
+      ...community.filter((m) => checkedIds.has(`community:${m.id}`)).map((m) => m.id),
+    ];
     setBulkPending(true);
     try {
       blocks.forEach((m) => pushRecent(m.key));
@@ -546,6 +571,22 @@ export function BlockLibraryModal({
                       onDragEnd={onDragStateChange ? cardDragEnd : undefined}
                     />
                   ))}
+                  {filteredCommunity.map((m) => (
+                    <LibraryCard
+                      key={`community:${m.id}`}
+                      id={`community:${m.id}`}
+                      icon={Boxes}
+                      tile={CAT_TILE.Community}
+                      title={m.name}
+                      desc={`Shared by ${m.authorName} · ${m.blockCount} block${m.blockCount === 1 ? "" : "s"} (copied on insert)`}
+                      badge="Community"
+                      selected={selectedRef === `community:${m.id}`}
+                      checked={checkedIds.has(`community:${m.id}`)}
+                      onToggleCheck={() => toggleCheck(`community:${m.id}`)}
+                      onPick={() => setSelectedRef(`community:${m.id}`)}
+                      onAdd={() => onInsertCustomModule?.(m.id)}
+                    />
+                  ))}
                   {filteredCustom.map((m) => (
                     <LibraryCard
                       key={`custom:${m.id}`}
@@ -575,7 +616,7 @@ export function BlockLibraryModal({
           </div>
 
           {/* Details pane */}
-          {selected || selectedCustom ? (
+          {selected || selectedCustom || selectedCommunity ? (
             <aside className="flex w-[290px] shrink-0 flex-col gap-3 overflow-y-auto border-l border-[var(--color-border-subtle)] p-4">
               {selected ? (
                 <>
@@ -643,6 +684,61 @@ export function BlockLibraryModal({
                     {pending ? "Adding…" : "+ Add to study"}
                   </button>
                 </>
+              ) : selectedCommunity ? (
+                <>
+                  <span className={cn("flex size-12 items-center justify-center rounded-[var(--radius-md)]", CAT_TILE.Community)}>
+                    <Boxes className="size-6" aria-hidden />
+                  </span>
+                  <h3 className="font-serif text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">
+                    {selectedCommunity.name}
+                  </h3>
+                  <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                    Shared by {selectedCommunity.authorName}
+                  </p>
+                  <p className="text-[length:var(--text-small)] leading-snug text-[var(--color-text-secondary)]">
+                    {selectedCommunity.blockCount} block{selectedCommunity.blockCount === 1 ? "" : "s"}. Inserting copies
+                    it into your study — nothing links back to the author.
+                  </p>
+                  {selectedCommunity.definition?.blocks?.length ? (
+                    <div className="flex flex-col gap-1 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-2.5">
+                      <span className="text-[length:var(--text-small)] font-medium uppercase tracking-wide text-[var(--color-text-muted)]">
+                        Participant preview
+                      </span>
+                      <div aria-hidden className="pointer-events-none flex select-none flex-col gap-3 text-[13px]">
+                        {selectedCommunity.definition.blocks.slice(0, 3).map((b, i) =>
+                          NO_PREVIEW.has(b.key) ? (
+                            <p key={i} className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                              ({b.key} block — no inline preview)
+                            </p>
+                          ) : (
+                            <BlockView
+                              key={i}
+                              block={
+                                {
+                                  instanceId: `community-preview-${i}`,
+                                  source: b.source,
+                                  key: b.key,
+                                  version: b.version,
+                                  config: previewConfig(b.key, b.config),
+                                } as never
+                              }
+                              namePrefix={`cpv${i}__`}
+                              seed="community-preview"
+                            />
+                          ),
+                        )}
+                      </div>
+                    </div>
+                  ) : null}
+                  <button
+                    type="button"
+                    disabled={insertingModule}
+                    onClick={() => onInsertCustomModule?.(selectedCommunity.id)}
+                    className="mt-auto rounded-[var(--radius-md)] bg-[var(--color-primary)] px-3 py-2 text-[length:var(--text-body-emphasis)] font-medium text-white hover:opacity-90 disabled:opacity-60"
+                  >
+                    {insertingModule ? "Adding…" : "+ Add to study"}
+                  </button>
+                </>
               ) : selectedCustom ? (
                 <>
                   <span className={cn("flex size-12 items-center justify-center rounded-[var(--radius-md)]", CAT_TILE["Your blocks"])}>
@@ -701,6 +797,20 @@ export function BlockLibraryModal({
                   >
                     {insertingModule ? "Adding…" : "+ Add to study"}
                   </button>
+                  {onTogglePublic ? (
+                    <button
+                      type="button"
+                      onClick={() => onTogglePublic(selectedCustom.id, !selectedCustom.isPublic)}
+                      className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-1.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
+                    >
+                      {selectedCustom.isPublic ? "Unpublish from Community" : "Publish to Community"}
+                    </button>
+                  ) : null}
+                  {selectedCustom.isPublic ? (
+                    <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                      Published — researchers in other workspaces can copy it (they get copies, never live links).
+                    </p>
+                  ) : null}
                   {onRemoveCustomModule ? (
                     <button
                       type="button"

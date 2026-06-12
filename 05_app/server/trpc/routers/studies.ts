@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { and, arrayContains, count, desc, eq, ilike, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, arrayContains, count, desc, eq, ilike, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { ulid } from "ulid";
 import { z } from "zod";
 
@@ -9,11 +9,16 @@ import { db } from "@/server/db/client";
 import { emit } from "@/server/events/emit";
 import {
   condition as conditionTable,
+  changeProposal,
+  comment,
+  condition,
   customModule,
   experiment,
   experimentVersion,
   member,
+  previewToken,
   recruitmentSession,
+  registryPush,
   response as responseTable,
   responseItem,
   user,
@@ -383,6 +388,8 @@ export type StudyDetail = {
   overview: import("@/server/modules/blocks").StudyOverview;
   /** Consent screen config (ADR-0035) — defaults merged on read. */
   consent: StudyConsent;
+  /** Set when archived (ADR-0037 reversible path) — drives Unarchive in the ⋯ menu. */
+  archivedAt: string | null;
   /** Question groups (ADR-0028); members reference these by `block.groupId`. */
   groups: import("@/server/modules/blocks").StudyGroup[];
   /** Participant-facing theme (ADR-0024); Academic defaults when never set. */
@@ -999,6 +1006,7 @@ export const studiesRouter = router({
         whiteboardViewport: (row.version?.whiteboardViewport as WhiteboardViewport | null) ?? {},
         overview: readOverview(row.version?.definitionSnapshot),
         consent: readConsent(row.version?.definitionSnapshot),
+        archivedAt: row.experiment.archivedAt?.toISOString() ?? null,
         groups: readGroups(row.version?.definitionSnapshot),
         theme: readTheme(row.version?.definitionSnapshot),
       };
@@ -1652,7 +1660,7 @@ export const studiesRouter = router({
   /** Workspace's saved group templates (newest first). */
   listCustomModules: workspaceProcedure.query(async ({ ctx }) => {
     const rows = await db
-      .select({ id: customModule.id, name: customModule.name, definition: customModule.definition })
+      .select({ id: customModule.id, name: customModule.name, definition: customModule.definition, isPublic: customModule.isPublic })
       .from(customModule)
       .where(eq(customModule.tenantId, ctx.workspace.id))
       .orderBy(desc(customModule.createdAt));
@@ -1661,6 +1669,7 @@ export const studiesRouter = router({
       name: r.name,
       definition: r.definition as CustomModuleDefinition,
       blockCount: (r.definition as CustomModuleDefinition).blocks?.length ?? 0,
+      isPublic: r.isPublic,
     }));
   }),
 
@@ -1778,12 +1787,16 @@ export const studiesRouter = router({
   insertCustomModule: writeProcedure
     .input(z.object({ studyId: z.string().uuid(), customModuleId: z.string().uuid() }))
     .mutation(async ({ ctx, input }): Promise<{ groupId: string }> => {
+      // Own workspace's module OR a published community module (ADR-0038) —
+      // either way it's copy-on-insert; nothing links back to the source.
       const [mod] = await db
         .select()
         .from(customModule)
-        .where(and(eq(customModule.id, input.customModuleId), eq(customModule.tenantId, ctx.workspace.id)))
+        .where(eq(customModule.id, input.customModuleId))
         .limit(1);
-      if (!mod) throw new TRPCError({ code: "NOT_FOUND", message: "Module not found." });
+      if (!mod || (mod.tenantId !== ctx.workspace.id && !mod.isPublic)) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Module not found." });
+      }
       const def = mod.definition as CustomModuleDefinition;
       const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
       const existing = readBlocks(tip.version.definitionSnapshot) as BlockInstance[];
@@ -2782,7 +2795,67 @@ export const studiesRouter = router({
         answersByResponse.set(it.responseId, row);
       }
 
-      const questions = questionBlocks.map((b) => {
+      // Field-group blocks (ADR-0030) export one column PER FIELD (owner request):
+      // sub-question keys are `${instanceId}.${fieldKey}`, row values come from
+      // answer.values[fieldKey]. Number fields summarize numerically.
+      type FieldSpec = { key?: unknown; label?: unknown; type?: unknown };
+      const fieldSpecs = (b: (typeof questionBlocks)[number]): { key: string; label: string; type: string }[] =>
+        Array.isArray(b.config?.fields)
+          ? (b.config.fields as FieldSpec[])
+              .filter((f) => typeof f.key === "string" && f.key)
+              .map((f) => ({
+                key: String(f.key),
+                label: typeof f.label === "string" && f.label ? f.label : String(f.key),
+                type: typeof f.type === "string" ? f.type : "text",
+              }))
+          : [];
+      for (const b of questionBlocks) {
+        if (b.key !== "field-group") continue;
+        for (const it of items) {
+          if (it.blockInstanceId !== b.instanceId) continue;
+          const values = (it.answer as { values?: Record<string, unknown> } | null)?.values ?? {};
+          const row = answersByResponse.get(it.responseId) ?? {};
+          for (const f of fieldSpecs(b)) {
+            row[`${b.instanceId}.${f.key}`] = values[f.key] == null ? "" : String(values[f.key]);
+          }
+          answersByResponse.set(it.responseId, row);
+        }
+      }
+
+      const questions = questionBlocks.flatMap((b) => {
+        if (b.key === "field-group") {
+          const blockTitle =
+            (typeof b.title === "string" && b.title.trim()) ||
+            (typeof b.config?.prompt === "string" && b.config.prompt) ||
+            "Form";
+          const answers = itemsByBlock.get(b.instanceId) ?? [];
+          return fieldSpecs(b).map((f) => {
+            const raw = answers.map((a) => (a as { values?: Record<string, unknown> } | null)?.values?.[f.key]);
+            if (f.type === "number") {
+              const vals = raw.map(Number).filter((v) => Number.isFinite(v));
+              return {
+                instanceId: `${b.instanceId}.${f.key}`,
+                prompt: `${blockTitle} — ${f.label}`,
+                moduleKey: "field-group",
+                n: vals.length,
+                kind: "numeric" as const,
+                mean: vals.length ? vals.reduce((x, y) => x + y, 0) / vals.length : null,
+                optionCounts: [],
+              };
+            }
+            const n = raw.filter((v) => v != null && String(v).trim() !== "").length;
+            return {
+              instanceId: `${b.instanceId}.${f.key}`,
+              prompt: `${blockTitle} — ${f.label}`,
+              moduleKey: "field-group",
+              n,
+              kind: "text" as const,
+              mean: null,
+              optionCounts: [],
+            };
+          });
+        }
+        return [((b) => {
         const kind = kindOf(b.key);
         const answers = itemsByBlock.get(b.instanceId) ?? [];
         const prompt =
@@ -2826,6 +2899,7 @@ export const studiesRouter = router({
         // text (free-text / ranking / demographics) — count any non-empty answer
         const n = answers.filter((a) => stringifyAnswer(a).trim().length > 0).length;
         return { instanceId: b.instanceId, prompt, moduleKey: b.key, n, kind, mean: null, optionCounts: [] };
+        })(b)];
       });
 
       return {
@@ -3007,6 +3081,246 @@ export const studiesRouter = router({
         )
         .returning({ id: experiment.id });
       if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+      return { ok: true };
+    }),
+
+  /** Publish/unpublish a saved module to the cross-workspace Community library
+   *  (ADR-0038 — the gists analogue). Own workspace only. */
+  setModulePublic: writeProcedure
+    .input(z.object({ id: z.string().uuid(), isPublic: z.boolean() }))
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      const [row] = await db
+        .update(customModule)
+        .set({ isPublic: input.isPublic, updatedAt: new Date() })
+        .where(and(eq(customModule.id, input.id), eq(customModule.tenantId, ctx.workspace.id)))
+        .returning({ id: customModule.id });
+      if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+      return { ok: true };
+    }),
+
+  /** Community modules: published by ANY workspace (ADR-0038 — the third
+   *  sanctioned cross-tenant read: public definitions only, author-attributed). */
+  listCommunityModules: workspaceProcedure.query(async ({ ctx }) => {
+    const rows = await db
+      .select({
+        id: customModule.id,
+        name: customModule.name,
+        definition: customModule.definition,
+        authorName: user.displayName,
+        tenantId: customModule.tenantId,
+      })
+      .from(customModule)
+      .innerJoin(user, eq(customModule.createdBy, user.id))
+      .where(eq(customModule.isPublic, true))
+      .orderBy(desc(customModule.createdAt));
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      definition: r.definition as CustomModuleDefinition,
+      blockCount: (r.definition as CustomModuleDefinition).blocks?.length ?? 0,
+      authorName: r.authorName ?? "",
+      mine: r.tenantId === ctx.workspace.id,
+    }));
+  }),
+
+  /** Per-block provenance (ADR-0038 — the blame analogue): which conscious
+   *  save introduced/last-touched this block, and whether it changed since
+   *  the latest preregistration. Derived on read (ADR-0033 philosophy). */
+  blockProvenance: workspaceProcedure
+    .input(z.object({ studyId: z.string().uuid(), instanceId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const rows = await db
+        .select({
+          kind: experimentVersion.kind,
+          versionNumber: experimentVersion.versionNumber,
+          snapshot: experimentVersion.definitionSnapshot,
+          createdAt: experimentVersion.createdAt,
+        })
+        .from(experimentVersion)
+        .innerJoin(experiment, eq(experimentVersion.experimentId, experiment.id))
+        .where(and(eq(experimentVersion.experimentId, input.studyId), eq(experiment.tenantId, ctx.workspace.id)))
+        .orderBy(experimentVersion.createdAt);
+      if (!rows.length) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const label = (r: (typeof rows)[number]) =>
+        r.kind === "preregistered" ? `Preregistration v${r.versionNumber}` : r.kind === "published" ? `Published v${r.versionNumber}` : `v${r.versionNumber}`;
+      const stable = (snapshot: unknown): string | null => {
+        const b = readBlocks(snapshot).find((x) => x.instanceId === input.instanceId);
+        return b ? JSON.stringify({ ...b, instanceId: "" }) : null;
+      };
+
+      const frozen = rows.filter((r) => r.kind !== "autosave");
+      const tip = rows.find((r) => r.kind === "autosave");
+      let createdIn: string | null = null;
+      let lastChangedIn: string | null = null;
+      let prev: string | null = null;
+      for (const r of frozen) {
+        const cur = stable(r.snapshot);
+        if (cur !== null && prev === null) createdIn = label(r);
+        if (cur !== null && cur !== prev) lastChangedIn = label(r);
+        prev = cur;
+      }
+      const tipState = tip ? stable(tip.snapshot) : null;
+      const lastFrozenState = prev;
+      const editedSinceLastSave = tipState !== null && lastFrozenState !== null && tipState !== lastFrozenState;
+
+      const lastPrereg = [...frozen].reverse().find((r) => r.kind === "preregistered");
+      const sincePreregistration: "unchanged" | "changed" | null = lastPrereg
+        ? stable(lastPrereg.snapshot) === tipState
+          ? "unchanged"
+          : "changed"
+        : null;
+
+      return { createdIn, lastChangedIn, editedSinceLastSave, sincePreregistration };
+    }),
+
+  /** Copy a public study as a fresh starting point — NO lineage, fresh block
+   *  identities (ADR-0038 — the template-repo analogue; vs Replicate/ADR-0018
+   *  which preserves ids for diffing). */
+  useAsTemplate: writeProcedure
+    .input(z.object({ studyId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }): Promise<{ id: string }> => {
+      const source = await loadForkSource(input.studyId, ctx.dbUser.id); // same public/member gate as fork
+      const blocks = readBlocks(source.version.definitionSnapshot);
+      const groups = readGroups(source.version.definitionSnapshot).map(({ moduleId: _m, ...g }) => g);
+      const overview = readOverview(source.version.definitionSnapshot);
+      const theme = readTheme(source.version.definitionSnapshot);
+      const consent = readConsent(source.version.definitionSnapshot);
+
+      // Fresh identities: new instanceIds + group ids; remap groupId and
+      // answer-rule references; strip arm gating (conditions are copied fresh
+      // but slugs are study-local — the researcher re-wires what they keep).
+      const idMap = new Map(blocks.map((b) => [b.instanceId, ulid()]));
+      const groupMap = new Map(groups.map((g) => [g.id, ulid()]));
+      const freshBlocks = blocks.map((b) => ({
+        ...b,
+        instanceId: idMap.get(b.instanceId)!,
+        ...(b.groupId ? { groupId: groupMap.get(b.groupId) ?? b.groupId } : {}),
+        ...(b.showIf
+          ? {
+              showIf: {
+                ...b.showIf,
+                clauses: b.showIf.clauses.map((c) => ({
+                  ...c,
+                  fromInstanceId: idMap.get(c.fromInstanceId) ?? c.fromInstanceId,
+                })),
+              },
+            }
+          : {}),
+      }));
+      const freshGroups = groups.map((g) => ({ ...g, id: groupMap.get(g.id)! }));
+      const sourceConditions = await conditionsForVersion(source.version.id);
+
+      const newId = await db.transaction(async (tx) => {
+        const [exp] = await tx
+          .insert(experiment)
+          .values({
+            tenantId: ctx.workspace.id,
+            ownerId: ctx.dbUser.id,
+            title: `${source.experiment.title} (from template)`,
+            tags: source.experiment.tags ?? null,
+          })
+          .returning();
+        const [ver] = await tx
+          .insert(experimentVersion)
+          .values({
+            experimentId: exp.id,
+            versionNumber: 0,
+            kind: "autosave",
+            definitionSnapshot: { blocks: freshBlocks, groups: freshGroups, overview, theme, consent },
+            moduleVersionLocks: locksFromBlocks(freshBlocks),
+            createdBy: ctx.dbUser.id,
+          })
+          .returning();
+        await tx.update(experiment).set({ currentVersionId: ver.id }).where(eq(experiment.id, exp.id));
+        if (sourceConditions.length) {
+          await tx.insert(conditionTable).values(
+            sourceConditions.map((c) => ({
+              id: ulid(),
+              experimentVersionId: ver.id,
+              slug: c.slug,
+              name: c.name,
+              allocationWeight: String(c.allocationWeight),
+              position: c.position,
+            })),
+          );
+        }
+        return exp.id;
+      });
+      return { id: newId };
+    }),
+
+  /** Reverse of archive (ADR-0037 companion — the reversible path). */
+  unarchive: writeProcedure
+    .input(z.object({ studyId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      const [row] = await db
+        .update(experiment)
+        .set({ archivedAt: null, updatedAt: new Date() })
+        .where(and(eq(experiment.id, input.studyId), eq(experiment.tenantId, ctx.workspace.id)))
+        .returning({ id: experiment.id });
+      if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+      return { ok: true };
+    }),
+
+  /** Hard delete (ADR-0037): one transaction, FK order; forks survive with
+   *  their lineage pointers nulled; responses die with the study. */
+  delete: writeProcedure
+    .input(z.object({ studyId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      const [exp] = await db
+        .select({ id: experiment.id })
+        .from(experiment)
+        .where(and(eq(experiment.id, input.studyId), eq(experiment.tenantId, ctx.workspace.id)))
+        .limit(1);
+      if (!exp) throw new TRPCError({ code: "NOT_FOUND" });
+
+      await db.transaction(async (tx) => {
+        const versionIds = (
+          await tx
+            .select({ id: experimentVersion.id })
+            .from(experimentVersion)
+            .where(eq(experimentVersion.experimentId, exp.id))
+        ).map((v) => v.id);
+
+        if (versionIds.length) {
+          const sessionIds = (
+            await tx
+              .select({ id: recruitmentSession.id })
+              .from(recruitmentSession)
+              .where(inArray(recruitmentSession.experimentVersionId, versionIds))
+          ).map((r) => r.id);
+          if (sessionIds.length) {
+            const responseIds = (
+              await tx
+                .select({ id: responseTable.id })
+                .from(responseTable)
+                .where(inArray(responseTable.recruitmentSessionId, sessionIds))
+            ).map((r) => r.id);
+            if (responseIds.length) {
+              await tx.delete(responseItem).where(inArray(responseItem.responseId, responseIds));
+              await tx.delete(responseTable).where(inArray(responseTable.id, responseIds));
+            }
+            await tx.delete(recruitmentSession).where(inArray(recruitmentSession.id, sessionIds));
+          }
+          await tx.delete(condition).where(inArray(condition.experimentVersionId, versionIds));
+          await tx.delete(registryPush).where(inArray(registryPush.experimentVersionId, versionIds));
+        }
+        await tx.delete(previewToken).where(eq(previewToken.experimentId, exp.id));
+        await tx
+          .delete(changeProposal)
+          .where(or(eq(changeProposal.sourceExperimentId, exp.id), eq(changeProposal.targetExperimentId, exp.id)));
+        // The study's own comment thread (block-instance threads die with it).
+        await tx.delete(comment).where(and(eq(comment.targetType, "study"), eq(comment.targetId, exp.id)));
+        // Forks are their own studies — keep them, drop the lineage pointers.
+        await tx
+          .update(experiment)
+          .set({ forkOfExperimentId: null, forkOfVersionId: null })
+          .where(eq(experiment.forkOfExperimentId, exp.id));
+        await tx.update(experiment).set({ currentVersionId: null }).where(eq(experiment.id, exp.id));
+        await tx.delete(experimentVersion).where(eq(experimentVersion.experimentId, exp.id));
+        await tx.delete(experiment).where(eq(experiment.id, exp.id));
+      });
       return { ok: true };
     }),
 

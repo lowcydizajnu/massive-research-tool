@@ -32,7 +32,7 @@ research tool does this. Touches cross-workspace writes → needs ADR + wirefram
 (user flow, notification fan-out, merge semantics = apply added/modified blocks via the
 existing snapshot write path, conflict policy when the draft moved on).
 
-## Medium tier (on demand)
+## Medium tier — ✅ ALL SHIPPED V1.28.0 (ADR-0038)
 
 - **Blame → per-block provenance**: "last changed in v3; unchanged since preregistration"
   (walk version history per block; reviewer-audit value).

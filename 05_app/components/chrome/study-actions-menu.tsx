@@ -1,6 +1,6 @@
 "use client";
 
-import { MoreHorizontal, Archive, FileDown, Table } from "lucide-react";
+import { MoreHorizontal, Archive, ArchiveRestore, FileDown, Table, Trash2 } from "lucide-react";
 import Link from "next/link";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
@@ -10,19 +10,29 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { api } from "@/lib/trpc/react";
 
 /**
- * ⋯ per-study actions in the focused top bar (focused-study-mode.md). Only
- * actions with real backends: the two export routes + Archive (studies.archive).
- * Duplicate/Delete arrive with the Wave 6 bulk-operations slice. Mirrors the
- * UserMenu popover pattern (ESC / outside click closes).
+ * ⋯ per-study actions in the focused top bar (focused-study-mode.md): exports,
+ * Archive ↔ Unarchive (reversible), and hard Delete (ADR-0037, danger-confirmed).
+ * Duplicate arrives with the Wave 6 bulk-operations slice. Mirrors the UserMenu
+ * popover pattern (ESC / outside click closes).
  */
 export function StudyActionsMenu({ studyId }: { studyId: string }) {
   const [open, setOpen] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const utils = api.useUtils();
+  const study = api.studies.get.useQuery({ id: studyId });
+  const archived = !!study.data?.archivedAt;
   const archive = api.studies.archive.useMutation({
     onSuccess: () => router.push("/studies"),
   });
+  const unarchive = api.studies.unarchive.useMutation({
+    onSuccess: () => void utils.studies.get.invalidate({ id: studyId }),
+  });
+  const del = api.studies.delete.useMutation({
+    onSuccess: () => router.push("/studies"),
+  });
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -83,20 +93,59 @@ export function StudyActionsMenu({ studyId }: { studyId: string }) {
             Export data
           </Link>
           <div className="my-1 border-t border-[var(--color-border-subtle)]" aria-hidden />
+          {archived ? (
+            <button
+              type="button"
+              role="menuitem"
+              className={itemCls}
+              onClick={() => {
+                setOpen(false);
+                unarchive.mutate({ studyId });
+              }}
+            >
+              <ArchiveRestore className="size-4 text-[var(--color-text-muted)]" aria-hidden />
+              Unarchive study
+            </button>
+          ) : (
+            <button
+              type="button"
+              role="menuitem"
+              className={itemCls}
+              onClick={() => {
+                setOpen(false);
+                setConfirming(true);
+              }}
+            >
+              <Archive className="size-4 text-[var(--color-text-muted)]" aria-hidden />
+              Archive study
+            </button>
+          )}
           <button
             type="button"
             role="menuitem"
-            className={itemCls}
+            className={`${itemCls} text-[var(--color-danger-text-on-subtle)]`}
             onClick={() => {
               setOpen(false);
-              setConfirming(true);
+              setConfirmingDelete(true);
             }}
           >
-            <Archive className="size-4 text-[var(--color-text-muted)]" aria-hidden />
-            Archive study
+            <Trash2 className="size-4" aria-hidden />
+            Delete study…
           </button>
         </div>
       ) : null}
+
+      <ConfirmDialog
+        open={confirmingDelete}
+        title="Permanently delete this study?"
+        body="Everything goes with it: all versions, preregistration records, collected responses, and comments. This cannot be undone — if you might need it later, Archive instead. Replications others made survive as their own studies."
+        confirmLabel={del.isPending ? "Deleting…" : "Delete forever"}
+        tone="danger"
+        onConfirm={() => {
+          if (!del.isPending) del.mutate({ studyId });
+        }}
+        onCancel={() => setConfirmingDelete(false)}
+      />
 
       <ConfirmDialog
         open={confirming}

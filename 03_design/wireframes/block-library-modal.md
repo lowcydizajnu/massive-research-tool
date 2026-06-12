@@ -32,7 +32,7 @@ Centered overlay dialog ~880×~620px (max 85vh) on a dimmed backdrop. Three zone
 
 ## Content inventory
 
-- **Category rail** — derived from the catalogue's `categoryTags` (one block may appear in several): All · Scales & ratings · Choice & ranking · Open text · Form fields · Demographics · Media & stimuli · Social · Research tools · Your blocks (saved custom modules, ADR-0029). Each shows a count.
+- **Category rail** — derived from the catalogue's `categoryTags` (one block may appear in several): All · Scales & ratings · Choice & ranking · Open text · Form fields · Demographics · Media & stimuli · Social · Research tools · Your blocks (saved custom modules, ADR-0029) · **Community** (public modules from other workspaces — ADR-0038; attributed to their author, copy-on-insert, publish/unpublish toggle on your own). Each shows a count.
 - **Search input** — filters name + description + key within the active category.
 - **Block card** — icon on a category-tinted tile (lucide set, token colors only), block name, one-line description (clamped), a kind badge (`Records data` vs `Stimulus`), and a **bulk-select checkbox** (top-right). Any selection shows a footer bar: `N selected · Add selected / Clear`; bulk adds insert sequentially in selection order (registry blocks and custom modules both).
 - **Recently used row** — last 6 inserted block types (per device), shown in the All view with no query.
