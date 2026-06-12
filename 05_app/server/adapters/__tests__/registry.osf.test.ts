@@ -61,11 +61,10 @@ describe("osfRegistry.getAuthorizeUrl", () => {
     expect(url.searchParams.get("state")).toBe("abc");
   });
 
-  it("still defers amendment + withdrawal to V1.6", async () => {
-    await expect(osfRegistry.pushAmendment("u1", {} as never, "doi")).rejects.toThrow(
-      /V1\.6/,
-    );
-    await expect(osfRegistry.withdraw("u1", "doi", "reason")).rejects.toThrow(/V1\.6/);
+  it("withdraw stays deferred (needs owner-run live verification); amendments now push", async () => {
+    // pushAmendment delegates to the real flow since ADR-0005 am. 3 — it no
+    // longer throws (covered by the pushRegistration flow test below).
+    await expect(osfRegistry.withdraw("u1", "doi", "reason")).rejects.toThrow(/verification/i);
   });
 });
 
@@ -127,6 +126,7 @@ describe("osfRegistry.pushRegistration (verified OSF flow)", () => {
       registrationId: "reg-xyz",
       url: "https://osf.io/reg-xyz/",
       doi: null, // pending approval on OSF
+      nodeId: expect.any(String), // stored for amendment node-reuse (ADR-0005 am. 3)
     });
 
     // The draft was bound to the resolved schema id…
