@@ -1,5 +1,6 @@
 import { ReactionTimeInput } from "@/components/feature/take/reaction-time-input";
 import { getBlockOverride } from "@/components/feature/take/block-overrides";
+import { ReactionButton, ReactionGroup } from "@/components/feature/take/reaction-toggles";
 import type { RuntimeBlock } from "@/server/runtime/participant";
 
 /**
@@ -114,6 +115,7 @@ function SocialPostView({
   const allowComments = config.allowComments !== false;
   return (
     <article className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] p-4">
+      <ReactionGroup np={np} single={config.singleReaction === true} disabled={!interactive}>
       {source ? (
         <div className="text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)]">{source}</div>
       ) : null}
@@ -132,26 +134,8 @@ function SocialPostView({
       ) : null}
       {interactive ? (
         <div className="flex items-center gap-4 border-t border-[var(--color-border-subtle)] pt-2 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
-          <label className="flex cursor-pointer items-center gap-1">
-            {config.singleReaction === true ? (
-              <input type="radio" name={`${np}reaction`} value="liked" className="peer sr-only" />
-            ) : (
-              <input type="checkbox" name={`${np}liked`} className="peer sr-only" />
-            )}
-            <span className="peer-checked:font-bold peer-checked:text-[var(--color-primary)]">
-              👍 Like{likes ? ` · ${likes}` : ""}
-            </span>
-          </label>
-          <label className="flex cursor-pointer items-center gap-1">
-            {config.singleReaction === true ? (
-              <input type="radio" name={`${np}reaction`} value="shared" className="peer sr-only" />
-            ) : (
-              <input type="checkbox" name={`${np}shared`} className="peer sr-only" />
-            )}
-            <span className="peer-checked:font-bold peer-checked:text-[var(--color-primary)]">
-              ↪ Share{shares ? ` · ${shares}` : ""}
-            </span>
-          </label>
+          <ReactionButton kind="liked" label="👍 Like" count={likes} activeCls="text-[var(--color-primary)]" />
+          <ReactionButton kind="shared" label="↪ Share" count={shares} activeCls="text-[var(--color-primary)]" />
         </div>
       ) : null}
       {interactive && allowComments ? (
@@ -162,6 +146,7 @@ function SocialPostView({
           className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-3 py-1.5 text-[length:var(--text-small)] text-[var(--color-text-primary)] outline-none"
         />
       ) : null}
+      </ReactionGroup>
     </article>
   );
 }
