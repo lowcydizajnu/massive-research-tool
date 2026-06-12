@@ -50,7 +50,7 @@ export function LeftRail() {
   return (
     <nav
       aria-label="Workspace"
-      className="flex w-[155px] shrink-0 flex-col gap-1 self-start rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-panel)] p-2"
+      className="flex w-full flex-col gap-1 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-panel)] p-2"
     >
       {DESTINATIONS.map((d) => {
         const Icon = d.icon;

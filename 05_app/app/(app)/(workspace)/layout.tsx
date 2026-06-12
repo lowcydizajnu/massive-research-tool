@@ -1,4 +1,5 @@
 import { LeftRail } from "@/components/chrome/left-rail";
+import { ResizableRail } from "@/components/chrome/resizable-rail";
 import { TopBar } from "@/components/chrome/top-bar";
 import { auth } from "@/server/adapters/auth";
 import { getServerApi } from "@/server/trpc/server";
@@ -38,7 +39,9 @@ export default async function WorkspaceLayout({
       {/* Each surface composes the area right of the rail (Studies = one
           work-surface card; Browse = card grid; etc.). */}
       <div className="flex flex-1 gap-3 p-3">
-        <LeftRail />
+        <ResizableRail>
+          <LeftRail />
+        </ResizableRail>
         {children}
       </div>
     </>
