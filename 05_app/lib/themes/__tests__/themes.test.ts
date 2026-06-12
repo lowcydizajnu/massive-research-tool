@@ -50,7 +50,7 @@ import { getBlockOverride } from "@/components/feature/take/block-overrides";
 
 describe("mimicking presets (Wave 5 quartet, ADR-0024)", () => {
   it("quartet presets exist, validate, and carry warnings; baselines carry none", () => {
-    for (const key of ["facebook", "x", "news", "business"] as const) {
+    for (const key of ["facebook", "x", "news", "business", "instagram", "tiktok", "lifestyle", "forum", "blog"] as const) {
       expect(studyThemeSchema.safeParse(THEME_PRESETS[key]).success).toBe(true);
       expect(PRESET_WARNINGS[key].length).toBeGreaterThan(0);
     }
@@ -68,6 +68,8 @@ describe("mimicking presets (Wave 5 quartet, ADR-0024)", () => {
   it("block-override contract: facebook/x restyle social-post; others fall back", () => {
     expect(getBlockOverride("facebook", "social-post")).not.toBeNull();
     expect(getBlockOverride("x", "social-post")).not.toBeNull();
+    expect(getBlockOverride("instagram", "social-post")).not.toBeNull();
+    expect(getBlockOverride("forum", "social-post")).not.toBeNull();
     expect(getBlockOverride("facebook", "likert-7")).toBeNull();
     expect(getBlockOverride("academic", "social-post")).toBeNull();
     expect(getBlockOverride(undefined, "social-post")).toBeNull();
