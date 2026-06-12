@@ -52,7 +52,7 @@ Plainly: Next.js already knows which kind of page it is rendering — we let the
 
 - **Easier:** focused mode is the default consequence of opening any study route — new study sub-routes inherit it for free; chrome stays server-rendered (fast, no hydration flash); no new vendors to inventory.
 - **Harder:** chrome changes now touch two layouts; the two modes can drift if edits land in only one (shared pieces — UserMenu, AutosaveIndicator, palette — live in `components/chrome/` to resist this).
-- **Committed to:** URL-driven mode (no manual toggle); rail hidden (not collapsed-to-icons) in focused mode v1; ⌘K as the primary cross-study navigation inside a study; a new `studies.archive` write mutation backing the ⋯ menu (Duplicate/Delete stay deferred to the Wave 6 bulk-operations slice).
+- **Committed to:** URL-driven mode (no manual toggle); rail hidden (not collapsed-to-icons) in focused mode v1; the same custom-handle pattern for the Builder work-surface ↔ context-panel divider (owner follow-up 2026-06-12, `pane-resize.tsx`); ⌘K as the primary cross-study navigation inside a study; a new `studies.archive` write mutation backing the ⋯ menu (Duplicate/Delete stay deferred to the Wave 6 bulk-operations slice).
 - **Precluded from:** per-route custom chrome mixes (a route is in exactly one group); SSR-known rail width (localStorage means the default width renders server-side and the persisted width applies before paint via an inline read).
 
 ## Revisit triggers

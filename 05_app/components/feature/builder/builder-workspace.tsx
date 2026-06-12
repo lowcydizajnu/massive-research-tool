@@ -37,6 +37,7 @@ import {
   readPanelSide,
   type PanelSide,
 } from "@/components/feature/settings/panel-side-toggle";
+import { PaneHandle, usePaneWidth } from "@/components/chrome/pane-resize";
 
 /**
  * Builder mode — the interactive three-zone body (build-stage-builder-mode.md).
@@ -98,6 +99,8 @@ export function BuilderWorkspace({
     window.addEventListener(PANEL_SIDE_EVENT, onChange);
     return () => window.removeEventListener(PANEL_SIDE_EVENT, onChange);
   }, []);
+  // Work-surface ↔ context-panel divider is draggable too (owner request, M2 follow-up).
+  const panelPane = usePaneWidth("mrt-builder-panel-width", 250, 220, 480);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
@@ -396,6 +399,9 @@ export function BuilderWorkspace({
 
   return (
     <>
+      {panelSide === "left" ? (
+        <PaneHandle pane={panelPane} dir={1} label="Resize study panel" />
+      ) : null}
       <main className="flex min-w-0 flex-1 flex-col gap-3">
         <StageTabs studyId={study.id} />
 
@@ -726,7 +732,13 @@ export function BuilderWorkspace({
       </main>
 
       {/* Right context panel (or left, per the Settings preference) */}
-      <aside className={`flex w-[250px] shrink-0 flex-col gap-4 self-start rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-panel)] p-4 ${panelSide === "left" ? "order-first" : ""}`}>
+      {panelSide === "right" ? (
+        <PaneHandle pane={panelPane} dir={-1} label="Resize study panel" />
+      ) : null}
+      <aside
+        style={{ width: panelPane.width }}
+        className={`flex shrink-0 flex-col gap-4 self-start rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-panel)] p-4 ${panelSide === "left" ? "order-first" : ""}`}
+      >
         <nav role="tablist" aria-label="Context" className="flex flex-wrap gap-1">
           {selected ? (
             <>

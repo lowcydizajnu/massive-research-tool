@@ -35,7 +35,7 @@ The top bar is a flat flush strip (no boxed card — per owner: "make nav part o
 - **Autosave indicator** — existing `AutosaveIndicator` component, unchanged.
 - **⋯ More menu** — per-study actions that already have backends: Export summary (PDF) → `/studies/[id]/export-pdf`; Export data (CSV) → `/studies/[id]/results/export`; Archive study → `studies.archive` (new mutation; sets `archived_at`, returns to `/studies`). Duplicate / Delete are deferred to the Wave 6 bulk-operations slice (no backend yet — why-not: inventing them here would bypass that spec).
 - **✕ Close** — returns to `/studies`. Static `aria-label="Close study"`.
-- **Stage tabs + work surface + right panel** — unchanged from the build-stage wireframes; they simply gain the rail's width.
+- **Stage tabs + work surface + right panel** — unchanged from the build-stage wireframes; they simply gain the rail's width. The work-surface ↔ context-panel divider is draggable (220–480px, default 250, double-click reset, per-device persistence — same handle pattern as the rail; works on either panel side).
 
 ## States
 
