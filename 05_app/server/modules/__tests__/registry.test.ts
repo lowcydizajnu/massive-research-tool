@@ -171,3 +171,24 @@ describe("audio-record (handoff C2 Group 3)", () => {
     expect(a.validateAnswer!({ r2Key: "resp/x/y.webm", durationMs: 70_000 }, { maxDurationSeconds: 60 })).toBe(false);
   });
 });
+
+describe("media URL fields accept uploaded-asset paths (ADR-0003)", () => {
+  const cases = [
+    ["image", "1.0.0", "url"],
+    ["video", "1.0.0", "url"],
+    ["social-post", "2.0.0", "imageUrl"],
+  ] as const;
+  it("accepts /api/media/ws/… and https; keeps junk out", () => {
+    for (const [key, version, field] of cases) {
+      const schema = getDef("core", key, version)!.configSchema;
+      const base = getDef("core", key, version)!.defaultConfig;
+      expect(schema.safeParse({ ...base, [field]: "/api/media/ws/abc/01H.png" }).success).toBe(true);
+      expect(schema.safeParse({ ...base, [field]: "https://example.org/x.png" }).success).toBe(true);
+      expect(schema.safeParse({ ...base, [field]: "/etc/passwd" }).success).toBe(false);
+    }
+  });
+  it("link block stays external-URL-only", () => {
+    const link = getDef("core", "link", "1.0.0")!;
+    expect(link.configSchema.safeParse({ ...link.defaultConfig, url: "/api/media/ws/a/b.png" }).success).toBe(false);
+  });
+});
