@@ -906,6 +906,7 @@ export function BuilderWorkspace({
                 insertingModule={insertModuleMut.isPending}
                 onInsertCustomModule={(id) => insertModuleMut.mutate({ studyId: study.id, customModuleId: id })}
                 onRemoveCustomModule={(id) => removeModuleMut.mutate({ id })}
+                onTogglePublic={(id, isPublic) => setPublicMut.mutate({ id, isPublic })}
               />
             ) : null}
           </section>
