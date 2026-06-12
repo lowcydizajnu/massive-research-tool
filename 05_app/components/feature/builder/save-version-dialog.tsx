@@ -31,6 +31,7 @@ export function SaveVersionDialog({
   onSaved: (name: string, versionNumber: number) => void;
 }) {
   const [option, setOption] = useState<Option>("named");
+  const [changesExpanded, setChangesExpanded] = useState(false);
   const [label, setLabel] = useState("");
   const [reviewerId, setReviewerId] = useState("");
 
@@ -114,15 +115,24 @@ export function SaveVersionDialog({
             <span className="text-[length:var(--text-small)] font-medium uppercase tracking-wide text-[var(--color-text-muted)]">
               What changed since the last save
             </span>
-            <ul className="flex flex-col gap-0.5">
-              {pendingChanges.slice(0, 6).map((line, i) => (
+            <ul className="flex max-h-[180px] flex-col gap-0.5 overflow-y-auto">
+              {(changesExpanded ? pendingChanges : pendingChanges.slice(0, 6)).map((line, i) => (
                 <li key={i} className="text-[length:var(--text-small)] leading-snug text-[var(--color-text-secondary)]">
                   {line}
                 </li>
               ))}
               {pendingChanges.length > 6 ? (
-                <li className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-                  +{pendingChanges.length - 6} more change{pendingChanges.length - 6 === 1 ? "" : "s"}
+                <li>
+                  <button
+                    type="button"
+                    aria-expanded={changesExpanded}
+                    onClick={() => setChangesExpanded((v) => !v)}
+                    className="text-[length:var(--text-small)] font-medium text-[var(--color-primary)] hover:underline"
+                  >
+                    {changesExpanded
+                      ? "Show fewer"
+                      : `+${pendingChanges.length - 6} more change${pendingChanges.length - 6 === 1 ? "" : "s"}`}
+                  </button>
                 </li>
               ) : null}
             </ul>
