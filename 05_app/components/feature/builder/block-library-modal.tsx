@@ -173,7 +173,13 @@ function pushRecent(key: string) {
   }
 }
 
-type CustomModule = { id: string; name: string; blockCount: number };
+type CustomModule = {
+  id: string;
+  name: string;
+  blockCount: number;
+  /** The saved blocks — feeds the details-pane preview (configs are real). */
+  definition?: { blocks?: { source: string; key: string; version: string; config: Record<string, unknown> }[] };
+};
 
 /** Sample copy so the participant preview isn't a wall of empty fields. */
 function previewConfig(key: string, defaultConfig: Record<string, unknown>): Record<string, unknown> {
@@ -196,6 +202,87 @@ function previewConfig(key: string, defaultConfig: Record<string, unknown>): Rec
 /** Blocks whose preview is meaningless without researcher-supplied media. */
 const NO_PREVIEW = new Set(["image", "video", "link", "audio-record", "reaction-time"]);
 
+
+/**
+ * One library card. MUST stay a top-level component: defining it inside the
+ * modal gave it a new identity on every render, so any state change while a
+ * native drag was in flight remounted the source node — the browser cancels
+ * the drag and never fires dragend (the owner's "drop closes everything and
+ * inserts nothing" bug).
+ */
+function LibraryCard({
+  id,
+  icon: Icon,
+  tile,
+  title,
+  desc,
+  badge,
+  selected,
+  checked,
+  onToggleCheck,
+  onPick,
+  onAdd,
+  dragPayload,
+  onDragStart,
+  onDragEnd,
+}: {
+  id: string;
+  icon: LucideIcon;
+  tile: string;
+  title: string;
+  desc: string;
+  badge: string;
+  selected: boolean;
+  checked: boolean;
+  onToggleCheck: () => void;
+  onPick: () => void;
+  onAdd: () => void;
+  /** Registry blocks only — dragging a card drops it at a list position. */
+  dragPayload?: { source: string; key: string; version: string };
+  onDragStart?: (payload: { source: string; key: string; version: string }, e: React.DragEvent) => void;
+  onDragEnd?: () => void;
+}) {
+  return (
+    <div
+      role="option"
+      id={`lib-${id}`}
+      aria-selected={selected}
+      onClick={onPick}
+      onDoubleClick={onAdd}
+      draggable={!!(dragPayload && onDragStart)}
+      onDragStart={dragPayload && onDragStart ? (e) => onDragStart(dragPayload, e) : undefined}
+      onDragEnd={onDragEnd}
+      className={cn(
+        "relative flex cursor-pointer flex-col gap-2 rounded-[var(--radius-md)] border p-3 text-left transition-colors",
+        selected
+          ? "border-[var(--color-primary)] bg-[var(--color-primary-subtle)]/40"
+          : "border-[var(--color-border-subtle)] hover:bg-[var(--color-surface-subtle)]",
+      )}
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        onClick={(e) => e.stopPropagation()}
+        onChange={onToggleCheck}
+        aria-label={`Select ${title} for bulk add`}
+        className="absolute right-2.5 top-2.5 size-4 accent-[var(--color-primary)]"
+      />
+      <span className={cn("flex size-9 items-center justify-center rounded-[var(--radius-md)]", tile)}>
+        <Icon className="size-4.5" aria-hidden />
+      </span>
+      <span className="text-[length:var(--text-body-emphasis)] font-medium leading-tight text-[var(--color-text-primary)]">
+        {title}
+      </span>
+      <span className="line-clamp-2 text-[length:var(--text-small)] leading-snug text-[var(--color-text-muted)]">
+        {desc}
+      </span>
+      <span className="mt-auto self-start rounded-full bg-[var(--color-surface-subtle)] px-2 py-0.5 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+        {badge}
+      </span>
+    </div>
+  );
+}
+
 export function BlockLibraryModal({
   onInsert,
   onClose,
@@ -205,6 +292,7 @@ export function BlockLibraryModal({
   onRemoveCustomModule,
   insertingModule = false,
   onDragStateChange,
+  onBulkInsert,
 }: {
   onInsert: (m: { source: string; key: string; version: string }) => void;
   onClose: () => void;
@@ -216,6 +304,11 @@ export function BlockLibraryModal({
   /** Provided by the Builder: cards become draggable into the block list; the
    *  modal hides itself while a drag is in flight so the list is visible. */
   onDragStateChange?: (dragging: boolean) => void;
+  /** Bulk add (checkbox selection): inserts sequentially, resolves when done. */
+  onBulkInsert?: (sel: {
+    blocks: { source: string; key: string; version: string }[];
+    customModuleIds: string[];
+  }) => Promise<void>;
 }) {
   const { data: modules, isLoading } = api.modules.list.useQuery(undefined, {
     refetchOnMount: "always",
@@ -227,6 +320,8 @@ export function BlockLibraryModal({
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [recent, setRecent] = useState<string[]>([]);
   const [dragHidden, setDragHidden] = useState(false);
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
+  const [bulkPending, setBulkPending] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -282,76 +377,43 @@ export function BlockLibraryModal({
 
   const tileFor = (cats: Category[]) => CAT_TILE[cats[0] ?? "All"];
 
-  const Card = ({
-    id,
-    icon: Icon,
-    tile,
-    title,
-    desc,
-    badge,
-    onPick,
-    onAdd,
-    dragPayload,
-  }: {
-    id: string;
-    icon: LucideIcon;
-    tile: string;
-    title: string;
-    desc: string;
-    badge: string;
-    onPick: () => void;
-    onAdd: () => void;
-    /** Registry blocks only — dragging a card drops it at a list position. */
-    dragPayload?: { source: string; key: string; version: string };
-  }) => (
-    <button
-      type="button"
-      role="option"
-      aria-selected={selectedRef === id}
-      onClick={onPick}
-      onDoubleClick={onAdd}
-      draggable={!!(dragPayload && onDragStateChange)}
-      onDragStart={
-        dragPayload && onDragStateChange
-          ? (e) => {
-              e.dataTransfer.setData("application/x-mrt-block", JSON.stringify(dragPayload));
-              e.dataTransfer.effectAllowed = "copy";
-              pushRecent(dragPayload.key);
-              setDragHidden(true);
-              onDragStateChange(true);
-            }
-          : undefined
-      }
-      onDragEnd={
-        dragPayload && onDragStateChange
-          ? () => {
-              setDragHidden(false);
-              setRecent(readRecent());
-              onDragStateChange(false);
-            }
-          : undefined
-      }
-      className={cn(
-        "flex flex-col gap-2 rounded-[var(--radius-md)] border p-3 text-left transition-colors",
-        selectedRef === id
-          ? "border-[var(--color-primary)] bg-[var(--color-primary-subtle)]/40"
-          : "border-[var(--color-border-subtle)] hover:bg-[var(--color-surface-subtle)]",
-      )}
-    >
-      <span className={cn("flex size-9 items-center justify-center rounded-[var(--radius-md)]", tile)}>
-        <Icon className="size-4.5" aria-hidden />
-      </span>
-      <span className="text-[length:var(--text-body-emphasis)] font-medium leading-tight text-[var(--color-text-primary)]">
-        {title}
-      </span>
-      <span className="line-clamp-2 text-[length:var(--text-small)] leading-snug text-[var(--color-text-muted)]">
-        {desc}
-      </span>
-      <span className="mt-auto self-start rounded-full bg-[var(--color-surface-subtle)] px-2 py-0.5 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
-        {badge}
-      </span>
-    </button>
-  );
+  const toggleCheck = (id: string) =>
+    setCheckedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const runBulk = async () => {
+    if (!onBulkInsert || checkedIds.size === 0) return;
+    const blocks = all.filter((m) => checkedIds.has(refOf(m)));
+    const customIds = customModules.filter((m) => checkedIds.has(`custom:${m.id}`)).map((m) => m.id);
+    setBulkPending(true);
+    try {
+      blocks.forEach((m) => pushRecent(m.key));
+      await onBulkInsert({
+        blocks: blocks.map((m) => ({ source: m.source, key: m.key, version: m.version })),
+        customModuleIds: customIds,
+      });
+      onClose();
+    } finally {
+      setBulkPending(false);
+    }
+  };
+
+  const cardDragStart = (payload: { source: string; key: string; version: string }, e: React.DragEvent) => {
+    e.dataTransfer.setData("application/x-mrt-block", JSON.stringify(payload));
+    e.dataTransfer.effectAllowed = "copy";
+    pushRecent(payload.key);
+    setDragHidden(true);
+    onDragStateChange?.(true);
+  };
+  const cardDragEnd = () => {
+    setDragHidden(false);
+    setRecent(readRecent());
+    onDragStateChange?.(false);
+  };
 
   return (
     <div
@@ -440,17 +502,22 @@ export function BlockLibraryModal({
                     </div>
                     <div className="grid grid-cols-2 gap-2 pb-3 xl:grid-cols-3">
                       {recentBlocks.map((m) => (
-                        <Card
+                        <LibraryCard
                           key={`r-${refOf(m)}`}
-                          id={refOf(m)}
+                          id={`r-${refOf(m)}`}
                           icon={BLOCK_ICON[m.key] ?? Puzzle}
                           tile={tileFor(m.cats)}
                           title={m.name}
                           desc={m.description}
                           badge={m.collectsResponse ? "Records data" : "Stimulus"}
+                          selected={selectedRef === refOf(m)}
+                          checked={checkedIds.has(refOf(m))}
+                          onToggleCheck={() => toggleCheck(refOf(m))}
                           onPick={() => setSelectedRef(refOf(m))}
                           onAdd={() => insert(m)}
                           dragPayload={{ source: m.source, key: m.key, version: m.version }}
+                          onDragStart={onDragStateChange ? cardDragStart : undefined}
+                          onDragEnd={onDragStateChange ? cardDragEnd : undefined}
                         />
                       ))}
                     </div>
@@ -461,7 +528,7 @@ export function BlockLibraryModal({
                 ) : null}
                 <div className="grid grid-cols-2 gap-2 xl:grid-cols-3">
                   {filtered.map((m) => (
-                    <Card
+                    <LibraryCard
                       key={refOf(m)}
                       id={refOf(m)}
                       icon={BLOCK_ICON[m.key] ?? Puzzle}
@@ -469,13 +536,18 @@ export function BlockLibraryModal({
                       title={m.name}
                       desc={m.description}
                       badge={m.collectsResponse ? "Records data" : "Stimulus"}
+                      selected={selectedRef === refOf(m)}
+                      checked={checkedIds.has(refOf(m))}
+                      onToggleCheck={() => toggleCheck(refOf(m))}
                       onPick={() => setSelectedRef(refOf(m))}
                       onAdd={() => insert(m)}
                       dragPayload={{ source: m.source, key: m.key, version: m.version }}
+                      onDragStart={onDragStateChange ? cardDragStart : undefined}
+                      onDragEnd={onDragStateChange ? cardDragEnd : undefined}
                     />
                   ))}
                   {filteredCustom.map((m) => (
-                    <Card
+                    <LibraryCard
                       key={`custom:${m.id}`}
                       id={`custom:${m.id}`}
                       icon={Boxes}
@@ -483,6 +555,9 @@ export function BlockLibraryModal({
                       title={m.name}
                       desc={`Your saved module · ${m.blockCount} block${m.blockCount === 1 ? "" : "s"} (copied on insert)`}
                       badge="Your blocks"
+                      selected={selectedRef === `custom:${m.id}`}
+                      checked={checkedIds.has(`custom:${m.id}`)}
+                      onToggleCheck={() => toggleCheck(`custom:${m.id}`)}
                       onPick={() => setSelectedRef(`custom:${m.id}`)}
                       onAdd={() => onInsertCustomModule?.(m.id)}
                     />
@@ -581,6 +656,43 @@ export function BlockLibraryModal({
                     {selectedCustom.blockCount === 1 ? "" : "s"}. Inserting copies it into this study — later edits
                     here never change the saved module.
                   </p>
+                  {selectedCustom.definition?.blocks?.length ? (
+                    <div className="flex flex-col gap-1 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-2.5">
+                      <span className="text-[length:var(--text-small)] font-medium uppercase tracking-wide text-[var(--color-text-muted)]">
+                        Participant preview
+                      </span>
+                      <div aria-hidden className="pointer-events-none flex select-none flex-col gap-3 text-[13px]">
+                        {selectedCustom.definition.blocks.slice(0, 3).map((b, i) =>
+                          NO_PREVIEW.has(b.key) ? (
+                            <p key={i} className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                              ({b.key} block — no inline preview)
+                            </p>
+                          ) : (
+                            <BlockView
+                              key={i}
+                              block={
+                                {
+                                  instanceId: `library-preview-${i}`,
+                                  source: b.source,
+                                  key: b.key,
+                                  version: b.version,
+                                  config: previewConfig(b.key, b.config),
+                                } as never
+                              }
+                              namePrefix={`pv${i}__`}
+                              seed="library-preview"
+                            />
+                          ),
+                        )}
+                        {selectedCustom.definition.blocks.length > 3 ? (
+                          <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                            …and {selectedCustom.definition.blocks.length - 3} more block
+                            {selectedCustom.definition.blocks.length - 3 === 1 ? "" : "s"}.
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
                   <button
                     type="button"
                     disabled={insertingModule}
@@ -604,6 +716,31 @@ export function BlockLibraryModal({
             </aside>
           ) : null}
         </div>
+
+        {checkedIds.size > 0 && onBulkInsert ? (
+          <div className="flex items-center justify-between border-t border-[var(--color-border-subtle)] px-4 py-2.5">
+            <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+              {checkedIds.size} selected
+            </span>
+            <span className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setCheckedIds(new Set())}
+                className="rounded-[var(--radius-md)] px-3 py-1.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
+              >
+                Clear
+              </button>
+              <button
+                type="button"
+                disabled={bulkPending}
+                onClick={() => void runBulk()}
+                className="rounded-[var(--radius-md)] bg-[var(--color-primary)] px-3 py-1.5 text-[length:var(--text-small)] font-medium text-white hover:opacity-90 disabled:opacity-60"
+              >
+                {bulkPending ? "Adding…" : `Add ${checkedIds.size} selected`}
+              </button>
+            </span>
+          </div>
+        ) : null}
       </div>
 
       <ConfirmDialog
