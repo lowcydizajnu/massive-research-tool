@@ -215,11 +215,170 @@ function ForumSocialPost({ config, np = "", interactive = true }: OverrideProps)
   );
 }
 
+/** Reddit-style post (social-post under the reddit preset). */
+function RedditSocialPost({ config, np = "", interactive = true }: OverrideProps) {
+  const source = str(config.source) || "user";
+  const e = engagement(config);
+  const headline = str(config.headline);
+  const body = str(config.body);
+  const sub = (e.handle || "research").toLowerCase().replace(/[^a-z0-9_]+/g, "").slice(0, 21) || "research";
+  return (
+    <article className="flex gap-3 rounded-[6px] border border-[#CCCCCC] bg-white p-3 text-[#1A1A1B]">
+      <ReactionGroup np={np} single={isSingle(config)} disabled={!interactive}>
+      <div className="flex shrink-0 flex-col items-center gap-0.5 text-[13px] text-[#878A8C]">
+        <ReactionButton kind="liked" label="⬆" count={e.likes} activeCls="text-[#FF4500]" className="flex flex-col items-center" />
+        <span>⬇</span>
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <span className="text-[12px] text-[#787C7E]">
+          <span className="font-bold text-[#1A1A1B]">r/{sub}</span> · Posted by u/
+          {source.toLowerCase().replace(/[^a-z0-9_]+/g, "_") || "user"} · {e.time}
+        </span>
+        {headline ? <span className="text-[17px] font-semibold leading-snug">{headline}</span> : null}
+        {body ? <span className="text-[14px] leading-snug">{body}</span> : null}
+        <span className="flex items-center gap-3 pt-1 text-[12px] font-bold text-[#878A8C]">
+          {e.allowComments ? <span>💬 {e.comments ? fmt(e.comments) : ""} Comments</span> : null}
+          <ReactionButton kind="shared" label="↗ Share" count={e.shares} activeCls="text-[#FF4500]" />
+          <span>⋯</span>
+        </span>
+        {e.allowComments && interactive ? (
+          <input type="text" name={`${np}comment`} placeholder="Add a comment" className="rounded-[4px] border border-[#EDEFF1] bg-[#F6F7F8] px-2 py-1 text-[13px] outline-none" />
+        ) : null}
+      </div>
+      </ReactionGroup>
+    </article>
+  );
+}
+
+/** LinkedIn-style update (social-post under the linkedin preset). */
+function LinkedInSocialPost({ config, np = "", interactive = true }: OverrideProps) {
+  const source = str(config.source) || "A connection";
+  const e = engagement(config);
+  const headline = str(config.headline);
+  const body = str(config.body);
+  return (
+    <article className="flex flex-col gap-2 rounded-[8px] border border-[#E0DFDC] bg-white p-3 text-[#191919]">
+      <ReactionGroup np={np} single={isSingle(config)} disabled={!interactive}>
+      <div className="flex items-center gap-2">
+        <span aria-hidden className="flex size-11 items-center justify-center rounded-full bg-[#0A66C2] font-bold text-white">
+          {source.charAt(0).toUpperCase()}
+        </span>
+        <span className="flex flex-col leading-tight">
+          <span className="text-[14px] font-semibold">{source} <span className="font-normal text-[#666666]">· 2nd</span></span>
+          <span className="text-[12px] text-[#666666]">{e.handle || "Industry insights"} · {e.time} · 🌐</span>
+        </span>
+      </div>
+      {headline ? <p className="text-[14px] font-semibold">{headline}</p> : null}
+      {body ? <p className="text-[14px] leading-snug">{body}</p> : null}
+      {e.likes || e.comments ? (
+        <span className="text-[12px] text-[#666666]">
+          {e.likes ? `👍❤️ ${fmt(e.likes)}` : ""}
+          {e.comments && e.allowComments ? ` · ${fmt(e.comments)} comments` : ""}
+          {e.shares ? ` · ${fmt(e.shares)} reposts` : ""}
+        </span>
+      ) : null}
+      <div className="flex items-center justify-around border-t border-[#E0DFDC] pt-1 text-[13px] font-semibold text-[#666666]">
+        <ReactionButton kind="liked" label="👍 Like" activeCls="text-[#0A66C2]" />
+        {e.allowComments ? <span>💬 Comment</span> : null}
+        <ReactionButton kind="shared" label="🔁 Repost" activeCls="text-[#0A66C2]" />
+        <span>➤ Send</span>
+      </div>
+      {e.allowComments && interactive ? (
+        <input type="text" name={`${np}comment`} placeholder="Add a comment…" className="rounded-full border border-[#666666]/40 px-3 py-1.5 text-[13px] outline-none" />
+      ) : null}
+      </ReactionGroup>
+    </article>
+  );
+}
+
+/** YouTube-style video page (social-post under the youtube preset). */
+function YouTubeSocialPost({ config, np = "", interactive = true }: OverrideProps) {
+  const source = str(config.source) || "Channel";
+  const e = engagement(config);
+  const headline = str(config.headline);
+  const body = str(config.body);
+  return (
+    <article className="flex flex-col gap-2 text-[#0F0F0F]">
+      <ReactionGroup np={np} single={isSingle(config)} disabled={!interactive}>
+      <div aria-hidden className="flex aspect-video w-full items-center justify-center rounded-[12px] bg-black">
+        <span className="flex h-12 w-16 items-center justify-center rounded-[10px] bg-[#FF0000] text-[20px] text-white">▶</span>
+      </div>
+      {headline ? <p className="text-[16px] font-semibold leading-snug">{headline}</p> : null}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="flex items-center gap-2">
+          <span aria-hidden className="flex size-9 items-center justify-center rounded-full bg-[#FF0000] font-bold text-white">
+            {source.charAt(0).toUpperCase()}
+          </span>
+          <span className="flex flex-col leading-tight">
+            <span className="text-[14px] font-semibold">{source}</span>
+            <span className="text-[12px] text-[#606060]">{e.shares ? `${fmt(e.shares)} subscribers` : "Subscribe"}</span>
+          </span>
+        </span>
+        <span className="flex items-center gap-2 text-[13px] font-semibold">
+          <span className="flex items-center gap-2 rounded-full bg-[#F2F2F2] px-3 py-1.5">
+            <ReactionButton kind="liked" label="👍" count={e.likes} activeCls="text-[#FF0000]" />
+            <span className="text-[#D9D9D9]">|</span>
+            <span>👎</span>
+          </span>
+          <ReactionButton kind="shared" label="↗ Share" activeCls="text-[#FF0000]" className="rounded-full bg-[#F2F2F2] px-3 py-1.5" />
+        </span>
+      </div>
+      {body ? <p className="rounded-[12px] bg-[#F2F2F2] p-2.5 text-[13px] leading-snug">{body}</p> : null}
+      {e.allowComments && interactive ? (
+        <input type="text" name={`${np}comment`} placeholder={e.comments ? `Add a comment — ${fmt(e.comments)} comments` : "Add a comment…"} className="border-b border-[#E5E5E5] pb-1 text-[13px] outline-none" />
+      ) : null}
+      </ReactionGroup>
+    </article>
+  );
+}
+
+/** Chat-message rendering (whatsapp / discord / imessage variants): the post
+ *  arrives as a forwarded message from a contact; Like = ❤️ reaction, Share =
+ *  forwarding it on. */
+function ChatSocialPost(variant: "whatsapp" | "discord" | "imessage") {
+  const styles = {
+    whatsapp: { bubble: "bg-white text-[#111B21] rounded-[8px] rounded-tl-none", meta: "text-[#667781]", like: "text-[#25D366]" },
+    discord: { bubble: "bg-[#383A40] text-[#F2F3F5] rounded-[8px]", meta: "text-[#949BA4]", like: "text-[#5865F2]" },
+    imessage: { bubble: "bg-[#E9E9EB] text-black rounded-[18px] rounded-tl-[4px]", meta: "text-[#8E8E93]", like: "text-[#007AFF]" },
+  }[variant];
+  return function ChatPost({ config, np = "", interactive = true }: OverrideProps) {
+    const source = str(config.source) || "Contact";
+    const e = engagement(config);
+    const headline = str(config.headline);
+    const body = str(config.body);
+    return (
+      <div className="flex flex-col gap-1.5">
+        <ReactionGroup np={np} single={isSingle(config)} disabled={!interactive}>
+        <span className={`text-[12px] ${styles.meta}`}>{source} · {e.time}</span>
+        <div className={`flex max-w-[85%] flex-col gap-1 p-3 text-[14px] leading-snug shadow-sm ${styles.bubble}`}>
+          <span className={`text-[11px] italic ${styles.meta}`}>↪ Forwarded</span>
+          {headline ? <span className="font-semibold">{headline}</span> : null}
+          {body ? <span>{body}</span> : null}
+        </div>
+        <span className={`flex items-center gap-3 text-[13px] ${styles.meta}`}>
+          <ReactionButton kind="liked" label="❤️" count={e.likes} activeCls={styles.like} />
+          <ReactionButton kind="shared" label="↪ Forward" count={e.shares} activeCls={styles.like} />
+        </span>
+        {e.allowComments && interactive ? (
+          <input type="text" name={`${np}comment`} placeholder="Reply…" className={`rounded-full border border-current/20 bg-transparent px-3 py-1.5 text-[13px] outline-none ${styles.meta}`} />
+        ) : null}
+        </ReactionGroup>
+      </div>
+    );
+  };
+}
+
 const OVERRIDES: Record<string, Record<string, (p: OverrideProps) => React.ReactNode>> = {
   facebook: { "social-post": FacebookSocialPost },
   x: { "social-post": XSocialPost },
   instagram: { "social-post": InstagramSocialPost },
   forum: { "social-post": ForumSocialPost },
+  reddit: { "social-post": RedditSocialPost },
+  linkedin: { "social-post": LinkedInSocialPost },
+  youtube: { "social-post": YouTubeSocialPost },
+  whatsapp: { "social-post": ChatSocialPost("whatsapp") },
+  discord: { "social-post": ChatSocialPost("discord") },
+  imessage: { "social-post": ChatSocialPost("imessage") },
 };
 
 /** The override renderer for (presetKey, blockKey), or null → default renderer. */

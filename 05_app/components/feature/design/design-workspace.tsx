@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import {
   effectivePresetKey,
   FONT_LABELS,
+  PRESET_LABELS,
   FONT_STACKS,
   PRESET_DESCRIPTIONS,
   PRESET_WARNINGS,
@@ -111,8 +112,8 @@ export function DesignWorkspace({ studyId, initialTheme }: { studyId: string; in
             aria-expanded={presetsOpen}
             className="flex items-center justify-between rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-2.5 py-2 text-left hover:bg-[var(--color-surface-subtle)]"
           >
-            <span className="text-[length:var(--text-body-emphasis)] font-medium capitalize text-[var(--color-text-primary)]">
-              {theme.presetKey === "custom" ? "Custom" : theme.presetKey}
+            <span className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">
+              {theme.presetKey === "custom" ? "Custom" : PRESET_LABELS[theme.presetKey]}
             </span>
             <span className="text-[length:var(--text-small)] text-[var(--color-primary)]">
               {presetsOpen ? "Close ▴" : "Change preset ▾"}
@@ -147,8 +148,8 @@ export function DesignWorkspace({ studyId, initialTheme }: { studyId: string; in
                   className="size-4 accent-[var(--color-primary)]"
                 />
                 <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="text-[length:var(--text-body-emphasis)] font-medium capitalize text-[var(--color-text-primary)]">
-                    {key}
+                  <span className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">
+                    {PRESET_LABELS[key]}
                   </span>
                   <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
                     {PRESET_DESCRIPTIONS[key]}
@@ -178,7 +179,7 @@ export function DesignWorkspace({ studyId, initialTheme }: { studyId: string; in
           }) : null}
           {theme.presetKey === "custom" ? (
             <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-              Custom{theme.basePresetKey ? ` — based on ${theme.basePresetKey}` : " — tweaked from a preset"}.
+              Custom{theme.basePresetKey ? ` — based on ${PRESET_LABELS[theme.basePresetKey]}` : " — tweaked from a preset"}.
             </p>
           ) : null}
           {!pendingMimic && PRESET_WARNINGS[effectivePresetKey(theme)].length > 0 ? (
@@ -422,8 +423,8 @@ function InlineAck({
 }) {
   return (
     <div className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--color-warning-text-on-subtle)] bg-[var(--color-warning-subtle)] p-3">
-      <p className="text-[length:var(--text-body-emphasis)] font-medium capitalize text-[var(--color-warning-text-on-subtle)]">
-        Before using the “{presetKey}” look
+      <p className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-warning-text-on-subtle)]">
+        Before using the “{PRESET_LABELS[presetKey as keyof typeof PRESET_LABELS] ?? presetKey}” look
       </p>
       <ul className="flex list-disc flex-col gap-1 pl-4 text-[length:var(--text-small)] text-[var(--color-warning-text-on-subtle)]">
         {PRESET_WARNINGS[presetKey as keyof typeof PRESET_WARNINGS].map((w, i) => (

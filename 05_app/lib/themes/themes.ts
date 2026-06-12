@@ -36,6 +36,7 @@ export const studyThemeSchema = z.object({
     "academic", "clinical", "modern", "playful",
     "facebook", "x", "news", "business",
     "instagram", "tiktok", "lifestyle", "forum", "blog",
+    "reddit", "linkedin", "youtube", "whatsapp", "discord", "imessage",
     "custom",
   ]),
   colors: z.object({
@@ -68,6 +69,7 @@ export const studyThemeSchema = z.object({
     "academic", "clinical", "modern", "playful",
     "facebook", "x", "news", "business",
     "instagram", "tiktok", "lifestyle", "forum", "blog",
+    "reddit", "linkedin", "youtube", "whatsapp", "discord", "imessage",
   ]).optional(),
 });
 export type StudyTheme = z.infer<typeof studyThemeSchema>;
@@ -170,6 +172,72 @@ export const THEME_PRESETS: Record<Exclude<StudyTheme["presetKey"], "custom">, S
     shape: { radius: "soft", density: "spacious" },
     layout: { width: "narrow", progress: "none", backButton: true },
   },
+  // Wave 5c presets.
+  reddit: {
+    presetKey: "reddit",
+    colors: { page: "#DAE0E6", card: "#FFFFFF", text: "#1A1A1B", muted: "#7C7C7C", accent: "#FF4500" },
+    typography: { headingFont: "helvetica", bodyFont: "helvetica", baseSize: "M" },
+    shape: { radius: "soft", density: "compact" },
+    layout: { width: "medium", progress: "none", backButton: true },
+  },
+  linkedin: {
+    presetKey: "linkedin",
+    colors: { page: "#F4F2EE", card: "#FFFFFF", text: "#191919", muted: "#666666", accent: "#0A66C2" },
+    typography: { headingFont: "system-ui", bodyFont: "system-ui", baseSize: "M" },
+    shape: { radius: "soft", density: "normal" },
+    layout: { width: "medium", progress: "none", backButton: true },
+  },
+  youtube: {
+    presetKey: "youtube",
+    colors: { page: "#FFFFFF", card: "#FFFFFF", text: "#0F0F0F", muted: "#606060", accent: "#FF0000" },
+    typography: { headingFont: "helvetica", bodyFont: "helvetica", baseSize: "M" },
+    shape: { radius: "rounded", density: "normal" },
+    layout: { width: "wide", progress: "none", backButton: true },
+  },
+  whatsapp: {
+    presetKey: "whatsapp",
+    colors: { page: "#ECE5DD", card: "#FFFFFF", text: "#111B21", muted: "#667781", accent: "#25D366" },
+    typography: { headingFont: "system-ui", bodyFont: "system-ui", baseSize: "M" },
+    shape: { radius: "rounded", density: "normal" },
+    layout: { width: "narrow", progress: "none", backButton: false },
+  },
+  discord: {
+    presetKey: "discord",
+    colors: { page: "#313338", card: "#383A40", text: "#F2F3F5", muted: "#949BA4", accent: "#5865F2" },
+    typography: { headingFont: "system-ui", bodyFont: "system-ui", baseSize: "M" },
+    shape: { radius: "soft", density: "compact" },
+    layout: { width: "medium", progress: "none", backButton: false },
+  },
+  imessage: {
+    presetKey: "imessage",
+    colors: { page: "#FFFFFF", card: "#F2F2F7", text: "#000000", muted: "#8E8E93", accent: "#007AFF" },
+    typography: { headingFont: "system-ui", bodyFont: "system-ui", baseSize: "M" },
+    shape: { radius: "pill", density: "normal" },
+    layout: { width: "narrow", progress: "none", backButton: false },
+  },
+};
+
+/** Display names for preset keys (UI; keys stay slugs). */
+export const PRESET_LABELS: Record<Exclude<StudyTheme["presetKey"], "custom">, string> = {
+  academic: "Academic",
+  clinical: "Clinical",
+  modern: "Modern",
+  playful: "Playful",
+  facebook: "Facebook",
+  x: "X (Twitter)",
+  news: "News site",
+  business: "Business portal",
+  instagram: "Instagram",
+  tiktok: "TikTok",
+  lifestyle: "Lifestyle magazine",
+  forum: "Forum",
+  blog: "Blog",
+  reddit: "Reddit",
+  linkedin: "LinkedIn",
+  youtube: "YouTube",
+  whatsapp: "WhatsApp chat",
+  discord: "Discord chat",
+  imessage: "iMessage chat",
 };
 
 export const PRESET_DESCRIPTIONS: Record<Exclude<StudyTheme["presetKey"], "custom">, string> = {
@@ -186,6 +254,12 @@ export const PRESET_DESCRIPTIONS: Record<Exclude<StudyTheme["presetKey"], "custo
   lifestyle: "Mimics a lifestyle magazine site — warm serif editorial.",
   forum: "Mimics a discussion forum — posts render as threads.",
   blog: "Mimics a long-form blog — quiet serif reading column.",
+  reddit: "Mimics Reddit — posts render as upvotable threads.",
+  linkedin: "Mimics LinkedIn — posts render as professional updates.",
+  youtube: "Mimics YouTube — posts render as video pages.",
+  whatsapp: "Mimics a WhatsApp chat — posts arrive as forwarded messages.",
+  discord: "Mimics a Discord channel — posts arrive as chat messages.",
+  imessage: "Mimics an iMessage thread — posts arrive as text messages.",
 };
 
 /**
@@ -235,6 +309,36 @@ export const PRESET_WARNINGS: Record<StudyTheme["presetKey"], string[]> = {
   ],
   blog: [
     "Participants may believe they are reading a real blog — disclose the simulation in your consent text.",
+  ],
+  reddit: [
+    "Participants may believe they are on the real platform — your consent text must disclose that the appearance is simulated.",
+    "Platform mimicry can trigger deception-review requirements with your IRB / ethics board.",
+    "The mimicked look is for research stimuli only; do not reuse it outside this study.",
+  ],
+  linkedin: [
+    "Participants may believe they are on the real platform — your consent text must disclose that the appearance is simulated.",
+    "Platform mimicry can trigger deception-review requirements with your IRB / ethics board.",
+    "The mimicked look is for research stimuli only; do not reuse it outside this study.",
+  ],
+  youtube: [
+    "Participants may believe they are on the real platform — your consent text must disclose that the appearance is simulated.",
+    "Platform mimicry can trigger deception-review requirements with your IRB / ethics board.",
+    "The mimicked look is for research stimuli only; do not reuse it outside this study.",
+  ],
+  whatsapp: [
+    "Participants may believe they are reading a REAL private conversation — this is deception-sensitive; disclosure in consent text is essential.",
+    "Chat mimicry usually requires deception review by your IRB / ethics board.",
+    "The mimicked look is for research stimuli only; do not reuse it outside this study.",
+  ],
+  discord: [
+    "Participants may believe they are reading a REAL private conversation — this is deception-sensitive; disclosure in consent text is essential.",
+    "Chat mimicry usually requires deception review by your IRB / ethics board.",
+    "The mimicked look is for research stimuli only; do not reuse it outside this study.",
+  ],
+  imessage: [
+    "Participants may believe they are reading a REAL private conversation — this is deception-sensitive; disclosure in consent text is essential.",
+    "Chat mimicry usually requires deception review by your IRB / ethics board.",
+    "The mimicked look is for research stimuli only; do not reuse it outside this study.",
   ],
 };
 
@@ -312,4 +416,33 @@ export function themeToCssVars(t: StudyTheme): Record<string, string> {
     "--take-block-gap": DENSITY[t.shape.density].blockGap,
     "--take-field-gap": DENSITY[t.shape.density].fieldGap,
   };
+}
+
+/** Stable id of the auto-managed "Visual context" Overview section (ADR-0024). */
+export const VISUAL_CONTEXT_SECTION_ID = "preset-visual-context";
+
+type Overviewish = {
+  abstract: string;
+  hypotheses: string[];
+  sections: { id: string; heading: string; contentMd: string }[];
+  replicationNotes: string;
+};
+
+/**
+ * Overview auto-injection (ADR-0024 queued item): keep ONE auto-managed
+ * methodology section describing the chosen mimicking look — added/updated when
+ * a warned preset governs the theme, removed when the look is neutral. Pure.
+ */
+export function applyVisualContext<T extends Overviewish>(overview: T, theme: StudyTheme): T {
+  const key = effectivePresetKey(theme);
+  const sections = overview.sections.filter((s) => s.id !== VISUAL_CONTEXT_SECTION_ID);
+  if (key !== "custom" && PRESET_WARNINGS[key].length > 0) {
+    const label = PRESET_LABELS[key as Exclude<StudyTheme["presetKey"], "custom">];
+    sections.push({
+      id: VISUAL_CONTEXT_SECTION_ID,
+      heading: "Visual context (auto)",
+      contentMd: `Participants completed this study in an interface visually mimicking ${label}. The appearance was simulated for ecological validity; the researcher acknowledged the disclosure requirements (consent and ethics materials).`,
+    });
+  }
+  return { ...overview, sections };
 }

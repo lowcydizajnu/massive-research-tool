@@ -50,7 +50,7 @@ import { getBlockOverride } from "@/components/feature/take/block-overrides";
 
 describe("mimicking presets (Wave 5 quartet, ADR-0024)", () => {
   it("quartet presets exist, validate, and carry warnings; baselines carry none", () => {
-    for (const key of ["facebook", "x", "news", "business", "instagram", "tiktok", "lifestyle", "forum", "blog"] as const) {
+    for (const key of ["facebook", "x", "news", "business", "instagram", "tiktok", "lifestyle", "forum", "blog", "reddit", "linkedin", "youtube", "whatsapp", "discord", "imessage"] as const) {
       expect(studyThemeSchema.safeParse(THEME_PRESETS[key]).success).toBe(true);
       expect(PRESET_WARNINGS[key].length).toBeGreaterThan(0);
     }
@@ -70,6 +70,9 @@ describe("mimicking presets (Wave 5 quartet, ADR-0024)", () => {
     expect(getBlockOverride("x", "social-post")).not.toBeNull();
     expect(getBlockOverride("instagram", "social-post")).not.toBeNull();
     expect(getBlockOverride("forum", "social-post")).not.toBeNull();
+    for (const k of ["reddit", "linkedin", "youtube", "whatsapp", "discord", "imessage"]) {
+      expect(getBlockOverride(k, "social-post")).not.toBeNull();
+    }
     expect(getBlockOverride("facebook", "likert-7")).toBeNull();
     expect(getBlockOverride("academic", "social-post")).toBeNull();
     expect(getBlockOverride(undefined, "social-post")).toBeNull();
@@ -90,5 +93,38 @@ describe("effectivePresetKey (custom keeps the base preset's behaviour)", () => 
     const plain = { ...THEME_PRESETS.academic, presetKey: "custom" as const };
     expect(effectivePresetKey(plain)).toBe("custom");
     expect(requiresAcknowledgment(plain)).toBe(false);
+  });
+});
+
+
+import { VISUAL_CONTEXT_SECTION_ID, applyVisualContext } from "@/lib/themes/themes";
+import { getPageFrame } from "@/components/feature/take/page-frames";
+
+describe("Wave 5c — overview auto-injection + page frames", () => {
+  const overview = { abstract: "A", hypotheses: [], sections: [{ id: "own", heading: "Mine", contentMd: "x" }], replicationNotes: "" };
+
+  it("adds ONE auto Visual-context section for a mimicking look, updates on change, keeps researcher sections", () => {
+    const fb = applyVisualContext(overview, THEME_PRESETS.facebook);
+    expect(fb.sections.map((s) => s.id)).toEqual(["own", VISUAL_CONTEXT_SECTION_ID]);
+    expect(fb.sections[1].contentMd).toContain("Facebook");
+    const re = applyVisualContext(fb, THEME_PRESETS.reddit);
+    expect(re.sections.filter((s) => s.id === VISUAL_CONTEXT_SECTION_ID)).toHaveLength(1);
+    expect(re.sections.find((s) => s.id === VISUAL_CONTEXT_SECTION_ID)!.contentMd).toContain("Reddit");
+  });
+
+  it("removes the auto section when the look turns neutral; customized mimic keeps it", () => {
+    const fb = applyVisualContext(overview, THEME_PRESETS.facebook);
+    expect(applyVisualContext(fb, THEME_PRESETS.academic).sections.map((s) => s.id)).toEqual(["own"]);
+    const customFb = { ...THEME_PRESETS.facebook, presetKey: "custom" as const, basePresetKey: "facebook" as const };
+    expect(applyVisualContext(overview, customFb).sections.map((s) => s.id)).toEqual(["own", VISUAL_CONTEXT_SECTION_ID]);
+  });
+
+  it("page frames exist for every mimicking preset and not for baselines", () => {
+    for (const k of ["facebook", "x", "news", "business", "instagram", "tiktok", "lifestyle", "forum", "blog", "reddit", "linkedin", "youtube", "whatsapp", "discord", "imessage"]) {
+      expect(getPageFrame(k)).not.toBeNull();
+    }
+    for (const k of ["academic", "clinical", "modern", "playful", "custom", undefined]) {
+      expect(getPageFrame(k as string | undefined)).toBeNull();
+    }
   });
 });
