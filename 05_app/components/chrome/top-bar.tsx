@@ -1,14 +1,15 @@
 import { ChevronDown } from "lucide-react";
 
 import { AutosaveIndicator } from "@/components/chrome/autosave-indicator";
+import { CommandPalette } from "@/components/chrome/command-palette";
 import { Breadcrumb } from "@/components/chrome/breadcrumb";
 import { UserMenu } from "@/components/chrome/user-menu";
 import { NewStudyButton } from "@/components/feature/new-study/new-study-button";
 
 /**
  * Top bar — floating cap with workspace-global chrome (studies-destination
- * wireframe). Workspace switcher popover + ⌘K search are deferred (inert here);
- * `+ New study`, the breadcrumb, and the account menu (V1.12 A1) are live.
+ * wireframe). Workspace switcher popover is deferred; ⌘K (IA v0.4),
+ * `+ New study`, the breadcrumb, and the account menu are live.
  */
 export function TopBar({
   workspaceName,
@@ -40,13 +41,7 @@ export function TopBar({
 
       <AutosaveIndicator />
 
-      {/* ⌘K search (modal deferred) */}
-      <span
-        aria-hidden
-        className="rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] px-1.5 py-0.5 font-mono text-[length:var(--text-mono)] text-[var(--color-text-muted)]"
-      >
-        ⌘K
-      </span>
+      <CommandPalette />
 
       <NewStudyButton variant="topbar" />
 

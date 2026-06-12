@@ -2,6 +2,7 @@ import { X } from "lucide-react";
 import Link from "next/link";
 
 import { AutosaveIndicator } from "@/components/chrome/autosave-indicator";
+import { CommandPalette } from "@/components/chrome/command-palette";
 import { FocusedBreadcrumb } from "@/components/chrome/focused-breadcrumb";
 import { StudyActionsMenu } from "@/components/chrome/study-actions-menu";
 
@@ -30,6 +31,8 @@ export function FocusedTopBar({
       <div className="flex-1" />
 
       <AutosaveIndicator />
+
+      <CommandPalette />
 
       <StudyActionsMenu studyId={studyId} />
 
