@@ -50,6 +50,7 @@ import {
 import { changelogBetween, initialVersionSummary } from "@/server/modules/changelog";
 import { readConsent, type StudyConsent } from "@/server/modules/consent";
 import { runPreflight, type PreflightCheck } from "@/server/modules/preflight";
+import { divergenceAgainstPinned, injectReplicationRecipe, type DivergenceStatus } from "@/server/modules/replication";
 import { getModuleDef } from "@/server/modules/registry";
 import { protocolText } from "@/server/modules/protocol-text";
 import { applyVisualContext, readTheme, requiresAcknowledgment, studyThemeSchema } from "@/lib/themes/themes";
@@ -350,6 +351,8 @@ export type StudyListItem = {
 
 export type StudyBlock = {
   instanceId: string;
+  /** ADR-0039: why this block differs from the pinned original (forks only). */
+  divergenceNote: string | null;
   source: string;
   key: string;
   version: string;
@@ -664,6 +667,7 @@ const blockInstanceSchema = z.object({
   branchRules: z.array(z.object({ fromInstanceId: z.string(), equals: z.string() })).optional(),
   showIf: conditionGroupSchema.optional(),
   groupId: z.string().optional(), // ADR-0028 question-group membership
+  divergenceNote: z.string().max(1000).optional(), // ADR-0039 replication rationale
 });
 
 export const studiesRouter = router({
@@ -975,6 +979,7 @@ export const studiesRouter = router({
         // engagement controls) surface in the Configure panel for old blocks too.
         const def = getModuleDef(b.source, b.key, b.version);
         return {
+          divergenceNote: typeof b.divergenceNote === "string" ? b.divergenceNote : null,
           instanceId: b.instanceId,
           source: b.source,
           key: b.key,
@@ -1233,7 +1238,23 @@ export const studiesRouter = router({
         slug: c.slug,
         name: c.name,
       }));
-      return runPreflight({ snapshot: tip.version.definitionSnapshot, conditions, mode: input.mode });
+      // Replication-aware rows (ADR-0039): divergence vs the pinned original.
+      let replication: Parameters<typeof runPreflight>[0]["replication"];
+      if (tip.experiment.forkOfVersionId) {
+        const [pinned] = await db
+          .select({ snapshot: experimentVersion.definitionSnapshot })
+          .from(experimentVersion)
+          .where(eq(experimentVersion.id, tip.experiment.forkOfVersionId))
+          .limit(1);
+        if (pinned) {
+          const d = divergenceAgainstPinned(tip.version.definitionSnapshot, pinned.snapshot);
+          replication = {
+            intent: readOverview(tip.version.definitionSnapshot).replicationIntent ?? null,
+            diverged: d.diverged.map((x) => ({ name: x.name, hasNote: x.hasNote })),
+          };
+        }
+      }
+      return runPreflight({ snapshot: tip.version.definitionSnapshot, conditions, mode: input.mode, replication });
     }),
 
   listVersions: workspaceProcedure
@@ -1894,6 +1915,7 @@ export const studiesRouter = router({
           abstract: z.string().max(5000),
           hypotheses: z.array(z.string().max(1000)).max(30),
           replicationNotes: z.string().max(5000),
+          replicationIntent: z.enum(["direct", "conceptual", "extension"]).optional(),
           sections: z
             .array(
               z.object({
@@ -2986,14 +3008,22 @@ export const studiesRouter = router({
    * is private by default. No participant data is ever copied (ADR-0002 §6).
    */
   fork: writeProcedure
-    .input(z.object({ studyId: z.string().uuid() }))
+    .input(
+      z.object({
+        studyId: z.string().uuid(),
+        /** Declared replication kind (ADR-0039) — optional; skippable dialog. */
+        intent: z.enum(["direct", "conceptual", "extension"]).optional(),
+      }),
+    )
     .mutation(async ({ ctx, input }): Promise<{ id: string }> => {
       const source = await loadForkSource(input.studyId, ctx.dbUser.id);
       const blocks = readBlocks(source.version.definitionSnapshot);
       // A replication carries the WHOLE protocol: groups (minus moduleId — a
       // workspace-local custom-module link) + the Overview document (ADR-0028/0029).
       const groups = readGroups(source.version.definitionSnapshot).map(({ moduleId: _drop, ...g }) => g);
-      const overview = readOverview(source.version.definitionSnapshot);
+      const overview = input.intent
+        ? injectReplicationRecipe(readOverview(source.version.definitionSnapshot), source.experiment.title, input.intent)
+        : readOverview(source.version.definitionSnapshot);
       const theme = readTheme(source.version.definitionSnapshot);
       const consent = readConsent(source.version.definitionSnapshot);
       const sourceConditions = await conditionsForVersion(source.version.id);
@@ -3122,6 +3152,97 @@ export const studiesRouter = router({
       mine: r.tenantId === ctx.workspace.id,
     }));
   }),
+
+  /** Replication mode (ADR-0039): banner + per-block divergence badges vs the
+   *  version pinned at fork time. Null for non-replications. */
+  replicationStatus: workspaceProcedure
+    .input(z.object({ studyId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+      const pinnedId = tip.experiment.forkOfVersionId;
+      if (!pinnedId) return null;
+      const [pinned] = await db
+        .select({ snapshot: experimentVersion.definitionSnapshot, experimentId: experimentVersion.experimentId })
+        .from(experimentVersion)
+        .where(eq(experimentVersion.id, pinnedId))
+        .limit(1);
+      if (!pinned) return { sourceTitle: null, sourceAuthor: null, intent: readOverview(tip.version.definitionSnapshot).replicationIntent ?? null, badges: {} as Record<string, DivergenceStatus>, removedCount: 0, divergedCount: 0, sourceUnavailable: true };
+      const [src] = await db
+        .select({ title: experiment.title, ownerId: experiment.ownerId })
+        .from(experiment)
+        .where(eq(experiment.id, pinned.experimentId))
+        .limit(1);
+      const [author] = src?.ownerId
+        ? await db.select({ name: user.displayName }).from(user).where(eq(user.id, src.ownerId)).limit(1)
+        : [];
+      const d = divergenceAgainstPinned(tip.version.definitionSnapshot, pinned.snapshot);
+      return {
+        sourceTitle: src?.title ?? null,
+        sourceAuthor: author?.name ?? null,
+        intent: readOverview(tip.version.definitionSnapshot).replicationIntent ?? null,
+        badges: d.badges,
+        removedCount: d.removedCount,
+        divergedCount: d.diverged.length + d.removedCount,
+        sourceUnavailable: false,
+      };
+    }),
+
+  /** The pinned original of one block (Show-original toggle, ADR-0039). The
+   *  pinned version is the fork's own lineage pointer — the ADR-0018 read. */
+  upstreamBlock: workspaceProcedure
+    .input(z.object({ studyId: z.string().uuid(), instanceId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+      if (!tip.experiment.forkOfVersionId) return null;
+      const [pinned] = await db
+        .select({ snapshot: experimentVersion.definitionSnapshot })
+        .from(experimentVersion)
+        .where(eq(experimentVersion.id, tip.experiment.forkOfVersionId))
+        .limit(1);
+      if (!pinned) return null;
+      const b = readBlocks(pinned.snapshot).find((x) => x.instanceId === input.instanceId);
+      if (!b) return null;
+      return { title: b.title ?? null, config: b.config };
+    }),
+
+  /** Save why a block differs from the original (ADR-0039 rationale). */
+  setBlockDivergenceNote: writeProcedure
+    .input(z.object({ studyId: z.string().uuid(), instanceId: z.string(), note: z.string().max(1000) }))
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+      const blocks = readBlocks(tip.version.definitionSnapshot).map((b) =>
+        b.instanceId === input.instanceId
+          ? input.note.trim()
+            ? { ...b, divergenceNote: input.note.trim() }
+            : (({ divergenceNote: _d, ...rest }) => rest)(b)
+          : b,
+      );
+      await db
+        .update(experimentVersion)
+        .set({
+          definitionSnapshot: {
+            ...(tip.version.definitionSnapshot as Record<string, unknown>),
+            blocks,
+          },
+        })
+        .where(eq(experimentVersion.id, tip.version.id));
+      await db.update(experiment).set({ updatedAt: new Date() }).where(eq(experiment.id, input.studyId));
+      return { ok: true };
+    }),
+
+  /** Change the declared replication kind (banner chip, ADR-0039). */
+  setReplicationIntent: writeProcedure
+    .input(z.object({ studyId: z.string().uuid(), intent: z.enum(["direct", "conceptual", "extension"]) }))
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+      const overview = { ...readOverview(tip.version.definitionSnapshot), replicationIntent: input.intent };
+      await db
+        .update(experimentVersion)
+        .set({ definitionSnapshot: { ...(tip.version.definitionSnapshot as Record<string, unknown>), overview } })
+        .where(eq(experimentVersion.id, tip.version.id));
+      await db.update(experiment).set({ updatedAt: new Date() }).where(eq(experiment.id, input.studyId));
+      return { ok: true };
+    }),
 
   /** Per-block provenance (ADR-0038 — the blame analogue): which conscious
    *  save introduced/last-touched this block, and whether it changed since

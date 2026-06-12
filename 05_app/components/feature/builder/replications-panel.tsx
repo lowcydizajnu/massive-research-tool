@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
 
+import { ReplicateButton as BrowseReplicateButton } from "@/components/feature/browse/replicate-button";
 import { api } from "@/lib/trpc/react";
 import { IncomingProposalsSection, ProposeChangesSection } from "./proposals-section";
 import { cn } from "@/lib/utils";
@@ -109,27 +110,13 @@ function Divergence({ diff }: { diff: BlockDiff | null }) {
 }
 
 /** Replicate this study → fork into the caller's workspace, route to the fork. */
+/** Delegates to the dialog-equipped browse button (ADR-0039 intent dialog). */
 export function ReplicateButton({ studyId }: { studyId: string }) {
-  const router = useRouter();
-  const fork = api.studies.fork.useMutation({
-    onSuccess: ({ id }) => router.push(`/studies/${id}/build`),
-  });
   return (
-    <div className="flex flex-col gap-1">
-      <button
-        type="button"
-        disabled={fork.isPending}
-        onClick={() => fork.mutate({ studyId })}
-        className="w-fit rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-2.5 py-1 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)] disabled:opacity-60"
-      >
-        {fork.isPending ? "Replicating…" : "Replicate this study"}
-      </button>
-      {fork.error ? (
-        <span role="alert" className="text-[length:var(--text-small)] text-[var(--color-danger-text-on-subtle)]">
-          {fork.error.message}
-        </span>
-      ) : null}
-    </div>
+    <BrowseReplicateButton
+      studyId={studyId}
+      className="w-fit rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-2.5 py-1 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
+    />
   );
 }
 
