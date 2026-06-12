@@ -41,6 +41,7 @@ import {
   type PanelSide,
 } from "@/components/feature/settings/panel-side-toggle";
 import { PaneHandle, usePaneWidth } from "@/components/chrome/pane-resize";
+import { BlockHistoryPanel } from "./block-history-panel";
 import { BlockProvenance } from "./block-provenance";
 import { ConsentEditor } from "./consent-editor";
 
@@ -96,6 +97,9 @@ export function BuilderWorkspace({
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [panelTab, setPanelTab] = useState<"details" | "replications" | "versions" | "validation">("details");
+  // Tab WITHIN a selected block: Configure ↔ History (this block's own story).
+  const [blockTab, setBlockTab] = useState<"configure" | "history">("configure");
+  useEffect(() => setBlockTab("configure"), [selectedId]);
   // Right-panel side preference (IA v0.4 M4) — per device; live-updates from Settings.
   const [panelSide, setPanelSide] = useState<PanelSide>("right");
   useEffect(() => {
@@ -939,12 +943,26 @@ export function BuilderWorkspace({
               >
                 Details
               </button>
-              <span role="tab" aria-current="page" className={tabActiveCls}>
+              <button
+                type="button"
+                role="tab"
+                aria-current={blockTab === "configure" ? "page" : undefined}
+                onClick={() => setBlockTab("configure")}
+                className={blockTab === "configure" ? tabActiveCls : tabIdleCls}
+              >
                 Configure
-              </span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-current={blockTab === "history" ? "page" : undefined}
+                onClick={() => setBlockTab("history")}
+                className={blockTab === "history" ? tabActiveCls : tabIdleCls}
+              >
+                History
+              </button>
               {(
                 [
-                  ["History", "versions"],
                   ["Replications", "replications"],
                   ["Validation", "validation"],
                 ] as const
@@ -1007,7 +1025,9 @@ export function BuilderWorkspace({
           )}
         </nav>
 
-        {selected ? (
+        {selected && blockTab === "history" ? (
+          <BlockHistoryPanel studyId={study.id} instanceId={selected.instanceId} />
+        ) : selected ? (
           <>
             <BlockProvenance studyId={study.id} instanceId={selected.instanceId} />
             <ConfigureForm

@@ -3174,6 +3174,72 @@ export const studiesRouter = router({
       return { createdIn, lastChangedIn, editedSinceLastSave, sincePreregistration };
     }),
 
+  /** Per-block history (ADR-0038 companion to blockProvenance): what each
+   *  conscious save changed about THIS block, newest first — block-level
+   *  release notes derived from the frozen snapshots. */
+  blockHistory: workspaceProcedure
+    .input(z.object({ studyId: z.string().uuid(), instanceId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const rows = await db
+        .select({
+          kind: experimentVersion.kind,
+          versionNumber: experimentVersion.versionNumber,
+          snapshot: experimentVersion.definitionSnapshot,
+          createdAt: experimentVersion.createdAt,
+        })
+        .from(experimentVersion)
+        .innerJoin(experiment, eq(experimentVersion.experimentId, experiment.id))
+        .where(and(eq(experimentVersion.experimentId, input.studyId), eq(experiment.tenantId, ctx.workspace.id)))
+        .orderBy(experimentVersion.createdAt);
+      if (!rows.length) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const label = (r: (typeof rows)[number]) =>
+        r.kind === "preregistered"
+          ? `Preregistration v${r.versionNumber}`
+          : r.kind === "published"
+            ? `Published v${r.versionNumber}`
+            : `v${r.versionNumber}`;
+      const find = (snapshot: unknown) =>
+        readBlocks(snapshot).find((x) => x.instanceId === input.instanceId) ?? null;
+
+      type Entry = { label: string; date: string; kind: "introduced" | "changed" | "removed"; changes: string[] };
+      const entries: Entry[] = [];
+      let prev: BlockInstance | null = null;
+      for (const r of rows.filter((x) => x.kind !== "autosave")) {
+        const cur = find(r.snapshot);
+        if (cur && !prev) {
+          entries.push({ label: label(r), date: r.createdAt.toISOString(), kind: "introduced", changes: [] });
+        } else if (cur && prev) {
+          const changes = summarizeConfigDiff(prev, cur);
+          const titleChanged = (prev.title ?? "") !== (cur.title ?? "");
+          if (changes.length || titleChanged) {
+            entries.push({
+              label: label(r),
+              date: r.createdAt.toISOString(),
+              kind: "changed",
+              changes: [...(titleChanged ? [`~ Title: ${prev.title || "(module name)"} → ${cur.title || "(module name)"}`] : []), ...changes],
+            });
+          }
+        } else if (!cur && prev) {
+          entries.push({ label: label(r), date: r.createdAt.toISOString(), kind: "removed", changes: [] });
+        }
+        prev = cur;
+      }
+      const tip = rows.find((x) => x.kind === "autosave");
+      if (tip) {
+        const cur = find(tip.snapshot);
+        if (cur && !prev) {
+          entries.push({ label: "Working copy", date: tip.createdAt.toISOString(), kind: "introduced", changes: ["Not in any saved version yet"] });
+        } else if (cur && prev) {
+          const changes = summarizeConfigDiff(prev, cur);
+          if (changes.length) {
+            entries.push({ label: "Working copy (unsaved)", date: tip.createdAt.toISOString(), kind: "changed", changes });
+          }
+        }
+      }
+      return entries.reverse();
+    }),
+
   /** Copy a public study as a fresh starting point — NO lineage, fresh block
    *  identities (ADR-0038 — the template-repo analogue; vs Replicate/ADR-0018
    *  which preserves ids for diffing). */
