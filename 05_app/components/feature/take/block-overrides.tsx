@@ -37,6 +37,14 @@ function engagement(config: Record<string, unknown>) {
   };
 }
 
+/** Researcher-attached post image (uploaded or external — ADR-0003). */
+function PostImage({ config, className = "" }: { config: Record<string, unknown>; className?: string }) {
+  const url = str(config.imageUrl).trim();
+  if (!url) return null;
+  // eslint-disable-next-line @next/next/no-img-element -- researcher-supplied arbitrary URL
+  return <img src={url} alt="" className={`max-h-[420px] w-full object-cover ${className}`} />;
+}
+
 /** Facebook-style feed post (social-post stimulus under the facebook preset). */
 function FacebookSocialPost({ config, np = "", interactive = true }: OverrideProps) {
   const source = str(config.source) || "Shared page";
@@ -60,6 +68,7 @@ function FacebookSocialPost({ config, np = "", interactive = true }: OverridePro
       </div>
       {headline ? <p className="text-[15px] font-semibold">{headline}</p> : null}
       {body ? <p className="text-[15px] leading-snug">{body}</p> : null}
+      <PostImage config={config} className="-mx-3 max-h-[420px]" />
       {e.likes || e.comments || e.shares ? (
         <span className="text-[12px] text-[#65676B]">
           {e.likes ? `👍 ${fmt(e.likes)}` : ""}
@@ -108,6 +117,7 @@ function XSocialPost({ config, np = "", interactive = true }: OverrideProps) {
         </span>
         {headline ? <span className="text-[15px] font-semibold">{headline}</span> : null}
         {body ? <span className="text-[15px] leading-snug">{body}</span> : null}
+        <PostImage config={config} className="rounded-[16px] border border-[#2F3336]" />
         <span className="flex justify-between pt-1 text-[13px] text-[#71767B]">
           {e.allowComments ? <span>💬 {e.comments ? fmt(e.comments) : ""}</span> : null}
           <ReactionButton kind="shared" label="🔁" count={e.shares} activeCls="text-[#00BA7C]" />
@@ -145,9 +155,13 @@ function InstagramSocialPost({ config, np = "", interactive = true }: OverridePr
         <span className="text-[14px] font-semibold">{handle}</span>
         <span className="ml-auto text-[#8E8E8E]">···</span>
       </div>
-      <div className="flex min-h-[120px] items-center justify-center bg-[#FAFAFA] px-6 py-8 text-center">
-        <span className="text-[16px] font-semibold leading-snug">{headline || body}</span>
-      </div>
+      {str(config.imageUrl).trim() ? (
+        <PostImage config={config} className="max-h-[480px]" />
+      ) : (
+        <div className="flex min-h-[120px] items-center justify-center bg-[#FAFAFA] px-6 py-8 text-center">
+          <span className="text-[16px] font-semibold leading-snug">{headline || body}</span>
+        </div>
+      )}
       <div className="flex items-center gap-3 px-3 pt-2 text-[20px]">
         <ReactionButton kind="liked" label="♥" count={e.likes} activeCls="text-[#FF3040]" />
         {e.allowComments ? <span>💬{e.comments ? ` ${fmt(e.comments)}` : ""}</span> : null}
@@ -196,6 +210,7 @@ function ForumSocialPost({ config, np = "", interactive = true }: OverrideProps)
         </span>
         {headline ? <span className="text-[16px] font-semibold leading-snug">{headline}</span> : null}
         {body ? <span className="text-[14px] leading-snug">{body}</span> : null}
+        <PostImage config={config} className="rounded-[4px]" />
         <span className="flex items-center gap-2 pt-1 text-[12px] font-semibold text-[#787C7E]">
           {e.allowComments ? <span>💬 {e.comments ? `${fmt(e.comments)} comments` : "Comments"}</span> : null}
           <ReactionButton kind="shared" label="↗ Share" count={e.shares} activeCls="text-[#3B6EBF]" />
@@ -236,6 +251,7 @@ function RedditSocialPost({ config, np = "", interactive = true }: OverrideProps
         </span>
         {headline ? <span className="text-[17px] font-semibold leading-snug">{headline}</span> : null}
         {body ? <span className="text-[14px] leading-snug">{body}</span> : null}
+        <PostImage config={config} className="rounded-[8px]" />
         <span className="flex items-center gap-3 pt-1 text-[12px] font-bold text-[#878A8C]">
           {e.allowComments ? <span>💬 {e.comments ? fmt(e.comments) : ""} Comments</span> : null}
           <ReactionButton kind="shared" label="↗ Share" count={e.shares} activeCls="text-[#FF4500]" />
@@ -270,6 +286,7 @@ function LinkedInSocialPost({ config, np = "", interactive = true }: OverridePro
       </div>
       {headline ? <p className="text-[14px] font-semibold">{headline}</p> : null}
       {body ? <p className="text-[14px] leading-snug">{body}</p> : null}
+      <PostImage config={config} className="-mx-3 max-h-[420px]" />
       {e.likes || e.comments ? (
         <span className="text-[12px] text-[#666666]">
           {e.likes ? `👍❤️ ${fmt(e.likes)}` : ""}
@@ -300,8 +317,9 @@ function YouTubeSocialPost({ config, np = "", interactive = true }: OverrideProp
   return (
     <article className="flex flex-col gap-2 text-[#0F0F0F]">
       <ReactionGroup np={np} single={isSingle(config)} disabled={!interactive}>
-      <div aria-hidden className="flex aspect-video w-full items-center justify-center rounded-[12px] bg-black">
-        <span className="flex h-12 w-16 items-center justify-center rounded-[10px] bg-[#FF0000] text-[20px] text-white">▶</span>
+      <div aria-hidden className="relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-[12px] bg-black">
+        <PostImage config={config} className="absolute inset-0 h-full opacity-90" />
+        <span className="relative flex h-12 w-16 items-center justify-center rounded-[10px] bg-[#FF0000] text-[20px] text-white">▶</span>
       </div>
       {headline ? <p className="text-[16px] font-semibold leading-snug">{headline}</p> : null}
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -354,6 +372,7 @@ function ChatSocialPost(variant: "whatsapp" | "discord" | "imessage") {
           <span className={`text-[11px] italic ${styles.meta}`}>↪ Forwarded</span>
           {headline ? <span className="font-semibold">{headline}</span> : null}
           {body ? <span>{body}</span> : null}
+          <PostImage config={config} className="rounded-[8px]" />
         </div>
         <span className={`flex items-center gap-3 text-[13px] ${styles.meta}`}>
           <ReactionButton kind="liked" label="❤️" count={e.likes} activeCls={styles.like} />

@@ -127,6 +127,10 @@ function SocialPostView({
         </h2>
       ) : null}
       {body ? <p className="text-[length:var(--text-body)] text-[var(--color-text-primary)]">{body}</p> : null}
+      {str(config.imageUrl).trim() ? (
+        // eslint-disable-next-line @next/next/no-img-element -- researcher-supplied arbitrary URL
+        <img src={str(config.imageUrl)} alt="" className="max-h-[420px] w-full rounded-[var(--radius-md)] object-cover" />
+      ) : null}
       {likes || comments || shares ? (
         <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
           {likes ? `${likes} likes` : ""}
