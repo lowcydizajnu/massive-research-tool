@@ -67,6 +67,13 @@ Vertical structure:
 - The validation-failing warning row has `role="alert"` so screen readers announce it when it appears.
 - Esc closes the dialog (autosave unaffected); backdrop click closes only if form is unchanged.
 
+## Amendment (2026-06-12, ADR-0033)
+
+The dialog shows a **"What changed since the last save"** card above the save-type
+options: the working copy's auto-changelog vs the latest frozen version (derived on
+read — see ADR-0033), capped at 6 lines with a "+n more" tail. The same lines appear
+under every frozen version in the Versions sub-tab, GitHub-release style.
+
 ## Open questions
 
 - **Default option** — Save as named version (assumed; encourages the better-documented path per ADR-0009 default virtue) vs Continue autosaving (less friction, but loses the checkpoint nudge). Lean: named-version default. Reconsider once usage data exists.

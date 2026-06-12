@@ -96,6 +96,22 @@ export function VersionsPanel({
                   ) : null}
                 </span>
                 <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">{meta(v)}</span>
+                {/* Auto-changelog (ADR-0033): what this save changed; on the working
+                    copy, the pending changes the next save would freeze. */}
+                {v.changes.length > 0 && (!v.isWorkingCopy || v.hasUnsavedChanges) ? (
+                  <ul className="mt-0.5 flex flex-col gap-0.5">
+                    {v.changes.slice(0, 5).map((line, i) => (
+                      <li key={i} className="text-[length:var(--text-small)] leading-snug text-[var(--color-text-secondary)]">
+                        {line}
+                      </li>
+                    ))}
+                    {v.changes.length > 5 ? (
+                      <li className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                        +{v.changes.length - 5} more change{v.changes.length - 5 === 1 ? "" : "s"}
+                      </li>
+                    ) : null}
+                  </ul>
+                ) : null}
               </button>
 
               {open ? (
