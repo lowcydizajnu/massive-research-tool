@@ -9,7 +9,7 @@ import { StageTabs } from "@/components/chrome/stage-tabs";
 import { BlockVisibilityField } from "@/components/feature/builder/block-visibility-field";
 import { ConfigureForm } from "@/components/feature/builder/configure-form";
 import { ModeToggle } from "@/components/feature/builder/mode-toggle";
-import { ModulePicker } from "@/components/feature/builder/module-picker";
+import { BlockLibraryModal } from "@/components/feature/builder/block-library-modal";
 import { api } from "@/lib/trpc/react";
 import type { StudyBlock, StudyDetail } from "@/server/trpc/routers/studies";
 import { regroupAfterMove, setBlockGroup } from "@/lib/whiteboard/screens";
@@ -269,7 +269,7 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
                   Add block
                 </button>
                 {pickerOpen ? (
-                  <ModulePicker
+                  <BlockLibraryModal
                     pending={addBlock.isPending}
                     onClose={() => setPickerOpen(false)}
                     onInsert={(m) => addBlock.mutate({ studyId: study.id, ...m })}
