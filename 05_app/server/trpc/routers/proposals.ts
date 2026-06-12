@@ -191,13 +191,20 @@ export const proposalsRouter = router({
 
   /** Target side: conservative merge into the working draft, then close. */
   accept: writeProcedure
-    .input(z.object({ proposalId: z.string(), comment: z.string().trim().max(2000).default("") }))
+    .input(
+      z.object({
+        proposalId: z.string(),
+        comment: z.string().trim().max(2000).default(""),
+        /** Proposal-removed blocks the owner ALSO wants removed (opt-in). */
+        applyDeletions: z.array(z.string()).max(200).default([]),
+      }),
+    )
     .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
       const { p, target } = await loadIncoming(input.proposalId, ctx.workspace.id);
       if (p.status !== "open") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "This proposal was already decided." });
       const tip = await loadWorkingTip(target.id, ctx.workspace.id);
 
-      const { blocks, groups } = mergeProposal(tip.version.definitionSnapshot, p.proposedSnapshot);
+      const { blocks, groups } = mergeProposal(tip.version.definitionSnapshot, p.proposedSnapshot, input.applyDeletions);
       const snap =
         tip.version.definitionSnapshot && typeof tip.version.definitionSnapshot === "object"
           ? (tip.version.definitionSnapshot as Record<string, unknown>)

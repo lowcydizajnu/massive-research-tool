@@ -1,6 +1,8 @@
 "use client";
 
 import { GripVertical, Plus, Redo2, Trash2, Undo2 } from "lucide-react";
+import Link from "next/link";
+import type { Route } from "next";
 import { useEffect, useState } from "react";
 
 import { SortableList } from "@/components/feature/whiteboard/sortable-list";
@@ -556,6 +558,12 @@ export function BuilderWorkspace({
               >
                 <Redo2 className="size-4" aria-hidden />
               </button>
+              <Link
+                href={`/studies/${study.id}/build/whiteboard/compare` as Route}
+                className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-1.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
+              >
+                Compare versions
+              </Link>
               <ModeToggle studyId={study.id} mode="builder" />
               <button
                 type="button"

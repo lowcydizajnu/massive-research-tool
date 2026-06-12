@@ -118,16 +118,18 @@ describe("proposals (ADR-0036)", () => {
     const review = await hanna.proposals.review({ proposalId });
     expect(review.mergePreview.added).toBe(1); // attention check
     expect(review.mergePreview.updated).toBe(1); // reworded likert
-    expect(review.mergePreview.deletionsNotApplied).toHaveLength(1); // Hanna's slider survives
+    expect(review.mergePreview.deletions).toHaveLength(1); // Hanna's slider — owner's call
     expect(review.blockRows.some((r) => r.status === "changed")).toBe(true);
     expect(review.textDiff.some((l) => l.type !== "same")).toBe(true);
 
-    await hanna.proposals.accept({ proposalId, comment: "Nice catch." });
+    // Opt-in deletions: accepting WITH the slider ticked removes it too.
+    const deletionIds = review.mergePreview.deletions.map((d) => d.instanceId);
+    await hanna.proposals.accept({ proposalId, comment: "Nice catch.", applyDeletions: deletionIds });
 
     const draft = await hanna.studies.get({ id: originId });
     const ids = draft.blocks.map((b) => b.instanceId);
     expect(ids).toContain(added.instanceId); // added block merged
-    expect(ids).toContain(hannaOnly.instanceId); // deletion NOT applied
+    expect(ids).not.toContain(hannaOnly.instanceId); // owner opted into the deletion
     const merged = draft.blocks.find((b) => b.instanceId === likertId)!;
     expect(merged.config.prompt).toBe("How truthful is this post?");
 

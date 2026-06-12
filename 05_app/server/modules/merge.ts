@@ -17,8 +17,9 @@ import {
 export type MergePreview = {
   added: number;
   updated: number;
-  /** Blocks the proposal removed — listed, never auto-applied. */
-  deletionsNotApplied: string[];
+  /** Blocks the proposal removed — applied only when the owner opts in
+   *  per block (ADR-0036 amendment 2026-06-12). */
+  deletions: { instanceId: string; name: string }[];
 };
 
 const sameBlock = (a: BlockInstance, b: BlockInstance): boolean =>
@@ -27,6 +28,8 @@ const sameBlock = (a: BlockInstance, b: BlockInstance): boolean =>
 export function mergeProposal(
   targetSnapshot: unknown,
   proposedSnapshot: unknown,
+  /** instanceIds of proposal-removed blocks the owner chose to remove too. */
+  applyDeletions: string[] = [],
 ): { blocks: BlockInstance[]; groups: StudyGroup[]; preview: MergePreview } {
   const target = readBlocks(targetSnapshot);
   const proposal = readBlocks(proposedSnapshot);
@@ -37,7 +40,7 @@ export function mergeProposal(
   let updated = 0;
 
   // Updates: blocks in both take the proposal's version, keeping the target's position.
-  const result: BlockInstance[] = target.map((b) => {
+  let result: BlockInstance[] = target.map((b) => {
     const p = proposalById.get(b.instanceId);
     if (p && !sameBlock(p, b)) {
       updated += 1;
@@ -74,13 +77,32 @@ export function mergeProposal(
     .filter((g) => referenced.has(g.id) && !have.has(g.id))
     .map(({ moduleId: _drop, ...g }) => g);
 
-  const deletionsNotApplied = target
+  const deletions = target
     .filter((b) => !proposalById.has(b.instanceId))
-    .map((b) => (typeof b.title === "string" && b.title.trim()) || blockDisplay(b).name);
+    .map((b) => ({
+      instanceId: b.instanceId,
+      name: (typeof b.title === "string" && b.title.trim()) || blockDisplay(b).name,
+    }));
+
+  // Owner-selected deletions (only legit candidates count), then drop any
+  // show-if clause that referenced a removed block so nothing dangles.
+  const removable = new Set(deletions.map((d) => d.instanceId));
+  const toRemove = new Set(applyDeletions.filter((id) => removable.has(id)));
+  if (toRemove.size) {
+    result = result.filter((b) => !toRemove.has(b.instanceId));
+    const present = new Set(result.map((b) => b.instanceId));
+    result = result.map((b) => {
+      if (!b.showIf) return b;
+      const clauses = b.showIf.clauses.filter((c) => present.has(c.fromInstanceId));
+      if (clauses.length === b.showIf.clauses.length) return b;
+      const { showIf: _drop, ...rest } = b;
+      return clauses.length ? { ...rest, showIf: { ...b.showIf, clauses } } : rest;
+    });
+  }
 
   return {
     blocks: result,
     groups: [...targetGroups, ...broughtIn],
-    preview: { added, updated, deletionsNotApplied },
+    preview: { added, updated, deletions },
   };
 }
