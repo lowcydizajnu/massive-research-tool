@@ -33,7 +33,7 @@ The top bar is a flat flush strip (no boxed card — per owner: "make nav part o
 - **Workspace name** — left edge, muted small text; from server (`workspace.active`). Orientation only — the switcher popover stays deferred (single-workspace reality).
 - **Breadcrumb `Studies / [Study Title]`** — `Studies` is a real link back to `/studies`; the title is the studies.get cache read (Plex Serif, primary color, truncated ~220px). Inline title editing stays on the Details panel (already shipped V1.8.2) — not duplicated here.
 - **Autosave indicator** — existing `AutosaveIndicator` component, unchanged.
-- **⋯ More menu** — per-study actions that already have backends: Export summary (PDF) → `/studies/[id]/export-pdf`; Export data (CSV) → `/studies/[id]/results/export`; Archive study → `studies.archive` (new mutation; sets `archived_at`, returns to `/studies`). Duplicate / Delete are deferred to the Wave 6 bulk-operations slice (no backend yet — why-not: inventing them here would bypass that spec).
+- **⋯ More menu** — per-study actions that already have backends: Export summary (PDF) → `/studies/[id]/export-pdf`; Export data (CSV) → `/studies/[id]/results/export`; Archive study ↔ Unarchive (`studies.archive`/`studies.unarchive`); **Delete study** (danger-toned, double-confirmed — ADR-0037; hard delete, forks survive with lineage nulled). Duplicate stays with Wave 6 bulk ops.
 - **✕ Close** — returns to `/studies`. Static `aria-label="Close study"`.
 - **Stage tabs + work surface + right panel** — unchanged from the build-stage wireframes; they simply gain the rail's width. The work-surface ↔ context-panel divider is draggable (220–480px, default 250, double-click reset, per-device persistence — same handle pattern as the rail; works on either panel side).
 

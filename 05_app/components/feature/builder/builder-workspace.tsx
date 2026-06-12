@@ -38,6 +38,7 @@ import {
   type PanelSide,
 } from "@/components/feature/settings/panel-side-toggle";
 import { PaneHandle, usePaneWidth } from "@/components/chrome/pane-resize";
+import { BlockProvenance } from "./block-provenance";
 import { ConsentEditor } from "./consent-editor";
 
 /**
@@ -418,6 +419,7 @@ export function BuilderWorkspace({
     },
   });
   const removeModuleMut = api.studies.removeCustomModule.useMutation({ onSuccess: () => void customModulesQ.refetch() });
+  const setPublicMut = api.studies.setModulePublic.useMutation({ onSuccess: () => void customModulesQ.refetch() });
   const saveBlockMut = api.studies.saveBlockAsModule.useMutation({
     onSuccess: () => {
       setSavedMsg("Saved as a reusable block.");
@@ -972,6 +974,7 @@ export function BuilderWorkspace({
 
         {selected ? (
           <>
+            <BlockProvenance studyId={study.id} instanceId={selected.instanceId} />
             <ConfigureForm
               key={`${selected.instanceId}-${panelEpoch}`}
               block={selected}

@@ -175,6 +175,8 @@ export const customModule = pgTable("custom_module", {
     .references(() => workspace.id),
   name: text("name").notNull(),
   definition: jsonb("definition").notNull(),
+  /** Published to the cross-workspace Community library (ADR-0038). */
+  isPublic: boolean("is_public").notNull().default(false),
   createdBy: uuid("created_by")
     .notNull()
     .references(() => user.id),

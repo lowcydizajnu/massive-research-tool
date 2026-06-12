@@ -1314,3 +1314,148 @@ describe("studies.setConsent (ADR-0035)", () => {
     expect(c.agreeLabel).toBe("Agree — begin"); // empty → default
   });
 });
+
+describe("studies.delete + unarchive (ADR-0037)", () => {
+  it("hard-deletes the full chain (versions, recruitment, responses); forks survive with lineage nulled", async () => {
+    await seedUserWithWorkspace("hanna", "Hanna Lab");
+    await seedUserWithWorkspace("sofia", "Sofia Lab");
+    const hanna = createCaller({ authUser: authUser("hanna") });
+    const sofia = createCaller({ authUser: authUser("sofia") });
+
+    const { id } = await hanna.studies.create({ kind: "blank", title: "Doomed" });
+    await hanna.studies.addBlock({ studyId: id, source: "core", key: "likert-7", version: "1.0.0" });
+    await hanna.studies.publish({ studyId: id });
+    await hanna.studies.setForkable({ studyId: id, forkableBy: "public" });
+    await hanna.studies.openRecruitment({ studyId: id });
+    const open = await resolveOpenRecruitment(id);
+    const started = await startResponse({ recruitmentSessionId: open!.recruitmentSessionId, mode: "run", externalPid: null });
+    expect("responseId" in started!).toBe(true);
+    const { id: forkId } = await sofia.studies.fork({ studyId: id });
+
+    await hanna.studies.delete({ studyId: id });
+
+    await expect(hanna.studies.get({ id })).rejects.toThrow();
+    expect(await db.select().from(experimentVersion).then((r) => r.filter((v) => v.experimentId === id))).toHaveLength(0);
+    expect(await db.select().from(response)).toHaveLength(0);
+    const [fork] = await db.select().from(experiment).where(eq(experiment.id, forkId));
+    expect(fork).toBeDefined();
+    expect(fork.forkOfExperimentId).toBeNull();
+  });
+
+  it("unarchive brings a study back to the default list; both are tenant-scoped", async () => {
+    await seedUserWithWorkspace("ext_a", "Lab A");
+    await seedUserWithWorkspace("ext_b", "Lab B");
+    const a = createCaller({ authUser: authUser("ext_a") });
+    const b = createCaller({ authUser: authUser("ext_b") });
+    const { id } = await a.studies.create({ kind: "blank", title: "Shelved" });
+    await a.studies.archive({ studyId: id });
+    await expect(b.studies.unarchive({ studyId: id })).rejects.toThrow();
+    await expect(b.studies.delete({ studyId: id })).rejects.toThrow();
+    await a.studies.unarchive({ studyId: id });
+    expect((await a.studies.list()).find((s) => s.id === id)).toBeDefined();
+  });
+});
+
+describe("getResults field-group per-field columns (ADR-0030 export)", () => {
+  it("expands a field-group into one question/column per field", async () => {
+    await seedUserWithWorkspace("ext_a", "Lab A");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "Form study" });
+    const fg = await caller.studies.addBlock({ studyId: id, source: "core", key: "field-group", version: "1.0.0" });
+    const block = (await caller.studies.get({ id })).blocks.find((b) => b.instanceId === fg.instanceId)!;
+    await caller.studies.updateBlockConfig({
+      studyId: id,
+      instanceId: fg.instanceId,
+      config: {
+        ...block.config,
+        prompt: "About you",
+        fields: [
+          { key: "nick", label: "Nickname", type: "text" },
+          { key: "age", label: "Age", type: "number" },
+        ],
+      },
+    });
+    await caller.studies.publish({ studyId: id });
+    await caller.studies.openRecruitment({ studyId: id });
+    const open = await resolveOpenRecruitment(id);
+    const started = await startResponse({ recruitmentSessionId: open!.recruitmentSessionId, mode: "run", externalPid: null });
+    const responseId = (started as { responseId: string }).responseId;
+    await recordAnswer({ responseId, questionIndex: 0, answer: { values: { nick: "Ana", age: 30 } } });
+
+    const results = await caller.studies.getResults({ studyId: id });
+    const keys = results!.questions.map((q) => q.instanceId);
+    expect(keys).toContain(`${fg.instanceId}.nick`);
+    expect(keys).toContain(`${fg.instanceId}.age`);
+    const ageQ = results!.questions.find((q) => q.instanceId === `${fg.instanceId}.age`)!;
+    expect(ageQ.kind).toBe("numeric");
+    expect(ageQ.mean).toBe(30);
+    expect(ageQ.prompt).toContain("Age");
+    const row = results!.rows[0];
+    expect(row.answers[`${fg.instanceId}.nick`]).toBe("Ana");
+    expect(row.answers[`${fg.instanceId}.age`]).toBe("30");
+  });
+});
+
+describe("GitHub medium tier (ADR-0038)", () => {
+  it("blockProvenance: introduced/changed versions + preregistration drift", async () => {
+    await seedUserWithWorkspace("ext_a", "Lab A");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "Prov" });
+    const b = await caller.studies.addBlock({ studyId: id, source: "core", key: "likert-7", version: "1.0.0" });
+    await caller.studies.saveAsNamed({ studyId: id, name: "v1" });
+    const block = (await caller.studies.get({ id })).blocks[0];
+    await caller.studies.updateBlockConfig({
+      studyId: id,
+      instanceId: b.instanceId,
+      config: { ...block.config, prompt: "Reworded" },
+    });
+    await caller.studies.saveAsNamed({ studyId: id, name: "v2" });
+    const prov = await caller.studies.blockProvenance({ studyId: id, instanceId: b.instanceId });
+    expect(prov.createdIn).toBe("v1");
+    expect(prov.lastChangedIn).toBe("v2");
+    expect(prov.sincePreregistration).toBeNull(); // never preregistered
+  });
+
+  it("useAsTemplate copies a public study with fresh identities and NO lineage", async () => {
+    await seedUserWithWorkspace("hanna", "Hanna Lab");
+    await seedUserWithWorkspace("sofia", "Sofia Lab");
+    const hanna = createCaller({ authUser: authUser("hanna") });
+    const sofia = createCaller({ authUser: authUser("sofia") });
+    const { id } = await hanna.studies.create({ kind: "blank", title: "Template src" });
+    const src = await hanna.studies.addBlock({ studyId: id, source: "core", key: "likert-7", version: "1.0.0" });
+    await hanna.studies.publish({ studyId: id });
+    await hanna.studies.setForkable({ studyId: id, forkableBy: "public" });
+
+    const { id: copyId } = await sofia.studies.useAsTemplate({ studyId: id });
+    const copy = await sofia.studies.get({ id: copyId });
+    expect(copy.title).toContain("from template");
+    expect(copy.blocks).toHaveLength(1);
+    expect(copy.blocks[0].instanceId).not.toBe(src.instanceId); // fresh identity
+    const [row] = await db.select().from(experiment).where(eq(experiment.id, copyId));
+    expect(row.forkOfExperimentId).toBeNull(); // NO lineage
+    expect((await sofia.studies.getReplications({ studyId: copyId })).parent).toBeNull();
+  });
+
+  it("community modules: publish → visible + insertable cross-workspace (copy-on-insert)", async () => {
+    await seedUserWithWorkspace("hanna", "Hanna Lab");
+    await seedUserWithWorkspace("sofia", "Sofia Lab");
+    const hanna = createCaller({ authUser: authUser("hanna") });
+    const sofia = createCaller({ authUser: authUser("sofia") });
+    const { id } = await hanna.studies.create({ kind: "blank", title: "Mod src" });
+    const b = await hanna.studies.addBlock({ studyId: id, source: "core", key: "likert-7", version: "1.0.0" });
+    const saved = await hanna.studies.saveBlockAsModule({ studyId: id, instanceId: b.instanceId, name: "Nice likert" });
+
+    // Private: invisible + not insertable for Sofia.
+    expect((await sofia.studies.listCommunityModules()).filter((m) => !m.mine)).toHaveLength(0);
+    const { id: sofiaStudy } = await sofia.studies.create({ kind: "blank", title: "Uses it" });
+    await expect(sofia.studies.insertCustomModule({ studyId: sofiaStudy, customModuleId: saved.id })).rejects.toThrow();
+
+    await hanna.studies.setModulePublic({ id: saved.id, isPublic: true });
+    await expect(sofia.studies.setModulePublic({ id: saved.id, isPublic: false })).rejects.toThrow(); // not hers
+    const visible = (await sofia.studies.listCommunityModules()).filter((m) => !m.mine);
+    expect(visible).toHaveLength(1);
+    expect(visible[0].authorName).toBe("hanna");
+    await sofia.studies.insertCustomModule({ studyId: sofiaStudy, customModuleId: saved.id });
+    expect((await sofia.studies.get({ id: sofiaStudy })).blocks).toHaveLength(1);
+  });
+});
