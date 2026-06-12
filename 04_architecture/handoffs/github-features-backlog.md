@@ -24,7 +24,7 @@ used, no dead branching. Red items link to the offending block. Researcher-nativ
 framing: methodological linting, not "CI". Needs a small rules engine + a gate surface
 on the Preregister/Publish flows; ADR for the rule set.
 
-### 1. Pull requests → "Propose changes" (flagship — full design pass required)
+### 1. Pull requests → "Propose changes" — ✅ SHIPPED V1.27.0 (ADR-0036)
 A replicator/collaborator proposes their divergence back to the original study; the
 owner reviews the existing diff view (visual + text) and accepts into their working
 draft or declines with a comment. Completes fork → diverge → contribute-back; no

@@ -71,6 +71,13 @@
       "when": 1780972601492,
       "tag": "0009_colossal_charles_xavier",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1781277797712,
+      "tag": "0010_fair_carnage",
+      "breakpoints": true
     }
   ]
 }

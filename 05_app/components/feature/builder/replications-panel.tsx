@@ -5,6 +5,7 @@ import type { Route } from "next";
 import { useRouter } from "next/navigation";
 
 import { api } from "@/lib/trpc/react";
+import { IncomingProposalsSection, ProposeChangesSection } from "./proposals-section";
 import { cn } from "@/lib/utils";
 import type { BlockDiff } from "@/server/modules/blocks";
 
@@ -43,6 +44,7 @@ export function ReplicationsPanel({ studyId }: { studyId: string }) {
       >
         View full lineage →
       </Link>
+      <IncomingProposalsSection studyId={studyId} />
       {parent ? (
         <section className="flex flex-col gap-1 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-3">
           <span className="text-[length:var(--text-label)] uppercase tracking-wide text-[var(--color-text-muted)]">
@@ -61,6 +63,7 @@ export function ReplicationsPanel({ studyId }: { studyId: string }) {
               Compare side by side →
             </Link>
           ) : null}
+          <ProposeChangesSection studyId={studyId} upstreamTitle={parent.title} />
         </section>
       ) : null}
 

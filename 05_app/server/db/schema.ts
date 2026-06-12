@@ -182,6 +182,35 @@ export const customModule = pgTable("custom_module", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/* ---------- change proposals (ADR-0036, PR-lite) ---------- */
+
+/**
+ * A replicator's offer of their divergence back to the upstream study. Self-
+ * contained: `proposed_snapshot` is a FROZEN copy of the fork's definition at
+ * propose time, so review never reads the fork again (the proposal row is the
+ * second sanctioned cross-tenant surface after ADR-0018's fork-source read).
+ */
+export const changeProposal = pgTable("change_proposal", {
+  id: text("id").primaryKey(), // ULID
+  sourceExperimentId: uuid("source_experiment_id")
+    .notNull()
+    .references(() => experiment.id),
+  targetExperimentId: uuid("target_experiment_id")
+    .notNull()
+    .references(() => experiment.id),
+  proposerUserId: uuid("proposer_user_id")
+    .notNull()
+    .references(() => user.id),
+  title: text("title").notNull(),
+  message: text("message").notNull().default(""),
+  proposedSnapshot: jsonb("proposed_snapshot").notNull(),
+  status: text("status").notNull().default("open"), // open | accepted | declined | withdrawn
+  decisionComment: text("decision_comment"),
+  decidedBy: uuid("decided_by").references(() => user.id),
+  decidedAt: timestamp("decided_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 /* ---------- module catalogue (data-model 02 / ADR-0012) ---------- */
 
 // NB: exported as `moduleTable`, NOT `module` — `module` is the CommonJS module

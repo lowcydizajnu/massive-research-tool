@@ -13,7 +13,9 @@ export type EventType =
   | "osf_push_complete" // your preregistration's OSF push completed
   | "review_request" // someone hit "Save & request review" mentioning you
   | "preregister_complete" // a study (yours or one you follow) was preregistered
-  | "new_named_version"; // a study you follow saved a new named version
+  | "new_named_version" // a study you follow saved a new named version
+  | "proposal_open" // someone proposed changes to your study (ADR-0036)
+  | "proposal_decided"; // your proposal was accepted/declined
 
 export const EVENT_TYPES: EventType[] = [
   "mention",
@@ -24,6 +26,8 @@ export const EVENT_TYPES: EventType[] = [
   "review_request",
   "preregister_complete",
   "new_named_version",
+  "proposal_open",
+  "proposal_decided",
 ];
 
 /**
