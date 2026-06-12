@@ -32,6 +32,11 @@ import { ForkableControl, ReplicateButton, ReplicationsPanel } from "./replicati
 import { SaveVersionDialog } from "./save-version-dialog";
 import { TagsSection } from "./tags-section";
 import { VersionsPanel } from "./versions-panel";
+import {
+  PANEL_SIDE_EVENT,
+  readPanelSide,
+  type PanelSide,
+} from "@/components/feature/settings/panel-side-toggle";
 
 /**
  * Builder mode — the interactive three-zone body (build-stage-builder-mode.md).
@@ -85,6 +90,14 @@ export function BuilderWorkspace({
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [panelTab, setPanelTab] = useState<"details" | "replications" | "versions">("details");
+  // Right-panel side preference (IA v0.4 M4) — per device; live-updates from Settings.
+  const [panelSide, setPanelSide] = useState<PanelSide>("right");
+  useEffect(() => {
+    setPanelSide(readPanelSide());
+    const onChange = (e: Event) => setPanelSide((e as CustomEvent<PanelSide>).detail);
+    window.addEventListener(PANEL_SIDE_EVENT, onChange);
+    return () => window.removeEventListener(PANEL_SIDE_EVENT, onChange);
+  }, []);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
@@ -712,8 +725,8 @@ export function BuilderWorkspace({
         </div>
       </main>
 
-      {/* Right context panel */}
-      <aside className="flex w-[250px] shrink-0 flex-col gap-4 self-start rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-panel)] p-4">
+      {/* Right context panel (or left, per the Settings preference) */}
+      <aside className={`flex w-[250px] shrink-0 flex-col gap-4 self-start rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-panel)] p-4 ${panelSide === "left" ? "order-first" : ""}`}>
         <nav role="tablist" aria-label="Context" className="flex flex-wrap gap-1">
           {selected ? (
             <>

@@ -1244,3 +1244,23 @@ describe("studies.compareVersions (V1.8 Stream A, ADR-0020 §A6)", () => {
     await expect(b.studies.compareVersions({ studyId: id, vs: v1.id })).rejects.toThrow();
   });
 });
+
+describe("studies.archive (IA v0.4 focused-mode ⋯ menu)", () => {
+  it("archives: gone from the default list, present under the archived filter", async () => {
+    await seedUserWithWorkspace("ext_a", "Lab A");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "To shelve" });
+    await caller.studies.archive({ studyId: id });
+    expect((await caller.studies.list()).find((s) => s.id === id)).toBeUndefined();
+    expect((await caller.studies.list({ filter: "archived" })).find((s) => s.id === id)).toBeDefined();
+  });
+
+  it("is tenant-scoped — another workspace's study is NOT_FOUND", async () => {
+    await seedUserWithWorkspace("hanna", "Hanna Lab");
+    await seedUserWithWorkspace("sofia", "Sofia Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const b = createCaller({ authUser: authUser("sofia") });
+    const { id } = await a.studies.create({ kind: "blank", title: "Mine" });
+    await expect(b.studies.archive({ studyId: id })).rejects.toThrow();
+  });
+});
