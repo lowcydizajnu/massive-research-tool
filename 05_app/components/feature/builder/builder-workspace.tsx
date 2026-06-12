@@ -27,7 +27,7 @@ import type { StudyBlock, StudyDetail } from "@/server/trpc/routers/studies";
 import { BlockVisibilityField } from "./block-visibility-field";
 import { ConditionsSection } from "./conditions-section";
 import { ConfigureForm } from "./configure-form";
-import { ModulePicker } from "./module-picker";
+import { BlockLibraryModal } from "./block-library-modal";
 import { ForkableControl, ReplicateButton, ReplicationsPanel } from "./replications-panel";
 import { SaveVersionDialog } from "./save-version-dialog";
 import { TagsSection } from "./tags-section";
@@ -514,14 +514,31 @@ export function BuilderWorkspace({
 
           {/* Blocks */}
           <section className="flex flex-col gap-3">
-            <h2 className="border-b border-[var(--color-border-subtle)] pb-1 font-serif text-[17px] font-medium text-[var(--color-text-primary)]">
-              Blocks
-            </h2>
+            <div className="flex items-center justify-between border-b border-[var(--color-border-subtle)] pb-1">
+              <h2 className="font-serif text-[17px] font-medium text-[var(--color-text-primary)]">Blocks</h2>
+              <button
+                type="button"
+                onClick={() => setPickerOpen(true)}
+                className="flex items-center gap-1 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-2.5 py-1 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
+              >
+                <Plus className="size-3.5" aria-hidden />
+                Add block
+              </button>
+            </div>
 
             {study.blocks.length === 0 ? (
-              <p className="rounded-[var(--radius-md)] bg-[var(--color-surface-subtle)] p-6 text-center text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
-                No blocks yet. Add your first to start building.
-              </p>
+              <div className="flex flex-col items-center gap-3 rounded-[var(--radius-md)] bg-[var(--color-surface-subtle)] p-10 text-center">
+                <p className="text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
+                  No blocks yet — your study starts here.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setPickerOpen(true)}
+                  className="rounded-[var(--radius-md)] bg-[var(--color-primary)] px-4 py-2 text-[length:var(--text-body-emphasis)] font-medium text-white hover:opacity-90"
+                >
+                  Browse the block library
+                </button>
+              </div>
             ) : (
               <SortableList
                 ids={listIds()}
@@ -769,27 +786,27 @@ export function BuilderWorkspace({
               </SortableList>
             )}
 
-            <div className="relative self-start">
+            <div className="self-start">
               <button
                 type="button"
-                onClick={() => setPickerOpen((v) => !v)}
+                onClick={() => setPickerOpen(true)}
                 className="flex items-center gap-1 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-1.5 text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
               >
                 <Plus className="size-4" aria-hidden />
                 Add block
               </button>
-              {pickerOpen ? (
-                <ModulePicker
-                  pending={addBlock.isPending}
-                  onClose={() => setPickerOpen(false)}
-                  onInsert={(m) => addBlock.mutate({ studyId: study.id, ...m })}
-                  customModules={customModulesQ.data ?? []}
-                  insertingModule={insertModuleMut.isPending}
-                  onInsertCustomModule={(id) => insertModuleMut.mutate({ studyId: study.id, customModuleId: id })}
-                  onRemoveCustomModule={(id) => removeModuleMut.mutate({ id })}
-                />
-              ) : null}
             </div>
+            {pickerOpen ? (
+              <BlockLibraryModal
+                pending={addBlock.isPending}
+                onClose={() => setPickerOpen(false)}
+                onInsert={(m) => addBlock.mutate({ studyId: study.id, ...m })}
+                customModules={customModulesQ.data ?? []}
+                insertingModule={insertModuleMut.isPending}
+                onInsertCustomModule={(id) => insertModuleMut.mutate({ studyId: study.id, customModuleId: id })}
+                onRemoveCustomModule={(id) => removeModuleMut.mutate({ id })}
+              />
+            ) : null}
           </section>
         </div>
       </main>

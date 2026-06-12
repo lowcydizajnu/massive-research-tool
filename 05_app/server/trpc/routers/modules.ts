@@ -1,6 +1,7 @@
 import { eq, isNull } from "drizzle-orm";
 
 import { db } from "@/server/db/client";
+import { getModuleDef } from "@/server/modules/registry";
 import { moduleTable, moduleVersion } from "@/server/db/schema";
 import { router, workspaceProcedure } from "@/server/trpc/trpc";
 
@@ -11,6 +12,9 @@ export type CatalogueModule = {
   name: string;
   description: string;
   categoryTags: string[];
+  /** Whether the block records a participant answer (vs stimulus-only) —
+   *  enriched from the in-code registry; the catalogue rows don't store it. */
+  collectsResponse: boolean;
 };
 
 export const modulesRouter = router({
@@ -29,6 +33,7 @@ export const modulesRouter = router({
       name: v.name,
       description: m.description,
       categoryTags: (m.categoryTags as string[]) ?? [],
+      collectsResponse: getModuleDef(m.source, m.key, v.version)?.collectsResponse ?? false,
     }));
   }),
 });
