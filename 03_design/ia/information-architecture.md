@@ -1,9 +1,10 @@
-# Information architecture — v0.3
+# Information architecture — v0.4
 
-> **Status:** v0.3 (2026-05-28). All open questions from v0.2 either resolved or moved to recommendations; five new conceptual picks locked (forks-as-relationship, Templates-as-sub-of-Library, follow targets + Activity stream split, Participants five-view structure, template share scopes). Builds on design-language brief and the architecture (ADRs 0001-0009). This document specifies *what's at each level* of the product surface; wireframes specify *how each level looks*.
+> **Status:** v0.4 (2026-06-12). Adds the two-mode chrome model (workspace vs focused study) per the owner's 2026-06-08 request — see [ADR-0032](../../04_architecture/adrs/0032-ia-v04-focused-study-mode.md). Previously: v0.3 (2026-05-28). All open questions from v0.2 either resolved or moved to recommendations; five new conceptual picks locked (forks-as-relationship, Templates-as-sub-of-Library, follow targets + Activity stream split, Participants five-view structure, template share scopes). Builds on design-language brief and the architecture (ADRs 0001-0009). This document specifies *what's at each level* of the product surface; wireframes specify *how each level looks*.
 
 ## Changelog
 
+- **v0.4 (2026-06-12):** **Two-mode chrome.** (a) **Workspace mode** (destinations: Studies / Library / Frameworks / Browse / Participants / Activity / Team / Settings) keeps the v0.3 chrome — top bar + left rail — with the rail now **resizable** (drag handle, per-device persistence) and the top bar flattened into a flush strip (no boxed card). (b) **Focused study mode** (every `/studies/[id]/*` route): the left rail disappears and the top bar slims to workspace name · breadcrumb `Studies / [Title]` (link back) · autosave · ⋯ per-study actions · ✕ close. The switch is **URL-driven via Next.js route groups — no manual toggle**. (c) **⌘K command palette goes live** and becomes the primary cross-study navigation inside a study (stage jumps ranked first in focused mode). (d) **Right-panel side preference** (right default, left option) in Settings · per device. Wireframes: [focused-study-mode](../wireframes/focused-study-mode.md), [workspace-mode-topbar](../wireframes/workspace-mode-topbar.md).
 - **v0.3 (2026-05-28):** Five conceptual picks added after project-owner conversation. (a) **Forks live as a relationship, not a destination** — surface in three places: forker's Studies (with upstream subtitle), parent study's right-panel `Replications` tab, Activity stream. No top-level "Forks" destination. (b) **Templates revoked as a Frameworks alias** — Frameworks and Templates are different concepts; Templates moves to a sub-section of Library. (c) **Activity gets a Yours / Follows split** — Follows is fed by the user's follow targets (tags, authors, Frameworks) so researchers can stay current with their area. (d) **Participants destination structured as five sub-views** — Panels, Open recruitment, Compensation, Quality, Connections. Aggregated only; never PII. (e) **Template share scopes** — every saved version with `kind: template` has four share scopes (Public-replicable / Workspace / Invite link / Submit to Framework); `Make Replicate-able` toggle lives on the object itself.
 - **v0.2 (2026-05-28):** Workspace switcher → Linear-style top-bar dropdown. Search → global with a scope dropdown (workspace / studies / library / etc.). Comments → both right-panel tab AND bottom drawer (try both, learn which sticks). No notification bell — Activity destination handles it. Stage names → added Preregister as its own stage between Share and Run. Framework naming → still open (candidate: "Templates").
 - **v0.1 (2026-05-28):** First pass with 8 open questions.
@@ -122,6 +123,25 @@ This destination is researcher-facing; it never surfaces PII. The participant-fa
 - Registration status (OSF push status across user's studies — filters from Yours)
 
 See "Following and staying current" below for follow-target details.
+
+## The two chrome modes (v0.4)
+
+The product has exactly two chrome modes, selected by URL path:
+
+| | Workspace mode | Focused study mode |
+|---|---|---|
+| **Routes** | `/studies`, `/library`, `/frameworks`, `/browse`, `/activity`, `/settings/*` | `/studies/[id]/*` (every stage) |
+| **Top bar** | workspace switcher · breadcrumb · autosave · ⌘K · + New study · user menu | workspace name · `Studies / [Title]` · autosave · ⋯ menu · ✕ close |
+| **Left rail** | visible, resizable (120–360px, default 155px) | hidden |
+| **Right panel** | collapsed (no object selected) | per-object tabs (unchanged from v0.3 table below) |
+| **Cross-study nav** | rail destinations | breadcrumb `Studies` link, ✕, ⌘K palette |
+
+Rules:
+
+- The mode is **never toggled manually** — it is a consequence of where you are. Implementation: sibling Next.js route groups ([ADR-0032](../../04_architecture/adrs/0032-ia-v04-focused-study-mode.md)).
+- `/browse/[studyId]` (someone else's public study) stays in **workspace** mode — reading is browsing, not working. Participant surfaces (`/take/*`, `/preview/*`) have no app chrome at all (ADR-0013).
+- ⌘K opens the command palette in both modes; inside a study the current study's stage jumps rank first, then studies by title, then destinations.
+- Closing a study (✕ or the breadcrumb's `Studies`) always lands on `/studies` — predictable over clever (browser-back can leave the app).
 
 ## Surface hierarchy and breadcrumbs
 
