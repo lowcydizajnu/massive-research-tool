@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { ProfileForm } from "@/components/feature/settings/profile-form";
 import { DemoContentToggle } from "@/components/feature/settings/demo-content-toggle";
+import { PanelSideToggle } from "@/components/feature/settings/panel-side-toggle";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { FormSubmitButton } from "@/components/ui/form-submit-button";
 import { cn } from "@/lib/utils";
@@ -91,6 +92,9 @@ export default async function AccountSettingsPage({
             Choose how Massive Research Lab looks. “System” follows your device setting.
           </p>
           <ThemeToggle />
+          <div className="mt-2 border-t border-[var(--color-border-subtle)] pt-4">
+            <PanelSideToggle />
+          </div>
           <div className="mt-2 border-t border-[var(--color-border-subtle)] pt-4">
             <DemoContentToggle />
           </div>
