@@ -17,7 +17,7 @@ prompt reworded, + H2"). Surfaces in the Versions tab; doubles as the OSF amendm
 Infra exists: `protocolText` + `diffLines` (ADR-0031). No migration expected
 (store summary on experiment_version or derive on read).
 
-### 2. CI checks → methodological pre-flight checks before Preregister/Publish
+### 2. CI checks → methodological pre-flight checks — ✅ SHIPPED V1.25.0 (ADR-0034)
 A green/red checklist gate: every block configured (completeness exists per-block),
 ≥1 hypothesis, consent present, attention check for long studies, conditions actually
 used, no dead branching. Red items link to the offending block. Researcher-native
