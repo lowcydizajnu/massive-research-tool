@@ -40,6 +40,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { BlockView } from "@/components/feature/take/block-view";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { api } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
@@ -174,6 +175,27 @@ function pushRecent(key: string) {
 
 type CustomModule = { id: string; name: string; blockCount: number };
 
+/** Sample copy so the participant preview isn't a wall of empty fields. */
+function previewConfig(key: string, defaultConfig: Record<string, unknown>): Record<string, unknown> {
+  const c: Record<string, unknown> = { ...defaultConfig };
+  const fill = (k: string, v: unknown) => {
+    if (c[k] === "" || c[k] == null) c[k] = v;
+  };
+  fill("prompt", "How do you feel about this topic?");
+  if (key === "social-post") {
+    fill("headline", "Scientists publish surprising new finding");
+    fill("body", "This is what your participants will see in the feed.");
+    fill("source", "Research Daily");
+    if (!c.likesCount) c.likesCount = 24;
+    if (!c.commentsCount) c.commentsCount = 6;
+  }
+  if (key === "text") fill("body", "This is a sample instruction paragraph participants will read.");
+  return c;
+}
+
+/** Blocks whose preview is meaningless without researcher-supplied media. */
+const NO_PREVIEW = new Set(["image", "video", "link", "audio-record", "reaction-time"]);
+
 export function BlockLibraryModal({
   onInsert,
   onClose,
@@ -182,6 +204,7 @@ export function BlockLibraryModal({
   onInsertCustomModule,
   onRemoveCustomModule,
   insertingModule = false,
+  onDragStateChange,
 }: {
   onInsert: (m: { source: string; key: string; version: string }) => void;
   onClose: () => void;
@@ -190,6 +213,9 @@ export function BlockLibraryModal({
   onInsertCustomModule?: (id: string) => void;
   onRemoveCustomModule?: (id: string) => void;
   insertingModule?: boolean;
+  /** Provided by the Builder: cards become draggable into the block list; the
+   *  modal hides itself while a drag is in flight so the list is visible. */
+  onDragStateChange?: (dragging: boolean) => void;
 }) {
   const { data: modules, isLoading } = api.modules.list.useQuery(undefined, {
     refetchOnMount: "always",
@@ -200,6 +226,7 @@ export function BlockLibraryModal({
   const [selectedRef, setSelectedRef] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [recent, setRecent] = useState<string[]>([]);
+  const [dragHidden, setDragHidden] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -264,6 +291,7 @@ export function BlockLibraryModal({
     badge,
     onPick,
     onAdd,
+    dragPayload,
   }: {
     id: string;
     icon: LucideIcon;
@@ -273,6 +301,8 @@ export function BlockLibraryModal({
     badge: string;
     onPick: () => void;
     onAdd: () => void;
+    /** Registry blocks only — dragging a card drops it at a list position. */
+    dragPayload?: { source: string; key: string; version: string };
   }) => (
     <button
       type="button"
@@ -280,6 +310,27 @@ export function BlockLibraryModal({
       aria-selected={selectedRef === id}
       onClick={onPick}
       onDoubleClick={onAdd}
+      draggable={!!(dragPayload && onDragStateChange)}
+      onDragStart={
+        dragPayload && onDragStateChange
+          ? (e) => {
+              e.dataTransfer.setData("application/x-mrt-block", JSON.stringify(dragPayload));
+              e.dataTransfer.effectAllowed = "copy";
+              pushRecent(dragPayload.key);
+              setDragHidden(true);
+              onDragStateChange(true);
+            }
+          : undefined
+      }
+      onDragEnd={
+        dragPayload && onDragStateChange
+          ? () => {
+              setDragHidden(false);
+              setRecent(readRecent());
+              onDragStateChange(false);
+            }
+          : undefined
+      }
       className={cn(
         "flex flex-col gap-2 rounded-[var(--radius-md)] border p-3 text-left transition-colors",
         selectedRef === id
@@ -304,7 +355,10 @@ export function BlockLibraryModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-6"
+      className={cn(
+        "fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-6",
+        dragHidden && "pointer-events-none opacity-0",
+      )}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -396,6 +450,7 @@ export function BlockLibraryModal({
                           badge={m.collectsResponse ? "Records data" : "Stimulus"}
                           onPick={() => setSelectedRef(refOf(m))}
                           onAdd={() => insert(m)}
+                          dragPayload={{ source: m.source, key: m.key, version: m.version }}
                         />
                       ))}
                     </div>
@@ -416,6 +471,7 @@ export function BlockLibraryModal({
                       badge={m.collectsResponse ? "Records data" : "Stimulus"}
                       onPick={() => setSelectedRef(refOf(m))}
                       onAdd={() => insert(m)}
+                      dragPayload={{ source: m.source, key: m.key, version: m.version }}
                     />
                   ))}
                   {filteredCustom.map((m) => (
@@ -445,7 +501,7 @@ export function BlockLibraryModal({
 
           {/* Details pane */}
           {selected || selectedCustom ? (
-            <aside className="flex w-[240px] shrink-0 flex-col gap-3 overflow-y-auto border-l border-[var(--color-border-subtle)] p-4">
+            <aside className="flex w-[290px] shrink-0 flex-col gap-3 overflow-y-auto border-l border-[var(--color-border-subtle)] p-4">
               {selected ? (
                 <>
                   <span className={cn("flex size-12 items-center justify-center rounded-[var(--radius-md)]", tileFor(selected.cats))}>
@@ -474,6 +530,34 @@ export function BlockLibraryModal({
                         {c}
                       </span>
                     ))}
+                  </div>
+                  <div className="flex flex-col gap-1 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-2.5">
+                    <span className="text-[length:var(--text-small)] font-medium uppercase tracking-wide text-[var(--color-text-muted)]">
+                      Participant preview
+                    </span>
+                    {NO_PREVIEW.has(selected.key) ? (
+                      <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                        {selected.key === "audio-record" || selected.key === "reaction-time"
+                          ? "Interactive block — try it in the study Preview."
+                          : "Add a URL in Configure to see this stimulus."}
+                      </p>
+                    ) : (
+                      <div aria-hidden className="pointer-events-none select-none text-[13px]">
+                        <BlockView
+                          block={
+                            {
+                              instanceId: "library-preview",
+                              source: selected.source,
+                              key: selected.key,
+                              version: selected.version,
+                              config: previewConfig(selected.key, selected.defaultConfig),
+                            } as never
+                          }
+                          namePrefix="pv__"
+                          seed="library-preview"
+                        />
+                      </div>
+                    )}
                   </div>
                   <button
                     type="button"

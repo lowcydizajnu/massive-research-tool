@@ -1517,6 +1517,8 @@ export const studiesRouter = router({
         source: z.string(),
         key: z.string(),
         version: z.string(),
+        /** Insert position in the block array (library drag-to-position); appended when omitted. */
+        atIndex: z.number().int().min(0).optional(),
       }),
     )
     .mutation(async ({ ctx, input }): Promise<{ instanceId: string }> => {
@@ -1525,7 +1527,8 @@ export const studiesRouter = router({
       const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
       const blocks = readBlocks(tip.version.definitionSnapshot);
       const instanceId = ulid();
-      blocks.push({
+      const at = input.atIndex == null ? blocks.length : Math.min(input.atIndex, blocks.length);
+      blocks.splice(at, 0, {
         instanceId,
         source: def.source,
         key: def.key,

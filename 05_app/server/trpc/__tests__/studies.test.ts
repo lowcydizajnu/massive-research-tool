@@ -1264,3 +1264,16 @@ describe("studies.archive (IA v0.4 focused-mode ⋯ menu)", () => {
     await expect(b.studies.archive({ studyId: id })).rejects.toThrow();
   });
 });
+
+describe("studies.addBlock atIndex (library drag-to-position)", () => {
+  it("inserts at the given position; appends when omitted or out of range", async () => {
+    await seedUserWithWorkspace("ext_a", "Lab A");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "Ordered" });
+    const a = await caller.studies.addBlock({ studyId: id, source: "core", key: "likert-7", version: "1.0.0" });
+    const b = await caller.studies.addBlock({ studyId: id, source: "core", key: "slider", version: "1.0.0", atIndex: 0 });
+    const c = await caller.studies.addBlock({ studyId: id, source: "core", key: "free-text", version: "1.0.0", atIndex: 99 });
+    const order = (await caller.studies.get({ id })).blocks.map((x) => x.instanceId);
+    expect(order).toEqual([b.instanceId, a.instanceId, c.instanceId]);
+  });
+});

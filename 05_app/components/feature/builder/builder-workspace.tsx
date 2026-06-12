@@ -102,6 +102,8 @@ export function BuilderWorkspace({
   // Work-surface ↔ context-panel divider is draggable too (owner request, M2 follow-up).
   const panelPane = usePaneWidth("mrt-builder-panel-width", 250, 220, 480);
   const [pickerOpen, setPickerOpen] = useState(false);
+  // A library card is mid-drag (the modal hides itself; list rows become drop targets).
+  const [libraryDragging, setLibraryDragging] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
 
@@ -331,6 +333,38 @@ export function BuilderWorkspace({
       commitOrder(regrouped.map((r) => ({ ...byId.get(r.instanceId)!, groupId: r.groupId })));
     }
   };
+  // Library drag-to-position (block-library-modal.md): dropping a card on a row
+  // inserts AFTER that row's block — or after the whole group for member rows,
+  // and BEFORE the group when dropped on its header — so group runs stay contiguous.
+  const insertIndexFor = (rowId: string): number => {
+    if (rowId.startsWith(GH)) {
+      const gid = rowId.slice(GH.length);
+      const first = study.blocks.findIndex((b) => b.groupId === gid);
+      return first === -1 ? study.blocks.length : first;
+    }
+    const b = study.blocks.find((x) => x.instanceId === rowId);
+    if (!b) return study.blocks.length;
+    if (b.groupId) {
+      let last = -1;
+      study.blocks.forEach((x, i) => {
+        if (x.groupId === b.groupId) last = i;
+      });
+      return last + 1;
+    }
+    return study.blocks.findIndex((x) => x.instanceId === rowId) + 1;
+  };
+  const handleLibraryDrop = (rowId: string, e: React.DragEvent) => {
+    const raw = e.dataTransfer.getData("application/x-mrt-block");
+    setLibraryDragging(false);
+    if (!raw) return;
+    try {
+      const m = JSON.parse(raw) as { source: string; key: string; version: string };
+      addBlock.mutate({ studyId: study.id, ...m, atIndex: insertIndexFor(rowId) });
+    } catch {
+      // not our payload — ignore
+    }
+  };
+
   // Gate a whole group by an arm: set/clear the arm on every member (runtime
   // filters by arm at the block level). Mirrors the Whiteboard's group wire.
   const conditionsQ = api.studies.listConditions.useQuery({ studyId: study.id });
@@ -527,7 +561,11 @@ export function BuilderWorkspace({
             </div>
 
             {study.blocks.length === 0 ? (
-              <div className="flex flex-col items-center gap-3 rounded-[var(--radius-md)] bg-[var(--color-surface-subtle)] p-10 text-center">
+              <div
+                onDragOver={libraryDragging ? (e) => e.preventDefault() : undefined}
+                onDrop={libraryDragging ? (e) => handleLibraryDrop("", e) : undefined}
+                className="flex flex-col items-center gap-3 rounded-[var(--radius-md)] bg-[var(--color-surface-subtle)] p-10 text-center"
+              >
                 <p className="text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
                   No blocks yet — your study starts here.
                 </p>
@@ -545,6 +583,7 @@ export function BuilderWorkspace({
                 onReorder={onListReorder}
                 ariaLabel="Study blocks and groups"
                 className="flex flex-col"
+                nativeDrop={{ active: libraryDragging, onDrop: handleLibraryDrop }}
               >
                 {(id, handle) => {
                   // Group header row — its grip drags the whole group. Solid tint +
@@ -800,6 +839,7 @@ export function BuilderWorkspace({
               <BlockLibraryModal
                 pending={addBlock.isPending}
                 onClose={() => setPickerOpen(false)}
+                onDragStateChange={setLibraryDragging}
                 onInsert={(m) => addBlock.mutate({ studyId: study.id, ...m })}
                 customModules={customModulesQ.data ?? []}
                 insertingModule={insertModuleMut.isPending}
