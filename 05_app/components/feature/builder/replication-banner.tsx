@@ -45,9 +45,19 @@ export function ReplicationBanner({ studyId }: { studyId: string }) {
       <span aria-hidden>↳</span>
       <span>
         Replicating{" "}
-        <span className="font-medium text-[var(--color-text-primary)]">
-          {data.sourceTitle ?? "(original unavailable)"}
-        </span>
+        {data.sourceStudyId ? (
+          <Link
+            href={`/browse/${data.sourceStudyId}` as Route}
+            className="font-medium text-[var(--color-primary)] underline-offset-2 hover:underline"
+            title="Open the original study"
+          >
+            {data.sourceTitle ?? "(original unavailable)"}
+          </Link>
+        ) : (
+          <span className="font-medium text-[var(--color-text-primary)]">
+            {data.sourceTitle ?? "(original unavailable)"}
+          </span>
+        )}
         {data.sourceAuthor ? ` by ${data.sourceAuthor}` : ""}
       </span>
       <span aria-hidden>·</span>
