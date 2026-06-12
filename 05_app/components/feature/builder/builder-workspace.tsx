@@ -113,17 +113,80 @@ export function BuilderWorkspace({
       void invalidate();
     },
   });
-  const removeBlock = api.studies.removeBlock.useMutation({ onSuccess: () => void invalidate() });
+  // Optimistic: the row disappears on click; a failure rolls it back (owner
+  // feedback 2026-06-12 — actions felt seconds-delayed because the Builder
+  // renders straight from the studies.get cache and waited for the refetch).
+  const removeBlock = api.studies.removeBlock.useMutation({
+    onMutate: async ({ instanceId }) => {
+      await utils.studies.get.cancel({ id: study.id });
+      const prev = utils.studies.get.getData({ id: study.id });
+      if (prev) {
+        utils.studies.get.setData(
+          { id: study.id },
+          { ...prev, blocks: prev.blocks.filter((b) => b.instanceId !== instanceId) },
+        );
+      }
+      return { prev };
+    },
+    onError: (_err, _input, mctx) => {
+      if (mctx?.prev) utils.studies.get.setData({ id: study.id }, mctx.prev);
+    },
+    onSuccess: () => void invalidate(),
+  });
   const updateConfig = api.studies.updateBlockConfig.useMutation({
     onSuccess: () => void invalidate(),
   });
   const renameBlock = api.studies.setBlockTitle.useMutation({ onSuccess: () => void invalidate() });
-  const setCondition = api.studies.setBlockCondition.useMutation({ onSuccess: () => void invalidate() });
+  const setCondition = api.studies.setBlockCondition.useMutation({
+    // Optimistic — the visibility editor reads from the cache, so reflect the
+    // chosen clause immediately.
+    onMutate: async ({ instanceId, showIf }) => {
+      await utils.studies.get.cancel({ id: study.id });
+      const prev = utils.studies.get.getData({ id: study.id });
+      if (prev) {
+        utils.studies.get.setData(
+          { id: study.id },
+          {
+            ...prev,
+            blocks: prev.blocks.map((b) =>
+              b.instanceId === instanceId ? { ...b, showIf: showIf ?? null } : b,
+            ),
+          },
+        );
+      }
+      return { prev };
+    },
+    onError: (_err, _input, mctx) => {
+      if (mctx?.prev) utils.studies.get.setData({ id: study.id }, mctx.prev);
+    },
+    onSuccess: () => void invalidate(),
+  });
   // Bump on a restore (undo/redo) so the right-panel editors re-seed (they hold
   // local state keyed by block id, which a restore doesn't change). Normal edits
   // don't bump it, so typing isn't interrupted.
   const [panelEpoch, setPanelEpoch] = useState(0);
   const setGroupsMut = api.studies.setGroups.useMutation({
+    // Optimistic — a dropped block must STAY where it was dropped (owner: "it
+    // comes back to the initial position and then moves"). Patch the cache with
+    // the new order/grouping before the round-trip; roll back on error.
+    onMutate: async (input) => {
+      await utils.studies.get.cancel({ id: study.id });
+      const prev = utils.studies.get.getData({ id: study.id });
+      if (prev) {
+        const byId = new Map(prev.blocks.map((b) => [b.instanceId, b]));
+        const blocks = prev.blocks.length
+          ? input.blocks.flatMap((ib) => {
+              const full = byId.get(ib.instanceId);
+              return full ? [{ ...full, groupId: ib.groupId ?? null }] : [];
+            })
+          : prev.blocks;
+        utils.studies.get.setData({ id: study.id }, { ...prev, blocks, groups: input.groups });
+      }
+      return { prev };
+    },
+    onError: (_err, _input, mctx) => {
+      if (mctx?.prev) utils.studies.get.setData({ id: study.id }, mctx.prev);
+    },
     onSuccess: () => {
       void invalidate();
       setPanelEpoch((e) => e + 1);
