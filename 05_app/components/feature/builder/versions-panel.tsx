@@ -49,6 +49,8 @@ export function VersionsPanel({
 }) {
   const { data, isLoading, isError } = api.studies.listVersions.useQuery({ studyId });
   const [openId, setOpenId] = useState<string | null>(null);
+  // Versions whose full changelog is expanded ("+n more changes" toggle).
+  const [expandedChanges, setExpandedChanges] = useState<Set<string>>(new Set());
 
   if (isLoading) {
     return <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">Loading…</p>;
@@ -96,23 +98,41 @@ export function VersionsPanel({
                   ) : null}
                 </span>
                 <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">{meta(v)}</span>
-                {/* Auto-changelog (ADR-0033): what this save changed; on the working
-                    copy, the pending changes the next save would freeze. */}
-                {v.changes.length > 0 && (!v.isWorkingCopy || v.hasUnsavedChanges) ? (
-                  <ul className="mt-0.5 flex flex-col gap-0.5">
-                    {v.changes.slice(0, 5).map((line, i) => (
-                      <li key={i} className="text-[length:var(--text-small)] leading-snug text-[var(--color-text-secondary)]">
-                        {line}
-                      </li>
-                    ))}
-                    {v.changes.length > 5 ? (
-                      <li className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-                        +{v.changes.length - 5} more change{v.changes.length - 5 === 1 ? "" : "s"}
-                      </li>
-                    ) : null}
-                  </ul>
-                ) : null}
               </button>
+
+              {/* Auto-changelog (ADR-0033): what this save changed; on the working
+                  copy, the pending changes the next save would freeze. Lives
+                  OUTSIDE the header button so its "+n more" toggle is clickable. */}
+              {v.changes.length > 0 && (!v.isWorkingCopy || v.hasUnsavedChanges) ? (
+                <ul className="flex flex-col gap-0.5">
+                  {(expandedChanges.has(v.id) ? v.changes : v.changes.slice(0, 5)).map((line, i) => (
+                    <li key={i} className="text-[length:var(--text-small)] leading-snug text-[var(--color-text-secondary)]">
+                      {line}
+                    </li>
+                  ))}
+                  {v.changes.length > 5 ? (
+                    <li>
+                      <button
+                        type="button"
+                        aria-expanded={expandedChanges.has(v.id)}
+                        onClick={() =>
+                          setExpandedChanges((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(v.id)) next.delete(v.id);
+                            else next.add(v.id);
+                            return next;
+                          })
+                        }
+                        className="text-[length:var(--text-small)] font-medium text-[var(--color-primary)] hover:underline"
+                      >
+                        {expandedChanges.has(v.id)
+                          ? "Show fewer"
+                          : `+${v.changes.length - 5} more change${v.changes.length - 5 === 1 ? "" : "s"}`}
+                      </button>
+                    </li>
+                  ) : null}
+                </ul>
+              ) : null}
 
               {open ? (
                 <VersionPreview
