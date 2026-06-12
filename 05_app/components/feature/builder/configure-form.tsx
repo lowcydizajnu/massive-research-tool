@@ -96,10 +96,11 @@ export function ConfigureForm({
                 <input
                   type="number"
                   value={String(value)}
-                  onChange={(e) =>
-                    setDraft({ ...draft, [key]: e.target.value === "" ? 0 : Number(e.target.value) })
-                  }
-                  onBlur={() => onChange(draft)}
+                  onChange={(e) => {
+                    const next = { ...draft, [key]: e.target.value === "" ? 0 : Number(e.target.value) };
+                    setDraft(next);
+                    onChange(next); // commit immediately — blur-commit lost edits when jumping to Preview
+                  }}
                   className={fieldCls}
                 />
               </label>

@@ -140,6 +140,11 @@ describe("social-post v2 engagement interactions (ADR-0024)", () => {
   it("never blocks the participant (interaction is optional)", () => {
     expect(def.isAnswerEmpty!({ liked: false, shared: false })).toBe(false);
   });
+  it("single-reaction mode rejects liking AND sharing together", () => {
+    expect(def.validateAnswer!({ liked: true, shared: true }, { singleReaction: true })).toBe(false);
+    expect(def.validateAnswer!({ liked: true, shared: false }, { singleReaction: true })).toBe(true);
+    expect(def.validateAnswer!({ liked: true, shared: true }, { singleReaction: false })).toBe(true);
+  });
   it("rejects a comment when the researcher disabled comments", () => {
     expect(def.validateAnswer!({ liked: false, shared: false, comment: "hi" }, { allowComments: false })).toBe(false);
     expect(def.validateAnswer!({ liked: false, shared: false }, { allowComments: false })).toBe(true);

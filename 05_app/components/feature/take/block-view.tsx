@@ -133,12 +133,24 @@ function SocialPostView({
       {interactive ? (
         <div className="flex items-center gap-4 border-t border-[var(--color-border-subtle)] pt-2 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
           <label className="flex cursor-pointer items-center gap-1">
-            <input type="checkbox" name={`${np}liked`} className="peer sr-only" />
-            <span className="peer-checked:font-bold peer-checked:text-[var(--color-primary)]">👍 Like</span>
+            {config.singleReaction === true ? (
+              <input type="radio" name={`${np}reaction`} value="liked" className="peer sr-only" />
+            ) : (
+              <input type="checkbox" name={`${np}liked`} className="peer sr-only" />
+            )}
+            <span className="peer-checked:font-bold peer-checked:text-[var(--color-primary)]">
+              👍 Like{likes ? ` · ${likes}` : ""}
+            </span>
           </label>
           <label className="flex cursor-pointer items-center gap-1">
-            <input type="checkbox" name={`${np}shared`} className="peer sr-only" />
-            <span className="peer-checked:font-bold peer-checked:text-[var(--color-primary)]">↪ Share</span>
+            {config.singleReaction === true ? (
+              <input type="radio" name={`${np}reaction`} value="shared" className="peer sr-only" />
+            ) : (
+              <input type="checkbox" name={`${np}shared`} className="peer sr-only" />
+            )}
+            <span className="peer-checked:font-bold peer-checked:text-[var(--color-primary)]">
+              ↪ Share{shares ? ` · ${shares}` : ""}
+            </span>
           </label>
         </div>
       ) : null}

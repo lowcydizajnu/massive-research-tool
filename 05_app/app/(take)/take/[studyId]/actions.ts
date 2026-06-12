@@ -89,9 +89,10 @@ function extractAnswer(moduleKey: string, prefix: string, fd: FormData): unknown
     // recorded even without interaction (liked/shared false). v1 social-post
     // blocks don't collect, so the runtime skips writing for them.
     const comment = String(g("comment") ?? "").trim();
+    const single = g("reaction"); // single-reaction mode posts one radio instead
     return {
-      liked: g("liked") != null,
-      shared: g("shared") != null,
+      liked: g("liked") != null || single === "liked",
+      shared: g("shared") != null || single === "shared",
       ...(comment ? { comment } : {}),
     };
   }
