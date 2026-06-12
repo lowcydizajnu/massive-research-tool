@@ -44,7 +44,7 @@ import {
 } from "@/server/modules/blocks";
 import { getModuleDef } from "@/server/modules/registry";
 import { protocolText } from "@/server/modules/protocol-text";
-import { readTheme, requiresAcknowledgment, studyThemeSchema } from "@/lib/themes/themes";
+import { applyVisualContext, readTheme, requiresAcknowledgment, studyThemeSchema } from "@/lib/themes/themes";
 import { diffLines } from "@/lib/diff-lines";
 import { publicProcedure, router, workspaceProcedure, writeProcedure } from "@/server/trpc/trpc";
 
@@ -1791,9 +1791,12 @@ export const studiesRouter = router({
         tip.version.definitionSnapshot && typeof tip.version.definitionSnapshot === "object"
           ? (tip.version.definitionSnapshot as Record<string, unknown>)
           : {};
+      // Overview auto-injection (ADR-0024): keep the auto "Visual context"
+      // methodology section in sync with the chosen mimicking look.
+      const overview = applyVisualContext(readOverview(tip.version.definitionSnapshot), input.theme);
       await db
         .update(experimentVersion)
-        .set({ definitionSnapshot: { ...snap, theme: input.theme } })
+        .set({ definitionSnapshot: { ...snap, theme: input.theme, overview } })
         .where(eq(experimentVersion.id, tip.version.id));
       await db.update(experiment).set({ updatedAt: new Date() }).where(eq(experiment.id, input.studyId));
       return { ok: true };

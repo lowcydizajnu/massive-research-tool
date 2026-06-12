@@ -3,7 +3,8 @@ import { eq } from "drizzle-orm";
 
 import { db } from "@/server/db/client";
 import { experiment, experimentVersion } from "@/server/db/schema";
-import { WIDTHS, readTheme, themeToCssVars } from "@/lib/themes/themes";
+import { WIDTHS, effectivePresetKey, readTheme, themeToCssVars } from "@/lib/themes/themes";
+import { getPageFrame } from "@/components/feature/take/page-frames";
 
 /**
  * Per-study themed shell for the participant runtime (ADR-0024). Resolves the
@@ -34,13 +35,20 @@ export default async function ThemedTakeLayout({
   }
   const theme = readTheme(snapshot ?? {});
   const vars = themeToCssVars(theme) as CSSProperties;
+  // Page-level platform chrome (ADR-0024, Wave 5c): decorative + inert.
+  const Frame = getPageFrame(effectivePresetKey(theme));
 
   return (
     <div
       style={vars}
-      className="flex min-h-screen justify-center bg-[var(--color-surface-page)] px-4 py-10 font-sans text-[var(--color-text-primary)]"
+      className="flex min-h-screen flex-col items-center bg-[var(--color-surface-page)] font-sans text-[var(--color-text-primary)]"
     >
-      <main className="w-full" style={{ maxWidth: WIDTHS[theme.layout.width] }}>
+      {Frame ? (
+        <div aria-hidden className="pointer-events-none w-full">
+          {Frame()}
+        </div>
+      ) : null}
+      <main className="w-full px-4 py-10" style={{ maxWidth: WIDTHS[theme.layout.width] }}>
         {children}
       </main>
     </div>
