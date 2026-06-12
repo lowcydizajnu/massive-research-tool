@@ -4,6 +4,7 @@ import {
   readOverview,
   type BlockInstance,
 } from "@/server/modules/blocks";
+import { hasCustomConsent } from "@/server/modules/consent";
 import { getModuleDef } from "@/server/modules/registry";
 
 /**
@@ -159,13 +160,22 @@ export function runPreflight(opts: {
     );
   }
 
-  // consent — informational: the runtime always shows a consent step first.
-  out.push({
-    id: "consent",
-    status: "pass",
-    title: "Consent step is built in",
-    detail: "Participants confirm consent before the first question.",
-  });
+  // consent — informational: the consent step always exists (ADR-0035).
+  out.push(
+    hasCustomConsent(snapshot)
+      ? {
+          id: "consent",
+          status: "pass",
+          title: "Custom consent screen",
+          detail: "Participants see your consent text and Agree / Disagree before the first question.",
+        }
+      : {
+          id: "consent",
+          status: "pass",
+          title: "Consent step is built in (default text)",
+          detail: "Click the pinned Consent screen card in Build to use your own wording.",
+        },
+  );
 
   return out;
 }
