@@ -122,7 +122,12 @@ export function BuilderWorkspace({
   const [saveOpen, setSaveOpen] = useState(false);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
 
-  const invalidate = () => utils.studies.get.invalidate({ id: study.id });
+  const invalidate = () => {
+    void utils.studies.get.invalidate({ id: study.id });
+    // Replication badges/banner + readiness derive from the tip — keep them live.
+    void utils.studies.replicationStatus.invalidate({ studyId: study.id });
+    void utils.studies.preflight.invalidate();
+  };
   const addBlock = api.studies.addBlock.useMutation({
     onSuccess: ({ instanceId }) => {
       setSelectedId(instanceId);
@@ -1147,7 +1152,7 @@ export function BuilderWorkspace({
 
             {/* Replication (ADR-0018, replications-tab.md): forkability is owner-only; anyone who can open the study can replicate it. */}
             <DetailRow label="Replication">
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 {currentUserId === study.ownerId ? (
                   <ForkableControl studyId={study.id} value={study.forkableBy} />
                 ) : null}
