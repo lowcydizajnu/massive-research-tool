@@ -6,6 +6,8 @@
  * the default BlockView renderer under their token overrides.
  */
 
+import { ReactionButton, ReactionGroup } from "@/components/feature/take/reaction-toggles";
+
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
 const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) && v > 0 ? v : null);
 /** 1234 → "1.2K", 2500000 → "2.5M" — platform-style compact counts. */
@@ -19,41 +21,6 @@ type OverrideProps = {
   /** social-post v1 blocks don't record interactions — render them inert. */
   interactive?: boolean;
 };
-
-/** Like/Share as pure-HTML toggles (no client JS, ADR-0013): checked state
- *  restyles via peer-checked and posts with the screen's form. In single-
- *  reaction mode both render as radios on one name → only one can be picked. */
-function Toggle({
-  np,
-  kind,
-  label,
-  count,
-  activeCls,
-  disabled,
-  single,
-}: {
-  np: string;
-  kind: "liked" | "shared";
-  label: string;
-  /** Researcher-set count shown right on the button (platform-style). */
-  count?: number | null;
-  activeCls: string;
-  disabled?: boolean;
-  single?: boolean;
-}) {
-  const text = count ? `${label} ${fmt(count)}` : label;
-  if (disabled) return <span>{text}</span>;
-  return (
-    <label className="flex cursor-pointer items-center gap-1">
-      {single ? (
-        <input type="radio" name={`${np}reaction`} value={kind} className="peer sr-only" />
-      ) : (
-        <input type="checkbox" name={`${np}${kind}`} className="peer sr-only" />
-      )}
-      <span className={`peer-checked:font-bold ${activeCls}`}>{text}</span>
-    </label>
-  );
-}
 
 /** Single-reaction mode (social-post config): only one of Like/Share allowed. */
 const isSingle = (config: Record<string, unknown>) => config.singleReaction === true;
@@ -78,6 +45,7 @@ function FacebookSocialPost({ config, np = "", interactive = true }: OverridePro
   const e = engagement(config);
   return (
     <article className="flex flex-col gap-2 rounded-[8px] border border-[#E4E6EB] bg-white p-3 text-[#050505] shadow-sm">
+      <ReactionGroup np={np} single={isSingle(config)} disabled={!interactive}>
       <div className="flex items-center gap-2">
         <span
           aria-hidden
@@ -100,9 +68,9 @@ function FacebookSocialPost({ config, np = "", interactive = true }: OverridePro
         </span>
       ) : null}
       <div className="flex items-center justify-between border-t border-[#E4E6EB] pt-1 text-[13px] text-[#65676B]">
-        <Toggle np={np} kind="liked" single={isSingle(config)} label="👍 Like" count={e.likes} activeCls="peer-checked:text-[#0866FF]" disabled={!interactive} />
+        <ReactionButton kind="liked" label="👍 Like" count={e.likes} activeCls="text-[#0866FF]" />
         {e.allowComments ? <span>💬 Comment{e.comments ? ` ${fmt(e.comments)}` : ""}</span> : null}
-        <Toggle np={np} kind="shared" single={isSingle(config)} label="↪ Share" count={e.shares} activeCls="peer-checked:text-[#0866FF]" disabled={!interactive} />
+        <ReactionButton kind="shared" label="↪ Share" count={e.shares} activeCls="text-[#0866FF]" />
       </div>
       {e.allowComments && interactive ? (
         <input
@@ -112,6 +80,7 @@ function FacebookSocialPost({ config, np = "", interactive = true }: OverridePro
           className="rounded-full border border-[#E4E6EB] bg-[#F0F2F5] px-3 py-1.5 text-[13px] text-[#050505] outline-none"
         />
       ) : null}
+      </ReactionGroup>
     </article>
   );
 }
@@ -132,6 +101,7 @@ function XSocialPost({ config, np = "", interactive = true }: OverrideProps) {
         {source.charAt(0).toUpperCase()}
       </span>
       <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <ReactionGroup np={np} single={isSingle(config)} disabled={!interactive}>
         <span className="flex items-center gap-1 text-[15px]">
           <span className="font-bold">{source}</span>
           <span className="text-[#71767B]">@{handle} · {e.time}</span>
@@ -140,8 +110,8 @@ function XSocialPost({ config, np = "", interactive = true }: OverrideProps) {
         {body ? <span className="text-[15px] leading-snug">{body}</span> : null}
         <span className="flex justify-between pt-1 text-[13px] text-[#71767B]">
           {e.allowComments ? <span>💬 {e.comments ? fmt(e.comments) : ""}</span> : null}
-          <Toggle np={np} kind="shared" single={isSingle(config)} label="🔁" count={e.shares} activeCls="peer-checked:text-[#00BA7C]" disabled={!interactive} />
-          <Toggle np={np} kind="liked" single={isSingle(config)} label="♥" count={e.likes} activeCls="peer-checked:text-[#F91880]" disabled={!interactive} />
+          <ReactionButton kind="shared" label="🔁" count={e.shares} activeCls="text-[#00BA7C]" />
+          <ReactionButton kind="liked" label="♥" count={e.likes} activeCls="text-[#F91880]" />
           <span>↗</span>
         </span>
         {e.allowComments && interactive ? (
@@ -152,6 +122,7 @@ function XSocialPost({ config, np = "", interactive = true }: OverrideProps) {
             className="mt-1 rounded-full border border-[#2F3336] bg-transparent px-3 py-1.5 text-[13px] text-[#E7E9EA] outline-none placeholder:text-[#71767B]"
           />
         ) : null}
+        </ReactionGroup>
       </div>
     </article>
   );
@@ -166,6 +137,7 @@ function InstagramSocialPost({ config, np = "", interactive = true }: OverridePr
   const body = str(config.body);
   return (
     <article className="flex flex-col rounded-[4px] border border-[#DBDBDB] bg-white text-[#262626]">
+      <ReactionGroup np={np} single={isSingle(config)} disabled={!interactive}>
       <div className="flex items-center gap-2 p-3">
         <span aria-hidden className="flex size-8 items-center justify-center rounded-full bg-gradient-to-tr from-[#FEDA75] via-[#D62976] to-[#962FBF] font-bold text-white">
           {source.charAt(0).toUpperCase()}
@@ -177,9 +149,9 @@ function InstagramSocialPost({ config, np = "", interactive = true }: OverridePr
         <span className="text-[16px] font-semibold leading-snug">{headline || body}</span>
       </div>
       <div className="flex items-center gap-3 px-3 pt-2 text-[20px]">
-        <Toggle np={np} kind="liked" single={isSingle(config)} label="♥" count={e.likes} activeCls="peer-checked:text-[#FF3040]" disabled={!interactive} />
+        <ReactionButton kind="liked" label="♥" count={e.likes} activeCls="text-[#FF3040]" />
         {e.allowComments ? <span>💬{e.comments ? ` ${fmt(e.comments)}` : ""}</span> : null}
-        <Toggle np={np} kind="shared" single={isSingle(config)} label="↗" count={e.shares} activeCls="peer-checked:text-[#0095F6]" disabled={!interactive} />
+        <ReactionButton kind="shared" label="↗" count={e.shares} activeCls="text-[#0095F6]" />
       </div>
       <div className="flex flex-col gap-1 p-3 pt-1 text-[14px]">
         {e.likes ? <span className="font-semibold">{fmt(e.likes)} likes</span> : null}
@@ -200,6 +172,7 @@ function InstagramSocialPost({ config, np = "", interactive = true }: OverridePr
           />
         ) : null}
       </div>
+      </ReactionGroup>
     </article>
   );
 }
@@ -212,9 +185,9 @@ function ForumSocialPost({ config, np = "", interactive = true }: OverrideProps)
   const body = str(config.body);
   return (
     <article className="flex gap-3 rounded-[4px] border border-[#CCCCCC] bg-white p-3 text-[#1A1A1B]">
+      <ReactionGroup np={np} single={isSingle(config)} disabled={!interactive}>
       <div className="flex shrink-0 flex-col items-center gap-0.5 text-[13px] text-[#787C7E]">
-        <Toggle np={np} kind="liked" single={isSingle(config)} label="▲" activeCls="peer-checked:text-[#FF4500]" disabled={!interactive} />
-        <span className="font-bold text-[#1A1A1B]">{e.likes ? fmt(e.likes) : "·"}</span>
+        <ReactionButton kind="liked" label="▲" count={e.likes} activeCls="text-[#FF4500]" className="flex flex-col items-center" />
         <span>▼</span>
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -225,7 +198,7 @@ function ForumSocialPost({ config, np = "", interactive = true }: OverrideProps)
         {body ? <span className="text-[14px] leading-snug">{body}</span> : null}
         <span className="flex items-center gap-2 pt-1 text-[12px] font-semibold text-[#787C7E]">
           {e.allowComments ? <span>💬 {e.comments ? `${fmt(e.comments)} comments` : "Comments"}</span> : null}
-          <Toggle np={np} kind="shared" single={isSingle(config)} label="↗ Share" count={e.shares} activeCls="peer-checked:text-[#3B6EBF]" disabled={!interactive} />
+          <ReactionButton kind="shared" label="↗ Share" count={e.shares} activeCls="text-[#3B6EBF]" />
           <span>⋯</span>
         </span>
         {e.allowComments && interactive ? (
@@ -237,6 +210,7 @@ function ForumSocialPost({ config, np = "", interactive = true }: OverrideProps)
           />
         ) : null}
       </div>
+      </ReactionGroup>
     </article>
   );
 }
