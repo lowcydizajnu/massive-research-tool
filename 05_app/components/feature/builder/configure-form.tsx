@@ -4,6 +4,8 @@ import { X } from "lucide-react";
 import { useState } from "react";
 
 import type { StudyBlock } from "@/server/trpc/routers/studies";
+import { UploadButton } from "@/components/feature/builder/upload-button";
+import type { UploadKind } from "@/lib/uploads";
 
 /**
  * Right-panel Configure form for the selected block. Generic for V1: one field
@@ -159,17 +161,29 @@ export function ConfigureForm({
                     </li>
                   ))}
                 </ul>
-                <button
-                  type="button"
-                  onClick={() => commit([...arr, `Option ${arr.length + 1}`])}
-                  className="self-start rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-2 py-0.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
-                >
-                  + Add option
-                </button>
+                <span className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => commit([...arr, `Option ${arr.length + 1}`])}
+                    className="self-start rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-2 py-0.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
+                  >
+                    + Add option
+                  </button>
+                  {key === "imageUrls" && block.key === "picture-choice" ? (
+                    <UploadButton kind="image" label="+ Upload image…" onUploaded={(url) => commit([...arr, url])} />
+                  ) : null}
+                </span>
               </div>
             );
           }
 
+          // Media URL fields (ADR-0003): paste a link OR upload from computer.
+          const mediaKind: UploadKind | null =
+            (key === "url" && block.key === "image") || (key === "imageUrl" && block.key === "social-post")
+              ? "image"
+              : key === "url" && block.key === "video"
+                ? "video"
+                : null;
           return (
             <label key={key} className="flex flex-col gap-1">
               <span className={labelCls}>{humanize(key)}</span>
@@ -180,6 +194,17 @@ export function ConfigureForm({
                 onBlur={() => onChange(draft)}
                 className={fieldCls}
               />
+              {mediaKind ? (
+                <UploadButton
+                  kind={mediaKind}
+                  label="Upload from computer…"
+                  onUploaded={(url) => {
+                    const next = { ...draft, [key]: url };
+                    setDraft(next);
+                    onChange(next);
+                  }}
+                />
+              ) : null}
             </label>
           );
         })}

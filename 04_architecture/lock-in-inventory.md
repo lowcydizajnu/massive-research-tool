@@ -128,3 +128,5 @@ When opening a PR that touches an adapter or adds a vendor SDK import:
 4. If the migration target has changed because a better alternative exists (e.g., Better Auth replacing Auth.js for the Clerk migration in 2026-05-29), update the relevant ADR and this file in the same commit.
 
 The full migration discipline is in [ADR-0007 §migration-order](adrs/0007-path-a-vs-b.md).
+
+| Cloudflare R2 (asset storage) | `server/adapters/storage.r2.ts` only (aws4fetch presigner; StorageAdapter interface) | Migrate to S3/MinIO: new impl file + one-line export switch; objects copyable via rclone |

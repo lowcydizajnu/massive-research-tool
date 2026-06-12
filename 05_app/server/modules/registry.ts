@@ -881,6 +881,49 @@ type FieldSpec = z.infer<typeof fieldSpecSchema>;
 const readFields = (c: Record<string, unknown>): FieldSpec[] =>
   Array.isArray(c.fields) ? (c.fields as FieldSpec[]) : [];
 
+/**
+ * Audio recording (handoff C2 Group 3, ADR-0003): participant records their
+ * voice (MediaRecorder, explicit consent-to-record press), the clip uploads to
+ * R2 via the participant presign endpoint, and the answer stores the storage
+ * key + duration. Playback/export reference: /api/media/<r2Key>.
+ */
+const audioRecordBlock: CoreModuleDef = {
+  source: "core",
+  key: "audio-record",
+  version: "1.0.0",
+  name: "Audio recording",
+  description: "Participants record a spoken answer (microphone; researcher-set time limit).",
+  categoryTags: ["measurement", "media"],
+  configSchema: z.object({
+    prompt: z.string(),
+    maxDurationSeconds: z.number().int().min(5).max(300),
+    required: z.boolean(),
+  }),
+  defaultConfig: { prompt: "", maxDurationSeconds: 60, required: true },
+  jsonSchema: {
+    type: "object",
+    properties: {
+      prompt: { type: "string" },
+      maxDurationSeconds: { type: "integer", minimum: 5, maximum: 300 },
+      required: { type: "boolean" },
+    },
+    required: ["prompt"],
+    additionalProperties: false,
+  },
+  collectsResponse: true,
+  responseSchema: z.object({
+    r2Key: z.string().regex(/^resp\/[A-Za-z0-9_-]+\/[A-Za-z0-9_.-]+$/).max(300),
+    durationMs: z.number().int().positive().max(3_600_000),
+  }),
+  isAnswerEmpty: (a) => !a || typeof (a as { r2Key?: unknown }).r2Key !== "string",
+  validateAnswer: (a, config) => {
+    const max = typeof config.maxDurationSeconds === "number" ? config.maxDurationSeconds : 300;
+    const dur = (a as { durationMs?: unknown }).durationMs;
+    return typeof dur === "number" && dur <= max * 1000 + 3000; // small stop-latency slack
+  },
+  isComplete: (c) => typeof c.prompt === "string" && c.prompt.trim().length > 0,
+};
+
 const fieldGroupBlock: CoreModuleDef = {
   source: "core",
   key: "field-group",
@@ -1361,6 +1404,7 @@ export const MODULE_REGISTRY: CoreModuleDef[] = [
   phoneBlock,
   addressBlock,
   contactBlock,
+  audioRecordBlock,
   fieldGroupBlock,
   pictureChoiceBlock,
   socialPost,

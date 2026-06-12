@@ -151,3 +151,15 @@ Reopen this decision (probably as a superseding ADR) if:
 - `02_product/personas/principal-investigator.md` — the PI's openness about uploading materials vs linking is a key validation target (currently inferred; needs interview confirmation).
 - Future: ADR-0004 (OSF integration) — preregistration registers with OSF, which means OSF needs to know how to resolve our assets too.
 - Future: data-model entry for Asset, TenantStorageMeter, and the freeze-job background workflow.
+
+
+## Amendment (2026-06-11) — first implementation slice (V1.21.0)
+
+R2 wiring landed once the owner provisioned the bucket + `R2_*` secrets (Vercel). Decisions:
+
+- **Signer:** `aws4fetch` (MIT, ~6KB, zero deps) over `@aws-sdk/client-s3` — we only presign SigV4 URLs; the AWS SDK would be two orders of magnitude more dependency for the same four lines. Vendor code lives ONLY in `server/adapters/storage.r2.ts` behind a `StorageAdapter` interface (`storage.ts`), per ADR-0007.
+- **Flow:** presign-only — the browser PUTs directly to R2 (Content-Type is part of the signature, so the validated type is the only type R2 accepts) and reads via `/api/media/<key>`, a public route that 302s to a short-lived presigned GET. The bucket stays private; bytes never stream through our functions.
+- **Validation:** shared pure allowlists in `lib/uploads.ts` (image ≤10MB png/jpeg/webp/gif; video ≤200MB mp4/webm/mov; audio ≤25MB webm/m4a/mp3/wav/ogg) + namespace-checked keys (`ws/<workspaceId>/…` researcher uploads, `resp/<responseId>/…` participant recordings).
+- **Researcher uploads:** `uploads.presign` (write role) + an Upload button on media config fields (image/video URL, social-post image, picture-choice options).
+- **Participant recordings:** the `audio-record@1.0.0` block (handoff C2 Group 3) — MediaRecorder client component (third ADR-0013 client-JS exception), explicit consent-to-record press, researcher-set max duration with auto-stop, presign via `POST /api/take-upload` scoped exactly like answers (responseId must resolve + the per-response answer rate limit) — answer records `{r2Key, durationMs}`; the response schema pins keys to `resp/…` so a crafted answer can't reference foreign objects.
+- **Deferred (unchanged):** content-hash freeze-on-preregister for internal assets; external-link freeze; virus scanning (general file upload stays V1.13+ per the handoff).
