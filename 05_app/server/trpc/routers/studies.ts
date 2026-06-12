@@ -955,6 +955,10 @@ export const studiesRouter = router({
 
       const blocks: StudyBlock[] = readBlocks(row.version?.definitionSnapshot).map((b) => {
         const d = blockDisplay(b);
+        // Merge the module's CURRENT defaults under the saved config so fields
+        // added to a module after this block was created (e.g. social-post
+        // engagement controls) surface in the Configure panel for old blocks too.
+        const def = getModuleDef(b.source, b.key, b.version);
         return {
           instanceId: b.instanceId,
           source: b.source,
@@ -963,7 +967,7 @@ export const studiesRouter = router({
           name: d.name,
           title: b.title ?? null,
           ref: d.ref,
-          config: b.config,
+          config: def ? { ...def.defaultConfig, ...b.config } : b.config,
           complete: d.complete,
           showIfCondition: b.visibility?.showIfCondition ?? [],
           branchRules: b.branchRules ?? [],
