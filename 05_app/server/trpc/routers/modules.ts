@@ -15,6 +15,8 @@ export type CatalogueModule = {
   /** Whether the block records a participant answer (vs stimulus-only) —
    *  enriched from the in-code registry; the catalogue rows don't store it. */
   collectsResponse: boolean;
+  /** The block's default config — feeds the library's participant preview. */
+  defaultConfig: Record<string, unknown>;
 };
 
 export const modulesRouter = router({
@@ -34,6 +36,7 @@ export const modulesRouter = router({
       description: m.description,
       categoryTags: (m.categoryTags as string[]) ?? [],
       collectsResponse: getModuleDef(m.source, m.key, v.version)?.collectsResponse ?? false,
+      defaultConfig: getModuleDef(m.source, m.key, v.version)?.defaultConfig ?? {},
     }));
   }),
 });

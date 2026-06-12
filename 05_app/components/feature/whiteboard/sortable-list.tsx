@@ -16,7 +16,15 @@ import {
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import type { CSSProperties, ReactNode } from "react";
+import { useState, type CSSProperties, type DragEvent, type ReactNode } from "react";
+
+/** Native-DnD drop support (library drag-to-position): when `active`, each row
+ *  becomes an HTML5 drop target and `onDrop(rowId, e)` fires with the row the
+ *  payload landed on. Coexists with dnd-kit (pointer events vs native DnD). */
+export type NativeDrop = {
+  active: boolean;
+  onDrop: (rowId: string, e: DragEvent) => void;
+};
 
 /** Props to spread onto the drag-handle element (the grip). */
 export type DragHandleProps = {
@@ -38,13 +46,16 @@ export function SortableList({
   ariaLabel,
   className,
   children,
+  nativeDrop,
 }: {
   ids: string[];
   onReorder: (ids: string[], movedId: string) => void;
   ariaLabel?: string;
   className?: string;
   children: (id: string, handle: DragHandleProps, isDragging: boolean) => ReactNode;
+  nativeDrop?: NativeDrop;
 }) {
+  const [dropHover, setDropHover] = useState<string | null>(null);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -72,7 +83,13 @@ export function SortableList({
       <SortableContext items={ids} strategy={verticalListSortingStrategy}>
         <ul aria-label={ariaLabel} className={className}>
           {ids.map((id) => (
-            <SortableRow key={id} id={id}>
+            <SortableRow
+              key={id}
+              id={id}
+              nativeDrop={nativeDrop?.active ? nativeDrop : undefined}
+              dropHover={dropHover === id}
+              setDropHover={setDropHover}
+            >
               {children}
             </SortableRow>
           ))}
@@ -85,9 +102,15 @@ export function SortableList({
 function SortableRow({
   id,
   children,
+  nativeDrop,
+  dropHover,
+  setDropHover,
 }: {
   id: string;
   children: (id: string, handle: DragHandleProps, isDragging: boolean) => ReactNode;
+  nativeDrop?: NativeDrop;
+  dropHover?: boolean;
+  setDropHover?: (id: string | null) => void;
 }) {
   const { setNodeRef, setActivatorNodeRef, transform, transition, isDragging, attributes, listeners } =
     useSortable({ id });
@@ -99,9 +122,32 @@ function SortableRow({
     transition,
     zIndex: isDragging ? 10 : undefined,
     opacity: isDragging ? 0.6 : 1,
+    // Insertion indicator: the dragged library block lands AFTER this row.
+    boxShadow: dropHover ? "inset 0 -3px 0 var(--color-primary)" : undefined,
   };
   return (
-    <li ref={setNodeRef} style={style}>
+    <li
+      ref={setNodeRef}
+      style={style}
+      onDragOver={
+        nativeDrop
+          ? (e) => {
+              e.preventDefault();
+              setDropHover?.(id);
+            }
+          : undefined
+      }
+      onDragLeave={nativeDrop ? () => setDropHover?.(null) : undefined}
+      onDrop={
+        nativeDrop
+          ? (e) => {
+              e.preventDefault();
+              setDropHover?.(null);
+              nativeDrop.onDrop(id, e);
+            }
+          : undefined
+      }
+    >
       {children(
         id,
         {

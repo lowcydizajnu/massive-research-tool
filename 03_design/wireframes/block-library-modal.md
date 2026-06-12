@@ -36,7 +36,7 @@ Centered overlay dialog ~880×~620px (max 85vh) on a dimmed backdrop. Three zone
 - **Search input** — filters name + description + key within the active category.
 - **Block card** — icon on a category-tinted tile (lucide set, token colors only), block name, one-line description (clamped), and a kind badge: `Records data` (collectsResponse) vs `Stimulus` — the single most decision-relevant fact.
 - **Recently used row** — last 6 inserted block types (per device), shown in the All view with no query.
-- **Details pane** — larger icon tile, full description, category chips, what it records, version; primary **+ Add to study** button. For Your blocks: block count + Delete (ConfirmDialog).
+- **Details pane** — larger icon tile, full description, category chips, what it records, version; a **Participant preview** card rendering the block through the real take renderer (sample copy fills empty prompts; media/interactive blocks show a short note instead); primary **+ Add to study** button. For Your blocks: block count + Delete (ConfirmDialog).
 - **Entry points (3)** — `+ Add block` button beside the "Blocks" heading; the existing button at the list's end; an empty-state CTA centered on a fresh study ("Browse the block library").
 
 ## States
@@ -53,6 +53,7 @@ Centered overlay dialog ~880×~620px (max 85vh) on a dimmed backdrop. Three zone
 - Click card → select (details pane fills). Double-click card or details `+ Add` → insert.
 - Category click filters; search refines within category; `Esc` or backdrop click closes; focus returns to the trigger.
 - Insert records the block key into the recently-used list (localStorage, max 6).
+- **Drag a card into the list**: dragging hides the modal so the Builder list is visible; rows light up as drop targets (insert AFTER the row; after the whole group for member rows; BEFORE the group on its header — group runs never split); `addBlock` gained an `atIndex`. The empty state accepts a drop too. Whiteboard cards aren't draggable (canvas auto-positions).
 - Deleting a custom module asks via ConfirmDialog (mirrors the old picker's behavior).
 
 ## Edge cases
@@ -71,4 +72,4 @@ Centered overlay dialog ~880×~620px (max 85vh) on a dimmed backdrop. Three zone
 
 ## Open questions
 
-- Custom per-block SVG illustrations (beyond lucide-on-tinted-tile) — revisit if the owner wants richer art after living with the icon set; the card layout already reserves the slot.
+- Custom per-block SVG illustrations (beyond lucide-on-tinted-tile) — revisit if the owner wants richer art after living with the icon set; the card layout already reserves the slot. (Live preview + drag-to-position shipped 2026-06-12.)
