@@ -51,8 +51,8 @@ export function osfConfig() {
 /** Thrown when the user has no active OSF connection — lets the push job mark
  *  the version `no_credentials` rather than retrying a doomed request. */
 export class OsfNotConnectedError extends Error {
-  constructor() {
-    super("No active OSF connection for this user.");
+  constructor(message = "No active OSF connection for this user.") {
+    super(message);
     this.name = "OsfNotConnectedError";
   }
 }
@@ -134,6 +134,11 @@ async function osfApi(
     },
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
+  if (res.status === 401) {
+    throw new OsfNotConnectedError(
+      "OSF rejected the stored token (it may have been revoked or regenerated) — reconnect in Settings · Connections.",
+    );
+  }
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`OSF ${method} ${path} failed: ${res.status} ${text}`);
@@ -151,6 +156,11 @@ async function resolveSchemaId(token: string, schemaName?: string): Promise<stri
     const res = await fetch(url, {
       headers: { Authorization: `Bearer ${token}`, Accept: JSON_API },
     });
+    if (res.status === 401) {
+      throw new OsfNotConnectedError(
+        "OSF rejected the stored token (it may have been revoked or regenerated) — reconnect in Settings · Connections.",
+      );
+    }
     if (!res.ok) throw new Error(`OSF schema lookup failed: ${res.status} ${await res.text()}`);
     const json = (await res.json()) as {
       data: Array<{ id: string; attributes?: { name?: string } }>;
@@ -389,6 +399,11 @@ export const osfRegistry: RegistryAdapter = {
     const cfg = osfConfig();
     const headers = { Authorization: `Bearer ${token}`, Accept: JSON_API };
     const regRes = await fetch(`${cfg.apiBase}/registrations/${registrationId}/`, { headers });
+    if (regRes.status === 401) {
+      throw new OsfNotConnectedError(
+        "OSF rejected the stored token (it may have been revoked or regenerated) — reconnect in Settings · Connections.",
+      );
+    }
     if (!regRes.ok) throw new Error(`OSF registration lookup failed: ${regRes.status}`);
     const reg = (await regRes.json()) as {
       data: { attributes: { pending_registration_approval?: boolean; withdrawn?: boolean; public?: boolean } };
