@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { StageTabs } from "@/components/chrome/stage-tabs";
+import { DivergenceSummary } from "@/components/feature/overview/divergence-summary";
 import { OverviewEditor } from "@/components/feature/overview/overview-editor";
 import { ReplicationProvenance, type Provenance } from "@/components/feature/overview/replication-provenance";
 import { getServerApi } from "@/server/trpc/server";
@@ -56,6 +57,7 @@ export default async function OverviewPage({ params }: { params: Promise<{ id: s
         </div>
         {parent ? <ReplicationProvenance parent={parent} studyId={study.id} /> : null}
         <OverviewEditor studyId={study.id} initial={study.overview} isReplication={study.isReplication} />
+        {study.isReplication ? <DivergenceSummary studyId={study.id} /> : null}
       </div>
     </main>
   );
