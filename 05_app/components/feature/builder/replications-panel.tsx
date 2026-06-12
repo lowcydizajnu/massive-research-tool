@@ -113,10 +113,7 @@ function Divergence({ diff }: { diff: BlockDiff | null }) {
 /** Delegates to the dialog-equipped browse button (ADR-0039 intent dialog). */
 export function ReplicateButton({ studyId }: { studyId: string }) {
   return (
-    <BrowseReplicateButton
-      studyId={studyId}
-      className="w-fit rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-2.5 py-1 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
-    />
+    <BrowseReplicateButton studyId={studyId} className="px-3 py-1.5 text-[length:var(--text-small)]" />
   );
 }
 
