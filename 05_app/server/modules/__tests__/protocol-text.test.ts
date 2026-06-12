@@ -58,3 +58,30 @@ describe("protocolText (ADR-0031)", () => {
     expect(lines).toContain("PROTOCOL");
   });
 });
+
+describe("protocol text carries replication + consent documentation (ADR-0039/0035)", () => {
+  it("includes intent, per-block rationale, and CUSTOM consent only", () => {
+    const snapshot = {
+      blocks: [
+        {
+          instanceId: "b1",
+          source: "core",
+          key: "likert-7",
+          version: "1.0.0",
+          config: { prompt: "How truthful?" },
+          divergenceNote: "Original wording was ambiguous in pilot.",
+        },
+      ],
+      overview: { abstract: "", hypotheses: [], sections: [], replicationNotes: "", replicationIntent: "direct" },
+      consent: { body: "IRB-approved custom text." },
+    };
+    const lines = protocolText(snapshot);
+    expect(lines).toContain("Replication kind: direct");
+    expect(lines.some((l) => l.includes("Differs from the original: Original wording was ambiguous"))).toBe(true);
+    expect(lines).toContain("CONSENT");
+    expect(lines.some((l) => l.includes("IRB-approved custom text."))).toBe(true);
+    // Default consent adds NO lines (no diff churn for ordinary studies).
+    const plain = protocolText({ blocks: [] });
+    expect(plain).not.toContain("CONSENT");
+  });
+});

@@ -1,4 +1,5 @@
 import { blockDisplay, readBlocks, readGroups, readOverview } from "./blocks";
+import { hasCustomConsent, readConsent } from "./consent";
 
 /**
  * Canonical researcher-readable serialization of a definition_snapshot
@@ -52,6 +53,7 @@ export function protocolText(snapshot: unknown): string[] {
   const groupById = new Map(groups.map((g) => [g.id, g]));
 
   out.push("OVERVIEW");
+  if (overview.replicationIntent) out.push(`Replication kind: ${overview.replicationIntent}`);
   if (overview.abstract.trim()) {
     out.push("Abstract:");
     for (const line of overview.abstract.split("\n")) out.push(`  ${line}`);
@@ -84,7 +86,21 @@ export function protocolText(snapshot: unknown): string[] {
     out.push(`${indent}${n}. ${d.name}${b.title?.trim() ? ` — “${b.title.trim()}”` : ""}`);
     const arms = b.visibility?.showIfCondition ?? [];
     if (arms.length) out.push(`${indent}   Shown only for: ${arms.join(", ")}`);
+    if (typeof b.divergenceNote === "string" && b.divergenceNote.trim()) {
+      out.push(`${indent}   Differs from the original: ${b.divergenceNote.trim()}`);
+    }
     out.push(...configLines(b.config ?? {}, `${indent}   `));
+  }
+
+  // Consent wording is protocol (IRB-approved language) — but only CUSTOM text
+  // is information; the default adds nothing and would churn every diff.
+  if (hasCustomConsent(snapshot)) {
+    const consent = readConsent(snapshot);
+    out.push("");
+    out.push("CONSENT");
+    for (const line of consent.body.split("\n")) out.push(`  ${line}`);
+    out.push(`  Agree button: ${consent.agreeLabel}`);
+    out.push(`  Decline button: ${consent.disagreeLabel}`);
   }
   return out;
 }
