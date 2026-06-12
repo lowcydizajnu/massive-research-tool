@@ -91,7 +91,7 @@ async function ensureOsfRegistry(): Promise<string> {
 }
 
 const NOT_IMPLEMENTED =
-  "OSF amendment/withdrawal push lands in V1.6 (ADR-0004/0005) — " +
+  "OSF withdrawal needs live verification against a sacrificial registration (owner-run; ADR-0005 am. 3) — " +
   "built against verified OSF API, not stubbed here.";
 
 /** OSF JSON:API media type (required Content-Type/Accept for v2 writes). */
@@ -144,8 +144,8 @@ async function osfApi(
 /** Resolve the registration-schema id by name (e.g. "Open-Ended Registration").
  *  OSF does NOT support filter[name] on this collection (returns 400), so we
  *  page through the list and match on attributes.name client-side. */
-async function resolveSchemaId(token: string): Promise<string> {
-  const name = osfConfig().registrationSchemaName;
+async function resolveSchemaId(token: string, schemaName?: string): Promise<string> {
+  const name = schemaName ?? osfConfig().registrationSchemaName;
   let url: string | null = `${osfConfig().apiBase}/schemas/registrations/?page[size]=100`;
   while (url) {
     const res = await fetch(url, {
@@ -168,6 +168,7 @@ async function resolveSchemaId(token: string): Promise<string> {
 function buildSummary(payload: RegistrationPayload): string {
   const json = JSON.stringify(payload.snapshot, null, 2);
   return (
+    `${payload.summaryPrefix ? `${payload.summaryPrefix}\n\n` : ""}` +
     `${payload.title}\n\n` +
     `Preregistered from Massive Research Tool (experiment version ${payload.experimentVersionId}).\n\n` +
     `--- Machine-readable design snapshot ---\n${json}`
@@ -320,16 +321,20 @@ export const osfRegistry: RegistryAdapter = {
 
     // 1. Resolve the schema FIRST — it's a read, and doing it before any write
     //    means a lookup failure can't leave an orphan project node behind.
-    const schemaId = await resolveSchemaId(token);
+    const schemaId = await resolveSchemaId(token, payload.schemaName);
 
-    // 2. Project node to register from.
-    const node = await osfApi(token, "POST", "/nodes/", {
-      data: {
-        type: "nodes",
-        attributes: { title: payload.title, category: "project", public: false },
-      },
-    });
-    const nodeId = node.data.id!;
+    // 2. Project node to register from — amendments reuse the original node
+    //    (ADR-0005 am. 3) so a study's registrations share one OSF project.
+    let nodeId = payload.existingNodeId ?? null;
+    if (!nodeId) {
+      const node = await osfApi(token, "POST", "/nodes/", {
+        data: {
+          type: "nodes",
+          attributes: { title: payload.title, category: "project", public: false },
+        },
+      });
+      nodeId = node.data.id!;
+    }
 
     // 3. Draft registration under that node, bound to the chosen schema.
     const draft = await osfApi(token, "POST", `/nodes/${nodeId}/draft_registrations/`, {
@@ -351,7 +356,7 @@ export const osfRegistry: RegistryAdapter = {
         type: "draft_registrations",
         attributes: {
           title: payload.title,
-          registration_responses: { summary: buildSummary(payload) },
+          registration_responses: payload.registrationResponses ?? { summary: buildSummary(payload) },
         },
       },
     });
@@ -367,11 +372,41 @@ export const osfRegistry: RegistryAdapter = {
     const url =
       (reg.data.links?.html as string | undefined) ?? `https://osf.io/${registrationId}/`;
 
-    return { registrationId, url, doi: null };
+    return { registrationId, url, doi: null, nodeId };
   },
-  async pushAmendment(): Promise<PushResult> {
-    throw new Error(NOT_IMPLEMENTED);
+
+  /** An amendment is a NEW registration on the SAME project node; the job
+   *  builds the amendment header/responses and passes existingNodeId — this
+   *  is the same verified flow with node creation skipped (ADR-0005 am. 3). */
+  async pushAmendment(userId, payload, _priorDoi): Promise<PushResult> {
+    return osfRegistry.pushRegistration(userId, payload);
   },
+
+  /** Two-way sync (ADR-0005 am. 3): approval + DOI via the registration's
+   *  identifiers (DOI category) — verified live against api.osf.io 2026-06-12. */
+  async getRegistrationStatus(userId, registrationId) {
+    const token = await osfAccessToken(userId);
+    const cfg = osfConfig();
+    const headers = { Authorization: `Bearer ${token}`, Accept: JSON_API };
+    const regRes = await fetch(`${cfg.apiBase}/registrations/${registrationId}/`, { headers });
+    if (!regRes.ok) throw new Error(`OSF registration lookup failed: ${regRes.status}`);
+    const reg = (await regRes.json()) as {
+      data: { attributes: { pending_registration_approval?: boolean; withdrawn?: boolean; public?: boolean } };
+    };
+    const idsRes = await fetch(`${cfg.apiBase}/registrations/${registrationId}/identifiers/`, { headers });
+    let doi: string | null = null;
+    if (idsRes.ok) {
+      const ids = (await idsRes.json()) as { data: Array<{ attributes: { category: string; value: string } }> };
+      doi = ids.data.find((i) => i.attributes.category === "doi")?.attributes.value ?? null;
+    }
+    return {
+      doi,
+      pendingApproval: !!reg.data.attributes.pending_registration_approval,
+      withdrawn: !!reg.data.attributes.withdrawn,
+      public: !!reg.data.attributes.public,
+    };
+  },
+
   async withdraw(): Promise<void> {
     throw new Error(NOT_IMPLEMENTED);
   },

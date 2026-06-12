@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { StageTabs } from "@/components/chrome/stage-tabs";
 import { PreflightChecklist } from "@/components/feature/run/preflight-checklist";
 import { PreregisterButton } from "@/components/feature/preregister/preregister-button";
+import { RefreshOsfStatus } from "@/components/feature/preregister/refresh-osf-status";
 import { PushStatusPoller } from "@/components/feature/preregister/push-status-poller";
 import { RetryPushButton } from "@/components/feature/preregister/retry-push-button";
 import { registry } from "@/server/adapters/registry";
@@ -164,6 +165,9 @@ export default async function PreregisterStagePage({
               >
                 View on OSF →
               </a>
+            ) : null}
+            {pre.pushStatus === "pushed" && !pre.doi ? (
+              <RefreshOsfStatus studyId={study.id} />
             ) : null}
             {pre.pushStatus === "pushed" ? (
               <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">

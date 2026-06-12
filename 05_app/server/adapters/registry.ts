@@ -24,6 +24,16 @@ export type RegistrationPayload = {
   snapshot: Record<string, unknown>;
   /** OSF preregistration template fields mapped from definition_snapshot.preregistration. */
   templateFields: Record<string, unknown>;
+  /** Registration schema to file under (defaults to the adapter's configured
+   *  Open-Ended schema). The Replication Recipe push sets this (ADR-0005 am. 3). */
+  schemaName?: string;
+  /** Pre-built registration_responses for structured schemas. Absent → the
+   *  adapter files its default single-summary response. */
+  registrationResponses?: Record<string, unknown>;
+  /** Reuse an existing project node (amendments register on the same node). */
+  existingNodeId?: string | null;
+  /** Prepended to the default summary (amendment headers). */
+  summaryPrefix?: string;
 };
 
 export type PushResult = {
@@ -35,6 +45,15 @@ export type PushResult = {
    *  pending-approval and OSF mints the DOI only on approval. Backfilled later
    *  by polling the registration's identifiers (ADR-0005 amendment 2026-06-03). */
   doi: string | null;
+  /** The project node registered from — stored so amendments reuse it. */
+  nodeId: string | null;
+};
+
+export type RegistrationStatus = {
+  doi: string | null;
+  pendingApproval: boolean;
+  withdrawn: boolean;
+  public: boolean;
 };
 
 export interface RegistryAdapter {
@@ -63,6 +82,8 @@ export interface RegistryAdapter {
     payload: RegistrationPayload,
     priorDoi: string,
   ): Promise<PushResult>;
+  /** Poll a pushed registration for approval/DOI (two-way sync, ADR-0005 am. 3). */
+  getRegistrationStatus(userId: string, registrationId: string): Promise<RegistrationStatus>;
   /** Best-effort withdrawal of a pushed registration. */
   withdraw(userId: string, doi: string, reason: string): Promise<void>;
 }

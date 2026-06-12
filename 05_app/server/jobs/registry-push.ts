@@ -1,4 +1,4 @@
-import { and, eq, ne } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
 import { ulid } from "ulid";
 
 import type { JobCatalog } from "@/server/adapters/jobs";
@@ -6,6 +6,9 @@ import { registry } from "@/server/adapters/registry";
 import { OsfNotConnectedError } from "@/server/adapters/registry.osf";
 import type { RegistrationPayload } from "@/server/adapters/registry";
 import { db } from "@/server/db/client";
+import { changelogBetween } from "@/server/modules/changelog";
+import { readOverview } from "@/server/modules/blocks";
+import { buildRecipeResponses, RECIPE_SCHEMA_NAME } from "@/server/modules/osf-recipe";
 import { emit } from "@/server/events/emit";
 import {
   experiment,
@@ -54,10 +57,66 @@ export async function runRegistryPush(data: JobCatalog["registry.push"]): Promis
       title: experiment.title,
       tenantId: experiment.tenantId,
       ownerId: experiment.ownerId,
+      forkOfExperimentId: experiment.forkOfExperimentId,
     })
     .from(experiment)
     .where(eq(experiment.id, version.experimentId))
     .limit(1);
+
+  // Declared replications file under the Replication Recipe schema (ADR-0005
+  // am. 3) — keys verified live; every field optional, so partial filing is safe.
+  const isRecipe = !!readOverview(version.definitionSnapshot).replicationIntent;
+  let sourceTitle: string | null = null;
+  if (exp?.forkOfExperimentId) {
+    const [src] = await db
+      .select({ title: experiment.title })
+      .from(experiment)
+      .where(eq(experiment.id, exp.forkOfExperimentId))
+      .limit(1);
+    sourceTitle = src?.title ?? null;
+  }
+
+  // Amendment detection: a previous successful push for the SAME study means
+  // this registration supersedes it — same OSF project node, changelog header.
+  const [prior] = await db
+    .select({
+      id: experimentVersion.id,
+      snapshot: experimentVersion.definitionSnapshot,
+      url: experimentVersion.externalRegistrationUrl,
+      doi: experimentVersion.externalRegistrationDoi,
+    })
+    .from(experimentVersion)
+    .where(
+      and(
+        eq(experimentVersion.experimentId, version.experimentId),
+        eq(experimentVersion.registryPushStatus, "pushed"),
+        ne(experimentVersion.id, version.id),
+      ),
+    )
+    .orderBy(desc(experimentVersion.createdAt))
+    .limit(1);
+
+  let amendmentHeader: string | undefined;
+  let existingNodeId: string | null = null;
+  if (prior) {
+    const changes = changelogBetween(prior.snapshot, version.definitionSnapshot);
+    const changeBlock = changes.length
+      ? ["", "Changes since that registration:", ...changes.map((l) => "- " + l)].join("\n")
+      : "";
+    amendmentHeader =
+      "AMENDMENT - supersedes the registration at " +
+      (prior.url ?? prior.doi ?? "(previous version)") +
+      "." +
+      changeBlock;
+    const [priorPush] = await db
+      .select({ responsePayload: registryPush.responsePayload })
+      .from(registryPush)
+      .where(and(eq(registryPush.experimentVersionId, prior.id), eq(registryPush.status, "pushed")))
+      .orderBy(desc(registryPush.createdAt))
+      .limit(1);
+    existingNodeId =
+      ((priorPush?.responsePayload as { nodeId?: string } | null)?.nodeId as string | undefined) ?? null;
+  }
 
   const payload: RegistrationPayload = {
     experimentVersionId: version.id,
@@ -68,6 +127,18 @@ export async function runRegistryPush(data: JobCatalog["registry.push"]): Promis
       theme: version.themeSnapshot ?? null,
     },
     templateFields: {},
+    ...(isRecipe
+      ? {
+          schemaName: RECIPE_SCHEMA_NAME,
+          registrationResponses: buildRecipeResponses({
+            snapshot: version.definitionSnapshot,
+            sourceTitle,
+            amendmentHeader,
+          }),
+        }
+      : {}),
+    ...(amendmentHeader ? { summaryPrefix: amendmentHeader } : {}),
+    existingNodeId,
   };
 
   const pushId = ulid();
@@ -80,10 +151,9 @@ export async function runRegistryPush(data: JobCatalog["registry.push"]): Promis
   });
 
   try {
-    const result =
-      data.isAmendment && data.priorDoi
-        ? await registry.pushAmendment(data.userId, payload, data.priorDoi)
-        : await registry.pushRegistration(data.userId, payload);
+    const result = prior
+      ? await registry.pushAmendment(data.userId, payload, prior.doi ?? "")
+      : await registry.pushRegistration(data.userId, payload);
 
     await db
       .update(registryPush)

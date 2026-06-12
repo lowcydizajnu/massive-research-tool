@@ -50,6 +50,7 @@ import {
 import { changelogBetween, initialVersionSummary } from "@/server/modules/changelog";
 import { readConsent, type StudyConsent } from "@/server/modules/consent";
 import { runPreflight, type PreflightCheck } from "@/server/modules/preflight";
+import { registry as registryAdapter } from "@/server/adapters/registry";
 import { divergenceAgainstPinned, injectReplicationRecipe, type DivergenceStatus } from "@/server/modules/replication";
 import { getModuleDef } from "@/server/modules/registry";
 import { protocolText } from "@/server/modules/protocol-text";
@@ -1228,6 +1229,43 @@ export const studiesRouter = router({
    * it say v3?" is answerable: the Draft (autosave) + each conscious snapshot
    * with its kind, number, freeze status, and OSF DOI/status.
    */
+  /** Two-way OSF sync (ADR-0005 am. 3): poll the pushed registration for
+   *  approval + DOI and backfill the version. Owner-triggered (button) +
+   *  called by the preregister page's pending poll. */
+  refreshRegistration: writeProcedure
+    .input(z.object({ studyId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const [ver] = await db
+        .select({
+          id: experimentVersion.id,
+          url: experimentVersion.externalRegistrationUrl,
+          doi: experimentVersion.externalRegistrationDoi,
+        })
+        .from(experimentVersion)
+        .innerJoin(experiment, eq(experimentVersion.experimentId, experiment.id))
+        .where(
+          and(
+            eq(experimentVersion.experimentId, input.studyId),
+            eq(experiment.tenantId, ctx.workspace.id),
+            isNotNull(experimentVersion.externalRegistrationUrl),
+          ),
+        )
+        .orderBy(desc(experimentVersion.createdAt))
+        .limit(1);
+      if (!ver?.url) throw new TRPCError({ code: "NOT_FOUND", message: "No pushed registration to check." });
+      const regId = ver.url.match(/osf\.io\/([a-z0-9]+)/i)?.[1];
+      if (!regId) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Couldn't read the registration id." });
+
+      const status = await registryAdapter.getRegistrationStatus(ctx.dbUser.id, regId);
+      if (status.doi && status.doi !== ver.doi) {
+        await db
+          .update(experimentVersion)
+          .set({ externalRegistrationDoi: status.doi })
+          .where(eq(experimentVersion.id, ver.id));
+      }
+      return status;
+    }),
+
   /** Methodological pre-flight checks over the working tip (ADR-0034). Pure
    *  read — the gate is advisory; preregister/publish never enforce. */
   preflight: workspaceProcedure

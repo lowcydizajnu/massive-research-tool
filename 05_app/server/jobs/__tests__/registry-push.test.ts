@@ -93,6 +93,7 @@ describe("runRegistryPush", () => {
     const { versionId, userId } = await seed();
     pushRegistration.mockResolvedValue({
       registrationId: "abc12",
+      nodeId: "node12",
       url: "https://osf.io/abc12/",
       doi: null,
     });

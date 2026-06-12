@@ -198,3 +198,13 @@ Reopen this decision (probably as a superseding or extending ADR) if:
 - Future: ADR for AsPredicted adapter (likely tests whether the abstraction held).
 - Future: ADR for pull-from-OSF / fork-from-OSF (Option C territory).
 - OSF API documentation (external): the surface this ADR's adapter targets.
+
+
+## Amendment 3 (2026-06-12) — Replication Recipe schema, amendments, DOI backfill (V1.31.0)
+
+Owner direction: "fix all gaps for OSF." All contracts in this amendment were verified LIVE against `api.osf.io` on 2026-06-12 (no guessed keys):
+
+- **Replication Recipe schema** — `Replication Recipe (Brandt et al., 2014): Pre-Registration` (schema id `64b14a08d639e5000d2013a5`, v2). Its `schema_blocks` carry 28 `registration_response_key`s (`77-2` … `77-82`) and **every one is optional**, so partial filing is valid. Declared replications (`overview.replicationIntent` set, ADR-0039) now file under this schema with auto-mapped responses: Description (`77-2`) ← target-effect section + abstract + the full auto-generated protocol sheet; Original Study Conducted (`77-12`) ← source study title; Sample Size Target (`77-33`) ← planned-sample section; Difference Influencing Effects (`77-73`) ← the per-block divergence rationales + differences section; Analysis Plan (`77-80`) ← any "analysis" section. Single-selects (Exact/Close/Different similarity ratings) are never auto-filled — the researcher completes them on OSF. Mapping lives in `server/modules/osf-recipe.ts` (pure, tested). Non-replications keep the verified Open-Ended summary flow unchanged.
+- **Amendments** — a second preregistration of the SAME study is detected in the push job (a prior `pushed` version exists): the new registration files on the **same OSF project node** (`nodeId` now returned by `pushRegistration` and stored in the push row's response payload; older pushes without it fall back to a fresh node) with an `AMENDMENT — supersedes <url>` header + the ADR-0033 auto-changelog lines, prepended to the summary (Open-Ended) or the Description (Recipe). `pushAmendment` is the same verified flow with node creation skipped.
+- **DOI backfill / two-way sync** — `getRegistrationStatus` reads `GET /registrations/{id}/` (`pending_registration_approval`, `withdrawn`, `public`) + `GET /registrations/{id}/identifiers/` (`category == "doi"` — verified shape). `studies.refreshRegistration` backfills `external_registration_doi`; the Preregister page shows a "Check OSF status" button while pushed-without-DOI.
+- **Still deferred: withdrawal.** The write contract for withdrawal requests is the one piece we could not verify without sacrificing a real registration; the adapter method stays NOT_IMPLEMENTED with that reason. Owner-run verification against a test registration unlocks it.
