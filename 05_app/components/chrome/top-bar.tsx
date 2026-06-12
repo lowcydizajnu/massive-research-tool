@@ -22,7 +22,7 @@ export function TopBar({
   email: string | null;
 }) {
   return (
-    <header className="flex items-center gap-3 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-panel)] px-3 py-2">
+    <header className="flex items-center gap-3 border-b border-[var(--color-border-subtle)] bg-[var(--color-surface-panel)] px-4 py-2">
       {/* Workspace switcher (popover deferred per IA v0.3) */}
       <button
         type="button"

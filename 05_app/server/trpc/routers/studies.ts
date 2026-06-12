@@ -2926,6 +2926,23 @@ export const studiesRouter = router({
     }),
 
   /** Set a study's forkability (ADR-0002/0018) — owner-workspace only. */
+  /** Archive a study (focused-mode ⋯ menu, IA v0.4) — sets archived_at; the
+   *  Studies "Archived" filter is the only place it then appears. Nothing is
+   *  deleted; unarchive ships with the Wave 6 bulk-operations slice. */
+  archive: writeProcedure
+    .input(z.object({ studyId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      const [row] = await db
+        .update(experiment)
+        .set({ archivedAt: new Date(), updatedAt: new Date() })
+        .where(
+          and(eq(experiment.id, input.studyId), eq(experiment.tenantId, ctx.workspace.id)),
+        )
+        .returning({ id: experiment.id });
+      if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+      return { ok: true };
+    }),
+
   setForkable: writeProcedure
     .input(
       z.object({
