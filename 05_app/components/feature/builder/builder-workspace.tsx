@@ -360,9 +360,23 @@ export function BuilderWorkspace({
     try {
       const m = JSON.parse(raw) as { source: string; key: string; version: string };
       addBlock.mutate({ studyId: study.id, ...m, atIndex: insertIndexFor(rowId) });
+      setPickerOpen(false); // the drop finished the add — don't leave a hidden modal up
     } catch {
       // not our payload — ignore
     }
+  };
+  /** Bulk add from the library's checkbox selection — sequential, order preserved. */
+  const handleBulkInsert = async (sel: {
+    blocks: { source: string; key: string; version: string }[];
+    customModuleIds: string[];
+  }) => {
+    for (const m of sel.blocks) {
+      await addBlock.mutateAsync({ studyId: study.id, ...m });
+    }
+    for (const id of sel.customModuleIds) {
+      await insertModuleMut.mutateAsync({ studyId: study.id, customModuleId: id });
+    }
+    void invalidate();
   };
 
   // Gate a whole group by an arm: set/clear the arm on every member (runtime
@@ -840,6 +854,7 @@ export function BuilderWorkspace({
                 pending={addBlock.isPending}
                 onClose={() => setPickerOpen(false)}
                 onDragStateChange={setLibraryDragging}
+                onBulkInsert={handleBulkInsert}
                 onInsert={(m) => addBlock.mutate({ studyId: study.id, ...m })}
                 customModules={customModulesQ.data ?? []}
                 insertingModule={insertModuleMut.isPending}

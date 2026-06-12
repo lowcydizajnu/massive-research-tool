@@ -34,9 +34,9 @@ Centered overlay dialog ~880×~620px (max 85vh) on a dimmed backdrop. Three zone
 
 - **Category rail** — derived from the catalogue's `categoryTags` (one block may appear in several): All · Scales & ratings · Choice & ranking · Open text · Form fields · Demographics · Media & stimuli · Social · Research tools · Your blocks (saved custom modules, ADR-0029). Each shows a count.
 - **Search input** — filters name + description + key within the active category.
-- **Block card** — icon on a category-tinted tile (lucide set, token colors only), block name, one-line description (clamped), and a kind badge: `Records data` (collectsResponse) vs `Stimulus` — the single most decision-relevant fact.
+- **Block card** — icon on a category-tinted tile (lucide set, token colors only), block name, one-line description (clamped), a kind badge (`Records data` vs `Stimulus`), and a **bulk-select checkbox** (top-right). Any selection shows a footer bar: `N selected · Add selected / Clear`; bulk adds insert sequentially in selection order (registry blocks and custom modules both).
 - **Recently used row** — last 6 inserted block types (per device), shown in the All view with no query.
-- **Details pane** — larger icon tile, full description, category chips, what it records, version; a **Participant preview** card rendering the block through the real take renderer (sample copy fills empty prompts; media/interactive blocks show a short note instead); primary **+ Add to study** button. For Your blocks: block count + Delete (ConfirmDialog).
+- **Details pane** — larger icon tile, full description, category chips, what it records, version; a **Participant preview** card rendering the block through the real take renderer (sample copy fills empty prompts; media/interactive blocks show a short note instead); primary **+ Add to study** button. For Your blocks: block count + a participant preview of up to 3 of the saved blocks (their REAL configs through the take renderer) + Delete (ConfirmDialog).
 - **Entry points (3)** — `+ Add block` button beside the "Blocks" heading; the existing button at the list's end; an empty-state CTA centered on a fresh study ("Browse the block library").
 
 ## States
