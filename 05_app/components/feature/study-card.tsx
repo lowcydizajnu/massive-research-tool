@@ -55,7 +55,7 @@ export function StudyCard({ study }: { study: StudyListItem }) {
         </h3>
         {study.isReplication ? (
           <p className="truncate text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-            Replicating an upstream study
+            Replication of another study
           </p>
         ) : null}
         <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">

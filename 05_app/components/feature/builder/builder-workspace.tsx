@@ -550,7 +550,7 @@ export function BuilderWorkspace({
                 {/* Autosave tip is the unnumbered Draft (ADR-0012 amendment); v1+ are conscious saves. */}
                 {study.versionNumber > 0 ? `v${study.versionNumber}` : "Draft"} ·{" "}
                 {STAGE_LABEL[study.stage]} · Edited {formatEdited(study.lastEditedAt)}
-                {study.isReplication ? " · replicating an upstream study" : ""}
+                {study.isReplication ? " · replication of another study" : ""}
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
