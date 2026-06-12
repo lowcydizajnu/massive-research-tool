@@ -42,6 +42,8 @@ import {
 } from "@/components/feature/settings/panel-side-toggle";
 import { PaneHandle, usePaneWidth } from "@/components/chrome/pane-resize";
 import { BlockHistoryPanel } from "./block-history-panel";
+import { ReplicationBanner } from "./replication-banner";
+import { ReplicationConfigExtras } from "./replication-config-extras";
 import { BlockProvenance } from "./block-provenance";
 import { ConsentEditor } from "./consent-editor";
 
@@ -222,6 +224,7 @@ export function BuilderWorkspace({
     ...(b.showIfCondition.length ? { visibility: { showIfCondition: b.showIfCondition } } : {}),
     ...(b.branchRules.length ? { branchRules: b.branchRules } : {}),
     ...(b.showIf ? { showIf: b.showIf } : {}),
+    ...(b.divergenceNote ? { divergenceNote: b.divergenceNote } : {}),
     ...(groupId ? { groupId } : {}),
   });
   /** Persist a groupId override for one block + recompute the groups[] metadata. */
@@ -395,6 +398,9 @@ export function BuilderWorkspace({
   // Gate a whole group by an arm: set/clear the arm on every member (runtime
   // filters by arm at the block level). Mirrors the Whiteboard's group wire.
   const conditionsQ = api.studies.listConditions.useQuery({ studyId: study.id });
+  // Replication mode (ADR-0039): null for ordinary studies.
+  const replicationQ = api.studies.replicationStatus.useQuery({ studyId: study.id });
+  const divergenceBadges = replicationQ.data?.badges ?? {};
 
   // Custom composite modules (ADR-0029): save a group as a reusable template,
   // insert one as a new group, delete one.
@@ -593,6 +599,8 @@ export function BuilderWorkspace({
                 Add block
               </button>
             </div>
+
+            <ReplicationBanner studyId={study.id} />
 
             {/* Consent screen — pinned, never draggable (ADR-0035): always the
                 participant's first screen, so it lives above the sortable list. */}
@@ -840,6 +848,7 @@ export function BuilderWorkspace({
                       </span>
                       <div className="min-w-0 flex-1">
                         <BlockCard
+                          divergence={divergenceBadges[b.instanceId]}
                           block={b}
                           selected={b.instanceId === selectedId}
                           onSelect={() => setSelectedId(b.instanceId)}
@@ -1031,6 +1040,14 @@ export function BuilderWorkspace({
         ) : selected ? (
           <>
             <BlockProvenance studyId={study.id} instanceId={selected.instanceId} />
+            {divergenceBadges[selected.instanceId] ? (
+              <ReplicationConfigExtras
+                studyId={study.id}
+                instanceId={selected.instanceId}
+                status={divergenceBadges[selected.instanceId]}
+                note={selected.divergenceNote}
+              />
+            ) : null}
             <ConfigureForm
               key={`${selected.instanceId}-${panelEpoch}`}
               block={selected}
@@ -1220,11 +1237,14 @@ function BlockCard({
   selected,
   onSelect,
   conditionLabel,
+  divergence,
 }: {
   block: StudyBlock;
   selected: boolean;
   onSelect: () => void;
   conditionLabel?: string | null;
+  /** Replication-mode badge (ADR-0039): this block differs from the original. */
+  divergence?: "modified" | "added";
 }) {
   return (
     <button
@@ -1239,8 +1259,21 @@ function BlockCard({
       )}
     >
       <div className="min-w-0">
-        <div className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">
-          {block.title?.trim() || block.name}
+        <div className="flex items-center gap-2 text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">
+          <span className="truncate">{block.title?.trim() || block.name}</span>
+          {divergence ? (
+            <span
+              className={cn(
+                "shrink-0 rounded-full px-1.5 py-0.5 text-[length:var(--text-small)] font-medium",
+                divergence === "modified"
+                  ? "bg-[var(--color-warning-subtle)] text-[var(--color-warning-text-on-subtle)]"
+                  : "bg-[var(--color-success-subtle)] text-[var(--color-success-text-on-subtle)]",
+              )}
+              title="Compared with the original version pinned when you replicated"
+            >
+              {divergence === "modified" ? "～ modified" : "＋ added"}
+            </span>
+          ) : null}
         </div>
         <div className="font-mono text-[length:var(--text-mono)] text-[var(--color-text-muted)]">
           {block.key} · {block.version}

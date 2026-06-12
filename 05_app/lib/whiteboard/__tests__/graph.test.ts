@@ -18,6 +18,7 @@ function block(partial: Partial<StudyBlock> & { instanceId: string }): StudyBloc
     branchRules: [],
     showIf: null,
     groupId: null,
+    divergenceNote: null,
     ...partial,
   };
 }

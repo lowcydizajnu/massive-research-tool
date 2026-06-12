@@ -35,6 +35,9 @@ export type BlockInstance = {
    * live in `lib/whiteboard/conditions.ts`.
    */
   showIf?: import("@/lib/whiteboard/conditions").ConditionGroup;
+  /** Replication rationale (ADR-0039): why THIS block differs from the pinned
+   *  original. Set only on forks; compiled into the Overview + readiness checks. */
+  divergenceNote?: string;
   /**
    * Question-group membership (ADR-0028). Blocks sharing a `groupId` (and
    * contiguous in order) render together on ONE participant screen. Absent =
@@ -76,6 +79,8 @@ export type StudyOverview = {
   /** For a replication: the researcher's notes on what they changed + why
    *  (complements the auto-generated block diff). Empty for non-replications. */
   replicationNotes: string;
+  /** Declared replication kind (ADR-0039) — judged by the readiness checks. */
+  replicationIntent?: "direct" | "conceptual" | "extension";
 };
 
 /** Read the overview out of a definition_snapshot; empty default if absent. */
@@ -91,6 +96,9 @@ export function readOverview(snapshot: unknown): StudyOverview {
           : [],
         sections: Array.isArray(ov.sections) ? (ov.sections as OverviewSection[]) : [],
         replicationNotes: typeof ov.replicationNotes === "string" ? ov.replicationNotes : "",
+        ...(ov.replicationIntent === "direct" || ov.replicationIntent === "conceptual" || ov.replicationIntent === "extension"
+          ? { replicationIntent: ov.replicationIntent }
+          : {}),
       };
     }
   }

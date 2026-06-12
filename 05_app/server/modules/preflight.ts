@@ -34,8 +34,13 @@ export function runPreflight(opts: {
   snapshot: unknown;
   conditions: { slug: string; name: string }[];
   mode: PreflightMode;
+  /** Replication context (ADR-0039) — present only for forks. */
+  replication?: {
+    intent: "direct" | "conceptual" | "extension" | null;
+    diverged: { name: string; hasNote: boolean }[];
+  };
 }): PreflightCheck[] {
-  const { snapshot, conditions, mode } = opts;
+  const { snapshot, conditions, mode, replication } = opts;
   const blocks = readBlocks(snapshot);
   const overview = readOverview(snapshot);
   const out: PreflightCheck[] = [];
@@ -158,6 +163,40 @@ export function runPreflight(opts: {
             detail: `Participants in ${unused.map((c) => `"${c.name}"`).join(", ")} see exactly what everyone sees — is the manipulation wired up?`,
           },
     );
+  }
+
+  // Replication-aware rows (ADR-0039) — always advisory (amber), never red.
+  if (replication) {
+    out.push(
+      replication.intent
+        ? { id: "replication-intent", status: "pass", title: `Replication kind declared: ${replication.intent}` }
+        : {
+            id: "replication-intent",
+            status: "warn",
+            title: "Replication kind not declared",
+            detail: "Direct, conceptual, or extension? Declare it from the banner in Build — reviewers judge differences against the kind.",
+          },
+    );
+    const unjustified = replication.diverged.filter((d) => !d.hasNote);
+    if (replication.diverged.length > 0) {
+      const strict = replication.intent === "direct" || replication.intent === null;
+      out.push(
+        unjustified.length === 0
+          ? {
+              id: "divergence-justified",
+              status: "pass",
+              title: `All ${replication.diverged.length} diverged block${replication.diverged.length === 1 ? "" : "s"} justified`,
+            }
+          : {
+              id: "divergence-justified",
+              status: strict ? "warn" : "pass",
+              title: `${unjustified.length} of ${replication.diverged.length} diverged block${replication.diverged.length === 1 ? "" : "s"} without a rationale`,
+              detail: strict
+                ? `Unjustified differences are what reviewers penalize (${unjustified.map((d) => `"${d.name}"`).join(", ")}). Add a note in each block's Configure.`
+                : "Divergence is expected for this replication kind — notes still help reviewers.",
+            },
+      );
+    }
   }
 
   // consent — informational: the consent step always exists (ADR-0035).

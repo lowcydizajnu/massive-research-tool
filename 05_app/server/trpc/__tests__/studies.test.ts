@@ -1494,3 +1494,79 @@ describe("studies.blockHistory (block-level History tab)", () => {
     expect(history[2].kind).toBe("introduced");
   });
 });
+
+describe("replication experience (ADR-0039)", () => {
+  async function replicationFixture() {
+    await seedUserWithWorkspace("hanna", "Hanna Lab");
+    await seedUserWithWorkspace("sofia", "Sofia Lab");
+    const hanna = createCaller({ authUser: authUser("hanna") });
+    const sofia = createCaller({ authUser: authUser("sofia") });
+    const { id } = await hanna.studies.create({ kind: "blank", title: "Source cues" });
+    const likert = await hanna.studies.addBlock({ studyId: id, source: "core", key: "likert-7", version: "1.0.0" });
+    await hanna.studies.publish({ studyId: id });
+    await hanna.studies.setForkable({ studyId: id, forkableBy: "public" });
+    return { hanna, sofia, originId: id, likertId: likert.instanceId };
+  }
+
+  it("fork with intent injects Recipe sections + stores the kind; status starts undiverged", async () => {
+    const { sofia, originId } = await replicationFixture();
+    const { id: forkId } = await sofia.studies.fork({ studyId: originId, intent: "direct" });
+    const overview = (await sofia.studies.get({ id: forkId })).overview;
+    expect(overview.replicationIntent).toBe("direct");
+    expect(overview.sections.map((x) => x.id)).toEqual(
+      expect.arrayContaining(["recipe-target-effect", "recipe-differences"]),
+    );
+    const status = await sofia.studies.replicationStatus({ studyId: forkId });
+    expect(status?.sourceTitle).toBe("Source cues");
+    expect(status?.intent).toBe("direct");
+    expect(status?.divergedCount).toBe(0);
+  });
+
+  it("divergence badges + rationale + replication-aware preflight", async () => {
+    const { sofia, originId, likertId } = await replicationFixture();
+    const { id: forkId } = await sofia.studies.fork({ studyId: originId, intent: "direct" });
+    const forkBlock = (await sofia.studies.get({ id: forkId })).blocks.find((b) => b.instanceId === likertId)!;
+    await sofia.studies.updateBlockConfig({
+      studyId: forkId,
+      instanceId: likertId,
+      config: { ...forkBlock.config, prompt: "How truthful is this?" },
+    });
+
+    const status = await sofia.studies.replicationStatus({ studyId: forkId });
+    expect(status?.badges[likertId]).toBe("modified");
+    const original = await sofia.studies.upstreamBlock({ studyId: forkId, instanceId: likertId });
+    expect(original?.config.prompt).not.toBe("How truthful is this?");
+
+    // Direct replication + unjustified change → amber readiness row.
+    let checks = await sofia.studies.preflight({ studyId: forkId, mode: "publish" });
+    expect(checks.find((c) => c.id === "replication-intent")?.status).toBe("pass");
+    expect(checks.find((c) => c.id === "divergence-justified")?.status).toBe("warn");
+
+    await sofia.studies.setBlockDivergenceNote({
+      studyId: forkId,
+      instanceId: likertId,
+      note: "Original wording was ambiguous in pilot.",
+    });
+    expect(
+      (await sofia.studies.get({ id: forkId })).blocks.find((b) => b.instanceId === likertId)?.divergenceNote,
+    ).toContain("ambiguous");
+    checks = await sofia.studies.preflight({ studyId: forkId, mode: "publish" });
+    expect(checks.find((c) => c.id === "divergence-justified")?.status).toBe("pass");
+
+    // Conceptual intent relaxes the rule even without notes.
+    await sofia.studies.setBlockDivergenceNote({ studyId: forkId, instanceId: likertId, note: "" });
+    await sofia.studies.setReplicationIntent({ studyId: forkId, intent: "conceptual" });
+    checks = await sofia.studies.preflight({ studyId: forkId, mode: "publish" });
+    expect(checks.find((c) => c.id === "divergence-justified")?.status).toBe("pass");
+  });
+
+  it("non-replications see none of it", async () => {
+    await seedUserWithWorkspace("solo", "Solo Lab");
+    const solo = createCaller({ authUser: authUser("solo") });
+    const { id } = await solo.studies.create({ kind: "blank", title: "Plain" });
+    await solo.studies.addBlock({ studyId: id, source: "core", key: "likert-7", version: "1.0.0" });
+    expect(await solo.studies.replicationStatus({ studyId: id })).toBeNull();
+    const checks = await solo.studies.preflight({ studyId: id, mode: "publish" });
+    expect(checks.some((c) => c.id.startsWith("replication"))).toBe(false);
+  });
+});
