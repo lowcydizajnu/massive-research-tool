@@ -356,7 +356,9 @@ export function BlockLibraryModal({
   const communityQ = api.studies.listCommunityModules.useQuery(undefined, {
     enabled: !!onInsertCustomModule,
   });
-  const community = (communityQ.data ?? []).filter((m) => !m.mine);
+  // Own published modules show here too (marked) — otherwise a solo workspace
+  // sees an eternally empty Community and can't find where published things go.
+  const community = communityQ.data ?? [];
 
   const counts = useMemo(() => {
     const c = new Map<Category, number>([
@@ -486,7 +488,7 @@ export function BlockLibraryModal({
           <nav aria-label="Block categories" className="flex w-[180px] shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-[var(--color-border-subtle)] p-2">
             {CATEGORIES.map((c) => {
               const n = counts.get(c) ?? 0;
-              if (c !== "All" && c !== "Your blocks" && n === 0) return null;
+              if (c !== "All" && c !== "Your blocks" && c !== "Community" && n === 0) return null;
               return (
                 <button
                   key={c}
@@ -578,7 +580,7 @@ export function BlockLibraryModal({
                       icon={Boxes}
                       tile={CAT_TILE.Community}
                       title={m.name}
-                      desc={`Shared by ${m.authorName} · ${m.blockCount} block${m.blockCount === 1 ? "" : "s"} (copied on insert)`}
+                      desc={`${m.mine ? "Published by you" : `Shared by ${m.authorName}`} · ${m.blockCount} block${m.blockCount === 1 ? "" : "s"} (copied on insert)`}
                       badge="Community"
                       selected={selectedRef === `community:${m.id}`}
                       checked={checkedIds.has(`community:${m.id}`)}
@@ -608,7 +610,9 @@ export function BlockLibraryModal({
                   <p className="p-6 text-center text-[length:var(--text-small)] text-[var(--color-text-muted)]">
                     {cat === "Your blocks" && !ql
                       ? "Nothing saved yet — use “Save as reusable block” on a block, or “Save as module” on a group."
-                      : "No blocks match — try another word or category."}
+                      : cat === "Community" && !ql
+                        ? "Nothing published yet. Publish one of Your blocks: select it there and use “Publish to Community” in the details pane."
+                        : "No blocks match — try another word or category."}
                   </p>
                 ) : null}
               </>
@@ -693,7 +697,7 @@ export function BlockLibraryModal({
                     {selectedCommunity.name}
                   </h3>
                   <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-                    Shared by {selectedCommunity.authorName}
+                    {selectedCommunity.mine ? "Published by you" : `Shared by ${selectedCommunity.authorName}`}
                   </p>
                   <p className="text-[length:var(--text-small)] leading-snug text-[var(--color-text-secondary)]">
                     {selectedCommunity.blockCount} block{selectedCommunity.blockCount === 1 ? "" : "s"}. Inserting copies

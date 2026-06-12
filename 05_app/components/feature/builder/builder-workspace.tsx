@@ -33,6 +33,7 @@ import { BlockLibraryModal } from "./block-library-modal";
 import { ForkableControl, ReplicateButton, ReplicationsPanel } from "./replications-panel";
 import { SaveVersionDialog } from "./save-version-dialog";
 import { TagsSection } from "./tags-section";
+import { ValidationPanel } from "./validation-panel";
 import { VersionsPanel } from "./versions-panel";
 import {
   PANEL_SIDE_EVENT,
@@ -94,7 +95,7 @@ export function BuilderWorkspace({
   const study = data ?? initial;
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [panelTab, setPanelTab] = useState<"details" | "replications" | "versions">("details");
+  const [panelTab, setPanelTab] = useState<"details" | "replications" | "versions" | "validation">("details");
   // Right-panel side preference (IA v0.4 M4) — per device; live-updates from Settings.
   const [panelSide, setPanelSide] = useState<PanelSide>("right");
   useEffect(() => {
@@ -941,9 +942,27 @@ export function BuilderWorkspace({
               <span role="tab" aria-current="page" className={tabActiveCls}>
                 Configure
               </span>
-              {["History", "Replications", "Comments", "Validation"].map((t) => (
-                <TabSoon key={t} label={t} />
+              {(
+                [
+                  ["History", "versions"],
+                  ["Replications", "replications"],
+                  ["Validation", "validation"],
+                ] as const
+              ).map(([label, tab]) => (
+                <button
+                  key={tab}
+                  type="button"
+                  role="tab"
+                  onClick={() => {
+                    setSelectedId(null);
+                    setPanelTab(tab);
+                  }}
+                  className="rounded-[var(--radius-sm)] px-2 py-0.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
+                >
+                  {label}
+                </button>
               ))}
+              <TabSoon label="Comments" />
             </>
           ) : (
             <>
@@ -974,8 +993,16 @@ export function BuilderWorkspace({
               >
                 Replications
               </button>
+              <button
+                type="button"
+                role="tab"
+                onClick={() => setPanelTab("validation")}
+                aria-current={panelTab === "validation" ? "page" : undefined}
+                className={panelTab === "validation" ? tabActiveCls : tabIdleCls}
+              >
+                Validation
+              </button>
               <TabSoon label="Comments" />
-              <TabSoon label="Validation" />
             </>
           )}
         </nav>
@@ -1016,6 +1043,18 @@ export function BuilderWorkspace({
                 setCondition.mutate({ studyId: study.id, instanceId: selected.instanceId, showIf })
               }
             />
+            <button
+              type="button"
+              onClick={() => {
+                removeBlock.mutate({ studyId: study.id, instanceId: selected.instanceId });
+                setSelectedId(null);
+                setPanelTab("details");
+              }}
+              className="flex items-center gap-1.5 self-start rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-2.5 py-1 text-[length:var(--text-small)] font-medium text-[var(--color-danger-text-on-subtle)] hover:bg-[var(--color-danger-subtle)]"
+            >
+              <Trash2 className="size-3.5" aria-hidden />
+              Delete block
+            </button>
           </>
         ) : panelTab === "versions" ? (
           <VersionsPanel
@@ -1027,6 +1066,8 @@ export function BuilderWorkspace({
           />
         ) : panelTab === "replications" ? (
           <ReplicationsPanel studyId={study.id} />
+        ) : panelTab === "validation" ? (
+          <ValidationPanel studyId={study.id} />
         ) : (
           <div className="flex flex-col gap-3">
             <h2 className="font-serif text-[17px] font-medium text-[var(--color-text-primary)]">
