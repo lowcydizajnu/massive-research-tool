@@ -5,6 +5,7 @@ import { notFound, redirect } from "next/navigation";
 import { BlockView } from "@/components/feature/take/block-view";
 import { Card, ScreenHeader } from "@/components/feature/take/parts";
 import { getRuntimeScreen } from "@/server/runtime/participant";
+import { effectivePresetKey } from "@/lib/themes/themes";
 
 import { answerAction } from "../../actions";
 
@@ -51,7 +52,7 @@ export default async function ScreenPage({
           return (
             <div key={b.instanceId}>
               <input type="hidden" name="blocks" value={`${b.instanceId}|${b.key}|${prefix}`} />
-              <BlockView block={b} seed={sessionId} namePrefix={prefix} presetKey={s.theme.presetKey} />
+              <BlockView block={b} seed={sessionId} namePrefix={prefix} presetKey={effectivePresetKey(s.theme)} />
             </div>
           );
         })}

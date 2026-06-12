@@ -8,6 +8,7 @@ import { api } from "@/lib/trpc/react";
 import { getBlockOverride } from "@/components/feature/take/block-overrides";
 import { cn } from "@/lib/utils";
 import {
+  effectivePresetKey,
   FONT_LABELS,
   FONT_STACKS,
   PRESET_DESCRIPTIONS,
@@ -85,8 +86,15 @@ export function DesignWorkspace({ studyId, initialTheme }: { studyId: string; in
     setTheme(next);
     setThemeMut.mutate({ studyId, theme: next });
   };
-  /** Any tweak away from a pure preset flips the badge to custom. */
-  const patch = (p: Partial<StudyTheme>) => commit({ ...theme, ...p, presetKey: "custom" });
+  /** Any tweak away from a pure preset flips the badge to custom — but remember
+   *  the base preset so platform post styling (and its warning gate) carry over. */
+  const patch = (p: Partial<StudyTheme>) =>
+    commit({
+      ...theme,
+      ...p,
+      presetKey: "custom",
+      basePresetKey: theme.presetKey !== "custom" ? theme.presetKey : theme.basePresetKey,
+    });
 
   const vars = themeToCssVars(theme) as CSSProperties;
   const lowContrast = contrast(theme.colors.text, theme.colors.card) < 4.5;
@@ -169,9 +177,11 @@ export function DesignWorkspace({ studyId, initialTheme }: { studyId: string; in
             );
           }) : null}
           {theme.presetKey === "custom" ? (
-            <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">Custom — tweaked from a preset.</p>
+            <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+              Custom{theme.basePresetKey ? ` — based on ${theme.basePresetKey}` : " — tweaked from a preset"}.
+            </p>
           ) : null}
-          {!pendingMimic && PRESET_WARNINGS[theme.presetKey].length > 0 ? (
+          {!pendingMimic && PRESET_WARNINGS[effectivePresetKey(theme)].length > 0 ? (
             <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
               ✓ Simulation acknowledged — remember the disclosure in your consent text. Social-post blocks render in the
               platform’s native style.
@@ -314,7 +324,7 @@ export function DesignWorkspace({ studyId, initialTheme }: { studyId: string; in
                 </div>
               ) : null}
               {(() => {
-                const Post = getBlockOverride(theme.presetKey, "social-post");
+                const Post = getBlockOverride(effectivePresetKey(theme), "social-post");
                 return Post ? (
                   <>{Post({ config: SAMPLE_POST })}</>
                 ) : null;

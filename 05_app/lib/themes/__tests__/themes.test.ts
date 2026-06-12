@@ -75,3 +75,20 @@ describe("mimicking presets (Wave 5 quartet, ADR-0024)", () => {
     expect(getBlockOverride(undefined, "social-post")).toBeNull();
   });
 });
+
+import { effectivePresetKey } from "@/lib/themes/themes";
+
+describe("effectivePresetKey (custom keeps the base preset's behaviour)", () => {
+  it("custom themes inherit the base preset's post styling + warning gate", () => {
+    const customized = { ...THEME_PRESETS.facebook, presetKey: "custom" as const, basePresetKey: "facebook" as const };
+    expect(effectivePresetKey(customized)).toBe("facebook");
+    expect(getBlockOverride(effectivePresetKey(customized), "social-post")).not.toBeNull();
+    expect(requiresAcknowledgment(customized)).toBe(true);
+    expect(requiresAcknowledgment({ ...customized, mimicAcknowledged: true })).toBe(false);
+  });
+  it("plain custom (no base) has no override and no gate", () => {
+    const plain = { ...THEME_PRESETS.academic, presetKey: "custom" as const };
+    expect(effectivePresetKey(plain)).toBe("custom");
+    expect(requiresAcknowledgment(plain)).toBe(false);
+  });
+});

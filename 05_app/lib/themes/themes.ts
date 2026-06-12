@@ -62,6 +62,13 @@ export const studyThemeSchema = z.object({
   /** Researcher's acknowledgment of a mimicking preset's methodological/ethics
    *  warnings (ADR-0024) — required server-side for presets that carry warnings. */
   mimicAcknowledged: z.boolean().optional(),
+  /** When the researcher tweaks a preset (presetKey becomes "custom"), the
+   *  preset they started from — keeps platform post styling + the warning gate. */
+  basePresetKey: z.enum([
+    "academic", "clinical", "modern", "playful",
+    "facebook", "x", "news", "business",
+    "instagram", "tiktok", "lifestyle", "forum", "blog",
+  ]).optional(),
 });
 export type StudyTheme = z.infer<typeof studyThemeSchema>;
 
@@ -231,9 +238,15 @@ export const PRESET_WARNINGS: Record<StudyTheme["presetKey"], string[]> = {
   ],
 };
 
+/** The preset whose look governs renderers: a customized theme keeps behaving
+ *  like the preset it was tweaked from (post styling + warning gate). */
+export function effectivePresetKey(t: StudyTheme): StudyTheme["presetKey"] {
+  return t.presetKey === "custom" && t.basePresetKey ? t.basePresetKey : t.presetKey;
+}
+
 /** Does this theme require an explicit researcher acknowledgment to save? */
 export function requiresAcknowledgment(t: StudyTheme): boolean {
-  return PRESET_WARNINGS[t.presetKey].length > 0 && t.mimicAcknowledged !== true;
+  return PRESET_WARNINGS[effectivePresetKey(t)].length > 0 && t.mimicAcknowledged !== true;
 }
 
 /** Read the theme out of a definition_snapshot; Academic default when absent/invalid. */
