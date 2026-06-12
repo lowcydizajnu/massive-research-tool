@@ -20,27 +20,43 @@ type OverrideProps = {
   interactive?: boolean;
 };
 
-/** Like/Share as pure-HTML checkbox toggles (no client JS, ADR-0013): the
- *  checked state restyles via peer-checked and posts with the screen's form. */
+/** Like/Share as pure-HTML toggles (no client JS, ADR-0013): checked state
+ *  restyles via peer-checked and posts with the screen's form. In single-
+ *  reaction mode both render as radios on one name → only one can be picked. */
 function Toggle({
-  name,
+  np,
+  kind,
   label,
+  count,
   activeCls,
   disabled,
+  single,
 }: {
-  name: string;
+  np: string;
+  kind: "liked" | "shared";
   label: string;
+  /** Researcher-set count shown right on the button (platform-style). */
+  count?: number | null;
   activeCls: string;
   disabled?: boolean;
+  single?: boolean;
 }) {
-  if (disabled) return <span>{label}</span>;
+  const text = count ? `${label} ${fmt(count)}` : label;
+  if (disabled) return <span>{text}</span>;
   return (
     <label className="flex cursor-pointer items-center gap-1">
-      <input type="checkbox" name={name} className="peer sr-only" />
-      <span className={`peer-checked:font-bold ${activeCls}`}>{label}</span>
+      {single ? (
+        <input type="radio" name={`${np}reaction`} value={kind} className="peer sr-only" />
+      ) : (
+        <input type="checkbox" name={`${np}${kind}`} className="peer sr-only" />
+      )}
+      <span className={`peer-checked:font-bold ${activeCls}`}>{text}</span>
     </label>
   );
 }
+
+/** Single-reaction mode (social-post config): only one of Like/Share allowed. */
+const isSingle = (config: Record<string, unknown>) => config.singleReaction === true;
 
 /** Researcher-set engagement (social-post v2 config, ADR-0024). */
 function engagement(config: Record<string, unknown>) {
@@ -84,9 +100,9 @@ function FacebookSocialPost({ config, np = "", interactive = true }: OverridePro
         </span>
       ) : null}
       <div className="flex items-center justify-between border-t border-[#E4E6EB] pt-1 text-[13px] text-[#65676B]">
-        <Toggle name={`${np}liked`} label="👍 Like" activeCls="peer-checked:text-[#0866FF]" disabled={!interactive} />
-        {e.allowComments ? <span>💬 Comment</span> : null}
-        <Toggle name={`${np}shared`} label="↪ Share" activeCls="peer-checked:text-[#0866FF]" disabled={!interactive} />
+        <Toggle np={np} kind="liked" single={isSingle(config)} label="👍 Like" count={e.likes} activeCls="peer-checked:text-[#0866FF]" disabled={!interactive} />
+        {e.allowComments ? <span>💬 Comment{e.comments ? ` ${fmt(e.comments)}` : ""}</span> : null}
+        <Toggle np={np} kind="shared" single={isSingle(config)} label="↪ Share" count={e.shares} activeCls="peer-checked:text-[#0866FF]" disabled={!interactive} />
       </div>
       {e.allowComments && interactive ? (
         <input
@@ -124,8 +140,8 @@ function XSocialPost({ config, np = "", interactive = true }: OverrideProps) {
         {body ? <span className="text-[15px] leading-snug">{body}</span> : null}
         <span className="flex justify-between pt-1 text-[13px] text-[#71767B]">
           {e.allowComments ? <span>💬 {e.comments ? fmt(e.comments) : ""}</span> : null}
-          <Toggle name={`${np}shared`} label={`🔁 ${e.shares ? fmt(e.shares) : ""}`} activeCls="peer-checked:text-[#00BA7C]" disabled={!interactive} />
-          <Toggle name={`${np}liked`} label={`♥ ${e.likes ? fmt(e.likes) : ""}`} activeCls="peer-checked:text-[#F91880]" disabled={!interactive} />
+          <Toggle np={np} kind="shared" single={isSingle(config)} label="🔁" count={e.shares} activeCls="peer-checked:text-[#00BA7C]" disabled={!interactive} />
+          <Toggle np={np} kind="liked" single={isSingle(config)} label="♥" count={e.likes} activeCls="peer-checked:text-[#F91880]" disabled={!interactive} />
           <span>↗</span>
         </span>
         {e.allowComments && interactive ? (
@@ -161,9 +177,9 @@ function InstagramSocialPost({ config, np = "", interactive = true }: OverridePr
         <span className="text-[16px] font-semibold leading-snug">{headline || body}</span>
       </div>
       <div className="flex items-center gap-3 px-3 pt-2 text-[20px]">
-        <Toggle name={`${np}liked`} label="♥" activeCls="peer-checked:text-[#FF3040]" disabled={!interactive} />
-        {e.allowComments ? <span>💬</span> : null}
-        <Toggle name={`${np}shared`} label="↗" activeCls="peer-checked:text-[#0095F6]" disabled={!interactive} />
+        <Toggle np={np} kind="liked" single={isSingle(config)} label="♥" count={e.likes} activeCls="peer-checked:text-[#FF3040]" disabled={!interactive} />
+        {e.allowComments ? <span>💬{e.comments ? ` ${fmt(e.comments)}` : ""}</span> : null}
+        <Toggle np={np} kind="shared" single={isSingle(config)} label="↗" count={e.shares} activeCls="peer-checked:text-[#0095F6]" disabled={!interactive} />
       </div>
       <div className="flex flex-col gap-1 p-3 pt-1 text-[14px]">
         {e.likes ? <span className="font-semibold">{fmt(e.likes)} likes</span> : null}
@@ -197,7 +213,7 @@ function ForumSocialPost({ config, np = "", interactive = true }: OverrideProps)
   return (
     <article className="flex gap-3 rounded-[4px] border border-[#CCCCCC] bg-white p-3 text-[#1A1A1B]">
       <div className="flex shrink-0 flex-col items-center gap-0.5 text-[13px] text-[#787C7E]">
-        <Toggle name={`${np}liked`} label="▲" activeCls="peer-checked:text-[#FF4500]" disabled={!interactive} />
+        <Toggle np={np} kind="liked" single={isSingle(config)} label="▲" activeCls="peer-checked:text-[#FF4500]" disabled={!interactive} />
         <span className="font-bold text-[#1A1A1B]">{e.likes ? fmt(e.likes) : "·"}</span>
         <span>▼</span>
       </div>
@@ -209,7 +225,7 @@ function ForumSocialPost({ config, np = "", interactive = true }: OverrideProps)
         {body ? <span className="text-[14px] leading-snug">{body}</span> : null}
         <span className="flex items-center gap-2 pt-1 text-[12px] font-semibold text-[#787C7E]">
           {e.allowComments ? <span>💬 {e.comments ? `${fmt(e.comments)} comments` : "Comments"}</span> : null}
-          <Toggle name={`${np}shared`} label="↗ Share" activeCls="peer-checked:text-[#3B6EBF]" disabled={!interactive} />
+          <Toggle np={np} kind="shared" single={isSingle(config)} label="↗ Share" count={e.shares} activeCls="peer-checked:text-[#3B6EBF]" disabled={!interactive} />
           <span>⋯</span>
         </span>
         {e.allowComments && interactive ? (

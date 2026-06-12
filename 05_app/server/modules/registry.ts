@@ -166,6 +166,8 @@ const socialPostV2: CoreModuleDef = {
     authorHandle: z.string().max(60).optional(),
     timeLabel: z.string().max(40).optional(),
     allowComments: z.boolean().optional(),
+    /** Participant may pick ONLY ONE reaction (Like OR Share) when true. */
+    singleReaction: z.boolean().optional(),
   }),
   defaultConfig: {
     headline: "",
@@ -180,6 +182,7 @@ const socialPostV2: CoreModuleDef = {
     authorHandle: "",
     timeLabel: "2h",
     allowComments: true,
+    singleReaction: false,
   },
   jsonSchema: {
     type: "object",
@@ -197,6 +200,7 @@ const socialPostV2: CoreModuleDef = {
       authorHandle: { type: "string" },
       timeLabel: { type: "string" },
       allowComments: { type: "boolean" },
+      singleReaction: { type: "boolean" },
     },
     required: ["headline", "source", "veracityGroundTruth"],
     additionalProperties: false,
@@ -213,8 +217,9 @@ const socialPostV2: CoreModuleDef = {
   // Never blocks the participant — interacting with a stimulus is always optional.
   isAnswerEmpty: () => false,
   validateAnswer: (a, config) => {
-    const comment = (a as { comment?: unknown }).comment;
-    if (config.allowComments === false && typeof comment === "string" && comment.trim() !== "") return false;
+    const ans = a as { comment?: unknown; liked?: unknown; shared?: unknown };
+    if (config.allowComments === false && typeof ans.comment === "string" && ans.comment.trim() !== "") return false;
+    if (config.singleReaction === true && ans.liked === true && ans.shared === true) return false;
     return true;
   },
   isComplete: (c) =>
