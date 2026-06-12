@@ -7,14 +7,31 @@
  */
 
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
+const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) && v > 0 ? v : null);
+/** 1234 → "1.2K", 2500000 → "2.5M" — platform-style compact counts. */
+const fmt = (n: number): string =>
+  n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M` : n >= 1_000 ? `${(n / 1_000).toFixed(1).replace(/\.0$/, "")}K` : String(n);
 
 type OverrideProps = { config: Record<string, unknown> };
+
+/** Researcher-set engagement (social-post v2 config, ADR-0024). */
+function engagement(config: Record<string, unknown>) {
+  return {
+    likes: num(config.likesCount),
+    comments: num(config.commentsCount),
+    shares: num(config.sharesCount),
+    handle: str(config.authorHandle),
+    time: str(config.timeLabel) || "2h",
+    allowComments: config.allowComments !== false,
+  };
+}
 
 /** Facebook-style feed post (social-post stimulus under the facebook preset). */
 function FacebookSocialPost({ config }: OverrideProps) {
   const source = str(config.source) || "Shared page";
   const headline = str(config.headline);
   const body = str(config.body);
+  const e = engagement(config);
   const showCounts = config.shareCountVisible === true;
   return (
     <article className="flex flex-col gap-2 rounded-[8px] border border-[#E4E6EB] bg-white p-3 text-[#050505] shadow-sm">
@@ -27,17 +44,23 @@ function FacebookSocialPost({ config }: OverrideProps) {
         </span>
         <span className="flex flex-col leading-tight">
           <span className="text-[15px] font-semibold">{source}</span>
-          <span className="text-[12px] text-[#65676B]">Suggested for you · 🌐</span>
+          <span className="text-[12px] text-[#65676B]">Suggested for you · {e.time} · 🌐</span>
         </span>
       </div>
       {headline ? <p className="text-[15px] font-semibold">{headline}</p> : null}
       {body ? <p className="text-[15px] leading-snug">{body}</p> : null}
+      {showCounts && (e.likes || e.comments || e.shares) ? (
+        <span className="text-[12px] text-[#65676B]">
+          {e.likes ? `👍 ${fmt(e.likes)}` : ""}
+          {e.comments && e.allowComments ? ` · ${fmt(e.comments)} comments` : ""}
+          {e.shares ? ` · ${fmt(e.shares)} shares` : ""}
+        </span>
+      ) : null}
       <div className="flex items-center justify-between border-t border-[#E4E6EB] pt-1 text-[13px] text-[#65676B]">
         <span>👍 Like</span>
-        <span>💬 Comment</span>
+        {e.allowComments ? <span>💬 Comment</span> : null}
         <span>↪ Share</span>
       </div>
-      {showCounts ? <span className="text-[12px] text-[#65676B]">1.2K reactions · 348 shares</span> : null}
     </article>
   );
 }
@@ -45,7 +68,8 @@ function FacebookSocialPost({ config }: OverrideProps) {
 /** X (Twitter)-style post (social-post stimulus under the x preset). */
 function XSocialPost({ config }: OverrideProps) {
   const source = str(config.source) || "account";
-  const handle = source.toLowerCase().replace(/[^a-z0-9_]+/g, "_").slice(0, 15) || "account";
+  const e = engagement(config);
+  const handle = (e.handle || source.toLowerCase().replace(/[^a-z0-9_]+/g, "_")).replace(/^@/, "").slice(0, 15) || "account";
   const headline = str(config.headline);
   const body = str(config.body);
   const showCounts = config.shareCountVisible === true;
@@ -60,14 +84,14 @@ function XSocialPost({ config }: OverrideProps) {
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <span className="flex items-center gap-1 text-[15px]">
           <span className="font-bold">{source}</span>
-          <span className="text-[#71767B]">@{handle} · 2h</span>
+          <span className="text-[#71767B]">@{handle} · {e.time}</span>
         </span>
         {headline ? <span className="text-[15px] font-semibold">{headline}</span> : null}
         {body ? <span className="text-[15px] leading-snug">{body}</span> : null}
         <span className="flex justify-between pt-1 text-[13px] text-[#71767B]">
-          <span>💬 {showCounts ? "214" : ""}</span>
-          <span>🔁 {showCounts ? "1.1K" : ""}</span>
-          <span>♥ {showCounts ? "3.4K" : ""}</span>
+          {e.allowComments ? <span>💬 {showCounts && e.comments ? fmt(e.comments) : ""}</span> : null}
+          <span>🔁 {showCounts && e.shares ? fmt(e.shares) : ""}</span>
+          <span>♥ {showCounts && e.likes ? fmt(e.likes) : ""}</span>
           <span>↗</span>
         </span>
       </div>
@@ -78,7 +102,8 @@ function XSocialPost({ config }: OverrideProps) {
 /** Instagram-style post card (social-post under the instagram preset). */
 function InstagramSocialPost({ config }: OverrideProps) {
   const source = str(config.source) || "account";
-  const handle = source.toLowerCase().replace(/[^a-z0-9_.]+/g, "_").slice(0, 20) || "account";
+  const e = engagement(config);
+  const handle = (e.handle || source.toLowerCase().replace(/[^a-z0-9_.]+/g, "_")).replace(/^@/, "").slice(0, 20) || "account";
   const headline = str(config.headline);
   const body = str(config.body);
   const showCounts = config.shareCountVisible === true;
@@ -96,11 +121,11 @@ function InstagramSocialPost({ config }: OverrideProps) {
       </div>
       <div className="flex items-center gap-3 px-3 pt-2 text-[20px]">
         <span>♥</span>
-        <span>💬</span>
+        {e.allowComments ? <span>💬</span> : null}
         <span>↗</span>
       </div>
       <div className="flex flex-col gap-1 p-3 pt-1 text-[14px]">
-        {showCounts ? <span className="font-semibold">2,418 likes</span> : null}
+        {showCounts && e.likes ? <span className="font-semibold">{fmt(e.likes)} likes</span> : null}
         {headline && body ? (
           <span>
             <span className="font-semibold">{handle}</span> {body}
@@ -114,6 +139,7 @@ function InstagramSocialPost({ config }: OverrideProps) {
 /** Forum-thread post (social-post under the forum preset). */
 function ForumSocialPost({ config }: OverrideProps) {
   const source = str(config.source) || "user";
+  const e = engagement(config);
   const headline = str(config.headline);
   const body = str(config.body);
   const showCounts = config.shareCountVisible === true;
@@ -121,17 +147,17 @@ function ForumSocialPost({ config }: OverrideProps) {
     <article className="flex gap-3 rounded-[4px] border border-[#CCCCCC] bg-white p-3 text-[#1A1A1B]">
       <div className="flex shrink-0 flex-col items-center gap-0.5 text-[13px] text-[#787C7E]">
         <span>▲</span>
-        <span className="font-bold text-[#1A1A1B]">{showCounts ? "847" : "·"}</span>
+        <span className="font-bold text-[#1A1A1B]">{showCounts && e.likes ? fmt(e.likes) : "·"}</span>
         <span>▼</span>
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <span className="text-[12px] text-[#787C7E]">
-          Posted by u/{source.toLowerCase().replace(/[^a-z0-9_]+/g, "_") || "user"} · 5h
+          Posted by u/{(e.handle || source).toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^@/, "") || "user"} · {e.time}
         </span>
         {headline ? <span className="text-[16px] font-semibold leading-snug">{headline}</span> : null}
         {body ? <span className="text-[14px] leading-snug">{body}</span> : null}
         <span className="pt-1 text-[12px] font-semibold text-[#787C7E]">
-          💬 {showCounts ? "312 comments" : "Comments"} · ↗ Share · ⋯
+          {e.allowComments ? `💬 ${showCounts && e.comments ? `${fmt(e.comments)} comments` : "Comments"} · ` : ""}↗ Share · ⋯
         </span>
       </div>
     </article>

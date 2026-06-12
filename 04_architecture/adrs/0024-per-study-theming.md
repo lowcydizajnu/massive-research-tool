@@ -40,6 +40,7 @@ Wave 5's platform-mimicking quartet shipped on this substrate: presets **faceboo
 ## Revisit triggers
 
 - Overview auto-injection of the chosen mimicking preset into the methodology section (queued from the handoff's IRB block).
+- **Page-level platform chrome** (owner idea, 2026-06-10, parked): a preset-supplied `PageFrame` (fake nav bar / feed column around the blocks) using the same vetted-component contract as block overrides. High immersion value; risks = dead-looking interactive chrome + heavier deception review. Analyze when 5c lands.
 - Demand for custom fonts/logos → R2 upload path (ADR-0003) + content-type validation.
 - Per-block-type style overrides → the contracted `blockStyleOverrides` map from the handoff (schema-validated).
 - A theme marketplace → revisit "presets are vetted code only".
