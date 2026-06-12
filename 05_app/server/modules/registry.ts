@@ -58,6 +58,10 @@ export type CoreModuleDef = {
   isComplete: (config: Record<string, unknown>) => boolean;
 };
 
+/** Media URL fields accept an external https URL OR an uploaded-asset path
+ *  ("/api/media/…", ADR-0003) — zod's .url() alone rejects the relative form. */
+const mediaUrl = z.union([z.string().url(), z.string().regex(/^\/api\/media\/ws\/[A-Za-z0-9/_.-]+$/), z.literal("")]);
+
 const socialPost: CoreModuleDef = {
   source: "core",
   key: "social-post",
@@ -70,7 +74,7 @@ const socialPost: CoreModuleDef = {
     headline: z.string(),
     body: z.string(),
     source: z.string(),
-    imageUrl: z.union([z.string().url(), z.literal("")]),
+    imageUrl: mediaUrl,
     shareCountVisible: z.boolean(),
   }),
   defaultConfig: {
@@ -155,7 +159,7 @@ const socialPostV2: CoreModuleDef = {
     source: z.string(),
     veracityGroundTruth: z.enum(["true", "false", "misleading", "unverified"]),
     topicTags: z.array(z.string()),
-    imageUrl: z.union([z.string().url(), z.literal("")]),
+    imageUrl: mediaUrl,
     /** Legacy toggle (pre-engagement); counts now show whenever they are > 0. */
     shareCountVisible: z.boolean().optional(),
     // Engagement controls (ADR-0024 mimicking presets): researcher-set numbers
@@ -516,7 +520,7 @@ const imageBlock: CoreModuleDef = {
   description: "An embedded image stimulus (URL), with alt text and an optional caption.",
   categoryTags: ["content", "stimulus", "media"],
   configSchema: z.object({
-    url: z.union([z.string().url(), z.literal("")]),
+    url: mediaUrl,
     alt: z.string(),
     caption: z.string(),
   }),
@@ -540,7 +544,7 @@ const videoBlock: CoreModuleDef = {
   description: "An embedded video (YouTube, Vimeo, or direct MP4 URL), with an optional caption.",
   categoryTags: ["content", "stimulus", "media"],
   configSchema: z.object({
-    url: z.union([z.string().url(), z.literal("")]),
+    url: mediaUrl,
     caption: z.string(),
   }),
   defaultConfig: { url: "", caption: "" },
