@@ -2,6 +2,7 @@ import { commentsRouter } from "@/server/trpc/routers/comments";
 import { followsRouter } from "@/server/trpc/routers/follows";
 import { frameworksRouter } from "@/server/trpc/routers/frameworks";
 import { modulesRouter } from "@/server/trpc/routers/modules";
+import { proposalsRouter } from "@/server/trpc/routers/proposals";
 import { notificationsRouter } from "@/server/trpc/routers/notifications";
 import { previewTokensRouter } from "@/server/trpc/routers/preview-tokens";
 import { profileRouter } from "@/server/trpc/routers/profile";
@@ -14,6 +15,7 @@ export const appRouter = router({
   workspace: workspaceRouter,
   studies: studiesRouter,
   modules: modulesRouter,
+  proposals: proposalsRouter,
   frameworks: frameworksRouter,
   comments: commentsRouter,
   notifications: notificationsRouter,

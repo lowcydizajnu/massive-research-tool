@@ -51,6 +51,16 @@ export async function resolveRecipients(input: EmitInput): Promise<string[]> {
       recipients = asIds(data.userId ?? input.related?.authorUserId);
       break;
 
+    case "proposal_open":
+      // The upstream study's author receives the proposal (ADR-0036).
+      recipients = asIds(data.targetAuthorId ?? input.related?.authorUserId);
+      break;
+
+    case "proposal_decided":
+      // The proposer learns the outcome.
+      recipients = asIds(data.proposerUserId);
+      break;
+
     case "preregister_complete":
     case "new_named_version":
       recipients = []; // Follows-only
