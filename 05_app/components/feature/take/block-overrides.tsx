@@ -68,7 +68,7 @@ function FacebookSocialPost({ config, np = "", interactive = true }: OverridePro
       </div>
       {headline ? <p className="text-[15px] font-semibold">{headline}</p> : null}
       {body ? <p className="text-[15px] leading-snug">{body}</p> : null}
-      <PostImage config={config} className="-mx-3 max-h-[420px]" />
+      <PostImage config={config} className="-mx-3 !w-[calc(100%+1.5rem)] max-w-none" />
       {e.likes || e.comments || e.shares ? (
         <span className="text-[12px] text-[#65676B]">
           {e.likes ? `👍 ${fmt(e.likes)}` : ""}
@@ -286,7 +286,7 @@ function LinkedInSocialPost({ config, np = "", interactive = true }: OverridePro
       </div>
       {headline ? <p className="text-[14px] font-semibold">{headline}</p> : null}
       {body ? <p className="text-[14px] leading-snug">{body}</p> : null}
-      <PostImage config={config} className="-mx-3 max-h-[420px]" />
+      <PostImage config={config} className="-mx-3 !w-[calc(100%+1.5rem)] max-w-none" />
       {e.likes || e.comments ? (
         <span className="text-[12px] text-[#666666]">
           {e.likes ? `👍❤️ ${fmt(e.likes)}` : ""}
