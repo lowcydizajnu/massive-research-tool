@@ -84,6 +84,17 @@ function extractAnswer(moduleKey: string, prefix: string, fd: FormData): unknown
     }
     return { values };
   }
+  if (moduleKey === "social-post") {
+    // Engagement interactions (ADR-0024): always an object — exposure is
+    // recorded even without interaction (liked/shared false). v1 social-post
+    // blocks don't collect, so the runtime skips writing for them.
+    const comment = String(g("comment") ?? "").trim();
+    return {
+      liked: g("liked") != null,
+      shared: g("shared") != null,
+      ...(comment ? { comment } : {}),
+    };
+  }
   if (moduleKey === "field-group") {
     // `fkeys` carries key:type pairs (ADR-0030); the runtime re-validates keys +
     // per-field formats against the block's config, so this only selects extraction.
