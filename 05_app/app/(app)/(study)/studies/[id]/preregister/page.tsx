@@ -36,7 +36,7 @@ function banner(pre: PreregistrationStatus): {
     no_credentials: {
       role: "status",
       cls: "bg-[var(--color-warning-subtle)] text-[var(--color-warning-text-on-subtle)]",
-      msg: "Preregistered locally — not pushed. Connect OSF to push this registration.",
+      msg: "Preregistered locally — not pushed. Connect (or reconnect) OSF to push this registration: the stored token may have been revoked.",
     },
     not_pushed: {
       role: "status",
@@ -51,7 +51,7 @@ function banner(pre: PreregistrationStatus): {
     failed: {
       role: "alert",
       cls: "bg-[var(--color-danger-subtle)] text-[var(--color-danger-text-on-subtle)]",
-      msg: "OSF push failed. We’ll retry automatically.",
+      msg: "OSF push failed.",
     },
   };
   const t = tone[pre.pushStatus];
