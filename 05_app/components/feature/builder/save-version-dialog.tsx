@@ -35,6 +35,10 @@ export function SaveVersionDialog({
   const [reviewerId, setReviewerId] = useState("");
 
   const members = api.workspace.members.useQuery();
+  // Auto-changelog preview (ADR-0033): the working copy's pending changes —
+  // exactly what this save would freeze. Cache-shared with the Versions tab.
+  const versions = api.studies.listVersions.useQuery({ studyId });
+  const pendingChanges = versions.data?.find((v) => v.isWorkingCopy)?.changes ?? [];
   const saveAsNamed = api.studies.saveAsNamed.useMutation({
     onSuccess: (res) => onSaved(res.name, res.versionNumber),
   });
@@ -104,6 +108,26 @@ export function SaveVersionDialog({
             Pick what kind of save.
           </p>
         </div>
+
+        {pendingChanges.length > 0 ? (
+          <div className="flex flex-col gap-1 rounded-[var(--radius-md)] bg-[var(--color-surface-subtle)] px-3 py-2.5">
+            <span className="text-[length:var(--text-small)] font-medium uppercase tracking-wide text-[var(--color-text-muted)]">
+              What changed since the last save
+            </span>
+            <ul className="flex flex-col gap-0.5">
+              {pendingChanges.slice(0, 6).map((line, i) => (
+                <li key={i} className="text-[length:var(--text-small)] leading-snug text-[var(--color-text-secondary)]">
+                  {line}
+                </li>
+              ))}
+              {pendingChanges.length > 6 ? (
+                <li className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                  +{pendingChanges.length - 6} more change{pendingChanges.length - 6 === 1 ? "" : "s"}
+                </li>
+              ) : null}
+            </ul>
+          </div>
+        ) : null}
 
         <div role="radiogroup" aria-label="Save type" className="flex flex-col gap-2">
           <OptionRow

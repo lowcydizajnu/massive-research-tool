@@ -10,7 +10,7 @@ tree, follows, browse, comments. What's missing is the write/collaboration side.
 
 ## Priority tier (agreed order: 3 → 2 → 1)
 
-### 3. Releases → auto-changelog on save/preregister (do first — one evening)
+### 3. Releases → auto-changelog on save/preregister — ✅ SHIPPED V1.24.0 (ADR-0033)
 When saving a named version or preregistering, auto-attach a change summary generated
 from the protocol-text diff vs the previous frozen version ("+ Attention check, ~ Likert
 prompt reworded, + H2"). Surfaces in the Versions tab; doubles as the OSF amendment note.

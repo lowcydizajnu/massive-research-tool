@@ -1277,3 +1277,23 @@ describe("studies.addBlock atIndex (library drag-to-position)", () => {
     expect(order).toEqual([b.instanceId, a.instanceId, c.instanceId]);
   });
 });
+
+describe("listVersions auto-changelog (ADR-0033)", () => {
+  it("first save = initial summary; later saves diff vs previous frozen; working copy shows pending", async () => {
+    await seedUserWithWorkspace("ext_a", "Lab A");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "Changelog" });
+    await caller.studies.addBlock({ studyId: id, source: "core", key: "likert-7", version: "1.0.0" });
+    await caller.studies.saveAsNamed({ studyId: id, name: "v1" });
+    await caller.studies.addBlock({ studyId: id, source: "core", key: "attention-check", version: "1.0.0" });
+    await caller.studies.saveAsNamed({ studyId: id, name: "v2" });
+    await caller.studies.addBlock({ studyId: id, source: "core", key: "slider", version: "1.0.0" });
+
+    const versions = await caller.studies.listVersions({ studyId: id });
+    const frozen = versions.filter((v) => !v.isWorkingCopy);
+    expect(frozen[0].changes).toEqual(["Initial version — 1 block"]);
+    expect(frozen[1].changes.some((l) => l.startsWith("＋ Added") && l.includes("Attention"))).toBe(true);
+    const working = versions.find((v) => v.isWorkingCopy)!;
+    expect(working.changes.some((l) => l.startsWith("＋ Added") && l.includes("Slider"))).toBe(true);
+  });
+});

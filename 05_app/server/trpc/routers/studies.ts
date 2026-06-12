@@ -42,6 +42,7 @@ import {
   summarizeConfigDiff,
   validateConfig,
 } from "@/server/modules/blocks";
+import { changelogBetween, initialVersionSummary } from "@/server/modules/changelog";
 import { getModuleDef } from "@/server/modules/registry";
 import { protocolText } from "@/server/modules/protocol-text";
 import { applyVisualContext, readTheme, requiresAcknowledgment, studyThemeSchema } from "@/lib/themes/themes";
@@ -439,6 +440,9 @@ export type StudyVersion = {
   hasUnsavedChanges: boolean;
   pushStatus: string | null;
   doi: string | null;
+  /** Auto-changelog (ADR-0033): what this version changed vs the previous
+   *  frozen one; for the working copy, the pending (unsaved) changes. */
+  changes: string[];
 };
 
 /** A read-only block of a specific (often frozen) version, for the preview pane. */
@@ -1241,6 +1245,18 @@ export const studiesRouter = router({
       const hasUnsavedChanges =
         !!working && !!latestSaved && blocksKey(working.snapshot) !== blocksKey(latestSaved.snapshot);
 
+      // Auto-changelog (ADR-0033, derived on read): each frozen version vs the
+      // frozen one before it; the working copy vs the latest frozen (= the Save
+      // dialog's "what you're about to freeze" preview).
+      const changesFor = (r: (typeof rows)[number]): string[] => {
+        if (r.kind === "autosave") {
+          return latestSaved ? changelogBetween(latestSaved.snapshot, r.snapshot) : [];
+        }
+        const i = frozen.findIndex((f) => f.id === r.id);
+        if (i === 0) return initialVersionSummary(r.snapshot);
+        return changelogBetween(frozen[i - 1].snapshot, r.snapshot);
+      };
+
       return rows.map((r) => ({
         id: r.id,
         kind: r.kind,
@@ -1252,6 +1268,7 @@ export const studiesRouter = router({
         hasUnsavedChanges: r.kind === "autosave" ? hasUnsavedChanges : false,
         pushStatus: r.pushStatus ?? null,
         doi: r.doi ?? null,
+        changes: changesFor(r),
       }));
     }),
 
