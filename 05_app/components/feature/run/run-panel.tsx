@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { PreflightChecklist } from "@/components/feature/run/preflight-checklist";
 import { PendingButton } from "@/components/ui/pending-button";
 import { api } from "@/lib/trpc/react";
 import type { RunInfo } from "@/server/trpc/routers/studies";
@@ -37,21 +38,23 @@ export function RunPanel({
           To run a study you freeze an immutable version participants take (your editable draft is
           never run directly). Two ways to freeze:
         </p>
-        <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href={`/studies/${studyId}/preregister`}
-            className="rounded-[var(--radius-md)] bg-[var(--color-primary)] px-4 py-2 text-[length:var(--text-body-emphasis)] font-medium text-white hover:opacity-90"
-          >
-            Preregister (to OSF) →
-          </Link>
-          <PendingButton
-            variant="secondary"
-            onClick={() => publish.mutate({ studyId })}
-            pending={publish.isPending}
-            idleLabel="Publish & run (no OSF)"
-            pendingLabel="Publishing…"
-          />
-        </div>
+        <PreflightChecklist studyId={studyId} mode="publish">
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href={`/studies/${studyId}/preregister`}
+              className="rounded-[var(--radius-md)] bg-[var(--color-primary)] px-4 py-2 text-[length:var(--text-body-emphasis)] font-medium text-white hover:opacity-90"
+            >
+              Preregister (to OSF) →
+            </Link>
+            <PendingButton
+              variant="secondary"
+              onClick={() => publish.mutate({ studyId })}
+              pending={publish.isPending}
+              idleLabel="Publish & run (no OSF)"
+              pendingLabel="Publishing…"
+            />
+          </div>
+        </PreflightChecklist>
         <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
           Preregister is the open-science path; Publish &amp; run is for pilots and exploratory work.
         </p>

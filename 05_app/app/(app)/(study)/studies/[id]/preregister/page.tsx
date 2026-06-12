@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { StageTabs } from "@/components/chrome/stage-tabs";
+import { PreflightChecklist } from "@/components/feature/run/preflight-checklist";
 import { PreregisterButton } from "@/components/feature/preregister/preregister-button";
 import { PushStatusPoller } from "@/components/feature/preregister/push-status-poller";
 import { RetryPushButton } from "@/components/feature/preregister/retry-push-button";
@@ -130,7 +131,9 @@ export default async function PreregisterStagePage({
               This saves an immutable, timestamped snapshot of your current design. You can keep
               editing your working draft afterwards.
             </p>
-            <PreregisterButton studyId={study.id} />
+            <PreflightChecklist studyId={study.id} mode="preregister">
+              <PreregisterButton studyId={study.id} />
+            </PreflightChecklist>
             <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
               Need to change a preregistered design? Amendments arrive in a later release.
             </p>

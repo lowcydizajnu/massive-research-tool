@@ -43,6 +43,7 @@ import {
   validateConfig,
 } from "@/server/modules/blocks";
 import { changelogBetween, initialVersionSummary } from "@/server/modules/changelog";
+import { runPreflight, type PreflightCheck } from "@/server/modules/preflight";
 import { getModuleDef } from "@/server/modules/registry";
 import { protocolText } from "@/server/modules/protocol-text";
 import { applyVisualContext, readTheme, requiresAcknowledgment, studyThemeSchema } from "@/lib/themes/themes";
@@ -1210,6 +1211,19 @@ export const studiesRouter = router({
    * it say v3?" is answerable: the Draft (autosave) + each conscious snapshot
    * with its kind, number, freeze status, and OSF DOI/status.
    */
+  /** Methodological pre-flight checks over the working tip (ADR-0034). Pure
+   *  read — the gate is advisory; preregister/publish never enforce. */
+  preflight: workspaceProcedure
+    .input(z.object({ studyId: z.string().uuid(), mode: z.enum(["preregister", "publish"]) }))
+    .query(async ({ ctx, input }): Promise<PreflightCheck[]> => {
+      const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+      const conditions = (await conditionsForVersion(tip.version.id)).map((c) => ({
+        slug: c.slug,
+        name: c.name,
+      }));
+      return runPreflight({ snapshot: tip.version.definitionSnapshot, conditions, mode: input.mode });
+    }),
+
   listVersions: workspaceProcedure
     .input(z.object({ studyId: z.string().uuid() }))
     .query(async ({ ctx, input }): Promise<StudyVersion[]> => {
