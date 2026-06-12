@@ -1,3 +1,4 @@
+import { readConsent } from "@/server/modules/consent";
 import {
   alignBlocksForDiff,
   blockDisplay,
@@ -105,6 +106,11 @@ export function changelogBetween(prevSnapshot: unknown, nextSnapshot: unknown): 
     const pk = (pt?.presetKey as string) ?? "academic";
     const nk = (nt?.presetKey as string) ?? "academic";
     out.push(pk !== nk ? `～ Design preset: ${pk} → ${nk}` : "～ Design adjusted");
+  }
+
+  // Consent screen (ADR-0035) — wording is protocol; IRB cares.
+  if (JSON.stringify(readConsent(prevSnapshot)) !== JSON.stringify(readConsent(nextSnapshot))) {
+    out.push("～ Consent screen updated");
   }
 
   return out;

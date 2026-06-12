@@ -43,6 +43,7 @@ import {
   validateConfig,
 } from "@/server/modules/blocks";
 import { changelogBetween, initialVersionSummary } from "@/server/modules/changelog";
+import { readConsent, type StudyConsent } from "@/server/modules/consent";
 import { runPreflight, type PreflightCheck } from "@/server/modules/preflight";
 import { getModuleDef } from "@/server/modules/registry";
 import { protocolText } from "@/server/modules/protocol-text";
@@ -380,6 +381,8 @@ export type StudyDetail = {
   whiteboardViewport: WhiteboardViewport;
   /** Researcher-authored study documentation (V1.12 B1). */
   overview: import("@/server/modules/blocks").StudyOverview;
+  /** Consent screen config (ADR-0035) — defaults merged on read. */
+  consent: StudyConsent;
   /** Question groups (ADR-0028); members reference these by `block.groupId`. */
   groups: import("@/server/modules/blocks").StudyGroup[];
   /** Participant-facing theme (ADR-0024); Academic defaults when never set. */
@@ -995,6 +998,7 @@ export const studiesRouter = router({
         blocks,
         whiteboardViewport: (row.version?.whiteboardViewport as WhiteboardViewport | null) ?? {},
         overview: readOverview(row.version?.definitionSnapshot),
+        consent: readConsent(row.version?.definitionSnapshot),
         groups: readGroups(row.version?.definitionSnapshot),
         theme: readTheme(row.version?.definitionSnapshot),
       };
@@ -1831,6 +1835,34 @@ export const studiesRouter = router({
       await db
         .update(experimentVersion)
         .set({ definitionSnapshot: { ...snap, theme: input.theme, overview } })
+        .where(eq(experimentVersion.id, tip.version.id));
+      await db.update(experiment).set({ updatedAt: new Date() }).where(eq(experiment.id, input.studyId));
+      return { ok: true };
+    }),
+
+  /** Save the consent screen (ADR-0035) — rides definition_snapshot.consent;
+   *  empty fields mean "use the default" (merged on read). */
+  setConsent: writeProcedure
+    .input(
+      z.object({
+        studyId: z.string().uuid(),
+        consent: z.object({
+          body: z.string().max(5000),
+          agreeLabel: z.string().max(80),
+          disagreeLabel: z.string().max(80),
+          declineMessage: z.string().max(2000),
+        }),
+      }),
+    )
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+      const snap =
+        tip.version.definitionSnapshot && typeof tip.version.definitionSnapshot === "object"
+          ? (tip.version.definitionSnapshot as Record<string, unknown>)
+          : {};
+      await db
+        .update(experimentVersion)
+        .set({ definitionSnapshot: { ...snap, consent: input.consent } })
         .where(eq(experimentVersion.id, tip.version.id));
       await db.update(experiment).set({ updatedAt: new Date() }).where(eq(experiment.id, input.studyId));
       return { ok: true };
@@ -2889,6 +2921,7 @@ export const studiesRouter = router({
       const groups = readGroups(source.version.definitionSnapshot).map(({ moduleId: _drop, ...g }) => g);
       const overview = readOverview(source.version.definitionSnapshot);
       const theme = readTheme(source.version.definitionSnapshot);
+      const consent = readConsent(source.version.definitionSnapshot);
       const sourceConditions = await conditionsForVersion(source.version.id);
 
       const newId = await db.transaction(async (tx) => {
@@ -2909,7 +2942,7 @@ export const studiesRouter = router({
             experimentId: exp.id,
             versionNumber: 0, // autosave is the unnumbered "Draft" (ADR-0012 amendment)
             kind: "autosave",
-            definitionSnapshot: { blocks, groups, overview, theme },
+            definitionSnapshot: { blocks, groups, overview, theme, consent },
             moduleVersionLocks: locksFromBlocks(blocks),
             createdBy: ctx.dbUser.id,
           })

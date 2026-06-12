@@ -1297,3 +1297,20 @@ describe("listVersions auto-changelog (ADR-0033)", () => {
     expect(working.changes.some((l) => l.startsWith("＋ Added") && l.includes("Slider"))).toBe(true);
   });
 });
+
+describe("studies.setConsent (ADR-0035)", () => {
+  it("round-trips through the working tip; defaults merge on read", async () => {
+    await seedUserWithWorkspace("ext_a", "Lab A");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "Consented" });
+    expect((await caller.studies.get({ id })).consent.agreeLabel).toBe("Agree — begin");
+    await caller.studies.setConsent({
+      studyId: id,
+      consent: { body: "Custom IRB text.", agreeLabel: "", disagreeLabel: "No thanks", declineMessage: "" },
+    });
+    const c = (await caller.studies.get({ id })).consent;
+    expect(c.body).toBe("Custom IRB text.");
+    expect(c.disagreeLabel).toBe("No thanks");
+    expect(c.agreeLabel).toBe("Agree — begin"); // empty → default
+  });
+});

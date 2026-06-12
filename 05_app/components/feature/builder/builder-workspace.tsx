@@ -38,6 +38,7 @@ import {
   type PanelSide,
 } from "@/components/feature/settings/panel-side-toggle";
 import { PaneHandle, usePaneWidth } from "@/components/chrome/pane-resize";
+import { ConsentEditor } from "./consent-editor";
 
 /**
  * Builder mode — the interactive three-zone body (build-stage-builder-mode.md).
@@ -102,6 +103,10 @@ export function BuilderWorkspace({
   // Work-surface ↔ context-panel divider is draggable too (owner request, M2 follow-up).
   const panelPane = usePaneWidth("mrt-builder-panel-width", 250, 220, 480);
   const [pickerOpen, setPickerOpen] = useState(false);
+  // The pinned Consent card is selected (its editor replaces the context panel).
+  // Selecting any block wins over it (the aside renders the editor only while
+  // no block is selected).
+  const [consentSelected, setConsentSelected] = useState(false);
   // A library card is mid-drag (the modal hides itself; list rows become drop targets).
   const [libraryDragging, setLibraryDragging] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
@@ -574,6 +579,32 @@ export function BuilderWorkspace({
               </button>
             </div>
 
+            {/* Consent screen — pinned, never draggable (ADR-0035): always the
+                participant's first screen, so it lives above the sortable list. */}
+            <button
+              type="button"
+              aria-label="Consent screen settings"
+              onClick={() => {
+                setSelectedId(null);
+                setConsentSelected(true);
+              }}
+              className={`flex items-center gap-2 rounded-[var(--radius-md)] border px-3 py-2 text-left ${
+                consentSelected
+                  ? "border-[var(--color-primary)] bg-[var(--color-primary-subtle)]/40"
+                  : "border-dashed border-[var(--color-border-subtle)] hover:bg-[var(--color-surface-subtle)]"
+              }`}
+            >
+              <span aria-hidden className="text-[15px]">🛡</span>
+              <span className="flex min-w-0 flex-col">
+                <span className="text-[length:var(--text-body)] font-medium text-[var(--color-text-primary)]">
+                  Consent screen
+                </span>
+                <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                  Always shown first · Agree starts the study · pinned
+                </span>
+              </span>
+            </button>
+
             {study.blocks.length === 0 ? (
               <div
                 onDragOver={libraryDragging ? (e) => e.preventDefault() : undefined}
@@ -874,6 +905,14 @@ export function BuilderWorkspace({
         style={{ width: panelPane.width }}
         className={`flex shrink-0 flex-col gap-4 self-start rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-panel)] p-4 ${panelSide === "left" ? "order-first" : ""}`}
       >
+        {consentSelected && !selected ? (
+          <ConsentEditor
+            studyId={study.id}
+            consent={study.consent}
+            onClose={() => setConsentSelected(false)}
+          />
+        ) : (
+        <>
         <nav role="tablist" aria-label="Context" className="flex flex-wrap gap-1">
           {selected ? (
             <>
@@ -1028,6 +1067,8 @@ export function BuilderWorkspace({
 
             <ConditionsSection studyId={study.id} />
           </div>
+        )}
+        </>
         )}
       </aside>
 

@@ -41,10 +41,15 @@ export default async function StartPage({
       <h1 className="font-serif text-[length:var(--text-display)] font-medium text-[var(--color-text-primary)]">
         {open.studyTitle}
       </h1>
-      <p className="text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
-        You’re about to take part in a research study. Participation is voluntary and you may stop
-        at any time. Your responses are recorded anonymously and used for research.
-      </p>
+      {/* Researcher-set consent text (ADR-0035) — paragraphs split on blank lines. */}
+      {open.consent.body
+        .split(/\n{2,}/)
+        .filter((para) => para.trim())
+        .map((para, i) => (
+          <p key={i} className="whitespace-pre-line text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
+            {para.trim()}
+          </p>
+        ))}
       {sp.closed ? (
         <p role="alert" className="text-[length:var(--text-small)] text-[var(--color-danger-text-on-subtle)]">
           This study isn’t accepting responses right now.
@@ -57,12 +62,21 @@ export default async function StartPage({
         {sp.PROLIFIC_PID ? (
           <input type="hidden" name="externalPid" value={sp.PROLIFIC_PID} />
         ) : null}
-        <button
-          type="submit"
-          className="rounded-[var(--radius-md)] bg-[var(--color-primary)] px-5 py-2.5 text-[length:var(--text-body-emphasis)] font-medium text-white hover:opacity-90"
-        >
-          Begin
-        </button>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="submit"
+            className="rounded-[var(--radius-md)] bg-[var(--color-primary)] px-5 py-2.5 text-[length:var(--text-body-emphasis)] font-medium text-white hover:opacity-90"
+          >
+            {open.consent.agreeLabel}
+          </button>
+          {/* Declining is a plain link — nothing recorded, no tracking (ADR-0035). */}
+          <a
+            href={`/take/${studyId}/declined${preview ? "?preview=true" : ""}`}
+            className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-5 py-2.5 text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
+          >
+            {open.consent.disagreeLabel}
+          </a>
+        </div>
       </form>
     </Card>
   );

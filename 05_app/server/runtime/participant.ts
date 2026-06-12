@@ -2,6 +2,7 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { ulid } from "ulid";
 
 import { db } from "@/server/db/client";
+import { readConsent, type StudyConsent } from "@/server/modules/consent";
 import {
   condition as conditionTable,
   experiment,
@@ -214,7 +215,7 @@ export async function openRecruitment(experimentVersionId: string): Promise<{ id
  * when the study isn't preregistered or recruitment isn't open.
  */
 export async function resolveOpenRecruitment(studyId: string): Promise<
-  { recruitmentSessionId: string; versionId: string; studyTitle: string } | null
+  { recruitmentSessionId: string; versionId: string; studyTitle: string; consent: StudyConsent } | null
 > {
   const [study] = await db
     .select({ title: experiment.title })
@@ -224,7 +225,7 @@ export async function resolveOpenRecruitment(studyId: string): Promise<
   if (!study) return null;
 
   const [ver] = await db
-    .select({ id: experimentVersion.id })
+    .select({ id: experimentVersion.id, snapshot: experimentVersion.definitionSnapshot })
     .from(experimentVersion)
     .where(
       and(
@@ -249,7 +250,7 @@ export async function resolveOpenRecruitment(studyId: string): Promise<
     .limit(1);
   if (!rs) return null;
 
-  return { recruitmentSessionId: rs.id, versionId: ver.id, studyTitle: study.title };
+  return { recruitmentSessionId: rs.id, versionId: ver.id, studyTitle: study.title, consent: readConsent(ver.snapshot) };
 }
 
 /**
