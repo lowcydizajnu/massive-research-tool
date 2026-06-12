@@ -156,3 +156,18 @@ describe("social-post v2 engagement interactions (ADR-0024)", () => {
     expect("shareCountVisible" in def.defaultConfig).toBe(false);
   });
 });
+
+describe("audio-record (handoff C2 Group 3)", () => {
+  const a = getDef("core", "audio-record", "1.0.0")!;
+  it("collects {r2Key, durationMs}; keys must live under resp/", () => {
+    expect(a.collectsResponse).toBe(true);
+    expect(a.responseSchema!.safeParse({ r2Key: "resp/01H/clip.webm", durationMs: 5000 }).success).toBe(true);
+    expect(a.responseSchema!.safeParse({ r2Key: "ws/steal/other.webm", durationMs: 5000 }).success).toBe(false);
+  });
+  it("empty without a recording; duration capped by config (+slack)", () => {
+    expect(a.isAnswerEmpty!({})).toBe(true);
+    expect(a.isAnswerEmpty!({ r2Key: "resp/x/y.webm" })).toBe(false);
+    expect(a.validateAnswer!({ r2Key: "resp/x/y.webm", durationMs: 61_000 }, { maxDurationSeconds: 60 })).toBe(true);
+    expect(a.validateAnswer!({ r2Key: "resp/x/y.webm", durationMs: 70_000 }, { maxDurationSeconds: 60 })).toBe(false);
+  });
+});

@@ -6,6 +6,7 @@ import { notificationsRouter } from "@/server/trpc/routers/notifications";
 import { previewTokensRouter } from "@/server/trpc/routers/preview-tokens";
 import { profileRouter } from "@/server/trpc/routers/profile";
 import { studiesRouter } from "@/server/trpc/routers/studies";
+import { uploadsRouter } from "@/server/trpc/routers/uploads";
 import { workspaceRouter } from "@/server/trpc/routers/workspace";
 import { router } from "@/server/trpc/trpc";
 
@@ -19,6 +20,7 @@ export const appRouter = router({
   follows: followsRouter,
   profile: profileRouter,
   previewTokens: previewTokensRouter,
+  uploads: uploadsRouter,
 });
 
 export type AppRouter = typeof appRouter;

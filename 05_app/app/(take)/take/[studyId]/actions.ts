@@ -84,6 +84,11 @@ function extractAnswer(moduleKey: string, prefix: string, fd: FormData): unknown
     }
     return { values };
   }
+  if (moduleKey === "audio-record") {
+    const r2Key = String(g("r2key") ?? "");
+    if (!r2Key) return {}; // no recording → empty (required check applies)
+    return { r2Key, durationMs: Number(g("durms")) || 0 };
+  }
   if (moduleKey === "social-post") {
     // Engagement interactions (ADR-0024): always an object — exposure is
     // recorded even without interaction (liked/shared false). v1 social-post

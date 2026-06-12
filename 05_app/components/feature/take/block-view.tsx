@@ -1,6 +1,7 @@
 import { ReactionTimeInput } from "@/components/feature/take/reaction-time-input";
 import { getBlockOverride } from "@/components/feature/take/block-overrides";
 import { ReactionButton, ReactionGroup } from "@/components/feature/take/reaction-toggles";
+import { AudioRecordInput } from "@/components/feature/take/audio-record-input";
 import type { RuntimeBlock } from "@/server/runtime/participant";
 
 /**
@@ -60,6 +61,7 @@ export function BlockView({
   if (block.key === "matrix-grid") return <MatrixGridInput config={c} np={np} />;
   if (block.key === "semantic-differential") return <SemanticDifferentialInput config={c} np={np} />;
   if (block.key === "reaction-time") return <ReactionTimeInput config={c} namePrefix={np} />;
+  if (block.key === "audio-record") return <AudioRecordInput config={c} namePrefix={np} responseId={seed ?? ""} />;
   if (block.key === "maxdiff") return <MaxDiffInput config={c} np={np} />;
   return (
     <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
