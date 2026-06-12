@@ -41,7 +41,7 @@ Authorization: proposing requires write membership in the FORK's workspace + the
 
 ## Revisit triggers
 
-- Owners ask to apply deletions or cherry-pick blocks → per-block checkboxes on the review surface (the merge already works per block).
+- ~~Owners ask to apply deletions~~ → **fired 2026-06-12 (owner request)**: removed rows in the review carry per-block opt-in checkboxes; `accept` takes `applyDeletions[]` (validated against legit deletion candidates server-side; dangling show-if clauses pruned). Unticked deletions still never apply.
 - Proposal volume makes the Replications tab crowded → a dedicated Proposals destination.
 - Same-workspace "protected draft" workflows appear → revisit together with branches/protected-branches from the parked tier.
 

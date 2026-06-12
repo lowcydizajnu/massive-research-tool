@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 const ROW_STYLE: Record<string, string> = {
   added: "bg-[var(--color-success-subtle)] text-[var(--color-success-text-on-subtle)]",
   changed: "bg-[var(--color-warning-subtle)] text-[var(--color-warning-text-on-subtle)]",
-  removed: "bg-[var(--color-danger-subtle)] text-[var(--color-danger-text-on-subtle)] line-through",
+  removed: "bg-[var(--color-danger-subtle)] text-[var(--color-danger-text-on-subtle)]",
   unchanged: "text-[var(--color-text-secondary)]",
 };
 const ROW_PREFIX: Record<string, string> = { added: "＋", changed: "～", removed: "－", unchanged: "·" };
@@ -29,6 +29,8 @@ export function ReviewProposal({ studyId, proposalId }: { studyId: string; propo
   const [comment, setComment] = useState("");
   const [confirmAccept, setConfirmAccept] = useState(false);
   const [declining, setDeclining] = useState(false);
+  // Proposal-removed blocks the owner ALSO wants removed (opt-in checkboxes).
+  const [applyDeletions, setApplyDeletions] = useState<Set<string>>(new Set());
   const onDecided = () => {
     void utils.proposals.review.invalidate({ proposalId });
     void utils.proposals.listIncoming.invalidate({ studyId });
@@ -84,13 +86,15 @@ export function ReviewProposal({ studyId, proposalId }: { studyId: string; propo
         <ul className="flex flex-col gap-0.5 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
           <li>＋ {pv.added} block{pv.added === 1 ? "" : "s"} added to your draft</li>
           <li>～ {pv.updated} block{pv.updated === 1 ? "" : "s"} updated (the proposal’s version wins)</li>
-          {pv.deletionsNotApplied.length > 0 ? (
+          {pv.deletions.length > 0 ? (
             <li>
-              － {pv.deletionsNotApplied.length} block{pv.deletionsNotApplied.length === 1 ? "" : "s"} the proposal removed
-              ({pv.deletionsNotApplied.map((n) => `"${n}"`).join(", ")}) — <strong>not applied automatically</strong>; deletions stay yours to make.
+              － {pv.deletions.length} block{pv.deletions.length === 1 ? "" : "s"} the proposal removed — tick the ones
+              you want removed too ({applyDeletions.size} selected); unticked blocks stay in your draft.
             </li>
           ) : null}
-          {pv.added === 0 && pv.updated === 0 ? <li>Nothing left to apply — your draft already matches.</li> : null}
+          {pv.added === 0 && pv.updated === 0 && applyDeletions.size === 0 ? (
+            <li>Nothing selected to apply — your draft already matches.</li>
+          ) : null}
         </ul>
         <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
           Changes land in your editable draft only — you still review, save, and preregister on your own terms.
@@ -127,9 +131,35 @@ export function ReviewProposal({ studyId, proposalId }: { studyId: string; propo
               key={`${r.instanceId}-${r.status}`}
               className={cn("rounded-[var(--radius-md)] px-2.5 py-1.5 text-[length:var(--text-body)]", ROW_STYLE[r.status])}
             >
-              <span aria-hidden className="pr-1.5">{ROW_PREFIX[r.status]}</span>
-              <span className="sr-only">{r.status}: </span>
-              {r.name}
+              {r.status === "removed" && open ? (
+                <label className="flex cursor-pointer items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={applyDeletions.has(r.instanceId)}
+                    onChange={() =>
+                      setApplyDeletions((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(r.instanceId)) next.delete(r.instanceId);
+                        else next.add(r.instanceId);
+                        return next;
+                      })
+                    }
+                    className="size-4 accent-[var(--color-danger)]"
+                  />
+                  <span aria-hidden className={cn(!applyDeletions.has(r.instanceId) && "line-through-none")}>
+                    － <span className={applyDeletions.has(r.instanceId) ? "line-through" : "no-underline"}>{r.name}</span>
+                  </span>
+                  <span className="text-[length:var(--text-small)]">
+                    {applyDeletions.has(r.instanceId) ? "will be removed" : "stays in your draft"}
+                  </span>
+                </label>
+              ) : (
+                <>
+                  <span aria-hidden className="pr-1.5">{ROW_PREFIX[r.status]}</span>
+                  <span className="sr-only">{r.status}: </span>
+                  {r.name}
+                </>
+              )}
             </li>
           ))}
         </ul>
@@ -204,11 +234,11 @@ export function ReviewProposal({ studyId, proposalId }: { studyId: string; propo
       <ConfirmDialog
         open={confirmAccept}
         title="Accept into your draft?"
-        body={`${pv.added} added · ${pv.updated} updated${pv.deletionsNotApplied.length ? ` · ${pv.deletionsNotApplied.length} deletion(s) NOT applied` : ""}. Your draft stays editable — nothing is frozen or published by accepting.`}
+        body={`${pv.added} added · ${pv.updated} updated · ${applyDeletions.size} of ${pv.deletions.length} deletion(s) applied. Your draft stays editable — nothing is frozen or published by accepting.`}
         confirmLabel="Accept & merge"
         onConfirm={() => {
           setConfirmAccept(false);
-          accept.mutate({ proposalId, comment: comment.trim() });
+          accept.mutate({ proposalId, comment: comment.trim(), applyDeletions: [...applyDeletions] });
         }}
         onCancel={() => setConfirmAccept(false)}
       />
