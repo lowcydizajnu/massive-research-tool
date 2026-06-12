@@ -28,7 +28,9 @@ import { jobs } from "@/server/adapters/jobs";
 import { db } from "@/server/db/client";
 import {
   activityEvent,
+  changeProposal,
   condition,
+  customModule,
   experiment,
   experimentVersion,
   member,
@@ -88,6 +90,8 @@ beforeEach(async () => {
     .update(experiment)
     .set({ currentVersionId: null, forkOfVersionId: null, forkOfExperimentId: null });
   // Event tables FK to workspace/user — clear them before their parents.
+  await db.delete(changeProposal);
+  await db.delete(customModule);
   await db.delete(notification);
   await db.delete(activityEvent);
   await db.delete(responseItem);
@@ -1457,5 +1461,36 @@ describe("GitHub medium tier (ADR-0038)", () => {
     expect(visible[0].authorName).toBe("hanna");
     await sofia.studies.insertCustomModule({ studyId: sofiaStudy, customModuleId: saved.id });
     expect((await sofia.studies.get({ id: sofiaStudy })).blocks).toHaveLength(1);
+  });
+});
+
+describe("studies.blockHistory (block-level History tab)", () => {
+  it("tells the block's own story: introduced → changed (with lines) → unsaved edits", async () => {
+    await seedUserWithWorkspace("ext_a", "Lab A");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "Story" });
+    const b = await caller.studies.addBlock({ studyId: id, source: "core", key: "likert-7", version: "1.0.0" });
+    await caller.studies.saveAsNamed({ studyId: id, name: "v1" });
+    const block = (await caller.studies.get({ id })).blocks[0];
+    await caller.studies.updateBlockConfig({
+      studyId: id,
+      instanceId: b.instanceId,
+      config: { ...block.config, prompt: "Reworded prompt" },
+    });
+    await caller.studies.saveAsNamed({ studyId: id, name: "v2" });
+    await caller.studies.updateBlockConfig({
+      studyId: id,
+      instanceId: b.instanceId,
+      config: { ...block.config, prompt: "Unsaved tweak" },
+    });
+
+    const history = await caller.studies.blockHistory({ studyId: id, instanceId: b.instanceId });
+    // newest first: unsaved tweak → v2 change → v1 introduction
+    expect(history[0].label).toContain("Working copy");
+    expect(history[1].label).toBe("v2");
+    expect(history[1].kind).toBe("changed");
+    expect(history[1].changes.join(" ").toLowerCase()).toContain("prompt");
+    expect(history[2].label).toBe("v1");
+    expect(history[2].kind).toBe("introduced");
   });
 });
