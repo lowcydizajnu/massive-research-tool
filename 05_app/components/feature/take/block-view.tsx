@@ -117,8 +117,8 @@ function Likert7Input({ config, np }: { config: Record<string, unknown>; np: str
   const left = str(config.leftAnchor) || "Strongly disagree";
   const right = str(config.rightAnchor) || "Strongly agree";
   return (
-    <fieldset className="flex flex-col gap-[var(--take-field-gap,1rem)]">
-      <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
+    <div role="group" aria-labelledby={`${np}gl`} className="flex flex-col gap-[var(--take-field-gap,1rem)]">
+      <p id={`${np}gl`} className={PROMPT_CLS}>{str(config.prompt)}</p>
       <div className="flex items-end justify-between gap-2">
         {[1, 2, 3, 4, 5, 6, 7].map((n) => (
           <label key={n} className="flex flex-1 cursor-pointer flex-col items-center gap-1 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
@@ -137,7 +137,7 @@ function Likert7Input({ config, np }: { config: Record<string, unknown>; np: str
         <span>{left}</span>
         <span>{right}</span>
       </div>
-    </fieldset>
+    </div>
   );
 }
 
@@ -146,15 +146,15 @@ function MultipleChoiceInput({ config, seed, np }: { config: Record<string, unkn
   const raw = Array.isArray(config.options) ? (config.options as unknown[]).map(str) : [];
   const options = config.randomizeOrder === true && seed ? seededShuffle(raw, seed) : raw;
   return (
-    <fieldset className="flex flex-col gap-[var(--take-field-gap,1rem)]">
-      <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
+    <div role="group" aria-labelledby={`${np}gl`} className="flex flex-col gap-[var(--take-field-gap,1rem)]">
+      <p id={`${np}gl`} className={PROMPT_CLS}>{str(config.prompt)}</p>
       {options.map((opt, i) => (
         <label key={`${i}-${opt}`} className="flex items-center gap-2 text-[length:var(--text-body)] text-[var(--color-text-primary)]">
           <input type={multiple ? "checkbox" : "radio"} name={`${np}mc`} value={opt} className="size-4 accent-[var(--color-primary)]" />
           <span>{opt}</span>
         </label>
       ))}
-    </fieldset>
+    </div>
   );
 }
 
@@ -206,8 +206,8 @@ function RankingInput({ config, np }: { config: Record<string, unknown>; np: str
   const items = Array.isArray(config.items) ? (config.items as unknown[]).map(str) : [];
   const positions = items.map((_, i) => i + 1);
   return (
-    <fieldset className="flex flex-col gap-[var(--take-field-gap,1rem)]">
-      <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
+    <div role="group" aria-labelledby={`${np}gl`} className="flex flex-col gap-[var(--take-field-gap,1rem)]">
+      <p id={`${np}gl`} className={PROMPT_CLS}>{str(config.prompt)}</p>
       <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">Assign a rank to each item (1 = highest).</p>
       {items.map((item, i) => (
         <div key={`${i}-${item}`} className="flex items-center justify-between gap-2">
@@ -227,22 +227,22 @@ function RankingInput({ config, np }: { config: Record<string, unknown>; np: str
           </select>
         </div>
       ))}
-    </fieldset>
+    </div>
   );
 }
 
 function AttentionCheckInput({ config, np }: { config: Record<string, unknown>; np: string }) {
   const options = Array.isArray(config.options) ? (config.options as unknown[]).map(str) : [];
   return (
-    <fieldset className="flex flex-col gap-[var(--take-field-gap,1rem)]">
-      <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
+    <div role="group" aria-labelledby={`${np}gl`} className="flex flex-col gap-[var(--take-field-gap,1rem)]">
+      <p id={`${np}gl`} className={PROMPT_CLS}>{str(config.prompt)}</p>
       {options.map((opt, i) => (
         <label key={`${i}-${opt}`} className="flex items-center gap-2 text-[length:var(--text-body)] text-[var(--color-text-primary)]">
           <input type="radio" name={`${np}value`} value={opt} className="size-4 accent-[var(--color-primary)]" />
           <span>{opt}</span>
         </label>
       ))}
-    </fieldset>
+    </div>
   );
 }
 
@@ -414,8 +414,8 @@ function YesNoInput({ config, np }: { config: Record<string, unknown>; np: strin
   const yes = str(config.yesLabel) || "Yes";
   const no = str(config.noLabel) || "No";
   return (
-    <fieldset className="flex flex-col gap-[var(--take-field-gap,1rem)]">
-      <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
+    <div role="group" aria-labelledby={`${np}gl`} className="flex flex-col gap-[var(--take-field-gap,1rem)]">
+      <p id={`${np}gl`} className={PROMPT_CLS}>{str(config.prompt)}</p>
       <div className="flex gap-2">
         {[
           { v: "yes", label: yes },
@@ -430,7 +430,7 @@ function YesNoInput({ config, np }: { config: Record<string, unknown>; np: strin
           </label>
         ))}
       </div>
-    </fieldset>
+    </div>
   );
 }
 
@@ -464,15 +464,15 @@ function AddressInput({ config, np }: { config: Record<string, unknown>; np: str
     { name: "country", label: "Country", autoComplete: "country-name" },
   ];
   return (
-    <fieldset className="flex flex-col gap-[var(--take-field-gap,1rem)]">
-      <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
+    <div role="group" aria-labelledby={`${np}gl`} className="flex flex-col gap-[var(--take-field-gap,1rem)]">
+      <p id={`${np}gl`} className={PROMPT_CLS}>{str(config.prompt)}</p>
       {fields.map((f) => (
         <label key={f.name} className="flex flex-col gap-1">
           <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">{f.label}</span>
           <input type="text" name={`${np}${f.name}`} autoComplete={f.autoComplete} className={FIELD_CLS} />
         </label>
       ))}
-    </fieldset>
+    </div>
   );
 }
 
@@ -485,8 +485,8 @@ function FieldGroupInput({ config, np }: { config: Record<string, unknown>; np: 
     (f) => f && typeof f.key === "string" && /^[a-z0-9_]+$/.test(f.key),
   );
   return (
-    <fieldset className="flex flex-col gap-[var(--take-field-gap,1rem)]">
-      <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
+    <div role="group" aria-labelledby={`${np}gl`} className="flex flex-col gap-[var(--take-field-gap,1rem)]">
+      <p id={`${np}gl`} className={PROMPT_CLS}>{str(config.prompt)}</p>
       <input type="hidden" name={`${np}fkeys`} value={fields.map((f) => `${f.key}:${f.type}`).join(",")} />
       {fields.map((f) => {
         const name = `${np}f_${f.key}`;
@@ -536,7 +536,7 @@ function FieldGroupInput({ config, np }: { config: Record<string, unknown>; np: 
           </label>
         );
       })}
-    </fieldset>
+    </div>
   );
 }
 
@@ -547,15 +547,15 @@ function ContactInput({ config, np }: { config: Record<string, unknown>; np: str
     { name: "phone", label: "Phone (optional)", type: "tel", autoComplete: "tel" },
   ];
   return (
-    <fieldset className="flex flex-col gap-[var(--take-field-gap,1rem)]">
-      <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
+    <div role="group" aria-labelledby={`${np}gl`} className="flex flex-col gap-[var(--take-field-gap,1rem)]">
+      <p id={`${np}gl`} className={PROMPT_CLS}>{str(config.prompt)}</p>
       {fields.map((f) => (
         <label key={f.name} className="flex flex-col gap-1">
           <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">{f.label}</span>
           <input type={f.type} name={`${np}${f.name}`} autoComplete={f.autoComplete} className={FIELD_CLS} />
         </label>
       ))}
-    </fieldset>
+    </div>
   );
 }
 
@@ -563,8 +563,8 @@ function PictureChoiceInput({ config, np }: { config: Record<string, unknown>; n
   const multiple = config.multiple === true;
   const urls = (Array.isArray(config.imageUrls) ? (config.imageUrls as unknown[]).map(str) : []).filter((u) => u.trim() !== "");
   return (
-    <fieldset className="flex flex-col gap-[var(--take-field-gap,1rem)]">
-      <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
+    <div role="group" aria-labelledby={`${np}gl`} className="flex flex-col gap-[var(--take-field-gap,1rem)]">
+      <p id={`${np}gl`} className={PROMPT_CLS}>{str(config.prompt)}</p>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {urls.map((url, i) => (
           <label
@@ -577,7 +577,7 @@ function PictureChoiceInput({ config, np }: { config: Record<string, unknown>; n
           </label>
         ))}
       </div>
-    </fieldset>
+    </div>
   );
 }
 
@@ -587,8 +587,8 @@ function NpsInput({ config, np }: { config: Record<string, unknown>; np: string 
   const left = str(config.leftLabel) || "Not at all likely";
   const right = str(config.rightLabel) || "Extremely likely";
   return (
-    <fieldset className="flex flex-col gap-[var(--take-field-gap,1rem)]">
-      <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
+    <div role="group" aria-labelledby={`${np}gl`} className="flex flex-col gap-[var(--take-field-gap,1rem)]">
+      <p id={`${np}gl`} className={PROMPT_CLS}>{str(config.prompt)}</p>
       <div className="flex flex-wrap gap-1">
         {Array.from({ length: 11 }, (_, n) => (
           <label
@@ -611,15 +611,15 @@ function NpsInput({ config, np }: { config: Record<string, unknown>; np: string 
         <span>{left}</span>
         <span>{right}</span>
       </div>
-    </fieldset>
+    </div>
   );
 }
 
 function StarRatingInput({ config, np }: { config: Record<string, unknown>; np: string }) {
   const max = typeof config.max === "number" ? config.max : 5;
   return (
-    <fieldset className="flex flex-col gap-[var(--take-field-gap,1rem)]">
-      <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
+    <div role="group" aria-labelledby={`${np}gl`} className="flex flex-col gap-[var(--take-field-gap,1rem)]">
+      <p id={`${np}gl`} className={PROMPT_CLS}>{str(config.prompt)}</p>
       <div className="flex gap-1">
         {Array.from({ length: max }, (_, i) => {
           const v = i + 1;
@@ -634,7 +634,7 @@ function StarRatingInput({ config, np }: { config: Record<string, unknown>; np: 
           );
         })}
       </div>
-    </fieldset>
+    </div>
   );
 }
 
@@ -664,8 +664,8 @@ function MatrixGridInput({ config, np }: { config: Record<string, unknown>; np: 
   const columns = Array.isArray(config.columns) ? (config.columns as unknown[]).map(str) : [];
   const required = config.required === true;
   return (
-    <fieldset className="flex flex-col gap-[var(--take-field-gap,1rem)]">
-      <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
+    <div role="group" aria-labelledby={`${np}gl`} className="flex flex-col gap-[var(--take-field-gap,1rem)]">
+      <p id={`${np}gl`} className={PROMPT_CLS}>{str(config.prompt)}</p>
       <input type="hidden" name={`${np}rowCount`} value={rows.length} />
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-[length:var(--text-small)]">
@@ -693,7 +693,7 @@ function MatrixGridInput({ config, np }: { config: Record<string, unknown>; np: 
           </tbody>
         </table>
       </div>
-    </fieldset>
+    </div>
   );
 }
 
@@ -704,8 +704,8 @@ function SemanticDifferentialInput({ config, np }: { config: Record<string, unkn
   const pairs = Math.min(left.length, right.length);
   const required = config.required === true;
   return (
-    <fieldset className="flex flex-col gap-[var(--take-field-gap,1rem)]">
-      <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
+    <div role="group" aria-labelledby={`${np}gl`} className="flex flex-col gap-[var(--take-field-gap,1rem)]">
+      <p id={`${np}gl`} className={PROMPT_CLS}>{str(config.prompt)}</p>
       <input type="hidden" name={`${np}rowCount`} value={pairs} />
       {Array.from({ length: pairs }, (_, i) => (
         <div key={i} className="flex items-center gap-3">
@@ -720,7 +720,7 @@ function SemanticDifferentialInput({ config, np }: { config: Record<string, unkn
           <span className="w-24 shrink-0 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">{right[i]}</span>
         </div>
       ))}
-    </fieldset>
+    </div>
   );
 }
 
@@ -730,8 +730,8 @@ function MaxDiffInput({ config, np }: { config: Record<string, unknown>; np: str
   const items = Array.isArray(config.items) ? (config.items as unknown[]).map(str) : [];
   const required = config.required === true;
   return (
-    <fieldset className="flex flex-col gap-[var(--take-field-gap,1rem)]">
-      <legend className={PROMPT_CLS}>{str(config.prompt)}</legend>
+    <div role="group" aria-labelledby={`${np}gl`} className="flex flex-col gap-[var(--take-field-gap,1rem)]">
+      <p id={`${np}gl`} className={PROMPT_CLS}>{str(config.prompt)}</p>
       <table className="w-full border-collapse text-[length:var(--text-small)]">
         <thead>
           <tr>
@@ -754,6 +754,6 @@ function MaxDiffInput({ config, np }: { config: Record<string, unknown>; np: str
           ))}
         </tbody>
       </table>
-    </fieldset>
+    </div>
   );
 }
