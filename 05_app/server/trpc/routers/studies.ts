@@ -3166,9 +3166,9 @@ export const studiesRouter = router({
         .from(experimentVersion)
         .where(eq(experimentVersion.id, pinnedId))
         .limit(1);
-      if (!pinned) return { sourceTitle: null, sourceAuthor: null, intent: readOverview(tip.version.definitionSnapshot).replicationIntent ?? null, badges: {} as Record<string, DivergenceStatus>, removedCount: 0, divergedCount: 0, sourceUnavailable: true };
+      if (!pinned) return { sourceTitle: null, sourceAuthor: null, sourceStudyId: null as string | null, intent: readOverview(tip.version.definitionSnapshot).replicationIntent ?? null, badges: {} as Record<string, DivergenceStatus>, removedCount: 0, divergedCount: 0, sourceUnavailable: true };
       const [src] = await db
-        .select({ title: experiment.title, ownerId: experiment.ownerId })
+        .select({ id: experiment.id, title: experiment.title, ownerId: experiment.ownerId, forkableBy: experiment.forkableBy })
         .from(experiment)
         .where(eq(experiment.id, pinned.experimentId))
         .limit(1);
@@ -3179,6 +3179,7 @@ export const studiesRouter = router({
       return {
         sourceTitle: src?.title ?? null,
         sourceAuthor: author?.name ?? null,
+        sourceStudyId: src?.forkableBy === "public" ? src.id : null,
         intent: readOverview(tip.version.definitionSnapshot).replicationIntent ?? null,
         badges: d.badges,
         removedCount: d.removedCount,

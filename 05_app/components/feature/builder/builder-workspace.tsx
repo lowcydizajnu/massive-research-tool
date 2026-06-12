@@ -547,10 +547,14 @@ export function BuilderWorkspace({
             <div className="min-w-0">
               <EditableStudyTitle studyId={study.id} initialTitle={study.title} />
               <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-                {/* Autosave tip is the unnumbered Draft (ADR-0012 amendment); v1+ are conscious saves. */}
-                {study.versionNumber > 0 ? `v${study.versionNumber}` : "Draft"} ·{" "}
-                {STAGE_LABEL[study.stage]} · Edited {formatEdited(study.lastEditedAt)}
-                {study.isReplication ? " · replication of another study" : ""}
+                {/* Autosave tip is the unnumbered Draft (ADR-0012 amendment); v1+ are conscious
+                    saves. Version label and stage can coincide ("Draft · draft") — show once. */}
+                {study.versionNumber > 0 ? `v${study.versionNumber}` : "Draft"}
+                {STAGE_LABEL[study.stage].toLowerCase() !==
+                (study.versionNumber > 0 ? `v${study.versionNumber}` : "draft")
+                  ? ` · ${STAGE_LABEL[study.stage]}`
+                  : ""}{" "}
+                · Edited {formatEdited(study.lastEditedAt)}
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
