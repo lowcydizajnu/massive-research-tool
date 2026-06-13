@@ -42,6 +42,8 @@ describe("seedCoreModules", () => {
       "core/drill-down",
       "core/dropdown",
       "core/email",
+      "core/embedded-data",
+      "core/end-redirect",
       "core/field-group",
       "core/file-upload",
       "core/forced-wait",
@@ -78,7 +80,7 @@ describe("seedCoreModules", () => {
     ]);
 
     const versions = await db.select().from(moduleVersion);
-    expect(versions).toHaveLength(45); // +2 Wave 4 media-upload blocks (2026-06-13)
+    expect(versions).toHaveLength(47); // +2 Wave 5 flow blocks (2026-06-13)
 
     const social = mods.find((m) => m.key === "social-post")!;
     const socialVersions = versions
@@ -92,7 +94,7 @@ describe("seedCoreModules", () => {
   it("is idempotent across repeated runs", async () => {
     await seedCoreModules();
     await seedCoreModules();
-    expect(await db.select().from(moduleTable)).toHaveLength(44);
-    expect(await db.select().from(moduleVersion)).toHaveLength(45);
+    expect(await db.select().from(moduleTable)).toHaveLength(46);
+    expect(await db.select().from(moduleVersion)).toHaveLength(47);
   });
 });

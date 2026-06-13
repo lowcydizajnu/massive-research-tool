@@ -44,6 +44,7 @@ import {
   workspace,
 } from "@/server/db/schema";
 import {
+  getCompletionInfo,
   recordAnswer,
   resolveOpenRecruitment,
   startResponse,
@@ -1568,5 +1569,33 @@ describe("replication experience (ADR-0039)", () => {
     expect(await solo.studies.replicationStatus({ studyId: id })).toBeNull();
     const checks = await solo.studies.preflight({ studyId: id, mode: "publish" });
     expect(checks.some((c) => c.id.startsWith("replication"))).toBe(false);
+  });
+});
+
+describe("Wave 5 flow blocks: embedded-data + end-redirect (ADR-0042)", () => {
+  it("embedded-data captures declared URL params at start; flow blocks are not screens", async () => {
+    await seedUserWithWorkspace("ext_a", "Lab A");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "Flow" });
+    await caller.studies.addBlock({ studyId: id, source: "core", key: "embedded-data", version: "1.0.0" });
+    await caller.studies.addBlock({ studyId: id, source: "core", key: "likert-7", version: "1.0.0" });
+    await caller.studies.addBlock({ studyId: id, source: "core", key: "end-redirect", version: "1.0.0" });
+    await caller.studies.publish({ studyId: id });
+    await caller.studies.openRecruitment({ studyId: id });
+    const open = await resolveOpenRecruitment(id);
+    expect(open!.embeddedParams).toEqual(["PROLIFIC_PID"]);
+    const started = await startResponse({
+      recruitmentSessionId: open!.recruitmentSessionId,
+      mode: "run",
+      externalPid: null,
+      embedded: { PROLIFIC_PID: "p-123" },
+    });
+    const responseId = (started as { responseId: string }).responseId;
+    // The two flow blocks are filtered from the participant screen flow → only
+    // the likert is a screen (recordAnswer index 0 completes the study).
+    const done = await recordAnswer({ responseId, questionIndex: 0, answer: { value: 5 } });
+    expect(done).toMatchObject({ ok: true, done: true });
+    const info = await getCompletionInfo(responseId);
+    expect(info!.completed).toBe(true);
   });
 });

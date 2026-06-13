@@ -1962,6 +1962,55 @@ const videoRecordBlock: CoreModuleDef = {
   isComplete: () => true,
 };
 
+
+/* ---------- Wave 5 (2026-06-13): flow blocks (ADR-0042) ---------- */
+
+const embeddedDataBlock: CoreModuleDef = {
+  source: "core",
+  key: "embedded-data",
+  version: "1.0.0",
+  name: "Embedded data",
+  description:
+    "Capture specific URL parameters (e.g. Prolific PID, condition, source) into the response for panel reconciliation. Default-deny: only the names you list are captured. Not shown to participants.",
+  categoryTags: ["flow", "quality"],
+  configSchema: z.object({ params: z.array(z.string()) }),
+  defaultConfig: { params: ["PROLIFIC_PID"] },
+  jsonSchema: {
+    type: "object",
+    properties: { params: { type: "array", items: { type: "string" } } },
+    required: ["params"],
+    additionalProperties: false,
+  },
+  collectsResponse: false,
+  responseSchema: null,
+  isComplete: () => true,
+};
+
+const endRedirectBlock: CoreModuleDef = {
+  source: "core",
+  key: "end-redirect",
+  version: "1.0.0",
+  name: "End redirect",
+  description:
+    "Send completers back to a recruitment platform (Prolific/SONA) with a completion code. Shown on the completion page as a button — never an automatic redirect.",
+  categoryTags: ["flow"],
+  configSchema: z.object({
+    redirectUrl: z.union([z.string().url(), z.literal("")]),
+    completionCode: z.string(),
+    buttonLabel: z.string(),
+  }),
+  defaultConfig: { redirectUrl: "", completionCode: "", buttonLabel: "Return to the study panel" },
+  jsonSchema: {
+    type: "object",
+    properties: { redirectUrl: { type: "string" }, completionCode: { type: "string" }, buttonLabel: { type: "string" } },
+    required: [],
+    additionalProperties: false,
+  },
+  collectsResponse: false,
+  responseSchema: null,
+  isComplete: (c) => typeof c.redirectUrl === "string" && c.redirectUrl.trim() !== "",
+};
+
 export const MODULE_REGISTRY: CoreModuleDef[] = [
   npsBlock,
   ratingStarsBlock,
@@ -1998,6 +2047,8 @@ export const MODULE_REGISTRY: CoreModuleDef[] = [
   signatureBlock,
   fileUploadBlock,
   videoRecordBlock,
+  embeddedDataBlock,
+  endRedirectBlock,
   pictureChoiceBlock,
   socialPost,
   socialPostV2,

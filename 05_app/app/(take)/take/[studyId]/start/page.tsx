@@ -14,7 +14,7 @@ export default async function StartPage({
   searchParams,
 }: {
   params: Promise<{ studyId: string }>;
-  searchParams: Promise<{ preview?: string; PROLIFIC_PID?: string; closed?: string }>;
+  searchParams: Promise<Record<string, string | undefined>>;
 }) {
   const { studyId } = await params;
   const sp = await searchParams;
@@ -62,6 +62,12 @@ export default async function StartPage({
         {sp.PROLIFIC_PID ? (
           <input type="hidden" name="externalPid" value={sp.PROLIFIC_PID} />
         ) : null}
+        {/* Embedded data (ADR-0042): only the researcher-declared param names. */}
+        {open.embeddedParams.map((name) =>
+          typeof sp[name] === "string" ? (
+            <input key={name} type="hidden" name={`embedded_${name}`} value={sp[name]} />
+          ) : null,
+        )}
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="submit"

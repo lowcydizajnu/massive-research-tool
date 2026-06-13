@@ -38,8 +38,24 @@ export default async function CompletePage({
         Thank you
       </h1>
       <p className="text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
-        Your responses have been recorded. You may now close this tab.
+        Your responses have been recorded.{info.redirect ? "" : " You may now close this tab."}
       </p>
+      {info.redirect ? (
+        <div className="flex flex-col gap-2">
+          {info.redirect.code ? (
+            <p className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+              Your completion code: <span className="select-all font-mono font-medium text-[var(--color-text-primary)]">{info.redirect.code}</span>
+            </p>
+          ) : null}
+          <a
+            href={info.redirect.url}
+            className="w-fit rounded-[var(--radius-md)] bg-[var(--color-primary)] px-5 py-2.5 text-[length:var(--text-body-emphasis)] font-medium text-white hover:opacity-90"
+          >
+            {info.redirect.label} →
+          </a>
+          <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">Takes you to {new URL(info.redirect.url).host}.</p>
+        </div>
+      ) : null}
     </Card>
   );
 }
