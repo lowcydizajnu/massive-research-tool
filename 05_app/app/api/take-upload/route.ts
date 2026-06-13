@@ -6,7 +6,7 @@ import { db } from "@/server/db/client";
 import { response } from "@/server/db/schema";
 import { storage } from "@/server/adapters/storage";
 import { allowAnswer } from "@/server/runtime/take-rate-limit";
-import { validateUpload } from "@/lib/uploads";
+import { UPLOAD_KINDS, validateUpload, type UploadKind } from "@/lib/uploads";
 
 /**
  * Participant audio-upload presign (ADR-0003 + ADR-0013): the /take surface is
@@ -16,13 +16,14 @@ import { validateUpload } from "@/lib/uploads";
  * Content-Type pins exactly what was validated.
  */
 export async function POST(req: NextRequest) {
-  let body: { responseId?: string; contentType?: string; sizeBytes?: number };
+  let body: { responseId?: string; contentType?: string; sizeBytes?: number; kind?: string };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Bad request." }, { status: 400 });
   }
   const { responseId, contentType, sizeBytes } = body;
+  const kind: UploadKind = body.kind && body.kind in UPLOAD_KINDS ? (body.kind as UploadKind) : "audio";
   if (typeof responseId !== "string" || typeof contentType !== "string" || typeof sizeBytes !== "number") {
     return NextResponse.json({ error: "Bad request." }, { status: 400 });
   }
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest) {
   if (!storage.configured()) {
     return NextResponse.json({ error: "Recording storage isn’t configured on this server." }, { status: 503 });
   }
-  const v = validateUpload("audio", contentType, sizeBytes);
+  const v = validateUpload(kind, contentType, sizeBytes);
   if (!v.ok) return NextResponse.json({ error: v.error }, { status: 400 });
   const key = `resp/${responseId}/${ulid()}.${v.ext}`;
   const uploadUrl = await storage.presignUpload(key, contentType);

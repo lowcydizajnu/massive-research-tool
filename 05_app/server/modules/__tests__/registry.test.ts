@@ -254,3 +254,32 @@ describe("Wave 2 timing blocks (ADR-0040, 2026-06-13)", () => {
     expect(d.isComplete({ waitSeconds: 5 })).toBe(true);
   });
 });
+
+describe("Wave 3 image-interaction blocks (ADR-0041, 2026-06-13)", () => {
+  it("heat-map: points capped by maxPoints; empty when none", () => {
+    const d = getDef("core", "heat-map", "1.0.0")!;
+    expect(d.isAnswerEmpty!({ points: [] })).toBe(true);
+    expect(d.validateAnswer!({ points: [{ x: 0.1, y: 0.2 }] }, { maxPoints: 3 })).toBe(true);
+    expect(d.validateAnswer!({ points: [1, 2, 3, 4].map(() => ({ x: 0, y: 0 })) }, { maxPoints: 3 })).toBe(false);
+  });
+  it("hot-spot: selected ∈ region keys; single vs multiple enforced", () => {
+    const d = getDef("core", "hot-spot", "1.0.0")!;
+    const cfg = { regions: [{ key: "r1" }, { key: "r2" }], multiple: false };
+    expect(d.validateAnswer!({ selected: ["r1"] }, cfg)).toBe(true);
+    expect(d.validateAnswer!({ selected: ["r1", "r2"] }, cfg)).toBe(false); // single
+    expect(d.validateAnswer!({ selected: ["x"] }, cfg)).toBe(false); // stray
+    expect(d.validateAnswer!({ selected: ["r1", "r2"] }, { ...cfg, multiple: true })).toBe(true);
+  });
+  it("graphic-slider: value in 0..1", () => {
+    const d = getDef("core", "graphic-slider", "1.0.0")!;
+    expect(d.validateAnswer!({ value: 0.42 }, {})).toBe(true);
+    expect(d.validateAnswer!({ value: 1.5 }, {})).toBe(false);
+    expect(d.isAnswerEmpty!({})).toBe(true);
+  });
+  it("signature: r2Key must be a resp/ key; empty otherwise", () => {
+    const d = getDef("core", "signature", "1.0.0")!;
+    expect(d.responseSchema!.safeParse({ r2Key: "resp/01H/sig.png" }).success).toBe(true);
+    expect(d.responseSchema!.safeParse({ r2Key: "ws/x/sig.png" }).success).toBe(false);
+    expect(d.isAnswerEmpty!({ r2Key: "" })).toBe(true);
+  });
+});

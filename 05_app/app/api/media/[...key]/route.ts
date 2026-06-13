@@ -14,6 +14,13 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ key: strin
   const key = (parts ?? []).join("/");
   if (!isSafeMediaKey(key)) return new NextResponse("Not found", { status: 404 });
   if (!storage.configured()) return new NextResponse("Storage not configured", { status: 503 });
-  const url = await storage.presignDownload(key);
+  // Anti-XSS (ADR-0003 am.): untrusted participant uploads (resp/) are served
+  // as a download UNLESS they're a raster image we can safely render inline
+  // (signature PNGs, picture answers) — never svg/html. Researcher assets (ws/,
+  // authenticated uploader) stay inline. Disposition is signed into the URL.
+  const ext = key.split(".").pop()?.toLowerCase() ?? "";
+  const inlineSafe =
+    !key.startsWith("resp/") || ["png", "jpg", "jpeg", "webp", "gif"].includes(ext);
+  const url = await storage.presignDownload(key, 3600, inlineSafe ? "inline" : "attachment");
   return NextResponse.redirect(url, { status: 302 });
 }

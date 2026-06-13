@@ -1763,6 +1763,143 @@ const forcedWaitBlock: CoreModuleDef = {
   isComplete: (c) => typeof c.waitSeconds === "number" && c.waitSeconds > 0,
 };
 
+
+/* ---------- Wave 3 (2026-06-13): image-interaction blocks (ADR-0041) ---------- */
+
+const heatMapBlock: CoreModuleDef = {
+  source: "core",
+  key: "heat-map",
+  version: "1.0.0",
+  name: "Heat map",
+  description:
+    "Participants click anywhere on an image to mark points of interest (e.g. where their eye went on a post). Records normalized coordinates.",
+  categoryTags: ["measurement", "media", "behavioral"],
+  configSchema: z.object({
+    prompt: z.string(),
+    imageUrl: mediaUrl,
+    maxPoints: z.number().int().positive(),
+    required: z.boolean(),
+  }),
+  defaultConfig: { prompt: "", imageUrl: "", maxPoints: 10, required: true },
+  jsonSchema: {
+    type: "object",
+    properties: { prompt: { type: "string" }, imageUrl: { type: "string" }, maxPoints: { type: "number" }, required: { type: "boolean" } },
+    required: ["imageUrl"],
+    additionalProperties: false,
+  },
+  collectsResponse: true,
+  responseSchema: z.object({
+    points: z.array(z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1) })).max(100),
+  }),
+  isAnswerEmpty: (a) => !Array.isArray((a as { points?: unknown[] })?.points) || (a as { points: unknown[] }).points.length === 0,
+  validateAnswer: (a, config) => {
+    const pts = (a as { points?: unknown[] })?.points;
+    if (!Array.isArray(pts)) return false;
+    const max = typeof config.maxPoints === "number" ? config.maxPoints : 100;
+    return pts.length <= max;
+  },
+  isComplete: (c) => typeof c.imageUrl === "string" && c.imageUrl.trim() !== "",
+};
+
+const hotSpotBlock: CoreModuleDef = {
+  source: "core",
+  key: "hot-spot",
+  version: "1.0.0",
+  name: "Hot spot",
+  description:
+    "Predefined clickable regions on an image — participants select which region(s) apply (e.g. which part of a post is misleading).",
+  categoryTags: ["measurement", "media", "choice"],
+  configSchema: z.object({
+    prompt: z.string(),
+    imageUrl: mediaUrl,
+    regions: z.array(
+      z.object({
+        key: z.string(),
+        label: z.string(),
+        x: z.number().min(0).max(1),
+        y: z.number().min(0).max(1),
+        w: z.number().min(0).max(1),
+        h: z.number().min(0).max(1),
+      }),
+    ),
+    multiple: z.boolean(),
+    required: z.boolean(),
+  }),
+  defaultConfig: {
+    prompt: "",
+    imageUrl: "",
+    regions: [{ key: "r1", label: "Region 1", x: 0.1, y: 0.1, w: 0.3, h: 0.3 }],
+    multiple: false,
+    required: true,
+  },
+  jsonSchema: {
+    type: "object",
+    properties: { prompt: { type: "string" }, imageUrl: { type: "string" }, regions: { type: "array" }, multiple: { type: "boolean" }, required: { type: "boolean" } },
+    required: ["imageUrl", "regions"],
+    additionalProperties: false,
+  },
+  collectsResponse: true,
+  responseSchema: z.object({ selected: z.array(z.string().max(200)) }),
+  isAnswerEmpty: (a) => !Array.isArray((a as { selected?: unknown[] })?.selected) || (a as { selected: unknown[] }).selected.length === 0,
+  validateAnswer: (a, config) => {
+    const sel = (a as { selected?: unknown[] })?.selected;
+    if (!Array.isArray(sel)) return false;
+    const keys = new Set((Array.isArray(config.regions) ? config.regions : []).map((r) => (r as { key: string }).key));
+    if (sel.some((k) => !keys.has(String(k)))) return false; // stray region
+    if (config.multiple !== true && sel.length > 1) return false;
+    return true;
+  },
+  isComplete: (c) => typeof c.imageUrl === "string" && c.imageUrl.trim() !== "" && Array.isArray(c.regions) && (c.regions as unknown[]).length > 0,
+};
+
+const graphicSliderBlock: CoreModuleDef = {
+  source: "core",
+  key: "graphic-slider",
+  version: "1.0.0",
+  name: "Graphic slider",
+  description:
+    "Drag a marker along an image to give a position-based rating — a slider with an image track instead of a plain axis.",
+  categoryTags: ["measurement", "media", "rating"],
+  configSchema: z.object({ prompt: z.string(), imageUrl: mediaUrl, required: z.boolean() }),
+  defaultConfig: { prompt: "", imageUrl: "", required: true },
+  jsonSchema: {
+    type: "object",
+    properties: { prompt: { type: "string" }, imageUrl: { type: "string" }, required: { type: "boolean" } },
+    required: ["imageUrl"],
+    additionalProperties: false,
+  },
+  collectsResponse: true,
+  responseSchema: z.object({ value: z.number().min(0).max(1) }),
+  isAnswerEmpty: (a) => typeof (a as { value?: unknown })?.value !== "number",
+  validateAnswer: (a) => {
+    const v = (a as { value?: unknown })?.value;
+    return v == null || (typeof v === "number" && v >= 0 && v <= 1);
+  },
+  isComplete: (c) => typeof c.imageUrl === "string" && c.imageUrl.trim() !== "",
+};
+
+const signatureBlock: CoreModuleDef = {
+  source: "core",
+  key: "signature",
+  version: "1.0.0",
+  name: "Signature",
+  description:
+    "Capture a drawn signature (e.g. for a consent record). The participant signs on a canvas; the image is stored privately.",
+  categoryTags: ["form", "consent"],
+  configSchema: z.object({ prompt: z.string(), required: z.boolean() }),
+  defaultConfig: { prompt: "Please sign below.", required: true },
+  jsonSchema: {
+    type: "object",
+    properties: { prompt: { type: "string" }, required: { type: "boolean" } },
+    required: ["prompt"],
+    additionalProperties: false,
+  },
+  collectsResponse: true,
+  responseSchema: z.object({ r2Key: z.string().regex(/^resp\/[A-Za-z0-9_-]+\/[A-Za-z0-9_.-]+$/).max(300) }),
+  isAnswerEmpty: (a) => typeof (a as { r2Key?: unknown })?.r2Key !== "string" || (a as { r2Key: string }).r2Key === "",
+  isComplete: () => true,
+};
+
 export const MODULE_REGISTRY: CoreModuleDef[] = [
   npsBlock,
   ratingStarsBlock,
@@ -1793,6 +1930,10 @@ export const MODULE_REGISTRY: CoreModuleDef[] = [
   sideBySideBlock,
   timedExposureBlock,
   forcedWaitBlock,
+  heatMapBlock,
+  hotSpotBlock,
+  graphicSliderBlock,
+  signatureBlock,
   pictureChoiceBlock,
   socialPost,
   socialPostV2,

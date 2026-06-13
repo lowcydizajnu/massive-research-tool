@@ -101,6 +101,30 @@ function extractAnswer(moduleKey: string, prefix: string, fd: FormData): unknown
       ...(comment ? { comment } : {}),
     };
   }
+  if (moduleKey === "heat-map") {
+    try {
+      const pts = JSON.parse(String(g("points") ?? "[]"));
+      return { points: Array.isArray(pts) ? pts : [] };
+    } catch {
+      return { points: [] };
+    }
+  }
+  if (moduleKey === "hot-spot") {
+    try {
+      const sel = JSON.parse(String(g("selected") ?? "[]"));
+      return { selected: Array.isArray(sel) ? sel.map(String) : [] };
+    } catch {
+      return { selected: [] };
+    }
+  }
+  if (moduleKey === "graphic-slider") {
+    const v = g("value");
+    return v != null && String(v) !== "" ? { value: Number(v) } : {};
+  }
+  if (moduleKey === "signature") {
+    const k = String(g("r2key") ?? "");
+    return k ? { r2Key: k } : {};
+  }
   if (moduleKey === "timed-exposure") {
     const v = g("shownMs");
     return { shownMs: v != null && String(v) !== "" ? Number(v) : 0 };

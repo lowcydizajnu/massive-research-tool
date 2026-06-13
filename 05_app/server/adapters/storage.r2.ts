@@ -31,11 +31,16 @@ async function presign(
   method: "PUT" | "GET",
   expiresSeconds: number,
   contentType?: string,
+  disposition?: "inline" | "attachment",
 ): Promise<string> {
   const cfg = init();
   if (!cfg) throw new Error("R2 storage is not configured (R2_* env vars missing).");
   const url = new URL(`${cfg.endpoint}/${key}`);
   url.searchParams.set("X-Amz-Expires", String(expiresSeconds));
+  // Signed into the URL so it survives the /api/media 302 (a redirect can't add
+  // response headers). attachment = force-download, the anti-XSS control for
+  // arbitrary participant uploads (ADR-0003 am.).
+  if (disposition) url.searchParams.set("response-content-disposition", disposition);
   const signed = await cfg.client.sign(
     new Request(url.toString(), {
       method,
@@ -52,5 +57,5 @@ export const r2Storage: StorageAdapter = {
   // type we validated, so a presign for image/png can't upload text/html.
   presignUpload: (key, contentType, expiresSeconds = 600) =>
     presign(key, "PUT", expiresSeconds, contentType),
-  presignDownload: (key, expiresSeconds = 3600) => presign(key, "GET", expiresSeconds),
+  presignDownload: (key, expiresSeconds = 3600, disposition) => presign(key, "GET", expiresSeconds, undefined, disposition),
 };

@@ -10,8 +10,11 @@ export interface StorageAdapter {
   configured(): boolean;
   /** Short-lived URL the browser PUTs the file to (Content-Type is signed). */
   presignUpload(key: string, contentType: string, expiresSeconds?: number): Promise<string>;
-  /** Short-lived URL serving the object (used by the /api/media redirect). */
-  presignDownload(key: string, expiresSeconds?: number): Promise<string>;
+  /** Short-lived URL serving the object (used by the /api/media redirect).
+   *  `disposition` is signed INTO the URL (Content-Disposition can't be set on
+   *  a 302) — pass "attachment" for participant-uploaded files so a crafted
+   *  HTML upload can't execute when opened (ADR-0003 am. 2026-06-13). */
+  presignDownload(key: string, expiresSeconds?: number, disposition?: "inline" | "attachment"): Promise<string>;
 }
 
 // Active implementation. Switching vendors is a one-line change here.
