@@ -24,7 +24,19 @@ export async function beginAction(formData: FormData): Promise<void> {
     redirect(`/take/${studyId}/throttled` as Route);
   }
 
-  const started = await startResponse({ recruitmentSessionId, mode, externalPid });
+  // Embedded data (ADR-0042): collect declared embedded_<name> hidden fields.
+  const embedded: Record<string, string> = {};
+  for (const [k, v] of formData.entries()) {
+    if (k.startsWith("embedded_") && typeof v === "string" && v !== "") {
+      embedded[k.slice("embedded_".length)] = v.slice(0, 500);
+    }
+  }
+  const started = await startResponse({
+    recruitmentSessionId,
+    mode,
+    externalPid,
+    ...(Object.keys(embedded).length ? { embedded } : {}),
+  });
   if ("error" in started) {
     redirect(`/take/${studyId}/start?closed=1`);
   }

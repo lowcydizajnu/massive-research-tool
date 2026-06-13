@@ -85,6 +85,14 @@ export function BlockView({
   if (block.key === "signature") return <SignatureInput config={c} np={np} responseId={seed ?? ""} />;
   if (block.key === "file-upload") return <FileUploadInput config={c} np={np} responseId={seed ?? ""} />;
   if (block.key === "video-record") return <VideoRecordInput config={c} np={np} responseId={seed ?? ""} />;
+  if (block.key === "embedded-data" || block.key === "end-redirect")
+    return (
+      <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+        {block.key === "embedded-data"
+          ? "Captures URL parameters into the response — not shown to participants."
+          : "Shows a return-to-panel button on the completion page — not a study screen."}
+      </p>
+    );
   return (
     <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
       (This question type isn’t available.)

@@ -39,8 +39,12 @@ function isVisible(block: RuntimeBlock, conditionSlug: string): boolean {
 }
 
 /** The blocks a participant in `conditionSlug` actually sees, in order (arm only). */
+/** Flow blocks (ADR-0042) are not participant screens — they act at start
+ *  (embedded-data) or on completion (end-redirect). */
+const NON_SCREEN_KEYS = new Set(["embedded-data", "end-redirect"]);
+
 export function visibleBlocks(snapshot: unknown, conditionSlug: string): RuntimeBlock[] {
-  return (readBlocks(snapshot) as RuntimeBlock[]).filter((b) => isVisible(b, conditionSlug));
+  return (readBlocks(snapshot) as RuntimeBlock[]).filter((b) => isVisible(b, conditionSlug) && !NON_SCREEN_KEYS.has(b.key));
 }
 
 /**
@@ -92,7 +96,7 @@ export function resolveVisibleBlocks(
     // Only clauses referencing earlier blocks count — a "forward" clause (e.g.
     // left over after a reorder) is invalid and ignored (ADR-0021 amendment).
     const cond = conditionWithSources(b.showIf, b.branchRules, earlier);
-    if (isVisible(b, conditionSlug) && evaluateCondition(cond, answers)) out.push(b);
+    if (isVisible(b, conditionSlug) && !NON_SCREEN_KEYS.has(b.key) && evaluateCondition(cond, answers)) out.push(b);
     earlier.add(b.instanceId);
   }
   return out;
@@ -112,7 +116,7 @@ export function resolveVisibleScreens(
   conditionSlug: string,
   answers: Record<string, unknown>,
 ): Screen[] {
-  const armBlocks = (readBlocks(snapshot) as RuntimeBlock[]).filter((b) => isVisible(b, conditionSlug));
+  const armBlocks = (readBlocks(snapshot) as RuntimeBlock[]).filter((b) => isVisible(b, conditionSlug) && !NON_SCREEN_KEYS.has(b.key));
   const screens = deriveScreens(armBlocks, readGroups(snapshot));
   const earlier = new Set<string>();
   const out: Screen[] = [];
@@ -215,7 +219,7 @@ export async function openRecruitment(experimentVersionId: string): Promise<{ id
  * when the study isn't preregistered or recruitment isn't open.
  */
 export async function resolveOpenRecruitment(studyId: string): Promise<
-  { recruitmentSessionId: string; versionId: string; studyTitle: string; consent: StudyConsent } | null
+  { recruitmentSessionId: string; versionId: string; studyTitle: string; consent: StudyConsent; embeddedParams: string[] } | null
 > {
   const [study] = await db
     .select({ title: experiment.title })
@@ -250,7 +254,12 @@ export async function resolveOpenRecruitment(studyId: string): Promise<
     .limit(1);
   if (!rs) return null;
 
-  return { recruitmentSessionId: rs.id, versionId: ver.id, studyTitle: study.title, consent: readConsent(ver.snapshot) };
+  const embeddedParams = readBlocks(ver.snapshot)
+    .filter((b) => b.key === "embedded-data")
+    .flatMap((b) => (Array.isArray(b.config?.params) ? (b.config!.params as unknown[]) : []))
+    .map(String)
+    .filter((n) => n.trim() !== "");
+  return { recruitmentSessionId: rs.id, versionId: ver.id, studyTitle: study.title, consent: readConsent(ver.snapshot), embeddedParams };
 }
 
 /**
@@ -261,6 +270,8 @@ export async function startResponse(input: {
   recruitmentSessionId: string;
   mode: ResponseMode;
   externalPid?: string | null;
+  /** Declared URL params captured into response.metadata.embedded (ADR-0042). */
+  embedded?: Record<string, string>;
 }): Promise<{ responseId: string } | { error: "closed" | "not_found" }> {
   const [rs] = await db
     .select()
@@ -295,6 +306,9 @@ export async function startResponse(input: {
     mode: input.mode,
     status: "started",
     currentQuestionIndex: 0,
+    ...(input.embedded && Object.keys(input.embedded).length > 0
+      ? { metadata: { embedded: input.embedded } }
+      : {}),
   });
   return { responseId: id };
 }
@@ -621,12 +635,38 @@ export async function completeResponse(responseId: string): Promise<void> {
 /** Mode + completion for the terminal page (null if the response is unknown). */
 export async function getCompletionInfo(
   responseId: string,
-): Promise<{ mode: ResponseMode; completed: boolean } | null> {
+): Promise<{
+  mode: ResponseMode;
+  completed: boolean;
+  redirect: { url: string; code: string; label: string } | null;
+} | null> {
   const [resp] = await db
-    .select({ status: response.status, mode: response.mode })
+    .select({ status: response.status, mode: response.mode, versionId: response.experimentVersionId })
     .from(response)
     .where(eq(response.id, responseId))
     .limit(1);
   if (!resp) return null;
-  return { mode: resp.mode as ResponseMode, completed: resp.status === "completed" };
+  const [ver] = await db
+    .select({ snapshot: experimentVersion.definitionSnapshot })
+    .from(experimentVersion)
+    .where(eq(experimentVersion.id, resp.versionId))
+    .limit(1);
+  const er = ver ? readBlocks(ver.snapshot).find((b) => b.key === "end-redirect") : undefined;
+  let redirect: { url: string; code: string; label: string } | null = null;
+  const rawUrl = typeof er?.config?.redirectUrl === "string" ? er.config.redirectUrl.trim() : "";
+  if (rawUrl) {
+    try {
+      const u = new URL(rawUrl);
+      if (u.protocol === "https:" || u.protocol === "http:") {
+        redirect = {
+          url: u.toString(),
+          code: typeof er!.config!.completionCode === "string" ? (er!.config!.completionCode as string) : "",
+          label: typeof er!.config!.buttonLabel === "string" && er!.config!.buttonLabel ? (er!.config!.buttonLabel as string) : "Return to the study panel",
+        };
+      }
+    } catch {
+      redirect = null; // invalid URL → no button (the code still shows)
+    }
+  }
+  return { mode: resp.mode as ResponseMode, completed: resp.status === "completed", redirect };
 }

@@ -298,3 +298,15 @@ describe("Wave 4 media-upload blocks (ADR-0003 am., 2026-06-13)", () => {
     expect(d.isAnswerEmpty!({})).toBe(true);
   });
 });
+
+describe("Wave 5 flow blocks (ADR-0042, 2026-06-13)", () => {
+  it("embedded-data + end-redirect are stimulus (no response_item)", () => {
+    expect(getDef("core", "embedded-data", "1.0.0")!.collectsResponse).toBe(false);
+    expect(getDef("core", "end-redirect", "1.0.0")!.collectsResponse).toBe(false);
+  });
+  it("end-redirect isComplete needs a URL", () => {
+    const d = getDef("core", "end-redirect", "1.0.0")!;
+    expect(d.isComplete({ redirectUrl: "https://app.prolific.com/done" })).toBe(true);
+    expect(d.isComplete({ redirectUrl: "" })).toBe(false);
+  });
+});

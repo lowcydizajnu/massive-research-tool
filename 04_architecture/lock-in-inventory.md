@@ -130,3 +130,5 @@ When opening a PR that touches an adapter or adds a vendor SDK import:
 The full migration discipline is in [ADR-0007 §migration-order](adrs/0007-path-a-vs-b.md).
 
 | Cloudflare R2 (asset storage) | `server/adapters/storage.r2.ts` only (aws4fetch presigner; StorageAdapter interface) | Migrate to S3/MinIO: new impl file + one-line export switch; objects copyable via rclone |
+
+| Cloudflare Turnstile (bot/quality screen) | RESERVED, not shipped (ADR-0042) — no code, no secret provisioned | Chosen captcha vendor if bot pressure appears; swap = a captcha adapter behind an interface, or hCaptcha |
