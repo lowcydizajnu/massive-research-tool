@@ -282,6 +282,10 @@ function stringifyAnswer(answer: unknown): string {
     if (Array.isArray(a.selected)) return a.selected.map(String).join("; ");
     if (Array.isArray(a.order)) return a.order.map(String).join(" > ");
     if (typeof a.text === "string") return a.text;
+    if (Array.isArray(a.points)) return `${(a.points as unknown[]).length} point(s)`; // heat-map
+    if (Array.isArray(a.selected)) return (a.selected as unknown[]).map(String).join("; "); // hot-spot
+    if (typeof a.r2Key === "string") return a.r2Key; // signature
+    if (typeof a.value === "number" && a.value <= 1 && a.value >= 0 && !("values" in a)) return `${Math.round(a.value * 100)}%`; // graphic-slider
     if (typeof a.shownMs === "number") return `${a.shownMs} ms shown`; // timed-exposure
     if (typeof a.waitedMs === "number") return `${a.waitedMs} ms waited`; // forced-wait
     if (Array.isArray(a.path)) return (a.path as unknown[]).map(String).join(" > "); // drill-down
@@ -2861,7 +2865,11 @@ export const studiesRouter = router({
               key === "drill-down" ||
               key === "side-by-side" ||
               key === "timed-exposure" ||
-              key === "forced-wait"
+              key === "forced-wait" ||
+              key === "heat-map" ||
+              key === "hot-spot" ||
+              key === "graphic-slider" ||
+              key === "signature"
             ? "text"
             : "numeric"; // likert-7, slider
 

@@ -5,6 +5,10 @@ import { AudioRecordInput } from "@/components/feature/take/audio-record-input";
 import { DrillDownInput } from "@/components/feature/take/drill-down-input";
 import { TimedExposureInput } from "@/components/feature/take/timed-exposure-input";
 import { ForcedWaitInput } from "@/components/feature/take/forced-wait-input";
+import { HeatMapInput } from "@/components/feature/take/heat-map-input";
+import { HotSpotInput } from "@/components/feature/take/hot-spot-input";
+import { GraphicSliderInput } from "@/components/feature/take/graphic-slider-input";
+import { SignatureInput } from "@/components/feature/take/signature-input";
 import type { RuntimeBlock } from "@/server/runtime/participant";
 
 /**
@@ -73,6 +77,10 @@ export function BlockView({
   if (block.key === "side-by-side") return <SideBySideInput config={c} np={np} />;
   if (block.key === "timed-exposure") return <TimedExposureInput config={c} np={np} />;
   if (block.key === "forced-wait") return <ForcedWaitInput config={c} np={np} />;
+  if (block.key === "heat-map") return <HeatMapInput config={c} np={np} />;
+  if (block.key === "hot-spot") return <HotSpotInput config={c} np={np} />;
+  if (block.key === "graphic-slider") return <GraphicSliderInput config={c} np={np} />;
+  if (block.key === "signature") return <SignatureInput config={c} np={np} responseId={seed ?? ""} />;
   return (
     <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
       (This question type isn’t available.)
