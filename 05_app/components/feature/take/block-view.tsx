@@ -3,6 +3,8 @@ import { getBlockOverride } from "@/components/feature/take/block-overrides";
 import { ReactionButton, ReactionGroup } from "@/components/feature/take/reaction-toggles";
 import { AudioRecordInput } from "@/components/feature/take/audio-record-input";
 import { DrillDownInput } from "@/components/feature/take/drill-down-input";
+import { TimedExposureInput } from "@/components/feature/take/timed-exposure-input";
+import { ForcedWaitInput } from "@/components/feature/take/forced-wait-input";
 import type { RuntimeBlock } from "@/server/runtime/participant";
 
 /**
@@ -69,6 +71,8 @@ export function BlockView({
   if (block.key === "constant-sum") return <ConstantSumInput config={c} np={np} />;
   if (block.key === "drill-down") return <DrillDownInput config={c} np={np} />;
   if (block.key === "side-by-side") return <SideBySideInput config={c} np={np} />;
+  if (block.key === "timed-exposure") return <TimedExposureInput config={c} np={np} />;
+  if (block.key === "forced-wait") return <ForcedWaitInput config={c} np={np} />;
   return (
     <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
       (This question type isn’t available.)

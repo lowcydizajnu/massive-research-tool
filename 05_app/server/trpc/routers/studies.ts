@@ -282,6 +282,8 @@ function stringifyAnswer(answer: unknown): string {
     if (Array.isArray(a.selected)) return a.selected.map(String).join("; ");
     if (Array.isArray(a.order)) return a.order.map(String).join(" > ");
     if (typeof a.text === "string") return a.text;
+    if (typeof a.shownMs === "number") return `${a.shownMs} ms shown`; // timed-exposure
+    if (typeof a.waitedMs === "number") return `${a.waitedMs} ms waited`; // forced-wait
     if (Array.isArray(a.path)) return (a.path as unknown[]).map(String).join(" > "); // drill-down
     if (typeof a.intention === "string") {
       // share-intention
@@ -2857,7 +2859,9 @@ export const studiesRouter = router({
               key === "share-intention" ||
               key === "constant-sum" ||
               key === "drill-down" ||
-              key === "side-by-side"
+              key === "side-by-side" ||
+              key === "timed-exposure" ||
+              key === "forced-wait"
             ? "text"
             : "numeric"; // likert-7, slider
 
