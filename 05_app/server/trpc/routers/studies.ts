@@ -282,6 +282,16 @@ function stringifyAnswer(answer: unknown): string {
     if (Array.isArray(a.selected)) return a.selected.map(String).join("; ");
     if (Array.isArray(a.order)) return a.order.map(String).join(" > ");
     if (typeof a.text === "string") return a.text;
+    if (Array.isArray(a.path)) return (a.path as unknown[]).map(String).join(" > "); // drill-down
+    if (typeof a.intention === "string") {
+      // share-intention
+      const why = typeof a.why === "string" && a.why ? ` — ${a.why}` : "";
+      return `${a.intention}${why}`;
+    }
+    if (typeof a.accuracy === "string") {
+      // accuracy-confidence
+      return `${a.accuracy} (confidence: ${typeof a.confidence === "number" ? a.confidence : "?"})`;
+    }
     // demographics / generic object → compact key=value
     const parts = Object.entries(a)
       .filter(([, v]) => v !== undefined && v !== null && String(v).length > 0)
@@ -2840,7 +2850,14 @@ export const studiesRouter = router({
       const kindOf = (key: string): "numeric" | "categorical" | "text" =>
         key === "multiple-choice" || key === "attention-check"
           ? "categorical"
-          : key === "free-text" || key === "ranking" || key === "demographics"
+          : key === "free-text" ||
+              key === "ranking" ||
+              key === "demographics" ||
+              key === "accuracy-confidence" ||
+              key === "share-intention" ||
+              key === "constant-sum" ||
+              key === "drill-down" ||
+              key === "side-by-side"
             ? "text"
             : "numeric"; // likert-7, slider
 

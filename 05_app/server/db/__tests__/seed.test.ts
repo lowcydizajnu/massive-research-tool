@@ -31,12 +31,15 @@ describe("seedCoreModules", () => {
 
     const mods = await db.select().from(moduleTable);
     expect(mods.map((m) => `${m.source}/${m.key}`).sort()).toEqual([
+      "core/accuracy-confidence",
       "core/address",
       "core/attention-check",
       "core/audio-record",
+      "core/constant-sum",
       "core/contact",
       "core/date",
       "core/demographics",
+      "core/drill-down",
       "core/dropdown",
       "core/email",
       "core/field-group",
@@ -55,6 +58,8 @@ describe("seedCoreModules", () => {
       "core/rating-stars",
       "core/reaction-time",
       "core/semantic-differential",
+      "core/share-intention",
+      "core/side-by-side",
       "core/slider",
       "core/social-post",
       "core/text",
@@ -65,7 +70,7 @@ describe("seedCoreModules", () => {
     ]);
 
     const versions = await db.select().from(moduleVersion);
-    expect(versions).toHaveLength(32); // social-post ×2 + 30 single-version modules (C1 + C2 + Wave 3 + field-group + audio-record)
+    expect(versions).toHaveLength(37); // +5 Wave 1 choice & judgment blocks (2026-06-13)
 
     const social = mods.find((m) => m.key === "social-post")!;
     const socialVersions = versions
@@ -79,7 +84,7 @@ describe("seedCoreModules", () => {
   it("is idempotent across repeated runs", async () => {
     await seedCoreModules();
     await seedCoreModules();
-    expect(await db.select().from(moduleTable)).toHaveLength(31);
-    expect(await db.select().from(moduleVersion)).toHaveLength(32);
+    expect(await db.select().from(moduleTable)).toHaveLength(36);
+    expect(await db.select().from(moduleVersion)).toHaveLength(37);
   });
 });

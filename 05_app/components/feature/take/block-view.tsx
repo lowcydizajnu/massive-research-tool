@@ -2,6 +2,7 @@ import { ReactionTimeInput } from "@/components/feature/take/reaction-time-input
 import { getBlockOverride } from "@/components/feature/take/block-overrides";
 import { ReactionButton, ReactionGroup } from "@/components/feature/take/reaction-toggles";
 import { AudioRecordInput } from "@/components/feature/take/audio-record-input";
+import { DrillDownInput } from "@/components/feature/take/drill-down-input";
 import type { RuntimeBlock } from "@/server/runtime/participant";
 
 /**
@@ -63,6 +64,11 @@ export function BlockView({
   if (block.key === "reaction-time") return <ReactionTimeInput config={c} namePrefix={np} />;
   if (block.key === "audio-record") return <AudioRecordInput config={c} namePrefix={np} responseId={seed ?? ""} />;
   if (block.key === "maxdiff") return <MaxDiffInput config={c} np={np} />;
+  if (block.key === "accuracy-confidence") return <AccuracyConfidenceInput config={c} np={np} />;
+  if (block.key === "share-intention") return <ShareIntentionInput config={c} np={np} />;
+  if (block.key === "constant-sum") return <ConstantSumInput config={c} np={np} />;
+  if (block.key === "drill-down") return <DrillDownInput config={c} np={np} />;
+  if (block.key === "side-by-side") return <SideBySideInput config={c} np={np} />;
   return (
     <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
       (This question type isn’t available.)
@@ -798,6 +804,103 @@ function MaxDiffInput({ config, np }: { config: Record<string, unknown>; np: str
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+
+/* ---------- Wave 1 (2026-06-13) choice & judgment renders ---------- */
+
+function AccuracyConfidenceInput({ config, np }: { config: Record<string, unknown>; np: string }) {
+  const options = (Array.isArray(config.options) ? config.options : []).map(str).filter((o) => o.trim() !== "");
+  const required = config.required !== false;
+  const max = num(config.confidenceMax, 100);
+  return (
+    <div role="group" aria-labelledby={`${np}gl`} className="flex flex-col gap-[var(--take-field-gap,1rem)]">
+      <p id={`${np}gl`} className={PROMPT_CLS}>{str(config.prompt)}</p>
+      <div className="flex flex-wrap gap-4">
+        {options.map((o, i) => (
+          <label key={`${i}-${o}`} className="flex items-center gap-1.5 text-[length:var(--text-body)] text-[var(--color-text-primary)]">
+            <input type="radio" name={`${np}accuracy`} value={o} required={required} className="size-4 accent-[var(--color-primary)]" />
+            {o}
+          </label>
+        ))}
+      </div>
+      <label className="flex flex-col gap-1">
+        <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">{str(config.confidenceLabel) || "Confidence"}</span>
+        <input type="range" name={`${np}confidence`} min={0} max={max} defaultValue={Math.round(max / 2)} className="w-full accent-[var(--color-primary)]" aria-label={str(config.confidenceLabel) || "Confidence"} />
+      </label>
+    </div>
+  );
+}
+
+function ShareIntentionInput({ config, np }: { config: Record<string, unknown>; np: string }) {
+  const options = (Array.isArray(config.options) ? config.options : []).map(str).filter((o) => o.trim() !== "");
+  const required = config.required !== false;
+  return (
+    <div role="group" aria-labelledby={`${np}gl`} className="flex flex-col gap-[var(--take-field-gap,1rem)]">
+      <p id={`${np}gl`} className={PROMPT_CLS}>{str(config.prompt)}</p>
+      <div className="flex flex-wrap gap-4">
+        {options.map((o, i) => (
+          <label key={`${i}-${o}`} className="flex items-center gap-1.5 text-[length:var(--text-body)] text-[var(--color-text-primary)]">
+            <input type="radio" name={`${np}intention`} value={o} required={required} className="size-4 accent-[var(--color-primary)]" />
+            {o}
+          </label>
+        ))}
+      </div>
+      <label className="flex flex-col gap-1">
+        <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">{str(config.whyPrompt) || "Why?"}</span>
+        <textarea name={`${np}why`} rows={2} className={FIELD_CLS} />
+      </label>
+    </div>
+  );
+}
+
+function ConstantSumInput({ config, np }: { config: Record<string, unknown>; np: string }) {
+  const items = (Array.isArray(config.items) ? config.items : []).map(str);
+  const total = num(config.total, 100);
+  const unit = str(config.unit) || "points";
+  return (
+    <div role="group" aria-labelledby={`${np}gl`} className="flex flex-col gap-[var(--take-field-gap,1rem)]">
+      <p id={`${np}gl`} className={PROMPT_CLS}>{str(config.prompt)}</p>
+      <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">Must total {total} {unit}.</p>
+      {items.map((label, i) => (
+        <label key={i} className="flex items-center justify-between gap-3">
+          <span className="text-[length:var(--text-body)] text-[var(--color-text-primary)]">{label}</span>
+          <input type="number" name={`${np}cs_${i}`} min={0} max={total} className={`${FIELD_CLS} max-w-[120px]`} />
+        </label>
+      ))}
+    </div>
+  );
+}
+
+function SideBySideInput({ config, np }: { config: Record<string, unknown>; np: string }) {
+  const rows = (Array.isArray(config.rows) ? config.rows : []).map(str);
+  const columns = (Array.isArray(config.columns) ? config.columns : []) as { key: string; label: string; options: string[] }[];
+  const required = config.required !== false;
+  return (
+    <div role="group" aria-labelledby={`${np}gl`} className="flex flex-col gap-[var(--take-field-gap,1rem)]">
+      <p id={`${np}gl`} className={PROMPT_CLS}>{str(config.prompt)}</p>
+      <div className="flex flex-col gap-3">
+        {rows.map((rowLabel, ri) => (
+          <div key={ri} role="group" aria-label={rowLabel} className="flex flex-col gap-1.5 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-3">
+            <span className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">{rowLabel}</span>
+            <div className="flex flex-wrap gap-4">
+              {columns.map((col) => (
+                <label key={col.key} className="flex flex-col gap-1">
+                  <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">{col.label}</span>
+                  <select name={`${np}sbs_${ri}_${col.key}`} defaultValue="" required={required} className={FIELD_CLS} aria-label={`${rowLabel} — ${col.label}`}>
+                    <option value="" disabled>Choose…</option>
+                    {(col.options ?? []).filter((o) => o.trim() !== "").map((o, oi) => (
+                      <option key={`${oi}-${o}`} value={o}>{o}</option>
+                    ))}
+                  </select>
+                </label>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

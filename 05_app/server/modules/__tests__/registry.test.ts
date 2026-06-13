@@ -192,3 +192,46 @@ describe("media URL fields accept uploaded-asset paths (ADR-0003)", () => {
     expect(link.configSchema.safeParse({ ...link.defaultConfig, url: "/api/media/ws/a/b.png" }).success).toBe(false);
   });
 });
+
+describe("Wave 1 choice & judgment blocks (block-expansion plan, 2026-06-13)", () => {
+  it("accuracy-confidence: accuracy ∈ options, confidence in range", () => {
+    const d = getDef("core", "accuracy-confidence", "1.0.0")!;
+    expect(d.collectsResponse).toBe(true);
+    const cfg = { options: ["Real", "Fake"], confidenceMax: 100, required: true };
+    expect(d.validateAnswer!({ accuracy: "Real", confidence: 80 }, cfg)).toBe(true);
+    expect(d.validateAnswer!({ accuracy: "Maybe", confidence: 80 }, cfg)).toBe(false);
+    expect(d.validateAnswer!({ accuracy: "Real", confidence: 150 }, cfg)).toBe(false);
+    expect(d.isAnswerEmpty!({ accuracy: "" })).toBe(true);
+  });
+  it("share-intention: whyRequired only bites once an intention is chosen", () => {
+    const d = getDef("core", "share-intention", "1.0.0")!;
+    const cfg = { options: ["No", "Yes"], whyRequired: true };
+    expect(d.validateAnswer!({ intention: "Yes", why: "credible" }, cfg)).toBe(true);
+    expect(d.validateAnswer!({ intention: "Yes" }, cfg)).toBe(false);
+    expect(d.validateAnswer!({ intention: "" }, cfg)).toBe(true); // no choice → why not required
+  });
+  it("constant-sum: total enforced only when allocated; stray/negative rejected", () => {
+    const d = getDef("core", "constant-sum", "1.0.0")!;
+    const cfg = { items: ["A", "B", "C"], total: 100 };
+    expect(d.validateAnswer!({ values: { "0": 50, "1": 50 } }, cfg)).toBe(true);
+    expect(d.validateAnswer!({ values: { "0": 40, "1": 40 } }, cfg)).toBe(false); // ≠100
+    expect(d.validateAnswer!({ values: { "9": 100 } }, cfg)).toBe(false); // stray index
+    expect(d.validateAnswer!({ values: { "0": -10, "1": 110 } }, cfg)).toBe(false); // negative
+    expect(d.validateAnswer!({ values: {} }, cfg)).toBe(true); // empty allowed
+  });
+  it("drill-down: a path must walk the configured tree", () => {
+    const d = getDef("core", "drill-down", "1.0.0")!;
+    const cfg = { options: [{ label: "PL", children: [{ label: "Mazovia", children: [{ label: "Warsaw" }] }] }] };
+    expect(d.validateAnswer!({ path: ["PL", "Mazovia", "Warsaw"] }, cfg)).toBe(true);
+    expect(d.validateAnswer!({ path: ["PL", "Pomerania"] }, cfg)).toBe(false);
+    expect(d.isAnswerEmpty!({ path: [] })).toBe(true);
+  });
+  it("side-by-side: cell keys must be row_col with known col + valid option", () => {
+    const d = getDef("core", "side-by-side", "1.0.0")!;
+    const cfg = { rows: ["r0", "r1"], columns: [{ key: "trust", label: "Trust", options: ["Low", "High"] }] };
+    expect(d.validateAnswer!({ values: { "0_trust": "Low", "1_trust": "High" } }, cfg)).toBe(true);
+    expect(d.validateAnswer!({ values: { "0_trust": "Maybe" } }, cfg)).toBe(false); // bad option
+    expect(d.validateAnswer!({ values: { "5_trust": "Low" } }, cfg)).toBe(false); // bad row
+    expect(d.validateAnswer!({ values: { "0_nope": "Low" } }, cfg)).toBe(false); // bad col
+  });
+});

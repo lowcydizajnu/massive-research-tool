@@ -101,6 +101,43 @@ function extractAnswer(moduleKey: string, prefix: string, fd: FormData): unknown
       ...(comment ? { comment } : {}),
     };
   }
+  if (moduleKey === "accuracy-confidence") {
+    const accuracy = String(g("accuracy") ?? "");
+    const conf = g("confidence");
+    return { accuracy, confidence: conf != null && String(conf) !== "" ? Number(conf) : 0 };
+  }
+  if (moduleKey === "share-intention") {
+    const why = String(g("why") ?? "").trim();
+    return { intention: String(g("intention") ?? ""), ...(why ? { why } : {}) };
+  }
+  if (moduleKey === "constant-sum") {
+    // Hidden? No — items are cs_<i>; collect contiguous indices.
+    const values: Record<string, number> = {};
+    for (let i = 0; fd.has(`${prefix}cs_${i}`); i++) {
+      const raw = g(`cs_${i}`);
+      if (raw != null && String(raw) !== "") values[String(i)] = Number(raw);
+    }
+    return { values };
+  }
+  if (moduleKey === "drill-down") {
+    const path: string[] = [];
+    for (let i = 0; fd.has(`${prefix}drill_${i}`); i++) {
+      const v = String(g(`drill_${i}`) ?? "");
+      if (v) path.push(v);
+    }
+    return { path };
+  }
+  if (moduleKey === "side-by-side") {
+    // Fields are sbs_<rowIndex>_<colKey>; collect all present.
+    const values: Record<string, string> = {};
+    for (const [name, val] of fd.entries()) {
+      if (!name.startsWith(`${prefix}sbs_`)) continue;
+      const cell = name.slice(`${prefix}sbs_`.length);
+      const s = String(val);
+      if (s !== "") values[cell] = s;
+    }
+    return { values };
+  }
   if (moduleKey === "field-group") {
     // `fkeys` carries key:type pairs (ADR-0030); the runtime re-validates keys +
     // per-field formats against the block's config, so this only selects extraction.
