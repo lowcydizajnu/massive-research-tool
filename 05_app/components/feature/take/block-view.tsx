@@ -9,6 +9,8 @@ import { HeatMapInput } from "@/components/feature/take/heat-map-input";
 import { HotSpotInput } from "@/components/feature/take/hot-spot-input";
 import { GraphicSliderInput } from "@/components/feature/take/graphic-slider-input";
 import { SignatureInput } from "@/components/feature/take/signature-input";
+import { FileUploadInput } from "@/components/feature/take/file-upload-input";
+import { VideoRecordInput } from "@/components/feature/take/video-record-input";
 import type { RuntimeBlock } from "@/server/runtime/participant";
 
 /**
@@ -81,6 +83,8 @@ export function BlockView({
   if (block.key === "hot-spot") return <HotSpotInput config={c} np={np} />;
   if (block.key === "graphic-slider") return <GraphicSliderInput config={c} np={np} />;
   if (block.key === "signature") return <SignatureInput config={c} np={np} responseId={seed ?? ""} />;
+  if (block.key === "file-upload") return <FileUploadInput config={c} np={np} responseId={seed ?? ""} />;
+  if (block.key === "video-record") return <VideoRecordInput config={c} np={np} responseId={seed ?? ""} />;
   return (
     <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
       (This question type isn’t available.)

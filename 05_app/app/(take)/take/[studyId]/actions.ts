@@ -101,6 +101,15 @@ function extractAnswer(moduleKey: string, prefix: string, fd: FormData): unknown
       ...(comment ? { comment } : {}),
     };
   }
+  if (moduleKey === "file-upload") {
+    const k = String(g("r2key") ?? "");
+    const fn = String(g("filename") ?? "").trim();
+    return k ? { r2Key: k, ...(fn ? { filename: fn } : {}) } : {};
+  }
+  if (moduleKey === "video-record") {
+    const k = String(g("r2key") ?? "");
+    return k ? { r2Key: k, durationMs: Number(g("durms")) || 0 } : {};
+  }
   if (moduleKey === "heat-map") {
     try {
       const pts = JSON.parse(String(g("points") ?? "[]"));
