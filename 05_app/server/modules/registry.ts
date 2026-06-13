@@ -1900,6 +1900,68 @@ const signatureBlock: CoreModuleDef = {
   isComplete: () => true,
 };
 
+
+/* ---------- Wave 4 (2026-06-13): media-upload blocks (ADR-0003 amendment) ---------- */
+
+const fileUploadBlock: CoreModuleDef = {
+  source: "core",
+  key: "file-upload",
+  version: "1.0.0",
+  name: "File upload",
+  description:
+    "Let participants upload a file (PDF, document, spreadsheet, image, zip). Stored privately and served as a download (anti-XSS).",
+  categoryTags: ["form", "media"],
+  configSchema: z.object({ prompt: z.string(), required: z.boolean() }),
+  defaultConfig: { prompt: "Upload a file.", required: true },
+  jsonSchema: {
+    type: "object",
+    properties: { prompt: { type: "string" }, required: { type: "boolean" } },
+    required: ["prompt"],
+    additionalProperties: false,
+  },
+  collectsResponse: true,
+  responseSchema: z.object({
+    r2Key: z.string().regex(/^resp\/[A-Za-z0-9_-]+\/[A-Za-z0-9_.-]+$/).max(300),
+    filename: z.string().max(300).optional(),
+  }),
+  isAnswerEmpty: (a) => typeof (a as { r2Key?: unknown })?.r2Key !== "string" || (a as { r2Key: string }).r2Key === "",
+  isComplete: () => true,
+};
+
+const videoRecordBlock: CoreModuleDef = {
+  source: "core",
+  key: "video-record",
+  version: "1.0.0",
+  name: "Video recording",
+  description:
+    "Record a short video response from the participant's camera (with consent). Stored privately; records the clip and its duration.",
+  categoryTags: ["measurement", "media", "behavioral"],
+  configSchema: z.object({
+    prompt: z.string(),
+    maxDurationSeconds: z.number().int().min(5).max(300),
+    required: z.boolean(),
+  }),
+  defaultConfig: { prompt: "Record a short video response.", maxDurationSeconds: 60, required: true },
+  jsonSchema: {
+    type: "object",
+    properties: { prompt: { type: "string" }, maxDurationSeconds: { type: "number" }, required: { type: "boolean" } },
+    required: ["prompt"],
+    additionalProperties: false,
+  },
+  collectsResponse: true,
+  responseSchema: z.object({
+    r2Key: z.string().regex(/^resp\/[A-Za-z0-9_-]+\/[A-Za-z0-9_.-]+$/).max(300),
+    durationMs: z.number().int().positive().max(3_600_000),
+  }),
+  isAnswerEmpty: (a) => typeof (a as { r2Key?: unknown })?.r2Key !== "string" || (a as { r2Key: string }).r2Key === "",
+  validateAnswer: (a, config) => {
+    const ms = (a as { durationMs?: unknown })?.durationMs;
+    const max = (typeof config.maxDurationSeconds === "number" ? config.maxDurationSeconds : 60) * 1000 + 3000;
+    return ms == null || (typeof ms === "number" && ms <= max);
+  },
+  isComplete: () => true,
+};
+
 export const MODULE_REGISTRY: CoreModuleDef[] = [
   npsBlock,
   ratingStarsBlock,
@@ -1934,6 +1996,8 @@ export const MODULE_REGISTRY: CoreModuleDef[] = [
   hotSpotBlock,
   graphicSliderBlock,
   signatureBlock,
+  fileUploadBlock,
+  videoRecordBlock,
   pictureChoiceBlock,
   socialPost,
   socialPostV2,

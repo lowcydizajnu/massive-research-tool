@@ -283,3 +283,18 @@ describe("Wave 3 image-interaction blocks (ADR-0041, 2026-06-13)", () => {
     expect(d.isAnswerEmpty!({ r2Key: "" })).toBe(true);
   });
 });
+
+describe("Wave 4 media-upload blocks (ADR-0003 am., 2026-06-13)", () => {
+  it("file-upload: r2Key must be a resp/ key; filename optional", () => {
+    const d = getDef("core", "file-upload", "1.0.0")!;
+    expect(d.responseSchema!.safeParse({ r2Key: "resp/01H/doc.pdf", filename: "report.pdf" }).success).toBe(true);
+    expect(d.responseSchema!.safeParse({ r2Key: "ws/x/doc.pdf" }).success).toBe(false);
+    expect(d.isAnswerEmpty!({ r2Key: "" })).toBe(true);
+  });
+  it("video-record: r2Key + duration capped by config (+slack)", () => {
+    const d = getDef("core", "video-record", "1.0.0")!;
+    expect(d.validateAnswer!({ r2Key: "resp/x/v.webm", durationMs: 60_000 }, { maxDurationSeconds: 60 })).toBe(true);
+    expect(d.validateAnswer!({ r2Key: "resp/x/v.webm", durationMs: 90_000 }, { maxDurationSeconds: 60 })).toBe(false);
+    expect(d.isAnswerEmpty!({})).toBe(true);
+  });
+});

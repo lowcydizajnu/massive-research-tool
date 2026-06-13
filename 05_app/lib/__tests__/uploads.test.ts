@@ -22,3 +22,12 @@ describe("upload validation (ADR-0003)", () => {
     expect(isSafeMediaKey("ws/a?x=1")).toBe(false);
   });
 });
+
+describe("document upload kind (Wave 4)", () => {
+  it("accepts research doc types, rejects executables, caps at 25MB", () => {
+    expect(validateUpload("document", "application/pdf", 1000).ok).toBe(true);
+    expect(validateUpload("document", "text/csv", 1000).ok).toBe(true);
+    expect(validateUpload("document", "text/html", 1000).ok).toBe(false);
+    expect(validateUpload("document", "application/pdf", 30 * 1024 * 1024).ok).toBe(false);
+  });
+});

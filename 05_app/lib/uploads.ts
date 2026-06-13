@@ -22,6 +22,21 @@ export const UPLOAD_KINDS = {
       "video/quicktime": "mov",
     } as Record<string, string>,
   },
+  document: {
+    maxBytes: 25 * 1024 * 1024,
+    types: {
+      "application/pdf": "pdf",
+      "text/plain": "txt",
+      "text/csv": "csv",
+      "image/png": "png",
+      "image/jpeg": "jpg",
+      "application/msword": "doc",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+      "application/vnd.ms-excel": "xls",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+      "application/zip": "zip",
+    } as Record<string, string>,
+  },
   audio: {
     maxBytes: 25 * 1024 * 1024,
     types: {

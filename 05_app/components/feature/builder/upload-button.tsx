@@ -24,7 +24,7 @@ export function UploadButton({
   const [error, setError] = useState<string | null>(null);
   const presign = api.uploads.presign.useMutation();
 
-  const accept = { image: "image/*", video: "video/*", audio: "audio/*" }[kind];
+  const accept = { image: "image/*", video: "video/*", audio: "audio/*", document: ".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip,image/*" }[kind];
 
   const onFile = async (file: File) => {
     setBusy(true);
