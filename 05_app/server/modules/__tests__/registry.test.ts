@@ -235,3 +235,22 @@ describe("Wave 1 choice & judgment blocks (block-expansion plan, 2026-06-13)", (
     expect(d.validateAnswer!({ values: { "0_nope": "Low" } }, cfg)).toBe(false); // bad col
   });
 });
+
+describe("Wave 2 timing blocks (ADR-0040, 2026-06-13)", () => {
+  it("timed-exposure: collects shownMs, never blank, shape-checks only", () => {
+    const d = getDef("core", "timed-exposure", "1.0.0")!;
+    expect(d.collectsResponse).toBe(true);
+    expect(d.isAnswerEmpty!({})).toBe(false); // timing never blocks a required check
+    expect(d.validateAnswer!({ shownMs: 1980 }, {})).toBe(true);
+    expect(d.validateAnswer!({ shownMs: -1 }, {})).toBe(false);
+    expect(d.isComplete({ exposureMs: 2000 })).toBe(true);
+    expect(d.isComplete({ exposureMs: 0 })).toBe(false);
+  });
+  it("forced-wait: collects waitedMs, never blank", () => {
+    const d = getDef("core", "forced-wait", "1.0.0")!;
+    expect(d.isAnswerEmpty!({})).toBe(false);
+    expect(d.validateAnswer!({ waitedMs: 5000 }, {})).toBe(true);
+    expect(d.validateAnswer!({ waitedMs: "x" }, {})).toBe(false);
+    expect(d.isComplete({ waitSeconds: 5 })).toBe(true);
+  });
+});

@@ -1689,6 +1689,80 @@ const sideBySideBlock: CoreModuleDef = {
     Array.isArray(c.rows) && (c.rows as string[]).length > 0 && Array.isArray(c.columns) && (c.columns as unknown[]).length > 0,
 };
 
+
+/* ---------- Wave 2 (2026-06-13): timing & exposure blocks (ADR-0040) ---------- */
+
+const timedExposureBlock: CoreModuleDef = {
+  source: "core",
+  key: "timed-exposure",
+  version: "1.0.0",
+  name: "Timed exposure",
+  description:
+    "Show a stimulus for exactly N milliseconds, then hide it — the limited-exposure paradigm for memory/misinformation studies. Records the actual display time (client-measured).",
+  categoryTags: ["content", "stimulus", "misinformation", "behavioral"],
+  configSchema: z.object({
+    content: z.string(),
+    imageUrl: mediaUrl,
+    exposureMs: z.number().int().positive(),
+    required: z.boolean(),
+  }),
+  defaultConfig: { content: "", imageUrl: "", exposureMs: 2000, required: false },
+  jsonSchema: {
+    type: "object",
+    properties: {
+      content: { type: "string" },
+      imageUrl: { type: "string" },
+      exposureMs: { type: "number" },
+      required: { type: "boolean" },
+    },
+    required: ["exposureMs"],
+    additionalProperties: false,
+  },
+  collectsResponse: true,
+  responseSchema: z.object({ shownMs: z.number().int().min(0) }),
+  // Timing telemetry never counts as "blank" — a timing block never blocks progress (ADR-0040).
+  isAnswerEmpty: () => false,
+  validateAnswer: (a) => {
+    const v = (a as { shownMs?: unknown })?.shownMs;
+    return v == null || (typeof v === "number" && v >= 0);
+  },
+  isComplete: (c) => typeof c.exposureMs === "number" && c.exposureMs > 0,
+};
+
+const forcedWaitBlock: CoreModuleDef = {
+  source: "core",
+  key: "forced-wait",
+  version: "1.0.0",
+  name: "Forced wait",
+  description:
+    "Disable Continue for N seconds so participants spend a minimum time on a screen. Records how long they actually waited (client-measured).",
+  categoryTags: ["content", "instructions", "behavioral"],
+  configSchema: z.object({
+    content: z.string(),
+    waitSeconds: z.number().int().positive(),
+    required: z.boolean(),
+  }),
+  defaultConfig: { content: "Please take a moment to read this carefully.", waitSeconds: 5, required: false },
+  jsonSchema: {
+    type: "object",
+    properties: {
+      content: { type: "string" },
+      waitSeconds: { type: "number" },
+      required: { type: "boolean" },
+    },
+    required: ["waitSeconds"],
+    additionalProperties: false,
+  },
+  collectsResponse: true,
+  responseSchema: z.object({ waitedMs: z.number().int().min(0) }),
+  isAnswerEmpty: () => false,
+  validateAnswer: (a) => {
+    const v = (a as { waitedMs?: unknown })?.waitedMs;
+    return v == null || (typeof v === "number" && v >= 0);
+  },
+  isComplete: (c) => typeof c.waitSeconds === "number" && c.waitSeconds > 0,
+};
+
 export const MODULE_REGISTRY: CoreModuleDef[] = [
   npsBlock,
   ratingStarsBlock,
@@ -1717,6 +1791,8 @@ export const MODULE_REGISTRY: CoreModuleDef[] = [
   constantSumBlock,
   drillDownBlock,
   sideBySideBlock,
+  timedExposureBlock,
+  forcedWaitBlock,
   pictureChoiceBlock,
   socialPost,
   socialPostV2,

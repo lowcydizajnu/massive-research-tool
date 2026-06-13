@@ -101,6 +101,14 @@ function extractAnswer(moduleKey: string, prefix: string, fd: FormData): unknown
       ...(comment ? { comment } : {}),
     };
   }
+  if (moduleKey === "timed-exposure") {
+    const v = g("shownMs");
+    return { shownMs: v != null && String(v) !== "" ? Number(v) : 0 };
+  }
+  if (moduleKey === "forced-wait") {
+    const v = g("waitedMs");
+    return { waitedMs: v != null && String(v) !== "" ? Number(v) : 0 };
+  }
   if (moduleKey === "accuracy-confidence") {
     const accuracy = String(g("accuracy") ?? "");
     const conf = g("confidence");
