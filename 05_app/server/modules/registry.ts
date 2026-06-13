@@ -1387,6 +1387,308 @@ const maxDiffBlock: CoreModuleDef = {
     c.items.length >= 2,
 };
 
+
+/* ---------- Wave 1 (2026-06-13): choice & judgment blocks (block-expansion plan) ---------- */
+
+const accuracyConfidenceBlock: CoreModuleDef = {
+  source: "core",
+  key: "accuracy-confidence",
+  version: "1.0.0",
+  name: "Accuracy + confidence",
+  description:
+    "A categorical judgment (e.g. real vs. fake) paired with a confidence rating in one block — the metacognition measure central to misinformation research.",
+  categoryTags: ["measurement", "misinformation", "judgment"],
+  configSchema: z.object({
+    prompt: z.string(),
+    options: z.array(z.string()),
+    confidenceLabel: z.string(),
+    confidenceMax: z.number().int().positive(),
+    required: z.boolean(),
+  }),
+  defaultConfig: {
+    prompt: "Is this claim accurate?",
+    options: ["Accurate", "Inaccurate"],
+    confidenceLabel: "How confident are you?",
+    confidenceMax: 100,
+    required: true,
+  },
+  jsonSchema: {
+    type: "object",
+    properties: {
+      prompt: { type: "string" },
+      options: { type: "array", items: { type: "string" } },
+      confidenceLabel: { type: "string" },
+      confidenceMax: { type: "number" },
+      required: { type: "boolean" },
+    },
+    required: ["prompt", "options"],
+    additionalProperties: false,
+  },
+  collectsResponse: true,
+  responseSchema: z.object({
+    accuracy: z.string().max(500),
+    confidence: z.number().int().min(0),
+  }),
+  isAnswerEmpty: (a) => {
+    const o = a as { accuracy?: unknown };
+    return typeof o?.accuracy !== "string" || o.accuracy.trim() === "";
+  },
+  validateAnswer: (a, config) => {
+    const o = a as { accuracy?: unknown; confidence?: unknown };
+    const options = Array.isArray(config.options) ? (config.options as string[]) : [];
+    if (typeof o.accuracy === "string" && o.accuracy !== "" && !options.includes(o.accuracy)) return false;
+    const max = typeof config.confidenceMax === "number" ? config.confidenceMax : 100;
+    if (typeof o.confidence === "number" && (o.confidence < 0 || o.confidence > max)) return false;
+    return true;
+  },
+  isComplete: (c) => Array.isArray(c.options) && (c.options as string[]).length >= 2,
+};
+
+const shareIntentionBlock: CoreModuleDef = {
+  source: "core",
+  key: "share-intention",
+  version: "1.0.0",
+  name: "Share intention",
+  description:
+    "Would the participant share this — and why? The behavioral-intention measure for misinformation studies, with an optional or required reason.",
+  categoryTags: ["measurement", "misinformation", "behavioral"],
+  configSchema: z.object({
+    prompt: z.string(),
+    options: z.array(z.string()),
+    whyPrompt: z.string(),
+    whyRequired: z.boolean(),
+    required: z.boolean(),
+  }),
+  defaultConfig: {
+    prompt: "Would you share this post?",
+    options: ["Definitely not", "Probably not", "Maybe", "Probably", "Definitely"],
+    whyPrompt: "Why or why not?",
+    whyRequired: false,
+    required: true,
+  },
+  jsonSchema: {
+    type: "object",
+    properties: {
+      prompt: { type: "string" },
+      options: { type: "array", items: { type: "string" } },
+      whyPrompt: { type: "string" },
+      whyRequired: { type: "boolean" },
+      required: { type: "boolean" },
+    },
+    required: ["prompt", "options"],
+    additionalProperties: false,
+  },
+  collectsResponse: true,
+  responseSchema: z.object({
+    intention: z.string().max(500),
+    why: z.string().max(2000).optional(),
+  }),
+  isAnswerEmpty: (a) => {
+    const o = a as { intention?: unknown };
+    return typeof o?.intention !== "string" || o.intention.trim() === "";
+  },
+  validateAnswer: (a, config) => {
+    const o = a as { intention?: unknown; why?: unknown };
+    const options = Array.isArray(config.options) ? (config.options as string[]) : [];
+    if (typeof o.intention === "string" && o.intention !== "" && !options.includes(o.intention)) return false;
+    // whyRequired applies only once an intention is chosen.
+    if (config.whyRequired === true && typeof o.intention === "string" && o.intention !== "") {
+      if (typeof o.why !== "string" || o.why.trim() === "") return false;
+    }
+    return true;
+  },
+  isComplete: (c) => Array.isArray(c.options) && (c.options as string[]).length >= 2,
+};
+
+const constantSumBlock: CoreModuleDef = {
+  source: "core",
+  key: "constant-sum",
+  version: "1.0.0",
+  name: "Constant sum",
+  description:
+    "Allocate a fixed budget (points or %) across options that must add up to a target. The total is enforced when the block is answered.",
+  categoryTags: ["measurement", "allocation"],
+  configSchema: z.object({
+    prompt: z.string(),
+    items: z.array(z.string()),
+    total: z.number(),
+    unit: z.string(),
+    required: z.boolean(),
+  }),
+  defaultConfig: {
+    prompt: "Allocate 100 points across these options.",
+    items: ["Option 1", "Option 2", "Option 3"],
+    total: 100,
+    unit: "points",
+    required: true,
+  },
+  jsonSchema: {
+    type: "object",
+    properties: {
+      prompt: { type: "string" },
+      items: { type: "array", items: { type: "string" } },
+      total: { type: "number" },
+      unit: { type: "string" },
+      required: { type: "boolean" },
+    },
+    required: ["prompt", "items", "total"],
+    additionalProperties: false,
+  },
+  collectsResponse: true,
+  responseSchema: z.object({
+    values: z.record(z.string(), z.number()),
+  }),
+  isAnswerEmpty: (a) => {
+    const v = (a as { values?: Record<string, unknown> })?.values ?? {};
+    return Object.keys(v).length === 0;
+  },
+  validateAnswer: (a, config) => {
+    const values = ((a as { values?: Record<string, unknown> })?.values ?? {}) as Record<string, unknown>;
+    const itemCount = Array.isArray(config.items) ? (config.items as string[]).length : 0;
+    let sum = 0;
+    for (const [k, raw] of Object.entries(values)) {
+      const idx = Number(k);
+      if (!Number.isInteger(idx) || idx < 0 || idx >= itemCount) return false; // stray key
+      const n = Number(raw);
+      if (!Number.isFinite(n) || n < 0) return false; // negative / non-numeric
+      sum += n;
+    }
+    // Enforce the total only when the participant actually allocated something.
+    if (Object.keys(values).length > 0) {
+      const total = typeof config.total === "number" ? config.total : 100;
+      if (Math.abs(sum - total) > 1e-9) return false;
+    }
+    return true;
+  },
+  isComplete: (c) =>
+    Array.isArray(c.items) && (c.items as string[]).length >= 2 && typeof c.total === "number" && c.total > 0,
+};
+
+/** A drill-down option node: a label plus optional dependent children. */
+type DrillNode = { label: string; children?: DrillNode[] };
+const drillNodeSchema: z.ZodType<DrillNode> = z.lazy(() =>
+  z.object({ label: z.string(), children: z.array(drillNodeSchema).optional() }),
+);
+
+const drillDownBlock: CoreModuleDef = {
+  source: "core",
+  key: "drill-down",
+  version: "1.0.0",
+  name: "Drill down",
+  description:
+    "Cascading dependent dropdowns (e.g. country → region → city): each level's options depend on the level above. Records the chosen path.",
+  categoryTags: ["form", "choice"],
+  configSchema: z.object({
+    prompt: z.string(),
+    levelLabels: z.array(z.string()),
+    options: z.array(drillNodeSchema),
+    required: z.boolean(),
+  }),
+  defaultConfig: {
+    prompt: "",
+    levelLabels: ["Level 1", "Level 2"],
+    options: [
+      { label: "Group A", children: [{ label: "A1" }, { label: "A2" }] },
+      { label: "Group B", children: [{ label: "B1" }, { label: "B2" }] },
+    ],
+    required: true,
+  },
+  jsonSchema: {
+    type: "object",
+    properties: {
+      prompt: { type: "string" },
+      levelLabels: { type: "array", items: { type: "string" } },
+      options: { type: "array" },
+      required: { type: "boolean" },
+    },
+    required: ["prompt", "options"],
+    additionalProperties: false,
+  },
+  collectsResponse: true,
+  responseSchema: z.object({ path: z.array(z.string().max(500)) }),
+  isAnswerEmpty: (a) => {
+    const p = (a as { path?: unknown[] })?.path;
+    return !Array.isArray(p) || p.length === 0;
+  },
+  validateAnswer: (a, config) => {
+    const path = (a as { path?: unknown[] })?.path;
+    if (!Array.isArray(path)) return false;
+    // Walk the configured tree level by level; every step must match a child.
+    let nodes = (Array.isArray(config.options) ? config.options : []) as DrillNode[];
+    for (const step of path) {
+      const match = nodes.find((n) => n.label === step);
+      if (!match) return false;
+      nodes = match.children ?? [];
+    }
+    return true;
+  },
+  isComplete: (c) => Array.isArray(c.options) && (c.options as unknown[]).length > 0,
+};
+
+const sideBySideBlock: CoreModuleDef = {
+  source: "core",
+  key: "side-by-side",
+  version: "1.0.0",
+  name: "Side by side",
+  description:
+    "Several sub-questions in one condensed table — each row (item) is rated across multiple columns at once. Columns can differ from each other.",
+  categoryTags: ["measurement", "matrix"],
+  configSchema: z.object({
+    prompt: z.string(),
+    rows: z.array(z.string()),
+    columns: z.array(z.object({ key: z.string(), label: z.string(), options: z.array(z.string()) })),
+    required: z.boolean(),
+  }),
+  defaultConfig: {
+    prompt: "",
+    rows: ["Item 1", "Item 2"],
+    columns: [
+      { key: "quality", label: "Quality", options: ["Low", "Medium", "High"] },
+      { key: "trust", label: "Trust", options: ["Low", "Medium", "High"] },
+    ],
+    required: true,
+  },
+  jsonSchema: {
+    type: "object",
+    properties: {
+      prompt: { type: "string" },
+      rows: { type: "array", items: { type: "string" } },
+      columns: { type: "array" },
+      required: { type: "boolean" },
+    },
+    required: ["prompt", "rows", "columns"],
+    additionalProperties: false,
+  },
+  collectsResponse: true,
+  responseSchema: z.object({ values: z.record(z.string(), z.string().max(500)) }),
+  isAnswerEmpty: (a) => {
+    const v = (a as { values?: Record<string, unknown> })?.values ?? {};
+    return Object.values(v).every((x) => x == null || String(x).trim() === "");
+  },
+  validateAnswer: (a, config) => {
+    const values = ((a as { values?: Record<string, unknown> })?.values ?? {}) as Record<string, unknown>;
+    const rowCount = Array.isArray(config.rows) ? (config.rows as string[]).length : 0;
+    const cols = (Array.isArray(config.columns) ? config.columns : []) as {
+      key: string;
+      options: string[];
+    }[];
+    const colByKey = new Map(cols.map((c) => [c.key, c]));
+    for (const [cell, val] of Object.entries(values)) {
+      const us = cell.indexOf("_");
+      if (us < 0) return false;
+      const rowIdx = Number(cell.slice(0, us));
+      const colKey = cell.slice(us + 1);
+      if (!Number.isInteger(rowIdx) || rowIdx < 0 || rowIdx >= rowCount) return false;
+      const col = colByKey.get(colKey);
+      if (!col) return false;
+      if (val !== "" && !col.options.includes(String(val))) return false;
+    }
+    return true;
+  },
+  isComplete: (c) =>
+    Array.isArray(c.rows) && (c.rows as string[]).length > 0 && Array.isArray(c.columns) && (c.columns as unknown[]).length > 0,
+};
+
 export const MODULE_REGISTRY: CoreModuleDef[] = [
   npsBlock,
   ratingStarsBlock,
@@ -1410,6 +1712,11 @@ export const MODULE_REGISTRY: CoreModuleDef[] = [
   contactBlock,
   audioRecordBlock,
   fieldGroupBlock,
+  accuracyConfidenceBlock,
+  shareIntentionBlock,
+  constantSumBlock,
+  drillDownBlock,
+  sideBySideBlock,
   pictureChoiceBlock,
   socialPost,
   socialPostV2,

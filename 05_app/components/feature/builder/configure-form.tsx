@@ -124,6 +124,36 @@ export function ConfigureForm({
             );
           }
 
+          // drill-down's nested option tree → indented-text editor (Wave 1).
+          if (key === "options" && block.key === "drill-down") {
+            return (
+              <DrillTreeEditor
+                key={key}
+                value={Array.isArray(value) ? (value as DrillNodeCfg[]) : []}
+                onCommit={(options) => {
+                  const next = { ...draft, options };
+                  setDraft(next);
+                  onChange(next);
+                }}
+              />
+            );
+          }
+
+          // side-by-side columns → line-based editor (Wave 1).
+          if (key === "columns" && block.key === "side-by-side") {
+            return (
+              <ColumnsEditor
+                key={key}
+                value={Array.isArray(value) ? (value as SbsColumnCfg[]) : []}
+                onCommit={(columns) => {
+                  const next = { ...draft, columns };
+                  setDraft(next);
+                  onChange(next);
+                }}
+              />
+            );
+          }
+
           // string[] → option-list editor (multiple-choice options, etc.)
           if (Array.isArray(value)) {
             const arr = value as string[];
@@ -433,5 +463,84 @@ function FieldsEditor({
         + Add field
       </button>
     </div>
+  );
+}
+
+/* ---------- Wave 1 (2026-06-13) nested config editors ---------- */
+
+type DrillNodeCfg = { label: string; children?: DrillNodeCfg[] };
+
+/** Serialize a drill-down tree to indented text (2 spaces per level). */
+function treeToText(nodes: DrillNodeCfg[], depth = 0): string {
+  return nodes
+    .map((n) => `${"  ".repeat(depth)}${n.label}${n.children?.length ? `\n${treeToText(n.children, depth + 1)}` : ""}`)
+    .join("\n");
+}
+/** Parse indented text back to a tree (2 spaces = one level). */
+function textToTree(text: string): DrillNodeCfg[] {
+  const root: DrillNodeCfg = { label: "", children: [] };
+  const stack: { node: DrillNodeCfg; depth: number }[] = [{ node: root, depth: -1 }];
+  for (const raw of text.split("\n")) {
+    if (raw.trim() === "") continue;
+    const depth = Math.floor((raw.length - raw.trimStart().length) / 2);
+    const node: DrillNodeCfg = { label: raw.trim() };
+    while (stack.length && stack[stack.length - 1].depth >= depth) stack.pop();
+    const parent = stack[stack.length - 1]?.node ?? root;
+    (parent.children ??= []).push(node);
+    stack.push({ node, depth });
+  }
+  return root.children ?? [];
+}
+
+function DrillTreeEditor({ value, onCommit }: { value: DrillNodeCfg[]; onCommit: (v: DrillNodeCfg[]) => void }) {
+  const [text, setText] = useState(treeToText(value));
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)]">Options (one per line; indent 2 spaces to nest)</span>
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={() => onCommit(textToTree(text))}
+        rows={8}
+        spellCheck={false}
+        className="w-full rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-3 py-2 font-mono text-[length:var(--text-small)] text-[var(--color-text-primary)]"
+      />
+      <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">e.g. Poland ⏎ &nbsp;&nbsp;Mazovia ⏎ &nbsp;&nbsp;&nbsp;&nbsp;Warsaw</span>
+    </label>
+  );
+}
+
+type SbsColumnCfg = { key: string; label: string; options: string[] };
+
+function colsToText(cols: SbsColumnCfg[]): string {
+  return cols.map((c) => `${c.key} | ${c.label} | ${(c.options ?? []).join(", ")}`).join("\n");
+}
+function textToCols(text: string): SbsColumnCfg[] {
+  return text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [key = "", label = "", opts = ""] = line.split("|").map((p) => p.trim());
+      const k = key.replace(/[^a-z0-9_]/gi, "_").toLowerCase() || "col";
+      return { key: k, label: label || k, options: opts.split(",").map((o) => o.trim()).filter(Boolean) };
+    });
+}
+
+function ColumnsEditor({ value, onCommit }: { value: SbsColumnCfg[]; onCommit: (v: SbsColumnCfg[]) => void }) {
+  const [text, setText] = useState(colsToText(value));
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)]">Columns (one per line: key | Label | option1, option2)</span>
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={() => onCommit(textToCols(text))}
+        rows={5}
+        spellCheck={false}
+        className="w-full rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-3 py-2 font-mono text-[length:var(--text-small)] text-[var(--color-text-primary)]"
+      />
+      <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">e.g. trust | Trustworthiness | Low, Medium, High</span>
+    </label>
   );
 }
