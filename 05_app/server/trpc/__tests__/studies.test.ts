@@ -1693,4 +1693,24 @@ describe("getResults spatial overlay (heat-map / hot-spot, ADR-0041)", () => {
     expect(q.spatial?.points).toEqual([{ x: 0.7, y: 0.5 }]); // synthesized strip
     expect(q.n).toBe(1);
   });
+
+  it("signature: emits a spatial payload with per-respondent r2Key (viewer/gallery)", async () => {
+    await seedUserWithWorkspace("ext_sig", "Lab SIG");
+    const caller = createCaller({ authUser: authUser("ext_sig") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "SIG responses" });
+    const sg = await caller.studies.addBlock({ studyId: id, source: "core", key: "signature", version: "1.0.0" });
+    await caller.studies.publish({ studyId: id });
+    await caller.studies.openRecruitment({ studyId: id });
+    const open = await resolveOpenRecruitment(id);
+    const r1 = await startResponse({ recruitmentSessionId: open!.recruitmentSessionId, mode: "run", externalPid: "PID-S" });
+    await recordAnswer({ responseId: (r1 as { responseId: string }).responseId, questionIndex: 0, answer: { r2Key: "resp/r1/sig.png" } });
+
+    const q = (await caller.studies.getResults({ studyId: id }))!.questions.find((x) => x.instanceId === sg.instanceId)!;
+    expect(q.spatial?.kind).toBe("signature");
+    expect(q.spatial?.imageUrl).toBe(""); // no stimulus — the viewer renders each signature
+    expect(q.spatial?.responses).toEqual([
+      { responseId: (r1 as { responseId: string }).responseId, conditionSlug: expect.any(String), externalPid: "PID-S", r2Key: "resp/r1/sig.png" },
+    ]);
+    expect(q.n).toBe(1);
+  });
 });

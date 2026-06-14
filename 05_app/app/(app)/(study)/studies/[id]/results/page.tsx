@@ -145,12 +145,18 @@ export default async function ResultsStagePage({
                       ) : null}
                       {q.spatial ? (
                         <div className="flex flex-col gap-1 pt-1">
-                          <SpatialOverlay spatial={q.spatial} />
+                          {q.spatial.kind === "signature" ? (
+                            <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                              {q.n} signature{q.n === 1 ? "" : "s"} captured — private to your workspace.
+                            </span>
+                          ) : (
+                            <SpatialOverlay spatial={q.spatial} />
+                          )}
                           <Link
                             href={`/studies/${study.id}/results/explore/${q.instanceId}${includePreview ? "?preview=1" : ""}` as Route}
                             className="self-start text-[length:var(--text-small)] font-medium text-[var(--color-primary)] hover:underline"
                           >
-                            Explore responses →
+                            {q.spatial.kind === "signature" ? "View signatures →" : "Explore responses →"}
                           </Link>
                         </div>
                       ) : q.kind === "text" ? (

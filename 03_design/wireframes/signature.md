@@ -32,9 +32,13 @@ A bordered canvas to draw on, a Clear button, and a type-to-sign fallback field.
 - Draw with pointer/touch; Clear resets. Or type a name → rendered to the same PNG.
 - On submit the PNG uploads via the participant presign (scoped by responseId).
 
+## Results (researcher side)
+
+- Signatures surface on the Results page as "N signatures captured — private to your workspace" with a **View signatures →** link to the Explore surface ([spatial-explore](spatial-explore.md), signature kind): a lazy paginated gallery + per-respondent viewer, served via the workspace-gated `/api/media` (ADR-0003 amendment 2026-06-14). The CSV export keeps the raw `r2Key` and gains the per-respondent Explore deep-link column.
+
 ## Edge cases
 
-- Signature is PII — covered by the participant data download/delete flow.
+- Signature is PII — covered by the participant data download/delete flow; the `/api/media` gateway now enforces workspace-ownership for `resp/` keys (ADR-0003 amendment), so signature images are not world-readable by URL.
 - Upload failure surfaces inline; the answer isn't recorded until the PNG lands.
 - Storage unconfigured → the block explains it can't capture.
 

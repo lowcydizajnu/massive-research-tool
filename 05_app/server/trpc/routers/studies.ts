@@ -569,7 +569,7 @@ export type ResultsSummary = {
      *  Explore surface (ADR-0041 amendment). `points`/`regions` stay pooled and
      *  backward-compatible; `kind` + `responses` are additive. */
     spatial?: {
-      kind: "heat-map" | "hot-spot" | "graphic-slider";
+      kind: "heat-map" | "hot-spot" | "graphic-slider" | "signature";
       imageUrl: string;
       points?: { x: number; y: number }[];
       regions?: { key: string; label: string; x: number; y: number; w: number; h: number; count: number }[];
@@ -585,6 +585,9 @@ export type ResultsSummary = {
         regionKeys?: string[];
         /** graphic-slider — 0..1 marker position */
         value?: number;
+        /** signature — the resp/ R2 key of the captured PNG (served via /api/media,
+         *  now workspace-gated, ADR-0003 am. 2026-06-14) */
+        r2Key?: string;
       }[];
     };
   }[];
@@ -3080,6 +3083,20 @@ export const studiesRouter = router({
           // marker positions along the track (y fixed mid-height).
           const points = valued.map((r) => ({ x: r.value as number, y: 0.5 }));
           return { instanceId: b.instanceId, prompt, moduleKey: b.key, n: valued.length, kind, mean: null, optionCounts: [], spatial: { kind: "graphic-slider", imageUrl, points, responses } };
+        }
+        if (b.key === "signature") {
+          // Per-respondent captured PNG keys (resp/, served via the now-gated
+          // /api/media). No stimulus image; the viewer renders each signature.
+          const responses = withResp
+            .map(({ responseId, answer }) => {
+              const m = respMeta.get(responseId);
+              const r2Key = typeof (answer as { r2Key?: unknown })?.r2Key === "string" ? ((answer as { r2Key: string }).r2Key) : "";
+              return r2Key
+                ? { responseId, conditionSlug: m?.conditionSlug ?? "?", externalPid: m?.externalPid ?? null, r2Key }
+                : null;
+            })
+            .filter((r): r is NonNullable<typeof r> => r !== null);
+          return { instanceId: b.instanceId, prompt, moduleKey: b.key, n: responses.length, kind, mean: null, optionCounts: [], spatial: { kind: "signature", imageUrl: "", responses } };
         }
         // text (free-text / ranking / demographics) — count any non-empty answer
         const n = answers.filter((a) => stringifyAnswer(a).trim().length > 0).length;
