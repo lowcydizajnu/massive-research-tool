@@ -88,7 +88,13 @@ export function SpatialExplorer({
 
   const hasImage = Boolean(spatial.imageUrl);
   const kindLabel =
-    spatial.kind === "heat-map" ? "click map" : spatial.kind === "hot-spot" ? "region picks" : "image slider";
+    spatial.kind === "heat-map"
+      ? "click map"
+      : spatial.kind === "hot-spot"
+        ? "region picks"
+        : spatial.kind === "signature"
+          ? "signatures"
+          : "image slider";
 
   return (
     <div className="flex flex-col gap-4">
@@ -208,6 +214,16 @@ export function SpatialExplorer({
 
       {filtered.length === 0 ? (
         <Empty>No responses to explore in this condition yet.</Empty>
+      ) : spatial.kind === "signature" ? (
+        <SignatureView
+          view={view}
+          filtered={filtered}
+          current={current}
+          onOpen={(i) => {
+            setIdx(i);
+            setView("respondent");
+          }}
+        />
       ) : (
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
           {/* Stimulus panel */}
@@ -476,6 +492,100 @@ function Readout({
         </span>
       ) : null}
     </div>
+  );
+}
+
+/* ---------- signature viewer (ADR-0041 amendment-b/2026-06-14; gated /api/media) ---------- */
+
+const SIG_PAGE = 24;
+
+function SignatureView({
+  view,
+  filtered,
+  current,
+  onOpen,
+}: {
+  view: "aggregate" | "respondent";
+  filtered: Resp[];
+  current: Resp | undefined;
+  onOpen: (idx: number) => void;
+}) {
+  const [shown, setShown] = useState(SIG_PAGE);
+  const caption = (
+    <p className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+      {filtered.length} signature{filtered.length === 1 ? "" : "s"} · private to your workspace
+    </p>
+  );
+
+  if (view === "respondent") {
+    return (
+      <div className="flex flex-col gap-2">
+        {caption}
+        {current?.r2Key ? (
+          <figure className="m-0 w-full max-w-[480px]">
+            <div className="overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-border-subtle)]">
+              <SignatureImg r2Key={current.r2Key} label="this respondent" />
+            </div>
+            <figcaption className="pt-1 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+              {current.externalPid ?? current.responseId}
+            </figcaption>
+          </figure>
+        ) : (
+          <Empty>No signature for this respondent.</Empty>
+        )}
+      </div>
+    );
+  }
+
+  // Aggregate: lazy, paginated gallery (each tile opens that respondent).
+  const page = filtered.slice(0, shown);
+  return (
+    <div className="flex flex-col gap-3">
+      {caption}
+      <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        {page.map((r, i) => (
+          <li key={r.responseId} className="flex min-w-0 flex-col gap-1">
+            <button
+              type="button"
+              onClick={() => onOpen(i)}
+              aria-label={`Open signature from ${r.externalPid ?? r.responseId}`}
+              className="block overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] hover:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+            >
+              {r.r2Key ? <SignatureImg r2Key={r.r2Key} label={`signature ${i + 1}`} /> : null}
+            </button>
+            <span className="truncate text-[length:var(--text-small)] text-[var(--color-text-muted)]" title={r.externalPid ?? r.responseId}>
+              {r.externalPid ?? r.responseId}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {filtered.length > shown ? (
+        <button type="button" onClick={() => setShown((n) => n + SIG_PAGE)} className={`${stepBtnCls} self-start`}>
+          Show {Math.min(SIG_PAGE, filtered.length - shown)} more ({filtered.length - shown} hidden)
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function SignatureImg({ r2Key, label }: { r2Key: string; label: string }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return (
+      <div className="flex h-32 items-center justify-center bg-[var(--color-surface-subtle)] text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+        Couldn’t load signature
+      </div>
+    );
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- participant signature, gated via /api/media
+    <img
+      src={`/api/media/${r2Key}`}
+      alt={`Signature (${label})`}
+      loading="lazy"
+      onError={() => setFailed(true)}
+      className="block w-full bg-white"
+    />
   );
 }
 

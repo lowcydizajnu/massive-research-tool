@@ -12,7 +12,11 @@ Decisions for this surface are recorded in the [ADR-0041 amendment (2026-06-14)]
 
 The Results page shows an inline *aggregate* overlay for spatial blocks (all clicks pooled on the stimulus). That answers "where did people click overall?" but not "who clicked where?", "did the two conditions differ?", or "what's the spread of slider positions?". This is the dedicated, **explorable** surface for one spatial question: filter by condition, switch between the pooled aggregate and one-respondent-at-a-time, and (heat-map) switch between a dot plot and a density grid. It is reached from a per-question **Explore responses →** link on Results, and is the target of the CSV/Excel **visualization link**.
 
-Covers **heat-map**, **hot-spot**, and **graphic-slider** in v1. Signature is deferred (ADR-0041 amendment — `/api/media` authorization).
+Covers **heat-map**, **hot-spot**, **graphic-slider**, and **signature** (the signature viewer/gallery landed once `/api/media` enforced workspace-ownership for `resp/` keys — ADR-0003 amendment 2026-06-14).
+
+### Signature kind (viewer + gallery)
+
+Signature responses have no coordinates, so this kind replaces the stimulus+overlay panel with a **signature viewer**: Aggregate shows a **lazy, paginated gallery** (24/page, `loading="lazy"`, "Show N more") of each respondent's captured PNG (served via the now-gated `/api/media/<r2Key>`); clicking a tile opens that respondent in Per-respondent view (the existing stepper). Per-respondent shows the one signature large, with the respondent's PID/condition. The condition-filter chips + Aggregate↔Per-respondent toggle are shared; the coordinate-only controls (dots/density, opacity, saturation) are hidden. A broken/expired image falls back to a "Couldn't load signature" placeholder. Copy may state signatures are **"private to your workspace"** because the underlying `/api/media` route now enforces it. The respondent-count text + PID labels are the authoritative readout for AT.
 
 ## Layout
 
