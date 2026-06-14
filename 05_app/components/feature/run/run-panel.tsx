@@ -28,8 +28,18 @@ export function RunPanel({
 }) {
   const router = useRouter();
   const [copied, setCopied] = useState(false);
+  const [confirmStop, setConfirmStop] = useState(false);
   const open = api.studies.openRecruitment.useMutation({ onSuccess: () => router.refresh() });
   const publish = api.studies.publish.useMutation({ onSuccess: () => router.refresh() });
+  const setStatus = api.studies.setRecruitmentStatus.useMutation({
+    onSuccess: () => {
+      setConfirmStop(false);
+      router.refresh();
+    },
+  });
+  const status = info.recruitment?.status;
+  const n = info.recruitment?.currentN ?? 0;
+  const responsesLabel = `${n} response${n === 1 ? "" : "s"} collected`;
 
   if (!info.runnable) {
     return (
@@ -62,7 +72,7 @@ export function RunPanel({
     );
   }
 
-  if (!info.recruitment || info.recruitment.status !== "open") {
+  if (!info.recruitment) {
     return (
       <section className="flex flex-col gap-3 border-t border-[var(--color-border-subtle)] pt-4">
         <p className="max-w-prose text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
@@ -85,6 +95,64 @@ export function RunPanel({
             Preview
           </a>
         </div>
+      </section>
+    );
+  }
+
+  // Paused — new participants are blocked (the /take link reads as closed) but
+  // every collected response is kept; resume reopens the same session.
+  if (status === "paused") {
+    return (
+      <section className="flex flex-col gap-3 border-t border-[var(--color-border-subtle)] pt-4">
+        <div className="flex items-center gap-2 text-[length:var(--text-small)]">
+          <span className="rounded-[var(--radius-sm)] bg-[var(--color-warning-subtle)] px-2 py-0.5 font-medium text-[var(--color-warning-text-on-subtle)]">
+            Paused
+          </span>
+          <span className="text-[var(--color-text-muted)]">{responsesLabel}</span>
+        </div>
+        <p className="max-w-prose text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+          Recruitment is paused — the link is inactive and no new participants can start. Your data is safe; resume any time.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <PendingButton
+            onClick={() => setStatus.mutate({ studyId, status: "open" })}
+            pending={setStatus.isPending}
+            idleLabel="Resume recruitment"
+            pendingLabel="Resuming…"
+          />
+          <button
+            type="button"
+            onClick={() => setStatus.mutate({ studyId, status: "closed" })}
+            className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-4 py-2 text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
+          >
+            Stop collecting
+          </button>
+        </div>
+      </section>
+    );
+  }
+
+  // Closed — terminal; data is retained and Results stays available. Reopen
+  // collects more responses on the same frozen version.
+  if (status === "closed") {
+    return (
+      <section className="flex flex-col gap-3 border-t border-[var(--color-border-subtle)] pt-4">
+        <div className="flex items-center gap-2 text-[length:var(--text-small)]">
+          <span className="rounded-[var(--radius-sm)] bg-[var(--color-surface-subtle)] px-2 py-0.5 font-medium text-[var(--color-text-secondary)]">
+            Closed
+          </span>
+          <span className="text-[var(--color-text-muted)]">{responsesLabel}</span>
+        </div>
+        <p className="max-w-prose text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+          Recruitment is closed — no new participants can start. Your results stay available below. You can reopen to collect more.
+        </p>
+        <PendingButton
+          variant="secondary"
+          onClick={() => setStatus.mutate({ studyId, status: "open" })}
+          pending={setStatus.isPending}
+          idleLabel="Reopen recruitment"
+          pendingLabel="Reopening…"
+        />
       </section>
     );
   }
@@ -136,6 +204,43 @@ export function RunPanel({
       >
         Preview as a participant (no data recorded) →
       </a>
+
+      {/* Stop / Pause — non-destructive; both gate the link, keeping all data. */}
+      <div className="flex flex-wrap items-center gap-2 border-t border-[var(--color-border-subtle)] pt-3">
+        <PendingButton
+          variant="secondary"
+          onClick={() => setStatus.mutate({ studyId, status: "paused" })}
+          pending={setStatus.isPending && setStatus.variables?.status === "paused"}
+          idleLabel="Pause"
+          pendingLabel="Pausing…"
+        />
+        {confirmStop ? (
+          <span className="flex items-center gap-2 text-[length:var(--text-small)]">
+            <span className="text-[var(--color-text-secondary)]">Stop collecting responses?</span>
+            <PendingButton
+              onClick={() => setStatus.mutate({ studyId, status: "closed" })}
+              pending={setStatus.isPending && setStatus.variables?.status === "closed"}
+              idleLabel="Stop now"
+              pendingLabel="Stopping…"
+            />
+            <button
+              type="button"
+              onClick={() => setConfirmStop(false)}
+              className="text-[var(--color-text-muted)] underline hover:opacity-80"
+            >
+              Cancel
+            </button>
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setConfirmStop(true)}
+            className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-4 py-2 text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
+          >
+            Stop collecting
+          </button>
+        )}
+      </div>
     </section>
   );
 }
