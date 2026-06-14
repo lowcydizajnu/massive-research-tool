@@ -417,7 +417,8 @@ export const response = pgTable(
     startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     abandonedAt: timestamp("abandoned_at", { withTimezone: true }),
-    /** UA/locale/screen only — no IP, no raw UA string (PII boundary, ADR-0014). */
+    /** UA/locale/screen telemetry (no IP, no raw UA string — PII boundary, ADR-0014)
+     *  plus `embedded`: researcher-declared URL params captured at start (ADR-0042). */
     clientMetadata: jsonb("client_metadata").notNull().default({}),
   },
   (t) => [

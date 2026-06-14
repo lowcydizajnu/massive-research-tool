@@ -270,7 +270,7 @@ export async function startResponse(input: {
   recruitmentSessionId: string;
   mode: ResponseMode;
   externalPid?: string | null;
-  /** Declared URL params captured into response.metadata.embedded (ADR-0042). */
+  /** Declared URL params captured into response.clientMetadata.embedded (ADR-0042). */
   embedded?: Record<string, string>;
 }): Promise<{ responseId: string } | { error: "closed" | "not_found" }> {
   const [rs] = await db
@@ -306,8 +306,12 @@ export async function startResponse(input: {
     mode: input.mode,
     status: "started",
     currentQuestionIndex: 0,
+    // Declared URL params (ADR-0042) live under clientMetadata.embedded — the
+    // `response` table has no `metadata` column (that's recruitment_session), so
+    // the old `metadata:` key was silently dropped by Drizzle. clientMetadata is
+    // jsonb and otherwise unused, so the `embedded` namespace is safe.
     ...(input.embedded && Object.keys(input.embedded).length > 0
-      ? { metadata: { embedded: input.embedded } }
+      ? { clientMetadata: { embedded: input.embedded } }
       : {}),
   });
   return { responseId: id };
