@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { StageTabs } from "@/components/chrome/stage-tabs";
 import { PreflightChecklist } from "@/components/feature/run/preflight-checklist";
+import { AmendButton } from "@/components/feature/preregister/amend-button";
 import { PreregisterButton } from "@/components/feature/preregister/preregister-button";
 import { RefreshOsfStatus } from "@/components/feature/preregister/refresh-osf-status";
 import { PushStatusPoller } from "@/components/feature/preregister/push-status-poller";
@@ -135,9 +136,6 @@ export default async function PreregisterStagePage({
             <PreflightChecklist studyId={study.id} mode="preregister">
               <PreregisterButton studyId={study.id} />
             </PreflightChecklist>
-            <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-              Need to change a preregistered design? Amendments arrive in a later release.
-            </p>
           </section>
         ) : (
           <section className="flex flex-col gap-3 border-t border-[var(--color-border-subtle)] pt-4">
@@ -192,6 +190,21 @@ export default async function PreregisterStagePage({
             pre.pushStatus === "pending" ? (
               <RetryPushButton studyId={study.id} />
             ) : null}
+
+            {pre.amends !== null ? (
+              <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                Amends v{pre.amends}
+                {pre.changeSummary ? ` — ${pre.changeSummary}` : ""}
+              </p>
+            ) : null}
+
+            {/* File a new amendment — freezes the current draft as a superseding
+                preregistered version (ADR-0004). Same pre-flight gate as preregister. */}
+            <div className="border-t border-[var(--color-border-subtle)] pt-3">
+              <PreflightChecklist studyId={study.id} mode="preregister">
+                <AmendButton studyId={study.id} />
+              </PreflightChecklist>
+            </div>
           </section>
         )}
       </div>

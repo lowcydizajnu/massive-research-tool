@@ -441,6 +441,33 @@ describe("studies.preregister", () => {
     });
   });
 
+  it("amend supersedes the preregistration with a change summary (ADR-0004, audit step 4)", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    // Can't amend before preregistering.
+    await expect(caller.studies.amend({ studyId: id, changeSummary: "x" })).rejects.toMatchObject({
+      code: "PRECONDITION_FAILED",
+    });
+    await caller.studies.preregister({ studyId: id });
+    const v1 = (await caller.studies.getPreregistration({ studyId: id }))!.versionNumber;
+    await caller.studies.addBlock({ studyId: id, source: "core", key: "likert-7", version: "1.0.0" });
+    await caller.studies.amend({ studyId: id, changeSummary: "Added a credibility item.", classification: "scope-change" });
+    const after = (await caller.studies.getPreregistration({ studyId: id }))!;
+    expect(after.versionNumber).toBeGreaterThan(v1);
+    expect(after.changeSummary).toBe("Added a credibility item.");
+    expect(after.amends).toBe(v1);
+    expect(after.name).toContain("Amendment");
+  });
+
+  it("amend rejects an empty change summary (CHECK + Zod)", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    await caller.studies.preregister({ studyId: id });
+    await expect(caller.studies.amend({ studyId: id, changeSummary: "   " })).rejects.toBeTruthy();
+  });
+
   it("retryPush re-enqueues the same frozen version once connected", async () => {
     const { user: u } = await seedUserWithWorkspace("ext_a", "Alpha");
     const caller = createCaller({ authUser: authUser("ext_a") });

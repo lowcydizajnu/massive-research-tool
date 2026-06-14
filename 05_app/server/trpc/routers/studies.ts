@@ -558,6 +558,10 @@ export type PreregistrationStatus = {
   url: string | null;
   doi: string | null;
   lastError: string | null;
+  /** ADR-0004: set when this preregistration is an amendment — the researcher's
+   *  stated change + the version it supersedes. Null for an original. */
+  changeSummary: string | null;
+  amends: number | null;
 };
 
 /** Run-stage state: whether the study is runnable (has a preregistered OR
@@ -2618,6 +2622,105 @@ export const studiesRouter = router({
     ),
 
   /**
+   * Amend a preregistered study (ADR-0004) — freeze the current working tip as a
+   * NEW preregistered version that SUPERSEDES the latest preregistration, with a
+   * required change summary + optional classification. Re-pushes to OSF as an
+   * amendment on the same project node. Migration-free: the lineage columns
+   * (supersedes_version_id / change_summary / amendment_classification) exist.
+   */
+  amend: writeProcedure
+    .input(
+      z.object({
+        studyId: z.string().uuid(),
+        changeSummary: z.string().trim().min(1, "Describe what changed.").max(2000),
+        classification: z
+          .enum(["typo", "methodological-correction", "clarification", "scope-change", "other"])
+          .optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }): Promise<{ versionNumber: number; pushStatus: "pending" | "no_credentials" }> => {
+      const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+
+      // The amendment supersedes the latest preregistered version.
+      const [prior] = await db
+        .select({ id: experimentVersion.id })
+        .from(experimentVersion)
+        .where(and(eq(experimentVersion.experimentId, input.studyId), eq(experimentVersion.kind, "preregistered")))
+        .orderBy(desc(experimentVersion.versionNumber))
+        .limit(1);
+      if (!prior) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Preregister this study before filing an amendment.",
+        });
+      }
+
+      const nextNumber = await nextVersionNumber(input.studyId);
+      const connection = await registry.getConnection(ctx.dbUser.id);
+      const pushStatus = connection.connected ? "pending" : "no_credentials";
+
+      const [pre] = await db
+        .insert(experimentVersion)
+        .values({
+          experimentId: input.studyId,
+          versionNumber: nextNumber,
+          kind: "preregistered",
+          name: `Amendment v${nextNumber}`,
+          definitionSnapshot: tip.version.definitionSnapshot,
+          moduleVersionLocks: tip.version.moduleVersionLocks,
+          createdBy: ctx.dbUser.id,
+          registryPushStatus: pushStatus,
+          // ADR-0004 lineage (the CHECK requires supersedes + non-empty summary together).
+          supersedesVersionId: prior.id,
+          changeSummary: input.changeSummary,
+          amendmentClassification: input.classification ?? null,
+        })
+        .returning();
+
+      // Freeze conditions into the immutable version (same as preregister).
+      const tipConditions = await conditionsForVersion(tip.version.id);
+      if (tipConditions.length) {
+        await db.insert(conditionTable).values(
+          tipConditions.map((c) => ({
+            id: ulid(),
+            experimentVersionId: pre.id,
+            slug: c.slug,
+            name: c.name,
+            allocationWeight: String(c.allocationWeight),
+            position: c.position,
+          })),
+        );
+      }
+
+      await db.update(experiment).set({ updatedAt: new Date() }).where(eq(experiment.id, input.studyId));
+
+      if (connection.connected) {
+        await jobs.enqueue("registry.push", {
+          experimentVersionId: pre.id,
+          registryKey: "osf",
+          userId: ctx.dbUser.id,
+          isAmendment: true,
+        });
+      }
+
+      await emit({
+        type: "preregister_complete",
+        actorUserId: ctx.dbUser.id,
+        workspaceId: ctx.workspace.id,
+        targetType: "study",
+        targetId: input.studyId,
+        related: {
+          authorUserId: tip.experiment.ownerId,
+          studyId: input.studyId,
+          tagSlugs: tip.experiment.tags ?? undefined,
+        },
+        data: { studyTitle: tip.experiment.title, versionName: pre.name, versionNumber: pre.versionNumber },
+      });
+
+      return { versionNumber: pre.versionNumber, pushStatus };
+    }),
+
+  /**
    * Publish — freeze the autosave working tip into an immutable `published`
    * version to RUN it, WITHOUT an OSF preregistration (ADR-0013 amendment:
    * preregistration isn't required to run). Mirrors preregister (copies
@@ -2745,6 +2848,8 @@ export const studiesRouter = router({
           url: experimentVersion.externalRegistrationUrl,
           doi: experimentVersion.externalRegistrationDoi,
           lastError: experimentVersion.registryPushLastError,
+          changeSummary: experimentVersion.changeSummary,
+          supersedesVersionId: experimentVersion.supersedesVersionId,
         })
         .from(experimentVersion)
         .where(
@@ -2756,6 +2861,16 @@ export const studiesRouter = router({
         .orderBy(desc(experimentVersion.versionNumber))
         .limit(1);
       if (!pre) return null;
+      // For an amendment, resolve the superseded version's number for the lineage line.
+      let amends: number | null = null;
+      if (pre.supersedesVersionId) {
+        const [sup] = await db
+          .select({ n: experimentVersion.versionNumber })
+          .from(experimentVersion)
+          .where(eq(experimentVersion.id, pre.supersedesVersionId))
+          .limit(1);
+        amends = sup?.n ?? null;
+      }
       return {
         versionNumber: pre.versionNumber,
         name: pre.name ?? `Preregistration v${pre.versionNumber}`,
@@ -2763,6 +2878,8 @@ export const studiesRouter = router({
         url: pre.url,
         doi: pre.doi,
         lastError: pre.lastError,
+        changeSummary: pre.changeSummary,
+        amends,
       };
     }),
 
