@@ -45,6 +45,13 @@ describe("evaluateClause", () => {
     expect(evaluateClause(undefined, "eq", ["5"])).toBe(false);
     expect(evaluateClause(null, "neq", ["5"])).toBe(false); // even neq is false when unanswered
   });
+  it("branches on a hot-spot region selection (ADR-0043 — 'is <regionKey>')", () => {
+    // hot-spot records {selected:[regionKey]}; answerValues extracts the key, so
+    // 'is r2' matches when the participant clicked region r2 (single or multi).
+    expect(evaluateClause({ selected: ["r2"] }, "eq", ["r2"])).toBe(true);
+    expect(evaluateClause({ selected: ["r1"] }, "eq", ["r2"])).toBe(false);
+    expect(evaluateClause({ selected: ["r1", "r2"] }, "eq", ["r2"])).toBe(true); // multi-select includes r2
+  });
 });
 
 describe("evaluateCondition (AND/OR)", () => {

@@ -48,6 +48,13 @@ Backward-compatible + migration-free: `action`/`tags` are optional and additive;
 - A second block wants actions → lift the union into shared block metadata rather than per-block config.
 - Researchers want richer targets (jump-to-named-screen) → design an explicit navigation primitive (a real superseding ADR), not more action variants.
 
+## Follow-up (2026-06-14) — branching ergonomics
+
+Two refinements after the owner asked "how exactly do I branch on a region, and why do I see just Finish?":
+
+- **Condition builder picks by label, stores the key.** The "Show this block when …" value field was free text — branching on a hot-spot region meant typing its raw key (`r1`/`r2`). It now renders a **dropdown of the source block's choices by label** (hot-spot regions, multiple-choice/attention-check options), storing the recorded value; multi-value operators (`is any of`) render a checkbox set. Free-text/numeric sources keep the text input. So "show block 3 when hot-spot **is** Region 2" needs no key knowledge. (`valueOptionsForSource` in `condition-builder.tsx`.)
+- **No premature "Finish."** Forward branching means a block conditional on the *current* screen's answer is hidden (so uncounted) while that screen is shown — the runtime would label the button "Finish" even though answering might reveal another screen. `getRuntimeScreen` now returns `mayContinue` (`pathMayExtend`: a hidden block's answer-condition references a block on this screen), and the screen shows **"Continue"** instead of "Finish" in that case — biased toward Continue (Continue-then-end is less jarring than Finish-then-more). This confirms the existing runtime already *reveals* the conditional block after the answer (`recordAnswer` re-resolves the path); only the label was wrong.
+
 ## References
 
 - spatial-followups + hotspot-actions-signature-auth-design workflows + adversarial reviews (2026-06-14)
