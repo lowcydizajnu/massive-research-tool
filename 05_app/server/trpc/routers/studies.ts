@@ -279,11 +279,22 @@ function stringifyAnswer(answer: unknown): string {
       return Object.entries(a.values as Record<string, unknown>)
         .map(([k, v]) => `${k}=${v}`)
         .join("; ");
-    if (Array.isArray(a.selected)) return a.selected.map(String).join("; ");
+    if (Array.isArray(a.selected)) {
+      // multiple-choice / hot-spot. hot-spot setValue actions (ADR-0043) append
+      // `| tags: key=value; …` so they surface in the CSV.
+      const sel = a.selected.map(String).join("; ");
+      const t = a.tags;
+      if (t && typeof t === "object" && !Array.isArray(t)) {
+        const tags = Object.entries(t as Record<string, unknown>)
+          .map(([k, v]) => `${k}=${v}`)
+          .join("; ");
+        if (tags) return sel ? `${sel} | tags: ${tags}` : `tags: ${tags}`;
+      }
+      return sel;
+    }
     if (Array.isArray(a.order)) return a.order.map(String).join(" > ");
     if (typeof a.text === "string") return a.text;
     if (Array.isArray(a.points)) return `${(a.points as unknown[]).length} point(s)`; // heat-map
-    if (Array.isArray(a.selected)) return (a.selected as unknown[]).map(String).join("; "); // hot-spot
     if (typeof a.r2Key === "string") {
       const fn = typeof a.filename === "string" ? ` (${a.filename})` : "";
       return `${a.r2Key}${fn}`; // signature / file-upload / video-record

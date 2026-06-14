@@ -1823,6 +1823,31 @@ const hotSpotBlock: CoreModuleDef = {
         /** Draw a visible outline for the participant? Absent ⇒ true. When false
          *  the region is an invisible-but-clickable zone (ADR-0041 amendment). */
         visible: z.boolean().optional(),
+        /** What clicking does (ADR-0043). Absent ⇒ just record the selection. */
+        action: z
+          .discriminatedUnion("type", [
+            z.object({ type: z.literal("record") }),
+            z.object({
+              type: z.literal("link"),
+              url: z
+                .string()
+                .url()
+                .refine((u) => {
+                  try {
+                    return new URL(u).protocol === "https:";
+                  } catch {
+                    return false;
+                  }
+                }, "Link must be a valid https URL"),
+            }),
+            z.object({ type: z.literal("advance") }),
+            z.object({
+              type: z.literal("setValue"),
+              key: z.string().min(1).max(64).regex(/^[A-Za-z0-9_]+$/),
+              value: z.string().max(200),
+            }),
+          ])
+          .optional(),
       }),
     ),
     multiple: z.boolean(),
@@ -1842,14 +1867,32 @@ const hotSpotBlock: CoreModuleDef = {
     additionalProperties: false,
   },
   collectsResponse: true,
-  responseSchema: z.object({ selected: z.array(z.string().max(200)) }),
+  responseSchema: z.object({
+    selected: z.array(z.string().max(200)),
+    /** setValue action writes (ADR-0043) — key→value. */
+    tags: z.record(z.string().max(64), z.string().max(200)).optional(),
+  }),
   isAnswerEmpty: (a) => !Array.isArray((a as { selected?: unknown[] })?.selected) || (a as { selected: unknown[] }).selected.length === 0,
   validateAnswer: (a, config) => {
     const sel = (a as { selected?: unknown[] })?.selected;
     if (!Array.isArray(sel)) return false;
-    const keys = new Set((Array.isArray(config.regions) ? config.regions : []).map((r) => (r as { key: string }).key));
+    const regions = (Array.isArray(config.regions) ? config.regions : []) as {
+      key: string;
+      action?: { type?: string; key?: string };
+    }[];
+    const keys = new Set(regions.map((r) => r.key));
     if (sel.some((k) => !keys.has(String(k)))) return false; // stray region
     if (config.multiple !== true && sel.length > 1) return false;
+    // tags (ADR-0043): default-deny — a tag key must be declared by some region
+    // whose action is setValue, so a forged client tag can't drive branching.
+    const tags = (a as { tags?: unknown })?.tags;
+    if (tags !== undefined) {
+      if (typeof tags !== "object" || tags === null || Array.isArray(tags)) return false;
+      const declared = new Set(
+        regions.filter((r) => r.action?.type === "setValue" && r.action.key).map((r) => r.action!.key as string),
+      );
+      if (Object.keys(tags as Record<string, unknown>).some((k) => !declared.has(k))) return false;
+    }
     return true;
   },
   isComplete: (c) => typeof c.imageUrl === "string" && c.imageUrl.trim() !== "" && Array.isArray(c.regions) && (c.regions as unknown[]).length > 0,

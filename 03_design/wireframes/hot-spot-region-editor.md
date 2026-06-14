@@ -26,6 +26,7 @@ All visuals compose existing v0.6 tokens (`--color-primary`, `--color-border-med
 - **Regions** — `{key, label, x, y, w, h}` normalized 0..1; rect-only (polygons deferred, ADR-0041).
 - **Region keys** — stable, auto-assigned (`r1, r2, …`, first free), **frozen on edit** so already-collected responses' `selected`/`regionKeys` stay valid.
 - **Visibility** — each region has an eye/eye-off toggle (ADR-0041 amendment 2026-06-14c). Hidden regions (`visible:false`) draw no outline for the participant (an invisible click zone) but are **always shown in the builder**, dashed + dimmed, so the researcher can still select/move/resize them.
+- **Click action** (ADR-0043) — each region row has an "On click" picker: **Record only** (default), **Open a link** (https URL field), **Record & continue** (advances the screen; hint: best as the only/last block on its screen), or **Set a value** (key + value fields → a `key=value` tag on the answer). Params commit immediately.
 - **No-image state** — if `imageUrl` is empty: "No image configured — add an image above to draw regions"; the region list stays editable (labels/keys) so a researcher isn't blocked.
 
 ## States
