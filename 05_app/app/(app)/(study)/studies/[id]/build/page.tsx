@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 
+import { BuildDriftBanner } from "@/components/feature/builder/build-drift-banner";
 import { BuilderWorkspace } from "@/components/feature/builder/builder-workspace";
 import { getCurrentDbUser } from "@/server/auth/current-db-user";
 import { getServerApi } from "@/server/trpc/server";
@@ -28,5 +29,10 @@ export default async function BuildStagePage({
 
   const dbUser = await getCurrentDbUser();
 
-  return <BuilderWorkspace study={study} currentUserId={dbUser?.id ?? null} />;
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <BuildDriftBanner studyId={id} />
+      <BuilderWorkspace study={study} currentUserId={dbUser?.id ?? null} />
+    </div>
+  );
 }

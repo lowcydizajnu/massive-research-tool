@@ -558,6 +558,11 @@ export type PreregistrationStatus = {
 export type RunInfo = {
   runnable: boolean;
   versionKind: "preregistered" | "published" | null;
+  /** Version number of the frozen version participants actually get (ADR-0002). */
+  liveVersionNumber: number | null;
+  /** The editable draft (tip) has block changes not in the live frozen version —
+   *  i.e. Build edits that won't reach participants until publish/amend. */
+  divergedFromLive: boolean;
   recruitment: { status: "open" | "paused" | "closed"; currentN: number } | null;
 };
 
@@ -2762,7 +2767,7 @@ export const studiesRouter = router({
     .input(z.object({ studyId: z.string().uuid() }))
     .query(async ({ ctx, input }): Promise<RunInfo> => {
       const [ver] = await db
-        .select({ id: experimentVersion.id, kind: experimentVersion.kind })
+        .select({ id: experimentVersion.id, kind: experimentVersion.kind, n: experimentVersion.versionNumber, snapshot: experimentVersion.definitionSnapshot })
         .from(experimentVersion)
         .innerJoin(experiment, eq(experimentVersion.experimentId, experiment.id))
         .where(
@@ -2774,7 +2779,18 @@ export const studiesRouter = router({
         )
         .orderBy(desc(experimentVersion.versionNumber))
         .limit(1);
-      if (!ver) return { runnable: false, versionKind: null, recruitment: null };
+      if (!ver) return { runnable: false, versionKind: null, liveVersionNumber: null, divergedFromLive: false, recruitment: null };
+
+      // Drift: the editable autosave tip's blocks vs the frozen live version's —
+      // edits made after freezing don't reach participants until publish/amend.
+      const [tip] = await db
+        .select({ snapshot: experimentVersion.definitionSnapshot })
+        .from(experimentVersion)
+        .where(and(eq(experimentVersion.experimentId, input.studyId), eq(experimentVersion.kind, "autosave")))
+        .orderBy(desc(experimentVersion.versionNumber))
+        .limit(1);
+      const divergedFromLive =
+        !!tip && JSON.stringify(readBlocks(tip.snapshot)) !== JSON.stringify(readBlocks(ver.snapshot));
 
       const [rs] = await db
         .select({ status: recruitmentSession.status, currentN: recruitmentSession.currentN })
@@ -2785,6 +2801,8 @@ export const studiesRouter = router({
       return {
         runnable: true,
         versionKind: ver.kind as "preregistered" | "published",
+        liveVersionNumber: ver.n,
+        divergedFromLive,
         recruitment: rs ? { status: rs.status, currentN: rs.currentN } : null,
       };
     }),

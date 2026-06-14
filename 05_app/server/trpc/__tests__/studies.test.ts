@@ -533,22 +533,38 @@ describe("studies.getRunInfo + openRecruitment", () => {
     expect(await caller.studies.getRunInfo({ studyId: id })).toEqual({
       runnable: false,
       versionKind: null,
+      liveVersionNumber: null,
+      divergedFromLive: false,
       recruitment: null,
     });
 
     await caller.studies.preregister({ studyId: id });
-    expect(await caller.studies.getRunInfo({ studyId: id })).toEqual({
+    expect(await caller.studies.getRunInfo({ studyId: id })).toMatchObject({
       runnable: true,
       versionKind: "preregistered",
+      divergedFromLive: false, // tip == frozen right after preregister
       recruitment: null,
     });
 
     await caller.studies.openRecruitment({ studyId: id });
-    expect(await caller.studies.getRunInfo({ studyId: id })).toEqual({
+    expect(await caller.studies.getRunInfo({ studyId: id })).toMatchObject({
       runnable: true,
       versionKind: "preregistered",
       recruitment: { status: "open", currentN: 0 },
     });
+  });
+
+  it("getRunInfo reports divergedFromLive once the draft is edited after freezing (audit step 2)", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    await caller.studies.preregister({ studyId: id });
+    expect((await caller.studies.getRunInfo({ studyId: id })).divergedFromLive).toBe(false);
+    // Edit the draft (tip) after freezing → diverges from the live frozen version.
+    await caller.studies.addBlock({ studyId: id, source: "core", key: "likert-7", version: "1.0.0" });
+    const info = await caller.studies.getRunInfo({ studyId: id });
+    expect(info.divergedFromLive).toBe(true);
+    expect(info.liveVersionNumber).not.toBeNull();
   });
 
   it("openRecruitment refuses a study that is neither preregistered nor published", async () => {

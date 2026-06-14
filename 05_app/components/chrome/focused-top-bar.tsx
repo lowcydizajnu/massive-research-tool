@@ -5,6 +5,7 @@ import { AutosaveIndicator } from "@/components/chrome/autosave-indicator";
 import { CommandPalette } from "@/components/chrome/command-palette";
 import { FocusedBreadcrumb } from "@/components/chrome/focused-breadcrumb";
 import { StudyActionsMenu } from "@/components/chrome/study-actions-menu";
+import { StudyStateBadge } from "@/components/chrome/study-state-badge";
 
 /**
  * Focused-study-mode top bar (IA v0.4, focused-study-mode.md): a flat flush
@@ -29,6 +30,8 @@ export function FocusedTopBar({
       <FocusedBreadcrumb studyId={studyId} />
 
       <div className="flex-1" />
+
+      <StudyStateBadge studyId={studyId} />
 
       <AutosaveIndicator />
 
