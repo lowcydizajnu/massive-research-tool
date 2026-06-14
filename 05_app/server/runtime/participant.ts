@@ -240,6 +240,31 @@ export async function openRecruitment(experimentVersionId: string): Promise<{ id
 }
 
 /**
+ * Transition the latest recruitment session for a version: pause (stop new
+ * participants, keep data), close (terminal + closedAt), or resume (open again).
+ * Participants can only begin when the session is `open` (resolveOpenRecruitment
+ * requires it), so pausing/closing immediately gates the public /take link. A
+ * paused session is reused on resume — data stays on one session, not split.
+ */
+export async function setRecruitmentStatus(
+  experimentVersionId: string,
+  status: "open" | "paused" | "closed",
+): Promise<{ ok: boolean }> {
+  const [latest] = await db
+    .select({ id: recruitmentSession.id })
+    .from(recruitmentSession)
+    .where(eq(recruitmentSession.experimentVersionId, experimentVersionId))
+    .orderBy(desc(recruitmentSession.openedAt))
+    .limit(1);
+  if (!latest) return { ok: false }; // nothing opened yet
+  await db
+    .update(recruitmentSession)
+    .set({ status, closedAt: status === "closed" ? new Date() : null })
+    .where(eq(recruitmentSession.id, latest.id));
+  return { ok: true };
+}
+
+/**
  * Resolve the open recruitment for a study (its latest preregistered version's
  * open session) — what the public `/take/[studyId]/start` URL points at. Null
  * when the study isn't preregistered or recruitment isn't open.

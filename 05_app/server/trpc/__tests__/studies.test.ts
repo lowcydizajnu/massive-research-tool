@@ -595,6 +595,39 @@ describe("studies.getRunInfo + openRecruitment", () => {
     const info = await caller.studies.getRunInfo({ studyId: id });
     expect(info.recruitment?.status).toBe("open");
   });
+
+  it("setRecruitmentStatus pause/resume/close gates the /take link, keeps data (run-stage.md)", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    await caller.studies.preregister({ studyId: id });
+    await caller.studies.openRecruitment({ studyId: id });
+    expect(await resolveOpenRecruitment(id)).not.toBeNull(); // link live
+
+    // Pause → public link unavailable, but the session/data remain.
+    await caller.studies.setRecruitmentStatus({ studyId: id, status: "paused" });
+    expect((await caller.studies.getRunInfo({ studyId: id })).recruitment?.status).toBe("paused");
+    expect(await resolveOpenRecruitment(id)).toBeNull();
+
+    // Resume → link live again (same session reused).
+    await caller.studies.setRecruitmentStatus({ studyId: id, status: "open" });
+    expect(await resolveOpenRecruitment(id)).not.toBeNull();
+
+    // Close → terminal; link stays unavailable.
+    await caller.studies.setRecruitmentStatus({ studyId: id, status: "closed" });
+    expect((await caller.studies.getRunInfo({ studyId: id })).recruitment?.status).toBe("closed");
+    expect(await resolveOpenRecruitment(id)).toBeNull();
+  });
+
+  it("setRecruitmentStatus refuses when recruitment was never opened", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    await caller.studies.preregister({ studyId: id });
+    await expect(caller.studies.setRecruitmentStatus({ studyId: id, status: "paused" })).rejects.toMatchObject({
+      code: "PRECONDITION_FAILED",
+    });
+  });
 });
 
 describe("studies.conditions (builder-conditions.md)", () => {

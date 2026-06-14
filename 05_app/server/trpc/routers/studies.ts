@@ -30,6 +30,7 @@ import {
 } from "@/lib/custom-modules";
 import {
   openRecruitment as runtimeOpenRecruitment,
+  setRecruitmentStatus as runtimeSetRecruitmentStatus,
   startResponse as runtimeStartResponse,
 } from "@/server/runtime/participant";
 import { getFrameworkDef } from "@/server/frameworks/registry";
@@ -2816,6 +2817,39 @@ export const studiesRouter = router({
         });
       }
       await runtimeOpenRecruitment(ver.id);
+      return { ok: true };
+    }),
+
+  /**
+   * Pause, resume, or close (stop) data collection for the study's latest
+   * runnable version (run-stage.md). Non-destructive — paused/closed gate the
+   * public /take link immediately (the runtime only begins on an `open` session)
+   * while keeping every collected response. `resume` reopens the same session so
+   * data isn't split. Migration-free: recruitment_session.status + closedAt exist.
+   */
+  setRecruitmentStatus: writeProcedure
+    .input(z.object({ studyId: z.string().uuid(), status: z.enum(["open", "paused", "closed"]) }))
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      const [ver] = await db
+        .select({ id: experimentVersion.id })
+        .from(experimentVersion)
+        .innerJoin(experiment, eq(experimentVersion.experimentId, experiment.id))
+        .where(
+          and(
+            eq(experimentVersion.experimentId, input.studyId),
+            eq(experiment.tenantId, ctx.workspace.id),
+            inArray(experimentVersion.kind, RUNNABLE_KINDS),
+          ),
+        )
+        .orderBy(desc(experimentVersion.versionNumber))
+        .limit(1);
+      if (!ver) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "This study isn't running." });
+      }
+      const res = await runtimeSetRecruitmentStatus(ver.id, input.status);
+      if (!res.ok) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Recruitment hasn't been opened yet." });
+      }
       return { ok: true };
     }),
 
