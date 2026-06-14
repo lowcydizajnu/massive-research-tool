@@ -38,21 +38,62 @@ export function slugifyLabel(s: string): string {
   );
 }
 
-/** Default column set: fixed meta columns, then one per question block. */
+/** Absolute-URL context for the per-respondent viz-link columns (ADR-0041 am.).
+ *  Passed in by the client (window.location.origin) — this file stays pure. */
+export type ExportCtx = { studyId: string; origin: string };
+
+/** A spatial-block viz column's key — `viz:<instanceId>`. A colon never appears
+ *  in an instanceId/ULID or a `${instanceId}.${fieldKey}` field key, so no clash. */
+const VIZ_PREFIX = "viz:";
+
+/** Default column set: fixed meta columns, then one per question block, then one
+ *  per-respondent Explore-link column per spatial block (ADR-0041 amendment). */
 export function baseColumns(results: ResultsSummary): ExportColumn[] {
   const meta = META.map((m) => ({ key: m.key, source: m.source, type: "meta" as const, label: m.label, hidden: false }));
   const seen = new Map<string, number>();
-  const questions = results.questions.map((q) => {
-    let label = slugifyLabel(q.prompt || q.moduleKey);
-    const n = seen.get(label) ?? 0;
-    seen.set(label, n + 1);
-    if (n > 0) label = `${label}_${n + 1}`; // de-dupe default labels
-    return { key: q.instanceId, source: q.prompt || q.moduleKey, type: q.kind, label, hidden: false };
-  });
-  return [...meta, ...questions];
+  const dedupe = (base: string): string => {
+    const n = seen.get(base) ?? 0;
+    seen.set(base, n + 1);
+    return n > 0 ? `${base}_${n + 1}` : base;
+  };
+  const questions = results.questions.map((q) => ({
+    key: q.instanceId,
+    source: q.prompt || q.moduleKey,
+    type: q.kind,
+    label: dedupe(slugifyLabel(q.prompt || q.moduleKey)),
+    hidden: false,
+  }));
+  // One column per spatial block: each row links to THAT respondent's view.
+  const viz = results.questions
+    .filter((q) => q.spatial != null)
+    .map((q) => ({
+      key: `${VIZ_PREFIX}${q.instanceId}`,
+      source: `${q.prompt || q.moduleKey} — explore link`,
+      type: "meta" as const,
+      label: dedupe(`${slugifyLabel(q.prompt || q.moduleKey)}_explore_url`),
+      hidden: false,
+    }));
+  return [...meta, ...questions, ...viz];
 }
 
-function cell(row: Row, key: string): string {
+/** responseIds that actually have a per-respondent response, per block instanceId
+ *  — `rows[]` is a superset of `spatial.responses[]`, so a respondent who never
+ *  reached the block gets an empty link cell, not a wrong-respondent deep link. */
+function spatialMembers(results: ResultsSummary): Map<string, Set<string>> {
+  const m = new Map<string, Set<string>>();
+  for (const q of results.questions) {
+    if (q.spatial?.responses) m.set(q.instanceId, new Set(q.spatial.responses.map((r) => r.responseId)));
+  }
+  return m;
+}
+
+function cell(row: Row, key: string, ctx?: ExportCtx, members?: Map<string, Set<string>>): string {
+  if (key.startsWith(VIZ_PREFIX)) {
+    if (!ctx) return ""; // no origin (e.g. a pure test) → blank, never a relative URL
+    const inst = key.slice(VIZ_PREFIX.length);
+    if (members && !members.get(inst)?.has(row.responseId)) return ""; // respondent not in this block
+    return `${ctx.origin}/studies/${ctx.studyId}/results/explore/${inst}?r=${row.responseId}`;
+  }
   switch (key) {
     case "responseId":
       return row.responseId;
@@ -73,11 +114,13 @@ function cell(row: Row, key: string): string {
 export function buildMatrix(
   results: ResultsSummary,
   columns: ExportColumn[],
+  ctx?: ExportCtx,
 ): { headers: string[]; rows: string[][] } {
   const visible = columns.filter((c) => !c.hidden);
+  const members = spatialMembers(results);
   return {
     headers: visible.map((c) => c.label),
-    rows: results.rows.map((r) => visible.map((c) => cell(r, c.key))),
+    rows: results.rows.map((r) => visible.map((c) => cell(r, c.key, ctx, members))),
   };
 }
 
@@ -86,32 +129,11 @@ function escapeDelimited(v: string, delim: string): string {
 }
 
 /**
- * Per-block links to the dedicated Explore visualization (ADR-0041 amendment).
- * One per spatial block (heat-map/hot-spot/graphic-slider), keyed off the
- * already-computed `q.spatial` flag. Pure: `origin` is passed in (this file
- * never touches `window`). Returns a raw absolute https URL — auto-linkified by
- * Excel/Sheets/editors and CSV-injection-safe (unlike a HYPERLINK() formula).
- */
-export function spatialLinks(
-  results: ResultsSummary,
-  studyId: string,
-  origin: string,
-): { prompt: string; url: string }[] {
-  return results.questions
-    .filter((q) => q.spatial != null)
-    .map((q) => ({
-      prompt: q.prompt || q.moduleKey,
-      url: `${origin}/studies/${studyId}/results/explore/${q.instanceId}`,
-    }));
-}
-
-/**
  * CSV (delim ",") or TSV (delim "\t"). RFC-4180-ish quoting; CRLF rows. When
- * `opts` carries a studyId + origin AND the dataset has spatial blocks, a small
- * "# Spatial visualizations" section is appended after the matrix — one raw
- * https link per block. It's one-per-block (not one-per-respondent), so it would
- * be a constant junk column in the grid; a labeled trailing section is cleaner
- * and the leading `#` row is conventionally skippable by stats importers.
+ * `opts` carries studyId + origin, the per-spatial-block viz columns resolve to
+ * a per-respondent absolute deep link (`…/explore/<instanceId>?r=<responseId>`);
+ * the raw https URL is auto-linkified by Excel/Sheets and CSV-injection-safe via
+ * escapeDelimited (no leading = + - @, no HYPERLINK() formula).
  */
 export function toDelimited(
   results: ResultsSummary,
@@ -119,28 +141,19 @@ export function toDelimited(
   delim: "," | "\t",
   opts?: { studyId?: string; origin?: string },
 ): string {
-  const { headers, rows } = buildMatrix(results, columns);
-  const body = [headers, ...rows].map((r) => r.map((c) => escapeDelimited(c, delim)).join(delim)).join("\r\n");
-  const links = opts?.studyId && opts?.origin ? spatialLinks(results, opts.studyId, opts.origin) : [];
-  if (links.length === 0) return body;
-  const linkRows = [
-    [],
-    ["# Spatial visualizations (open in browser, signed in)"],
-    ["block", "url"],
-    ...links.map((l) => [l.prompt, l.url]),
-  ]
-    .map((r) => r.map((c) => escapeDelimited(c, delim)).join(delim))
-    .join("\r\n");
-  return `${body}\r\n${linkRows}`;
+  const ctx = opts?.studyId && opts?.origin ? { studyId: opts.studyId, origin: opts.origin } : undefined;
+  const { headers, rows } = buildMatrix(results, columns, ctx);
+  return [headers, ...rows].map((r) => r.map((c) => escapeDelimited(c, delim)).join(delim)).join("\r\n");
 }
 
 /** One JSON object per response, keyed by export label. */
-export function toJSON(results: ResultsSummary, columns: ExportColumn[]): string {
+export function toJSON(results: ResultsSummary, columns: ExportColumn[], ctx?: ExportCtx): string {
   const visible = columns.filter((c) => !c.hidden);
+  const members = spatialMembers(results);
   return JSON.stringify(
     results.rows.map((r) => {
       const o: Record<string, string> = {};
-      for (const c of visible) o[c.label] = cell(r, c.key);
+      for (const c of visible) o[c.label] = cell(r, c.key, ctx, members);
       return o;
     }),
     null,

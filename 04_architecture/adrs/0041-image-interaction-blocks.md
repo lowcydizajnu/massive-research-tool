@@ -83,4 +83,31 @@ The explore surface renders per-respondent dots and re-renders on every conditio
 
 - spatial-viz-explore-design workflow + adversarial review (2026-06-14)
 - Wireframe: [spatial-explore](../../03_design/wireframes/spatial-explore.md)
-- Code: `components/feature/results/spatial-explorer.tsx`, `app/(app)/(study)/studies/[id]/results/explore/[instanceId]/page.tsx`, `server/trpc/routers/studies.ts` (getResults), `lib/export/dataset.ts` (`spatialLinks`)
+- Code: `components/feature/results/spatial-explorer.tsx`, `app/(app)/(study)/studies/[id]/results/explore/[instanceId]/page.tsx`, `server/trpc/routers/studies.ts` (getResults), `lib/export/dataset.ts` (per-respondent explore-link column — see the 2026-06-14b amendment)
+
+---
+
+## Amendment (2026-06-14b) — per-respondent export deep-link, hot-spot authoring editor, image-tone control
+
+Owner follow-ups after the first explore release. Designed + adversarially reviewed (`spatial-followups-design` workflow). All three extend ADR-0041; none is a new architectural concept and none needs a DB migration (block config + per-respondent rows derive from the ADR-0012 snapshot + existing answers).
+
+### 1. Export viz link → per-respondent **deep-link column** (reverses the first amendment's trailing section)
+
+The first amendment appended a collective `# Spatial visualizations` key/value section (one block-level URL). The owner wants the link **per respondent, in a dedicated column**. Replaced by: one real `ExportColumn` per spatial block (key `viz:<instanceId>`, type `meta`, toggleable/reorderable like any column), whose **per-row** cell is an absolute deep link that opens *that respondent* in the Explore per-respondent view: `…/results/explore/<instanceId>?r=<responseId>`. The Explore page + island gain a `?r=<responseId>` param (open per-respondent at that respondent). `spatialLinks()` + the trailing section are **removed**.
+
+- **Membership guard (load-bearing):** `rows[]` (all completed) is a **superset** of `spatial.responses[]` (only responses with an item for *that* block). The column emits a link **only for rows present in that block's `spatial.responses[]`** (empty cell otherwise), and the explorer guards `findIndex === -1` (shows a "no response for this block" notice / falls back to aggregate) so a stray `?r=` can never silently open respondent #1.
+- **Purity:** `dataset.ts` stays `window`-free — an optional `ctx {studyId, origin}` is threaded from the client `ExportBuilder` through `buildMatrix`/`toJSON`/`toDelimited`. Raw `https` URL (no `HYPERLINK()`), `escapeDelimited`-safe.
+
+### 2. Hot-spot **visual region editor** in the Builder (authoring-side coordinate capture)
+
+ADR-0041 specified *participant-side* coordinate capture. This records the **authoring** counterpart: a Builder Configure editor (`RegionsEditor`, dispatched from `configure-form.tsx` for `hot-spot.regions`) where the researcher **draws** rectangles on the stimulus and **reads** them in a region list — reusing the **same** normalized-0..1 model and the **same** `normalizedPoint` helper, with **rect-only** regions (polygons still deferred) and **keyboard parity** mandatory on the authoring side too (add/select/nudge/resize/delete/relabel without a pointer). Region **keys are frozen on edit** so already-collected `selected`/`regionKeys` stay valid against the registry `validateAnswer` stray-key check. This also **fixes a bug**: `regions` (an object array) currently falls through the generic `string[]` editor and renders as `[object Object]`, corrupting the config on edit. Pure geometry helpers live in `lib/take/image-coords.ts` (node-tested). New surface → wireframe gate ([hot-spot-region-editor](../../03_design/wireframes/hot-spot-region-editor.md)).
+
+### 3. Image-tone (**saturation**) control on the Explore surface
+
+A display-only saturation slider on the Explore stimulus image (`filter: saturate(N%)`, default 100% — desaturating helps the colored dots/density read against a busy stimulus). Applied to the `<img>` **only**, never the overlay layer (saturating the `--color-primary` dots would distort the data viz). Never touches exported data. Available for all spatial kinds (one shared image). Native labelled range; the text readout remains authoritative for AT.
+
+### Amendment-b references
+
+- spatial-followups-design workflow + adversarial review (2026-06-14)
+- Wireframes: [hot-spot-region-editor](../../03_design/wireframes/hot-spot-region-editor.md), [spatial-explore](../../03_design/wireframes/spatial-explore.md) (amended)
+- Code: `lib/export/dataset.ts`, `components/feature/results/export-builder.tsx`, `app/(app)/(study)/studies/[id]/results/explore/[instanceId]/page.tsx`, `components/feature/results/spatial-explorer.tsx`, `components/feature/builder/configure-form.tsx` (`RegionsEditor`), `lib/take/image-coords.ts`
