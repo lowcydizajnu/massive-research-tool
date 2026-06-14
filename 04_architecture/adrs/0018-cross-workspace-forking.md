@@ -55,6 +55,18 @@ We follow ADR-0002 (snapshot, version-pinned lineage, no participant data). The 
 - Pull-from-upstream / merge ships (ADR-0002's deferred half).
 - A study needs per-field cross-tenant visibility finer than "public ⇒ whole protocol visible."
 
+## Amendment (2026-06-14) — replication requires a frozen version
+
+The audit found the original Decision 2 "pin the latest runnable version **else the working tip**" let a study that was only ever a **draft** (never preregistered/published) be replicated, and `setForkable` would flip any study to `public` with no stage check — so a moving draft could be offered for replication. That contradicts the open-science intent (you replicate a *registered* design, not a shifting draft).
+
+**Decision:** replication now requires a **frozen** version (`RUNNABLE_KINDS` = preregistered/published):
+
+- `loadForkSource` drops the unconditional tip fallback. The tip (autosave draft) fallback is kept **only for a same-workspace active member** — duplicating your own work-in-progress (the "Use as template" path) stays allowed. A **public / cross-workspace replication of a draft is refused** (`PRECONDITION_FAILED`, "isn't frozen yet").
+- `setForkable` refuses `public`/`link-only` until the study has a frozen version (setting back to `private` is always allowed).
+- The Builder disables the forkable toggle + Replicate affordance until a frozen version exists.
+
+Own-private-draft carve-out (same-workspace duplication of an unfrozen draft) is **kept** — confirm with the owner if even that should be gated. Migration-free.
+
 ## References
 
 - [ADR-0002 — Snapshot-based forking](0002-forking-model.md) (the forking model + `forkable_by` permission this implements across tenants).

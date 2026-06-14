@@ -199,7 +199,7 @@ async function loadForkSource(studyId: string, callerUserId: string) {
     throw new TRPCError({ code: "FORBIDDEN", message: "This study isn't open for replication." });
   }
 
-  // Pin the latest runnable version (what's meaningful to replicate) else the tip.
+  // Pin the latest runnable (frozen) version — what's meaningful to replicate.
   const [runnable] = await db
     .select()
     .from(experimentVersion)
@@ -212,7 +212,11 @@ async function loadForkSource(studyId: string, callerUserId: string) {
     .orderBy(desc(experimentVersion.versionNumber))
     .limit(1);
   let version = runnable;
-  if (!version && exp.currentVersionId) {
+  // Carve-out (ADR-0018 amendment 2026-06-14): only a same-workspace member may
+  // replicate an unfrozen DRAFT — that's duplicating your own work-in-progress.
+  // A public / cross-workspace replication requires a FROZEN version; you can't
+  // replicate a moving draft.
+  if (!version && isMember && exp.currentVersionId) {
     [version] = await db
       .select()
       .from(experimentVersion)
@@ -220,7 +224,10 @@ async function loadForkSource(studyId: string, callerUserId: string) {
       .limit(1);
   }
   if (!version) {
-    throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Nothing to replicate yet." });
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: "This study isn’t frozen yet — preregister or publish it before it can be replicated.",
+    });
   }
   return { experiment: exp, version };
 }
@@ -3763,6 +3770,29 @@ export const studiesRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }): Promise<{ forkableBy: string }> => {
+      // Offering a study for replication (public/link-only) requires a FROZEN
+      // version — you can't expose a moving draft for others to replicate
+      // (ADR-0018 amendment 2026-06-14). Setting back to private is always fine.
+      if (input.forkableBy !== "private") {
+        const [frozen] = await db
+          .select({ id: experimentVersion.id })
+          .from(experimentVersion)
+          .innerJoin(experiment, eq(experimentVersion.experimentId, experiment.id))
+          .where(
+            and(
+              eq(experimentVersion.experimentId, input.studyId),
+              eq(experiment.tenantId, ctx.workspace.id),
+              inArray(experimentVersion.kind, RUNNABLE_KINDS),
+            ),
+          )
+          .limit(1);
+        if (!frozen) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "Preregister or publish this study before opening it for replication.",
+          });
+        }
+      }
       const [row] = await db
         .update(experiment)
         .set({ forkableBy: input.forkableBy, updatedAt: new Date() })
