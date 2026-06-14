@@ -1,11 +1,22 @@
 "use client";
 
 import { X } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import type { StudyBlock } from "@/server/trpc/routers/studies";
 import { UploadButton } from "@/components/feature/builder/upload-button";
 import { mediaKindForField } from "@/lib/uploads";
+import { cn } from "@/lib/utils";
+import {
+  minRegionSize,
+  nextRegionKey,
+  normalizedPoint,
+  nudgeRegion,
+  rectFromCorners,
+  regionAtPoint,
+  resizeRegion,
+  type Region,
+} from "@/lib/take/image-coords";
 
 /**
  * Right-panel Configure form for the selected block. Generic for V1: one field
@@ -147,6 +158,24 @@ export function ConfigureForm({
                 value={Array.isArray(value) ? (value as SbsColumnCfg[]) : []}
                 onCommit={(columns) => {
                   const next = { ...draft, columns };
+                  setDraft(next);
+                  onChange(next);
+                }}
+              />
+            );
+          }
+
+          // hot-spot regions → visual draw-on-image editor (ADR-0041 amendment).
+          // Without this, region OBJECTS fall through to the string[] branch below
+          // and render as "[object Object]", corrupting the config on edit.
+          if (key === "regions" && block.key === "hot-spot") {
+            return (
+              <RegionsEditor
+                key={key}
+                imageUrl={typeof draft.imageUrl === "string" ? draft.imageUrl : ""}
+                regions={Array.isArray(value) ? (value as Region[]) : []}
+                onCommit={(regions) => {
+                  const next = { ...draft, regions };
                   setDraft(next);
                   onChange(next);
                 }}
@@ -540,4 +569,201 @@ function ColumnsEditor({ value, onCommit }: { value: SbsColumnCfg[]; onCommit: (
       <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">e.g. trust | Trustworthiness | Low, Medium, High</span>
     </label>
   );
+}
+
+/* ---------- hot-spot visual region editor (ADR-0041 amendment) ---------- */
+
+type RegionCfg = Region;
+
+/**
+ * Draw + read hot-spot regions directly on the stimulus (hot-spot-region-editor.md).
+ * Drag on the image to add a rectangle; select to rename/nudge/resize/delete.
+ * Geometry is normalized 0..1 via the shared `image-coords` helpers (same model
+ * as the participant runtime). Region keys are frozen on edit so already-collected
+ * responses stay valid. Structural edits commit immediately; labels commit onBlur.
+ */
+function RegionsEditor({
+  imageUrl,
+  regions,
+  onCommit,
+}: {
+  imageUrl: string;
+  regions: RegionCfg[];
+  onCommit: (regions: RegionCfg[]) => void;
+}) {
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [drag, setDrag] = useState<{ a: { x: number; y: number }; b: { x: number; y: number } } | null>(null);
+  const [draftLabels, setDraftLabels] = useState<Record<string, string>>({});
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  const ptFrom = (clientX: number, clientY: number) => {
+    const el = wrapRef.current;
+    return el ? normalizedPoint(clientX, clientY, el.getBoundingClientRect()) : { x: 0, y: 0 };
+  };
+
+  const update = (key: string, patch: Partial<RegionCfg>) =>
+    onCommit(regions.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+  const remove = (key: string) => {
+    onCommit(regions.filter((r) => r.key !== key));
+    setSelectedKey((s) => (s === key ? null : s));
+  };
+  const addRegion = (rect: { x: number; y: number; w: number; h: number }) => {
+    const key = nextRegionKey(regions);
+    onCommit([...regions, { key, label: `Region ${regions.length + 1}`, ...rect }]);
+    setSelectedKey(key);
+  };
+  const move = (key: string, dx: number, dy: number) => {
+    const r = regions.find((x) => x.key === key);
+    if (r) update(key, nudgeRegion(r, dx, dy));
+  };
+  const resize = (key: string, dw: number, dh: number) => {
+    const r = regions.find((x) => x.key === key);
+    if (r) update(key, resizeRegion(r, dw, dh));
+  };
+
+  const onRegionKeyDown = (e: React.KeyboardEvent, key: string) => {
+    const step = e.shiftKey ? 0.1 : 0.01;
+    const arrow: Record<string, [number, number]> = {
+      ArrowLeft: [-step, 0],
+      ArrowRight: [step, 0],
+      ArrowUp: [0, -step],
+      ArrowDown: [0, step],
+    };
+    if (arrow[e.key]) {
+      e.preventDefault();
+      const [dx, dy] = arrow[e.key];
+      if (e.altKey) resize(key, dx, dy);
+      else move(key, dx, dy);
+    } else if (e.key === "Delete" || e.key === "Backspace") {
+      e.preventDefault();
+      remove(key);
+    }
+  };
+
+  const preview = drag ? rectFromCorners(drag.a, drag.b) : null;
+  const boxCls = (key: string) =>
+    cn(
+      "absolute rounded-[var(--radius-sm)] border-2 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]",
+      selectedKey === key
+        ? "border-[var(--color-primary)] bg-[var(--color-primary)]/25"
+        : "border-[var(--color-border-medium)] bg-white/10 hover:bg-[var(--color-primary)]/10",
+    );
+
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="text-[length:var(--text-label)] uppercase tracking-wide text-[var(--color-text-muted)]">Regions</span>
+
+      {imageUrl ? (
+        <div
+          ref={wrapRef}
+          onPointerDown={(e) => {
+            const p = ptFrom(e.clientX, e.clientY);
+            setDrag({ a: p, b: p });
+          }}
+          onPointerMove={(e) => {
+            if (drag) setDrag((d) => (d ? { ...d, b: ptFrom(e.clientX, e.clientY) } : d));
+          }}
+          onPointerUp={() => {
+            if (!drag) return;
+            const rect = rectFromCorners(drag.a, drag.b);
+            const end = drag.b;
+            setDrag(null);
+            if (rect.w >= minRegionSize && rect.h >= minRegionSize) addRegion(rect);
+            else setSelectedKey(regionAtPoint(regions, end)); // tiny drag = click → select
+          }}
+          className="relative w-full touch-none cursor-crosshair overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-border-subtle)]"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element -- researcher stimulus, normalized overlay */}
+          <img src={imageUrl} alt="" draggable={false} className="block w-full select-none" />
+          {regions.map((r) => (
+            <button
+              key={r.key}
+              type="button"
+              aria-pressed={selectedKey === r.key}
+              aria-label={`Region ${r.label}`}
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => setSelectedKey(r.key)}
+              onKeyDown={(e) => onRegionKeyDown(e, r.key)}
+              style={{ left: `${r.x * 100}%`, top: `${r.y * 100}%`, width: `${r.w * 100}%`, height: `${r.h * 100}%` }}
+              className={boxCls(r.key)}
+            >
+              <span className="absolute left-0 top-0 rounded-br bg-black/40 px-1 text-[length:var(--text-small)] font-medium text-white">
+                {r.label}
+              </span>
+            </button>
+          ))}
+          {preview ? (
+            <span
+              aria-hidden
+              style={{ left: `${preview.x * 100}%`, top: `${preview.y * 100}%`, width: `${preview.w * 100}%`, height: `${preview.h * 100}%` }}
+              className="absolute rounded-[var(--radius-sm)] border-2 border-dashed border-[var(--color-primary)] bg-[var(--color-primary)]/10"
+            />
+          ) : null}
+        </div>
+      ) : (
+        <div className="flex h-48 items-center justify-center rounded-[var(--radius-md)] border border-dashed border-[var(--color-border-subtle)] text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+          No image configured — add an image above to draw regions.
+        </div>
+      )}
+
+      {imageUrl ? (
+        <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+          Drag on the image to draw a region. Select one to rename; arrows nudge, Alt+arrows resize, Delete removes.
+        </p>
+      ) : null}
+
+      <ul className="flex flex-col gap-1">
+        {regions.map((r, i) => (
+          <li
+            key={r.key}
+            className={cn(
+              "flex items-center gap-2 rounded-[var(--radius-sm)] border p-1.5",
+              selectedKey === r.key ? "border-[var(--color-primary)]" : "border-[var(--color-border-subtle)]",
+            )}
+          >
+            <span className="font-mono text-[length:var(--text-mono)] text-[var(--color-text-muted)]">{r.key}</span>
+            <input
+              type="text"
+              aria-label={`Region ${i + 1} label`}
+              value={draftLabels[r.key] ?? r.label}
+              onFocus={() => setSelectedKey(r.key)}
+              onChange={(e) => setDraftLabels((d) => ({ ...d, [r.key]: e.target.value }))}
+              onBlur={() => {
+                const next = draftLabels[r.key];
+                if (next !== undefined && next !== r.label) update(r.key, { label: next });
+                setDraftLabels((d) => {
+                  const { [r.key]: _drop, ...rest } = d;
+                  return rest;
+                });
+              }}
+              className="min-w-0 flex-1 rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-1 text-[length:var(--text-small)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+            />
+            <button
+              type="button"
+              aria-label={`Remove region ${r.label}`}
+              onClick={() => remove(r.key)}
+              className="shrink-0 rounded-[var(--radius-sm)] p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)] hover:text-[var(--color-danger-text-on-subtle)]"
+            >
+              <X className="size-3.5" aria-hidden />
+            </button>
+          </li>
+        ))}
+      </ul>
+
+      <button
+        type="button"
+        onClick={() => addRegion(clampedCentered(regions.length))}
+        className="self-start rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-2 py-0.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
+      >
+        + Add region
+      </button>
+    </div>
+  );
+}
+
+/** A default centered region for keyboard-first "Add region" (slightly offset so
+ *  successive adds don't stack exactly). */
+function clampedCentered(n: number): { x: number; y: number; w: number; h: number } {
+  const off = Math.min(0.2, (n % 4) * 0.05);
+  return { x: Math.min(0.4 + off, 0.6), y: Math.min(0.4 + off, 0.6), w: 0.2, h: 0.2 };
 }
