@@ -34,6 +34,15 @@ export type RegistrationPayload = {
   existingNodeId?: string | null;
   /** Prepended to the default summary (amendment headers). */
   summaryPrefix?: string;
+  /** Human-readable design (abstract + hypotheses + protocol) for the Open-Ended
+   *  summary, above the machine JSON — so OSF shows real content, not just a dump
+   *  (audit step 3). */
+  humanReadableBody?: string;
+  /** OSF project-node enrichment (audit step 3): a one-line description, a
+   *  permalink back to the study, and study tags. Absent → node stays minimal. */
+  description?: string;
+  permalink?: string;
+  tags?: string[];
 };
 
 export type PushResult = {

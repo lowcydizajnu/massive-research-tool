@@ -8,7 +8,7 @@ import type { RegistrationPayload } from "@/server/adapters/registry";
 import { db } from "@/server/db/client";
 import { changelogBetween } from "@/server/modules/changelog";
 import { readOverview } from "@/server/modules/blocks";
-import { buildRecipeResponses, RECIPE_SCHEMA_NAME } from "@/server/modules/osf-recipe";
+import { buildOpenEndedBody, buildRecipeResponses, RECIPE_SCHEMA_NAME } from "@/server/modules/osf-recipe";
 import { emit } from "@/server/events/emit";
 import {
   experiment,
@@ -55,6 +55,8 @@ export async function runRegistryPush(data: JobCatalog["registry.push"]): Promis
   const [exp] = await db
     .select({
       title: experiment.title,
+      description: experiment.description,
+      tags: experiment.tags,
       tenantId: experiment.tenantId,
       ownerId: experiment.ownerId,
       forkOfExperimentId: experiment.forkOfExperimentId,
@@ -118,6 +120,14 @@ export async function runRegistryPush(data: JobCatalog["registry.push"]): Promis
       ((priorPush?.responsePayload as { nodeId?: string } | null)?.nodeId as string | undefined) ?? null;
   }
 
+  // Human-readable design for the Open-Ended summary + node enrichment (audit
+  // step 3) — so OSF shows real app content, not just the title + a JSON dump.
+  // The recipe path builds its own structured responses, so this feeds only the
+  // default Open-Ended push.
+  const humanReadableBody = buildOpenEndedBody(version.definitionSnapshot);
+  const appBase = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, "");
+  const permalink = appBase ? `${appBase}/studies/${version.experimentId}` : undefined;
+
   const payload: RegistrationPayload = {
     experimentVersionId: version.id,
     title: exp?.title ?? version.name ?? "Untitled study",
@@ -136,7 +146,10 @@ export async function runRegistryPush(data: JobCatalog["registry.push"]): Promis
             amendmentHeader,
           }),
         }
-      : {}),
+      : { humanReadableBody }),
+    ...(exp?.description?.trim() ? { description: exp.description.trim() } : {}),
+    ...(exp?.tags && exp.tags.length ? { tags: exp.tags } : {}),
+    ...(permalink ? { permalink } : {}),
     ...(amendmentHeader ? { summaryPrefix: amendmentHeader } : {}),
     existingNodeId,
   };
