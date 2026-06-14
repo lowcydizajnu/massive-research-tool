@@ -46,3 +46,41 @@ We will add the four blocks as ADR-0013 client islands over a shared normalize h
 - [ADR-0003](0003-asset-storage.md) (amended here: signed disposition), [ADR-0013](0013-participant-runtime-and-analytics.md) (client islands)
 - Wireframes: [heat-map](../../03_design/wireframes/heat-map.md), [hot-spot](../../03_design/wireframes/hot-spot.md), [graphic-slider](../../03_design/wireframes/graphic-slider.md), [signature](../../03_design/wireframes/signature.md)
 - Code: `lib/take/image-coords.ts`, `components/feature/take/{heat-map,hot-spot,graphic-slider,signature}-input.tsx`, `server/adapters/storage.{ts,r2.ts}`, `app/api/media/[...key]/route.ts`
+
+---
+
+## Amendment (2026-06-14) — explorable spatial results (revisit trigger: "add a Results visualization")
+
+The first revisit trigger above ("an aggregated heat overlay → add a Results visualization") fired. v1.37.0 shipped the inline aggregate overlay (`SpatialOverlay`, pooled clicks/region-hits on the stimulus). This amendment adds a **dedicated, explorable per-respondent surface** and records the decisions the workflow + adversarial review settled.
+
+### `getResults` `spatial` payload — additive, migration-free
+
+`ResultsSummary.questions[].spatial` is extended (no DB migration — everything derives from existing `response_item.answer` + `response.conditionId`):
+
+- Added `kind: "heat-map" | "hot-spot" | "graphic-slider"` — lets the surface dispatch per block type.
+- Added `responses[]`: one row per completed respondent for this block — `{ responseId, conditionSlug, externalPid, points?, regionKeys?, value? }`. Built from a new `itemsByBlockResp` map that keeps `responseId` alongside the answer (the existing `itemsByBlock` threw it away — pooling-only).
+- Pooled `points`/`regions` stay exactly as-is, so the inline `SpatialOverlay` is untouched. **graphic-slider** now also emits a synthesized pooled `points` strip (`{x: value, y: 0.5}`) so the inline overlay shows the marker-position distribution, and gets a per-respondent `value`.
+- Backward-compatible: a stale client reading only the v1.37.0 fields keeps working.
+
+### Route slug — `…/results/explore/[instanceId]`
+
+The dedicated page lives at `studies/[id]/results/explore/[instanceId]` (sibling of `…/results/export`). **Why "explore" not "spatial":** "spatial" is a developer term; "explore" reads researcher-native (the export-link copy and any visible label must follow — developer-term check). This is the URL the CSV/Excel export links to.
+
+### Privacy — signature gallery DEFERRED (real finding)
+
+The review found that the spec's "the signature route is auth-gated" justification is **false**: `app/api/media/[...key]/route.ts` is a public gateway with no session check — privacy currently rests on unguessable ULID keys (`resp/<responseId>/<ulid>.png`), i.e. security-by-unguessable-URL, not access control. Aggregate heat/hot-spot and per-respondent points/values/PIDs leak nothing new (they're already in the CSV `rows` at the same auth surface), so **wave 1 ships heat-map + hot-spot + graphic-slider exploration**. A **signature thumbnail gallery enumerates every signature key for a study into the browser**, which materially widens that exposure — it is **deferred** until either (i) `/api/media` enforces workspace-ownership for `resp/` keys, or (ii) unguessable-URL is formally accepted in an ADR-0003 amendment + QA security log with the threat model. No code or privacy copy may claim signatures are "private to your workspace" until (i) lands.
+
+### Performance — hard cap, not a suggestion
+
+The explore surface renders per-respondent dots and re-renders on every condition-filter toggle. Dots are **hard-capped** (auto-switch to the density grid above the cap), memoized per filter change — not a soft "showing first N" note.
+
+### Scope of this amendment
+
+- **In:** the additive `spatial` shape; the `explore/[instanceId]` page (heat-map + hot-spot + graphic-slider); the CSV/Excel viz-link column; the inline "Explore responses →" link.
+- **Deferred:** signature gallery (privacy, above); `/api/media` `resp/` authorization (security item, tracked separately).
+
+### Amendment references
+
+- spatial-viz-explore-design workflow + adversarial review (2026-06-14)
+- Wireframe: [spatial-explore](../../03_design/wireframes/spatial-explore.md)
+- Code: `components/feature/results/spatial-explorer.tsx`, `app/(app)/(study)/studies/[id]/results/explore/[instanceId]/page.tsx`, `server/trpc/routers/studies.ts` (getResults), `lib/export/dataset.ts` (`spatialLinks`)

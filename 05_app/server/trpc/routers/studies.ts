@@ -564,12 +564,28 @@ export type ResultsSummary = {
     kind: "numeric" | "categorical" | "text";
     mean: number | null;
     optionCounts: { value: string; count: number }[];
-    /** Spatial overlay (heat-map/hot-spot) — the stimulus image + aggregated
-     *  clicks/region hits, rendered on the Results page (ADR-0041). */
+    /** Spatial overlay — the stimulus image + aggregated clicks/region hits
+     *  (inline on Results, ADR-0041) plus per-respondent rows for the dedicated
+     *  Explore surface (ADR-0041 amendment). `points`/`regions` stay pooled and
+     *  backward-compatible; `kind` + `responses` are additive. */
     spatial?: {
+      kind: "heat-map" | "hot-spot" | "graphic-slider";
       imageUrl: string;
       points?: { x: number; y: number }[];
       regions?: { key: string; label: string; x: number; y: number; w: number; h: number; count: number }[];
+      /** One row per completed respondent who reached this block — the basis for
+       *  per-respondent + per-condition exploration. Derived, no migration. */
+      responses?: {
+        responseId: string;
+        conditionSlug: string;
+        externalPid: string | null;
+        /** heat-map */
+        points?: { x: number; y: number }[];
+        /** hot-spot — region keys this respondent selected */
+        regionKeys?: string[];
+        /** graphic-slider — 0..1 marker position */
+        value?: number;
+      }[];
     };
   }[];
   rows: {
@@ -2885,12 +2901,28 @@ export const studiesRouter = router({
             ? "text"
             : "numeric"; // likert-7, slider
 
+      // Per-respondent identity for spatial exploration (ADR-0041 amendment):
+      // condition slug + external PID keyed by responseId. Derived from the
+      // already-loaded `completed` rows — no extra query, no migration.
+      const respMeta = new Map(
+        completed.map((r) => [
+          r.id,
+          { conditionSlug: condBySlug.get(r.conditionId)?.slug ?? "?", externalPid: r.externalPid },
+        ]),
+      );
+
       const itemsByBlock = new Map<string, unknown[]>();
+      // Parallel to itemsByBlock but KEEPS responseId — spatial per-respondent
+      // views need it; the pooled map deliberately threw it away.
+      const itemsByBlockResp = new Map<string, { responseId: string; answer: unknown }[]>();
       const answersByResponse = new Map<string, Record<string, string>>();
       for (const it of items) {
         const arr = itemsByBlock.get(it.blockInstanceId) ?? [];
         arr.push(it.answer);
         itemsByBlock.set(it.blockInstanceId, arr);
+        const arrR = itemsByBlockResp.get(it.blockInstanceId) ?? [];
+        arrR.push({ responseId: it.responseId, answer: it.answer });
+        itemsByBlockResp.set(it.blockInstanceId, arrR);
         const row = answersByResponse.get(it.responseId) ?? {};
         row[it.blockInstanceId] = stringifyAnswer(it.answer);
         answersByResponse.set(it.responseId, row);
@@ -2957,7 +2989,7 @@ export const studiesRouter = router({
             };
           });
         }
-        return [((b) => {
+        return [((b): QResult => {
         const kind = kindOf(b.key);
         const answers = itemsByBlock.get(b.instanceId) ?? [];
         const prompt =
@@ -2998,35 +3030,56 @@ export const studiesRouter = router({
             optionCounts: [...counts.entries()].map(([value, count]) => ({ value, count })),
           };
         }
-        // Spatial blocks (ADR-0041): aggregate clicks/region hits over the image.
+        // Spatial blocks (ADR-0041 + amendment): pooled aggregate for the inline
+        // overlay + per-respondent rows (responseId → condition/PID) for Explore.
+        const withResp = itemsByBlockResp.get(b.instanceId) ?? [];
         if (b.key === "heat-map") {
           const imageUrl = typeof b.config?.imageUrl === "string" ? b.config.imageUrl : "";
-          const points = answers.flatMap((a) => {
-            const pts = (a as { points?: unknown[] })?.points;
-            return Array.isArray(pts)
+          const responses = withResp.map(({ responseId, answer }) => {
+            const m = respMeta.get(responseId);
+            const pts = (answer as { points?: unknown[] })?.points;
+            const points = Array.isArray(pts)
               ? pts
                   .map((pt) => pt as { x?: unknown; y?: unknown })
                   .filter((pt) => typeof pt.x === "number" && typeof pt.y === "number")
                   .map((pt) => ({ x: pt.x as number, y: pt.y as number }))
               : [];
+            return { responseId, conditionSlug: m?.conditionSlug ?? "?", externalPid: m?.externalPid ?? null, points };
           });
-          const responders = answers.filter((a) => Array.isArray((a as { points?: unknown[] })?.points) && (a as { points: unknown[] }).points.length > 0).length;
-          return { instanceId: b.instanceId, prompt, moduleKey: b.key, n: responders, kind, mean: null, optionCounts: [], spatial: { imageUrl, points } };
+          const points = responses.flatMap((r) => r.points);
+          const responders = responses.filter((r) => r.points.length > 0).length;
+          return { instanceId: b.instanceId, prompt, moduleKey: b.key, n: responders, kind, mean: null, optionCounts: [], spatial: { kind: "heat-map", imageUrl, points, responses } };
         }
         if (b.key === "hot-spot") {
           const imageUrl = typeof b.config?.imageUrl === "string" ? b.config.imageUrl : "";
           const regionDefs = (Array.isArray(b.config?.regions) ? b.config!.regions : []) as { key: string; label: string; x: number; y: number; w: number; h: number }[];
           const counts = new Map<string, number>();
           let responders = 0;
-          for (const a of answers) {
-            const sel = (a as { selected?: unknown[] })?.selected;
-            if (Array.isArray(sel) && sel.length) {
+          const responses = withResp.map(({ responseId, answer }) => {
+            const m = respMeta.get(responseId);
+            const sel = (answer as { selected?: unknown[] })?.selected;
+            const regionKeys = Array.isArray(sel) ? sel.map(String) : [];
+            if (regionKeys.length) {
               responders++;
-              for (const k of sel) counts.set(String(k), (counts.get(String(k)) ?? 0) + 1);
+              for (const k of regionKeys) counts.set(k, (counts.get(k) ?? 0) + 1);
             }
-          }
+            return { responseId, conditionSlug: m?.conditionSlug ?? "?", externalPid: m?.externalPid ?? null, regionKeys };
+          });
           const regions = regionDefs.map((r) => ({ ...r, count: counts.get(r.key) ?? 0 }));
-          return { instanceId: b.instanceId, prompt, moduleKey: b.key, n: responders, kind, mean: null, optionCounts: [], spatial: { imageUrl, regions } };
+          return { instanceId: b.instanceId, prompt, moduleKey: b.key, n: responders, kind, mean: null, optionCounts: [], spatial: { kind: "hot-spot", imageUrl, regions, responses } };
+        }
+        if (b.key === "graphic-slider") {
+          const imageUrl = typeof b.config?.imageUrl === "string" ? b.config.imageUrl : "";
+          const responses = withResp.map(({ responseId, answer }) => {
+            const m = respMeta.get(responseId);
+            const v = (answer as { value?: unknown })?.value;
+            return { responseId, conditionSlug: m?.conditionSlug ?? "?", externalPid: m?.externalPid ?? null, value: typeof v === "number" ? v : undefined };
+          });
+          const valued = responses.filter((r) => typeof r.value === "number");
+          // Synthesized pooled strip so the inline overlay shows the spread of
+          // marker positions along the track (y fixed mid-height).
+          const points = valued.map((r) => ({ x: r.value as number, y: 0.5 }));
+          return { instanceId: b.instanceId, prompt, moduleKey: b.key, n: valued.length, kind, mean: null, optionCounts: [], spatial: { kind: "graphic-slider", imageUrl, points, responses } };
         }
         // text (free-text / ranking / demographics) — count any non-empty answer
         const n = answers.filter((a) => stringifyAnswer(a).trim().length > 0).length;

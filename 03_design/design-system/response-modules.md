@@ -37,6 +37,9 @@ Server-rendered, native controls (ADR-0013: no client router; minimal JS), label
 - **Numeric** (likert): mean + n (existing).
 - **Categorical** (multiple-choice): per-option selection counts + n; no mean.
 - **Text** (free-text): n only on screen; raw text per response in the CSV (one column per question, as today).
+- **Spatial** (heat-map / hot-spot / graphic-slider, ADR-0041 + amendment): two tiers, both built only from existing v0.6 primitives (`--color-primary` fills at varying opacity, chips, segmented controls, native range, divs-as-bars — no new design-language decisions).
+  - *Inline on Results* — the aggregate `SpatialOverlay`: the stimulus image with all clicks dotted (heat-map), region rectangles shaded by hit-share + count (hot-spot), or marker positions strewn along the track (graphic-slider). Decorative layer is `aria-hidden`; counts are the authoritative text.
+  - *Dedicated Explore surface* (`…/results/explore/[instanceId]`, [spatial-explore](../wireframes/spatial-explore.md)) — condition-filter chips, Aggregate↔Per-respondent + (heat-map) Dots↔Density segmented controls, an opacity slider, and a block-type readout (hot-spot region-counts table / graphic-slider value histogram + mean·median·n / per-respondent meta). Dots are hard-capped with auto-switch to a fixed density grid (perf). The text readout — not position/color — carries the data for AT.
 
 ## Accessibility notes
 

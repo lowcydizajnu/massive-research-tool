@@ -124,10 +124,14 @@ export function ExportBuilder({ studyId, title }: { studyId: string; title: stri
   const base = safeName(title);
   const csvName = `${base}.csv`;
   const exportFile = () => {
+    // Absolute origin is introduced here (client event handler — no SSR access);
+    // dataset.ts stays pure. Adds a clickable Explore-viz link section to the
+    // delimited/Excel exports when the study has spatial blocks (ADR-0041 am.).
+    const opts = { studyId, origin: window.location.origin };
     if (format === "json") return download(`${base}.json`, "application/json", toJSON(data, cols));
-    if (format === "excel") return download(csvName, "text/csv", toExcelCsv(data, cols));
-    if (format === "tsv") return download(`${base}.tsv`, "text/tab-separated-values", toDelimited(data, cols, "\t"));
-    download(csvName, "text/csv", toDelimited(data, cols, ","));
+    if (format === "excel") return download(csvName, "text/csv", toExcelCsv(data, cols, opts));
+    if (format === "tsv") return download(`${base}.tsv`, "text/tab-separated-values", toDelimited(data, cols, "\t", opts));
+    download(csvName, "text/csv", toDelimited(data, cols, ",", opts));
   };
 
   const saveView = () => {
