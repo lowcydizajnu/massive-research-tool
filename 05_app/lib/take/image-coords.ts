@@ -23,8 +23,14 @@ function clamp01(n: number): number {
  * exact math. A "region" is a normalized 0..1 rectangle; the editor adds {key,label}. */
 
 export type Rect = { x: number; y: number; w: number; h: number };
+/** What clicking a region does (ADR-0043). Absent ⇒ just record the selection. */
+export type RegionAction =
+  | { type: "record" }
+  | { type: "link"; url: string }
+  | { type: "advance" }
+  | { type: "setValue"; key: string; value: string };
 /** `visible:false` = an invisible-but-clickable zone for participants (ADR-0041 am.). */
-export type Region = Rect & { key: string; label: string; visible?: boolean };
+export type Region = Rect & { key: string; label: string; visible?: boolean; action?: RegionAction };
 
 /** A drag below this normalized size is a click (select), not a new region. */
 export const minRegionSize = 0.02;

@@ -16,6 +16,7 @@ import {
   regionAtPoint,
   resizeRegion,
   type Region,
+  type RegionAction,
 } from "@/lib/take/image-coords";
 
 /**
@@ -720,49 +721,52 @@ function RegionsEditor({
           <li
             key={r.key}
             className={cn(
-              "flex items-center gap-2 rounded-[var(--radius-sm)] border p-1.5",
+              "flex flex-col gap-1.5 rounded-[var(--radius-sm)] border p-1.5",
               selectedKey === r.key ? "border-[var(--color-primary)]" : "border-[var(--color-border-subtle)]",
             )}
           >
-            <span className="font-mono text-[length:var(--text-mono)] text-[var(--color-text-muted)]">{r.key}</span>
-            <input
-              type="text"
-              aria-label={`Region ${i + 1} label`}
-              value={draftLabels[r.key] ?? r.label}
-              onFocus={() => setSelectedKey(r.key)}
-              onChange={(e) => setDraftLabels((d) => ({ ...d, [r.key]: e.target.value }))}
-              onBlur={() => {
-                const next = draftLabels[r.key];
-                if (next !== undefined && next !== r.label) update(r.key, { label: next });
-                setDraftLabels((d) => {
-                  const { [r.key]: _drop, ...rest } = d;
-                  return rest;
-                });
-              }}
-              className="min-w-0 flex-1 rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-1 text-[length:var(--text-small)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
-            />
-            <button
-              type="button"
-              aria-pressed={r.visible === false}
-              aria-label={
-                r.visible === false
-                  ? `Region ${r.label} is hidden from participants — show its outline`
-                  : `Region ${r.label} outline is shown — hide it from participants`
-              }
-              title={r.visible === false ? "Hidden from participants (invisible click zone)" : "Outline shown to participants"}
-              onClick={() => update(r.key, { visible: r.visible === false })}
-              className="shrink-0 rounded-[var(--radius-sm)] p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)]"
-            >
-              {r.visible === false ? <EyeOff className="size-3.5" aria-hidden /> : <Eye className="size-3.5" aria-hidden />}
-            </button>
-            <button
-              type="button"
-              aria-label={`Remove region ${r.label}`}
-              onClick={() => remove(r.key)}
-              className="shrink-0 rounded-[var(--radius-sm)] p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)] hover:text-[var(--color-danger-text-on-subtle)]"
-            >
-              <X className="size-3.5" aria-hidden />
-            </button>
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-[length:var(--text-mono)] text-[var(--color-text-muted)]">{r.key}</span>
+              <input
+                type="text"
+                aria-label={`Region ${i + 1} label`}
+                value={draftLabels[r.key] ?? r.label}
+                onFocus={() => setSelectedKey(r.key)}
+                onChange={(e) => setDraftLabels((d) => ({ ...d, [r.key]: e.target.value }))}
+                onBlur={() => {
+                  const next = draftLabels[r.key];
+                  if (next !== undefined && next !== r.label) update(r.key, { label: next });
+                  setDraftLabels((d) => {
+                    const { [r.key]: _drop, ...rest } = d;
+                    return rest;
+                  });
+                }}
+                className="min-w-0 flex-1 rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-1 text-[length:var(--text-small)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+              />
+              <button
+                type="button"
+                aria-pressed={r.visible === false}
+                aria-label={
+                  r.visible === false
+                    ? `Region ${r.label} is hidden from participants — show its outline`
+                    : `Region ${r.label} outline is shown — hide it from participants`
+                }
+                title={r.visible === false ? "Hidden from participants (invisible click zone)" : "Outline shown to participants"}
+                onClick={() => update(r.key, { visible: r.visible === false })}
+                className="shrink-0 rounded-[var(--radius-sm)] p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)]"
+              >
+                {r.visible === false ? <EyeOff className="size-3.5" aria-hidden /> : <Eye className="size-3.5" aria-hidden />}
+              </button>
+              <button
+                type="button"
+                aria-label={`Remove region ${r.label}`}
+                onClick={() => remove(r.key)}
+                className="shrink-0 rounded-[var(--radius-sm)] p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)] hover:text-[var(--color-danger-text-on-subtle)]"
+              >
+                <X className="size-3.5" aria-hidden />
+              </button>
+            </div>
+            <RegionActionRow region={r} index={i} onChange={(action) => update(r.key, { action })} />
           </li>
         ))}
       </ul>
@@ -774,6 +778,82 @@ function RegionsEditor({
       >
         + Add region
       </button>
+    </div>
+  );
+}
+
+/** Per-region click-action picker (ADR-0043): record / open a link / record &
+ *  continue / set a value. Params commit immediately (short fields). */
+function RegionActionRow({
+  region,
+  index,
+  onChange,
+}: {
+  region: Region;
+  index: number;
+  onChange: (action: RegionAction | undefined) => void;
+}) {
+  const a = region.action;
+  const ctl =
+    "rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-1 text-[length:var(--text-small)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]";
+  return (
+    <div className="flex flex-wrap items-center gap-2 pl-1">
+      <label className="flex items-center gap-1 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+        On click
+        <select
+          aria-label={`Region ${index + 1} click action`}
+          value={a?.type ?? "record"}
+          onChange={(e) => {
+            const t = e.target.value;
+            onChange(
+              t === "link"
+                ? { type: "link", url: "https://" }
+                : t === "advance"
+                  ? { type: "advance" }
+                  : t === "setValue"
+                    ? { type: "setValue", key: "tag", value: "1" }
+                    : undefined,
+            );
+          }}
+          className={ctl}
+        >
+          <option value="record">Record only</option>
+          <option value="link">Open a link</option>
+          <option value="advance">Record &amp; continue</option>
+          <option value="setValue">Set a value</option>
+        </select>
+      </label>
+      {a?.type === "link" ? (
+        <input
+          type="url"
+          aria-label={`Region ${index + 1} link URL`}
+          value={a.url}
+          onChange={(e) => onChange({ type: "link", url: e.target.value })}
+          placeholder="https://…"
+          className={cn(ctl, "min-w-0 flex-1")}
+        />
+      ) : null}
+      {a?.type === "setValue" ? (
+        <>
+          <input
+            aria-label={`Region ${index + 1} value key`}
+            value={a.key}
+            onChange={(e) => onChange({ type: "setValue", key: e.target.value, value: a.value })}
+            placeholder="key"
+            className={cn(ctl, "w-24")}
+          />
+          <input
+            aria-label={`Region ${index + 1} value`}
+            value={a.value}
+            onChange={(e) => onChange({ type: "setValue", key: a.key, value: e.target.value })}
+            placeholder="value"
+            className={cn(ctl, "w-24")}
+          />
+        </>
+      ) : null}
+      {a?.type === "advance" ? (
+        <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">best as the only/last block on its screen</span>
+      ) : null}
     </div>
   );
 }

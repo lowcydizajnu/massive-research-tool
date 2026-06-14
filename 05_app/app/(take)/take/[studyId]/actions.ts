@@ -133,7 +133,19 @@ function extractAnswer(moduleKey: string, prefix: string, fd: FormData): unknown
   if (moduleKey === "hot-spot") {
     try {
       const sel = JSON.parse(String(g("selected") ?? "[]"));
-      return { selected: Array.isArray(sel) ? sel.map(String) : [] };
+      const selected = Array.isArray(sel) ? sel.map(String) : [];
+      // setValue action tags (ADR-0043) — re-validated server-side (default-deny
+      // against declared setValue keys), so a forged tag is rejected.
+      let tags: Record<string, string> | undefined;
+      const rawTags = g("tags");
+      if (rawTags) {
+        const parsed = JSON.parse(String(rawTags));
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          const entries = Object.entries(parsed).filter(([, v]) => typeof v === "string");
+          if (entries.length) tags = Object.fromEntries(entries) as Record<string, string>;
+        }
+      }
+      return tags ? { selected, tags } : { selected };
     } catch {
       return { selected: [] };
     }

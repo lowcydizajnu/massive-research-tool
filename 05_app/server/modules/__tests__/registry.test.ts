@@ -281,6 +281,25 @@ describe("Wave 3 image-interaction blocks (ADR-0041, 2026-06-13)", () => {
     // an invisible region is still a valid click target (answer shape unchanged)
     expect(d.validateAnswer!({ selected: ["r1"] }, { regions: [{ key: "r1", visible: false }], multiple: false })).toBe(true);
   });
+  it("hot-spot: region actions (ADR-0043) — config union + tags default-deny", () => {
+    const d = getDef("core", "hot-spot", "1.0.0")!;
+    const base = { prompt: "", imageUrl: "/api/media/ws/x/a.png", multiple: false, required: true };
+    const region = { key: "r1", label: "R1", x: 0.1, y: 0.1, w: 0.2, h: 0.2 };
+    // config accepts each action variant
+    expect(d.configSchema.safeParse({ ...base, regions: [{ ...region, action: { type: "record" } }] }).success).toBe(true);
+    expect(d.configSchema.safeParse({ ...base, regions: [{ ...region, action: { type: "link", url: "https://ok.example" } }] }).success).toBe(true);
+    expect(d.configSchema.safeParse({ ...base, regions: [{ ...region, action: { type: "advance" } }] }).success).toBe(true);
+    expect(d.configSchema.safeParse({ ...base, regions: [{ ...region, action: { type: "setValue", key: "src", value: "ad" } }] }).success).toBe(true);
+    // link must be https (open-redirect safety)
+    expect(d.configSchema.safeParse({ ...base, regions: [{ ...region, action: { type: "link", url: "http://no.example" } }] }).success).toBe(false);
+    expect(d.configSchema.safeParse({ ...base, regions: [{ ...region, action: { type: "link", url: "javascript:alert(1)" } }] }).success).toBe(false);
+    // tags: accepted only for keys declared by a setValue region (default-deny)
+    const cfg = { regions: [{ key: "r1", action: { type: "setValue", key: "src", value: "ad" } }], multiple: false };
+    expect(d.validateAnswer!({ selected: ["r1"], tags: { src: "ad" } }, cfg)).toBe(true);
+    expect(d.validateAnswer!({ selected: ["r1"], tags: { evil: "x" } }, cfg)).toBe(false); // undeclared key
+    expect(d.validateAnswer!({ selected: ["r1"], tags: ["nope"] as unknown as Record<string, string> }, cfg)).toBe(false); // not an object
+    expect(d.validateAnswer!({ selected: ["r1"] }, cfg)).toBe(true); // tags optional/backward-compatible
+  });
   it("graphic-slider: value in 0..1", () => {
     const d = getDef("core", "graphic-slider", "1.0.0")!;
     expect(d.validateAnswer!({ value: 0.42 }, {})).toBe(true);

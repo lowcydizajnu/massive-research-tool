@@ -18,6 +18,7 @@ The image with translucent region overlays; clicking a region toggles it selecte
 - **imageUrl**, **regions** (`{key, label, x, y, w, h}` normalized, each with an optional **visible** flag), **multiple?**, **required**.
 - Records `{selected: [regionKey]}`.
 - **Invisible regions** (ADR-0041 amendment 2026-06-14c): a region with `visible:false` draws no outline/fill for the participant but stays clickable + keyboard-focusable (focus ring + `aria-label`) — an invisible click zone, never pointer-only. Toggled per region in the Builder.
+- **Region actions** (ADR-0043): each region has an optional click action — **record** (default), **open a link** (https, new tab, also records), **record & continue** (advances the screen via the real Continue so other blocks still validate), or **set a value** (writes a `key=value` tag into the answer for analysis/branching). All keyboard-operable (each region is a `<button>`). Records `{selected: [regionKey], tags?: {key: value}}`.
 
 ## States
 
