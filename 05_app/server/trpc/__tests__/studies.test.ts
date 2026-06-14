@@ -1599,3 +1599,26 @@ describe("Wave 5 flow blocks: embedded-data + end-redirect (ADR-0042)", () => {
     expect(info!.completed).toBe(true);
   });
 });
+
+describe("getResults spatial overlay (heat-map / hot-spot, ADR-0041)", () => {
+  it("aggregates clicks + region hits with the stimulus image", async () => {
+    await seedUserWithWorkspace("ext_a", "Lab A");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "Spatial" });
+    const hm = await caller.studies.addBlock({ studyId: id, source: "core", key: "heat-map", version: "1.0.0" });
+    const hmBlock = (await caller.studies.get({ id })).blocks.find((b) => b.instanceId === hm.instanceId)!;
+    await caller.studies.updateBlockConfig({ studyId: id, instanceId: hm.instanceId, config: { ...hmBlock.config, imageUrl: "/api/media/ws/x/post.png" } });
+    await caller.studies.publish({ studyId: id });
+    await caller.studies.openRecruitment({ studyId: id });
+    const open = await resolveOpenRecruitment(id);
+    const r1 = await startResponse({ recruitmentSessionId: open!.recruitmentSessionId, mode: "run", externalPid: null });
+    await recordAnswer({ responseId: (r1 as { responseId: string }).responseId, questionIndex: 0, answer: { points: [{ x: 0.2, y: 0.3 }, { x: 0.5, y: 0.5 }] } });
+
+    const results = await caller.studies.getResults({ studyId: id });
+    const q = results!.questions.find((x) => x.instanceId === hm.instanceId)!;
+    expect(q.spatial?.imageUrl).toBe("/api/media/ws/x/post.png");
+    expect(q.spatial?.points).toHaveLength(2);
+    expect(q.spatial?.points?.[0]).toEqual({ x: 0.2, y: 0.3 });
+    expect(q.n).toBe(1); // one responder, two points
+  });
+});

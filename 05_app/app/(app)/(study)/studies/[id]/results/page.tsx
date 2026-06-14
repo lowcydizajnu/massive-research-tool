@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 
 import { StageTabs } from "@/components/chrome/stage-tabs";
 import { ResultsActions } from "@/components/feature/results/results-actions";
+import { SpatialOverlay } from "@/components/feature/results/spatial-overlay";
 import { getServerApi } from "@/server/trpc/server";
 import type { ResultsSummary, StudyDetail } from "@/server/trpc/routers/studies";
 
@@ -142,7 +143,11 @@ export default async function ResultsStagePage({
                             ))}
                         </ul>
                       ) : null}
-                      {q.kind === "text" ? (
+                      {q.spatial ? (
+                        <div className="pt-1">
+                          <SpatialOverlay spatial={q.spatial} />
+                        </div>
+                      ) : q.kind === "text" ? (
                         <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
                           Open-ended — see CSV export for responses.
                         </span>

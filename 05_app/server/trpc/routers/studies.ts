@@ -564,6 +564,13 @@ export type ResultsSummary = {
     kind: "numeric" | "categorical" | "text";
     mean: number | null;
     optionCounts: { value: string; count: number }[];
+    /** Spatial overlay (heat-map/hot-spot) — the stimulus image + aggregated
+     *  clicks/region hits, rendered on the Results page (ADR-0041). */
+    spatial?: {
+      imageUrl: string;
+      points?: { x: number; y: number }[];
+      regions?: { key: string; label: string; x: number; y: number; w: number; h: number; count: number }[];
+    };
   }[];
   rows: {
     responseId: string;
@@ -2916,7 +2923,8 @@ export const studiesRouter = router({
         }
       }
 
-      const questions = questionBlocks.flatMap((b) => {
+      type QResult = ResultsSummary["questions"][number];
+      const questions: QResult[] = questionBlocks.flatMap((b): QResult[] => {
         if (b.key === "field-group") {
           const blockTitle =
             (typeof b.title === "string" && b.title.trim()) ||
@@ -2989,6 +2997,36 @@ export const studiesRouter = router({
             mean: null,
             optionCounts: [...counts.entries()].map(([value, count]) => ({ value, count })),
           };
+        }
+        // Spatial blocks (ADR-0041): aggregate clicks/region hits over the image.
+        if (b.key === "heat-map") {
+          const imageUrl = typeof b.config?.imageUrl === "string" ? b.config.imageUrl : "";
+          const points = answers.flatMap((a) => {
+            const pts = (a as { points?: unknown[] })?.points;
+            return Array.isArray(pts)
+              ? pts
+                  .map((pt) => pt as { x?: unknown; y?: unknown })
+                  .filter((pt) => typeof pt.x === "number" && typeof pt.y === "number")
+                  .map((pt) => ({ x: pt.x as number, y: pt.y as number }))
+              : [];
+          });
+          const responders = answers.filter((a) => Array.isArray((a as { points?: unknown[] })?.points) && (a as { points: unknown[] }).points.length > 0).length;
+          return { instanceId: b.instanceId, prompt, moduleKey: b.key, n: responders, kind, mean: null, optionCounts: [], spatial: { imageUrl, points } };
+        }
+        if (b.key === "hot-spot") {
+          const imageUrl = typeof b.config?.imageUrl === "string" ? b.config.imageUrl : "";
+          const regionDefs = (Array.isArray(b.config?.regions) ? b.config!.regions : []) as { key: string; label: string; x: number; y: number; w: number; h: number }[];
+          const counts = new Map<string, number>();
+          let responders = 0;
+          for (const a of answers) {
+            const sel = (a as { selected?: unknown[] })?.selected;
+            if (Array.isArray(sel) && sel.length) {
+              responders++;
+              for (const k of sel) counts.set(String(k), (counts.get(String(k)) ?? 0) + 1);
+            }
+          }
+          const regions = regionDefs.map((r) => ({ ...r, count: counts.get(r.key) ?? 0 }));
+          return { instanceId: b.instanceId, prompt, moduleKey: b.key, n: responders, kind, mean: null, optionCounts: [], spatial: { imageUrl, regions } };
         }
         // text (free-text / ranking / demographics) — count any non-empty answer
         const n = answers.filter((a) => stringifyAnswer(a).trim().length > 0).length;
