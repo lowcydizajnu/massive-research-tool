@@ -5,7 +5,7 @@ import { useState } from "react";
 
 import type { StudyBlock } from "@/server/trpc/routers/studies";
 import { UploadButton } from "@/components/feature/builder/upload-button";
-import type { UploadKind } from "@/lib/uploads";
+import { mediaKindForField } from "@/lib/uploads";
 
 /**
  * Right-panel Configure form for the selected block. Generic for V1: one field
@@ -208,12 +208,9 @@ export function ConfigureForm({
           }
 
           // Media URL fields (ADR-0003): paste a link OR upload from computer.
-          const mediaKind: UploadKind | null =
-            (key === "url" && block.key === "image") || (key === "imageUrl" && block.key === "social-post")
-              ? "image"
-              : key === "url" && block.key === "video"
-                ? "video"
-                : null;
+          // imageUrl appears on social-post + the image-interaction/timed blocks
+          // (ADR-0041); all take an uploaded image just like image.url.
+          const mediaKind = mediaKindForField(block.key, key);
           return (
             <label key={key} className="flex flex-col gap-1">
               <span className={labelCls}>{humanize(key)}</span>

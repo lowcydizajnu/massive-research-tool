@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isSafeMediaKey, validateUpload } from "@/lib/uploads";
+import { isSafeMediaKey, mediaKindForField, validateUpload } from "@/lib/uploads";
 
 describe("upload validation (ADR-0003)", () => {
   it("allowlists content types per kind and maps extensions", () => {
@@ -20,6 +20,21 @@ describe("upload validation (ADR-0003)", () => {
     expect(isSafeMediaKey("etc/passwd")).toBe(false);
     expect(isSafeMediaKey("ws/../secret")).toBe(false);
     expect(isSafeMediaKey("ws/a?x=1")).toBe(false);
+  });
+});
+
+describe("Configure-form media field detection (ADR-0041 — upload from disk)", () => {
+  it("offers image upload on imageUrl for every image-interaction/timed block + social-post", () => {
+    for (const k of ["heat-map", "hot-spot", "graphic-slider", "timed-exposure", "social-post"]) {
+      expect(mediaKindForField(k, "imageUrl")).toBe("image");
+    }
+  });
+  it("keeps image.url=image and video.url=video; offers nothing elsewhere", () => {
+    expect(mediaKindForField("image", "url")).toBe("image");
+    expect(mediaKindForField("video", "url")).toBe("video");
+    expect(mediaKindForField("signature", "imageUrl")).toBeNull(); // signature has no imageUrl
+    expect(mediaKindForField("hot-spot", "regions")).toBeNull(); // text array, not an image field
+    expect(mediaKindForField("free-text", "prompt")).toBeNull();
   });
 });
 

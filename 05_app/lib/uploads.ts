@@ -69,6 +69,21 @@ export function validateUpload(
 }
 
 /**
+ * Builder Configure form: which UploadKind (if any) a block's config field can
+ * accept from disk (ADR-0003 + ADR-0041). `image`/`video` blocks use a `url`
+ * field; `social-post` + the image-interaction/timed blocks use `imageUrl`. A
+ * non-null result means the Configure form renders an "Upload from computer…"
+ * button beside the paste-a-link input. Pure → unit-tested without React.
+ */
+const IMAGE_URL_BLOCKS = new Set(["social-post", "heat-map", "hot-spot", "graphic-slider", "timed-exposure"]);
+export function mediaKindForField(blockKey: string, configKey: string): UploadKind | null {
+  if (configKey === "url" && blockKey === "image") return "image";
+  if (configKey === "imageUrl" && IMAGE_URL_BLOCKS.has(blockKey)) return "image";
+  if (configKey === "url" && blockKey === "video") return "video";
+  return null;
+}
+
+/**
  * A storage key is safe to serve when it's one of OUR namespaces and contains
  * no traversal / signature-breaking characters. (`ws/` = researcher uploads,
  * `resp/` = participant recordings.)
