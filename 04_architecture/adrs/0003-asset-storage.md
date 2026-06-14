@@ -167,3 +167,16 @@ R2 wiring landed once the owner provisioned the bucket + `R2_*` secrets (Vercel)
 ## Amendment (2026-06-13) — signed Content-Disposition for participant uploads
 
 The `/api/media` gateway 302-redirects to a presigned R2 GET, so it cannot set response headers. To force-download untrusted participant uploads (anti-XSS — a crafted HTML/SVG upload must not execute inline), `presignDownload` gained a `disposition` arg that is signed into the URL (`response-content-disposition`), and the gateway serves `resp/` keys as `attachment` UNLESS they're a raster image extension (png/jpg/jpeg/webp/gif), keeping signature PNGs and picture answers inline. Researcher (`ws/`) assets stay inline. Introduced with the image-interaction blocks (ADR-0041) since signature is the first participant-served upload; consumed by file-upload (Wave 4).
+
+## Amendment (2026-06-14) — workspace-ownership access control for `resp/` keys
+
+`/api/media` was a **public** gateway: it validated only `isSafeMediaKey` then 302'd to a presigned GET, so a `resp/<responseId>/<ulid>` participant upload (signature = PII, plus files/audio/video) was protected **only by the unguessability of the key**, not by access control. ADR-0041's first explore amendment flagged this exactly (line 71/80) and deferred the signature gallery until "(i) `/api/media` enforces workspace-ownership for `resp/` keys." This is (i).
+
+**Decision.** The gateway now authorizes `resp/` reads against the owning workspace:
+
+- **`ws/` stimuli stay public and zero-cost.** Participants load researcher stimuli during `/take` with no login. The route branches on the key prefix **before** any auth/DB work — `ws/` short-circuits straight to presign, never calling Clerk or the database. Only `resp/` keys incur an identity + membership lookup.
+- **`resp/` requires an active member of the owning workspace.** `resp/<responseId>/…` → `response.experimentVersionId` → `experimentVersion.experimentId` → `experiment.tenantId` (= workspace id); the caller's Clerk id (`AuthUser.id` = `user.externalId`) must map to a `member` row for that workspace with `status='active'`. Anonymous or non-member → **403**; unresolved response/key → **404**. `clerkMiddleware` runs on `/(api|trpc)`, so the session resolves in-handler even though `/api/media` is not in `isProtectedRoute`.
+- **The decision logic is a pure, injected-deps function** (`server/media/authorize.ts` `authorizeMediaKey(key, externalUserId, deps)`) so it is node-testable (member→ok, non-member/anon→403, unresolved→404, `ws/`→ok with the DB deps never called). The route is a thin wrapper.
+- **The anti-XSS disposition logic (above) is unchanged and runs AFTER the auth check** — authorization is additive, not a replacement; a gated-but-inline crafted upload would still be an XSS vector, so `resp/` non-rasters stay `attachment`.
+
+**Verified safe (the trap):** no participant flow reads a `resp/` asset back through `/api/media` — all four upload blocks PUT via `/api/take-upload` and preview locally (canvas / `URL.createObjectURL` / filename only). Gating `resp/` to workspace members breaks no participant path. This unblocks the deferred signature viewer/gallery (ADR-0041); the "private to your workspace" copy may ship only once this is live in production. QA: `06_qa/audit-logs/2026-06-14-media-resp-access-control.md`.
