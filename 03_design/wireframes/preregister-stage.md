@@ -26,7 +26,7 @@ The Build-stage shell, reused (faithful to `build-stage-builder-mode.md`): the f
 - **Preregister explainer** — static: "This saves an immutable, timestamped snapshot of your current design. You can still keep editing your working draft afterwards."
 - **Preregister button** — primary action; label "Preregister".
 - **Preregistration receipt** (once a `preregistered` version exists): **version label** (`Preregistration v{n}`, from server), **push-status banner** (see States), **OSF registration link** (`external_registration_url`, when present), **DOI line** ("DOI: pending approval" or the DOI when backfilled).
-- **Amendment note** — static, muted: "Need to change a preregistered design? Amendments arrive in a later release." (ADR-0004 is V1.6.)
+- **Amendment affordance** (audit step 4, ADR-0004 — shipped): on the receipt (a preregistered version exists), a **"File an amendment"** action opens an inline form — a required **change-summary** textarea + an optional **classification** select (typo / methodological-correction / clarification / scope-change / other) + **File amendment** / **Cancel**. It freezes the current working draft as a new preregistered version that **supersedes** the latest, and re-pushes to OSF as an amendment on the same project node. Gated by the same pre-flight checklist as Preregister. A **lineage line** ("Amends v{n} — {change summary}") shows when the current preregistration is itself an amendment.
 
 ## States
 

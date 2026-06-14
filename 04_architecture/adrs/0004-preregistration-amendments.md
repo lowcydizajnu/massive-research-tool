@@ -127,3 +127,7 @@ Reopen this decision (probably as a superseding ADR) if:
 - AsPredicted's "extend / supersede" mechanism: the lightweight precedent.
 - Future: ADR-0005 (OSF integration) will specify how amendments propagate to OSF.
 - Future: a Registered Reports ADR will specify whether journal-committed registrations have stricter amendment rules.
+
+## Implementation (2026-06-14 — audit step 4)
+
+Shipped: `studies.amend` freezes the current working tip as a new `preregistered` version that sets `supersedes_version_id` + `change_summary` (+ optional `amendment_classification`) — exercising the previously-dead ADR-0004 lineage columns and the `experiment_version_amendment_consistency` CHECK — and enqueues a `registry.push` (`isAmendment: true`) that re-files on the **same** OSF project node with the researcher's stated reason in the amendment header (preferred over the auto-diff). The preregister receipt zone gained a **"File an amendment"** inline form (required change summary + optional classification), and `getPreregistration` returns `changeSummary` + `amends` (the superseded version number) for the lineage line. Deferred: the full bidirectional lineage chain display + the PDF amendment header (the receipt shows the immediate "Amends v{n} — …" line). Migration-free (columns already existed). Audit found the capability was ~90% built but had no creator — `preregister` hard-coded `isAmendment: false` and never wrote the columns.

@@ -105,10 +105,14 @@ export async function runRegistryPush(data: JobCatalog["registry.push"]): Promis
     const changeBlock = changes.length
       ? ["", "Changes since that registration:", ...changes.map((l) => "- " + l)].join("\n")
       : "";
+    // Prefer the researcher's STATED reason (studies.amend → change_summary, ADR-0004)
+    // over the auto-diff; fall back to the diff when there's no stated reason.
+    const stated = version.changeSummary?.trim() ? `\n\nReason: ${version.changeSummary.trim()}` : "";
     amendmentHeader =
       "AMENDMENT - supersedes the registration at " +
       (prior.url ?? prior.doi ?? "(previous version)") +
       "." +
+      stated +
       changeBlock;
     const [priorPush] = await db
       .select({ responsePayload: registryPush.responsePayload })
