@@ -177,11 +177,15 @@ async function resolveSchemaId(token: string, schemaName?: string): Promise<stri
  *  Lossless detail lives in the JSON appended below the prose. */
 function buildSummary(payload: RegistrationPayload): string {
   const json = JSON.stringify(payload.snapshot, null, 2);
+  const link = payload.permalink ? `\n\nStudy: ${payload.permalink}` : "";
+  const body = payload.humanReadableBody ? `\n\n${payload.humanReadableBody}` : "";
   return (
     `${payload.summaryPrefix ? `${payload.summaryPrefix}\n\n` : ""}` +
     `${payload.title}\n\n` +
-    `Preregistered from Massive Research Tool (experiment version ${payload.experimentVersionId}).\n\n` +
-    `--- Machine-readable design snapshot ---\n${json}`
+    `Preregistered from Massive Research Tool (experiment version ${payload.experimentVersionId}).` +
+    link +
+    body +
+    `\n\n--- Machine-readable design snapshot ---\n${json}`
   );
 }
 
@@ -340,7 +344,14 @@ export const osfRegistry: RegistryAdapter = {
       const node = await osfApi(token, "POST", "/nodes/", {
         data: {
           type: "nodes",
-          attributes: { title: payload.title, category: "project", public: false },
+          attributes: {
+            title: payload.title,
+            category: "project",
+            public: false,
+            // Enrichment (audit step 3) — standard node attributes; safe to omit.
+            ...(payload.description ? { description: payload.description } : {}),
+            ...(payload.tags && payload.tags.length ? { tags: payload.tags } : {}),
+          },
         },
       });
       nodeId = node.data.id!;

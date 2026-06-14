@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildRecipeResponses, RECIPE_SCHEMA_NAME } from "@/server/modules/osf-recipe";
+import { buildOpenEndedBody, buildRecipeResponses, RECIPE_SCHEMA_NAME } from "@/server/modules/osf-recipe";
 
 const snapshot = {
   blocks: [
@@ -43,5 +43,22 @@ describe("buildRecipeResponses (ADR-0005 am. 3 — keys verified live 2026-06-12
   it("amendment header leads the Description", () => {
     const r = buildRecipeResponses({ snapshot, amendmentHeader: "AMENDMENT - supersedes https://osf.io/x/." });
     expect(r["77-2"].startsWith("AMENDMENT")).toBe(true);
+  });
+});
+
+describe("buildOpenEndedBody (audit step 3 — real OSF summary, not just a JSON dump)", () => {
+  it("includes abstract, numbered hypotheses, and the protocol", () => {
+    const body = buildOpenEndedBody(snapshot)!;
+    expect(body).toContain("ABSTRACT\nWe test source cues.");
+    expect(body).toContain("HYPOTHESES\n1. H1");
+    expect(body).toContain("PROTOCOL");
+    expect(body).toContain("Accuracy"); // the block surfaces in the protocol text
+  });
+
+  it("omits empty abstract/hypotheses sections (only the protocol scaffold remains)", () => {
+    const body = buildOpenEndedBody({ blocks: [], overview: { abstract: "", hypotheses: [], sections: [] } });
+    expect(body).toContain("PROTOCOL"); // protocolText always emits the protocol section
+    expect(body).not.toContain("ABSTRACT");
+    expect(body).not.toContain("HYPOTHESES");
   });
 });

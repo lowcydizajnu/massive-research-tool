@@ -10,6 +10,22 @@ import { protocolText } from "@/server/modules/protocol-text";
  */
 export const RECIPE_SCHEMA_NAME = "Replication Recipe (Brandt et al., 2014): Pre-Registration";
 
+/**
+ * Human-readable design for the default Open-Ended OSF summary (audit step 3):
+ * abstract + numbered hypotheses + the clean protocol, so OSF shows real app
+ * content above the machine JSON. Returns undefined when there's nothing to say.
+ */
+export function buildOpenEndedBody(snapshot: unknown): string | undefined {
+  const ov = readOverview(snapshot);
+  const parts: string[] = [];
+  if (ov.abstract.trim()) parts.push(`ABSTRACT\n${ov.abstract.trim()}`);
+  const hyps = ov.hypotheses.filter((h) => h.trim());
+  if (hyps.length) parts.push(`HYPOTHESES\n${hyps.map((h, i) => `${i + 1}. ${h.trim()}`).join("\n")}`);
+  const protocol = protocolText(snapshot);
+  if (protocol.length) parts.push(`PROTOCOL\n${protocol.join("\n")}`);
+  return parts.length ? parts.join("\n\n") : undefined;
+}
+
 const KEYS = {
   description: "77-2",
   originalStudy: "77-12",
