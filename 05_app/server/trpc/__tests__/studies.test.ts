@@ -1591,6 +1591,14 @@ describe("Wave 5 flow blocks: embedded-data + end-redirect (ADR-0042)", () => {
       embedded: { PROLIFIC_PID: "p-123" },
     });
     const responseId = (started as { responseId: string }).responseId;
+    // Embedded params actually PERSIST on the response row (ADR-0042) — they go
+    // to clientMetadata.embedded; the `response` table has no `metadata` column,
+    // so the old `metadata:` insert key was silently dropped (regression guard).
+    const [row] = await db
+      .select({ clientMetadata: response.clientMetadata })
+      .from(response)
+      .where(eq(response.id, responseId));
+    expect(row?.clientMetadata).toEqual({ embedded: { PROLIFIC_PID: "p-123" } });
     // The two flow blocks are filtered from the participant screen flow → only
     // the likert is a screen (recordAnswer index 0 completes the study).
     const done = await recordAnswer({ responseId, questionIndex: 0, answer: { value: 5 } });

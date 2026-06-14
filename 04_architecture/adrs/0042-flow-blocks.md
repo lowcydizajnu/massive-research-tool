@@ -18,7 +18,7 @@ The block-expansion plan's final cluster: **embedded-data** (capture URL paramet
 
 ### embedded-data capture — Option A: declared allowlist, captured at start (chosen)
 
-- Config is `{params: string[]}` — the exact param NAMES the researcher wants. The start page reads that allowlist from the runnable snapshot, pulls only those names from the URL, and `startResponse` writes them to `response.metadata.embedded`. Never captures undeclared params (PII safety). Placement in the block list is irrelevant — capture is at start.
+- Config is `{params: string[]}` — the exact param NAMES the researcher wants. The start page reads that allowlist from the runnable snapshot, pulls only those names from the URL, and `startResponse` writes them to `response.clientMetadata.embedded`. Never captures undeclared params (PII safety). Placement in the block list is irrelevant — capture is at start. **(Amended 2026-06-14:** originally documented as `response.metadata.embedded`, but the `response` table has no `metadata` column — that jsonb lives on `recruitment_session`. The write targeted a non-existent column and Drizzle silently dropped it, so embedded params never persisted. Fixed to the existing `clientMetadata` jsonb under an `embedded` namespace — no migration, no reader changes since nothing read it back yet.)
 
 ### end-redirect safety — Option A: validated-https button, participant-clicked (chosen) · Option B: server host-allowlist · Option C: auto-redirect
 
@@ -30,7 +30,7 @@ The block-expansion plan's final cluster: **embedded-data** (capture URL paramet
 
 ## Decision
 
-We will add embedded-data and end-redirect as `collectsResponse:false` registry blocks that the runtime treats as non-screen (filtered from `visibleBlocks`/`resolveVisibleScreens`). embedded-data captures a researcher-declared URL-param allowlist into `response.metadata.embedded` at start; end-redirect renders a validated-https, participant-clicked completion button + code on the completion page. Captcha ships as nothing with Turnstile reserved (gated) in the lock-in inventory.
+We will add embedded-data and end-redirect as `collectsResponse:false` registry blocks that the runtime treats as non-screen (filtered from `visibleBlocks`/`resolveVisibleScreens`). embedded-data captures a researcher-declared URL-param allowlist into `response.clientMetadata.embedded` at start (see the 2026-06-14 amendment above — the `metadata` column it originally named does not exist on `response`); end-redirect renders a validated-https, participant-clicked completion button + code on the completion page. Captcha ships as nothing with Turnstile reserved (gated) in the lock-in inventory.
 
 ## Consequences
 
@@ -47,6 +47,6 @@ We will add embedded-data and end-redirect as `collectsResponse:false` registry 
 ## References
 
 - block-expansion-design plan + adversarial review (embedded-data PII, open-redirect, captcha posture)
-- [ADR-0013](0013-participant-runtime-and-analytics.md) (runtime), [ADR-0014](0014-response-data-model-and-conditioning.md)-era response model (`metadata`)
+- [ADR-0013](0013-participant-runtime-and-analytics.md) (runtime), [ADR-0014](0014-response-data-model-and-conditioning.md)-era response model (`response.clientMetadata`)
 - Wireframes: [embedded-data](../../03_design/wireframes/embedded-data.md), [end-redirect](../../03_design/wireframes/end-redirect.md)
 - Code: `server/runtime/participant.ts` (non-screen filter + start capture + completion config), `app/(take)/take/[studyId]/start` + `…/complete`, `lock-in-inventory.md` (Turnstile reserved row)
