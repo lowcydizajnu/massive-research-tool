@@ -11,7 +11,7 @@ import {
   response,
   responseItem,
 } from "@/server/db/schema";
-import { conditionWithSources, evaluateCondition } from "@/lib/whiteboard/conditions";
+import { conditionWithSources, evaluateCondition, normalizeCondition } from "@/lib/whiteboard/conditions";
 import { deriveScreens, type Screen } from "@/lib/whiteboard/screens";
 import { readBlocks, readGroups, type BlockInstance } from "@/server/modules/blocks";
 import { readTheme, type StudyTheme } from "@/lib/themes/themes";
@@ -127,6 +127,32 @@ export function resolveVisibleScreens(
     for (const b of sc.blocks) earlier.add(b.instanceId);
   }
   return out;
+}
+
+/**
+ * Could answering the CURRENT screen reveal a later screen? True when some block
+ * that is hidden now has an answer-condition referencing a block on this screen
+ * — so submitting it might unlock a new screen (forward branching). Used to show
+ * "Continue" instead of a premature "Finish" on the last currently-visible screen.
+ * Biased toward "Continue": if uncertain (the answer might not match), showing
+ * Continue-then-end is less jarring than Finish-then-more.
+ */
+export function pathMayExtend(
+  snapshot: unknown,
+  conditionSlug: string,
+  answers: Record<string, unknown>,
+  current: Screen,
+): boolean {
+  const armBlocks = (readBlocks(snapshot) as RuntimeBlock[]).filter(
+    (b) => isVisible(b, conditionSlug) && !NON_SCREEN_KEYS.has(b.key),
+  );
+  const visibleIds = new Set(resolveVisibleBlocks(snapshot, conditionSlug, answers).map((b) => b.instanceId));
+  const currentIds = new Set(current.blocks.map((b) => b.instanceId));
+  return armBlocks.some((b) => {
+    if (visibleIds.has(b.instanceId)) return false; // already shown
+    const cond = normalizeCondition(b.showIf, b.branchRules);
+    return Boolean(cond?.clauses.some((c) => currentIds.has(c.fromInstanceId)));
+  });
 }
 
 /** Recorded answers for a response, keyed by block instanceId (for branching). */
@@ -479,6 +505,9 @@ export type RuntimeScreenView = {
   screen: Screen;
   position: number;
   total: number;
+  /** A later screen may still appear after answering this one (forward branching)
+   *  — so show "Continue" not "Finish" even on the last currently-visible screen. */
+  mayContinue: boolean;
 };
 
 /**
@@ -512,14 +541,18 @@ export async function getRuntimeScreen(input: {
   if (input.screenIndex < 0) return { error: "not_found" };
   if (input.screenIndex >= screens.length) return { done: true };
 
+  const screen = screens[input.screenIndex];
+  const isLastKnown = input.screenIndex + 1 >= screens.length;
   return {
     studyTitle: row.title,
     theme: readTheme(row.snapshot),
     mode: row.resp.mode as ResponseMode,
     conditionSlug: row.conditionSlug,
-    screen: screens[input.screenIndex],
+    screen,
     position: input.screenIndex,
     total: screens.length,
+    // Only worth computing on the last known screen — earlier screens already show "Continue".
+    mayContinue: isLastKnown && pathMayExtend(row.snapshot, row.conditionSlug, answers, screen),
   };
 }
 

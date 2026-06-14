@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveVisibleScreens } from "@/server/runtime/participant";
+import { pathMayExtend, resolveVisibleScreens } from "@/server/runtime/participant";
 
 const block = (instanceId: string, extra: Record<string, unknown> = {}) => ({
   instanceId,
@@ -45,5 +45,22 @@ describe("resolveVisibleScreens (ADR-0028)", () => {
     // q1 answered "yes" → group screen shows.
     const shown = resolveVisibleScreens(snap(blocks, groups), "control", { q1: { value: "yes" } });
     expect(shown.map((x) => x.kind)).toEqual(["single", "group"]);
+  });
+});
+
+describe("pathMayExtend — premature-Finish guard (forward branching)", () => {
+  it("true when a hidden block is conditional on a block ON the current screen", () => {
+    const showIf = { op: "and", clauses: [{ fromInstanceId: "q1", operator: "eq", value: ["yes"] }] };
+    const snapshot = snap([block("q1", { key: "yes-no" }), block("q2", { showIf })]);
+    const screens = resolveVisibleScreens(snapshot, "control", {}); // q2 hidden until q1 answered
+    expect(screens.map((s) => s.id)).toEqual(["q1"]);
+    // answering q1 (this screen) could unlock q2 → show "Continue", not "Finish"
+    expect(pathMayExtend(snapshot, "control", {}, screens[0])).toBe(true);
+  });
+
+  it("false when nothing hidden depends on the current screen (truly last)", () => {
+    const snapshot = snap([block("q1"), block("q2")]); // both unconditional → both visible
+    const screens = resolveVisibleScreens(snapshot, "control", {});
+    expect(pathMayExtend(snapshot, "control", {}, screens[1])).toBe(false);
   });
 });

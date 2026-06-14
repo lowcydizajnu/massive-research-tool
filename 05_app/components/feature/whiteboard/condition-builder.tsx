@@ -20,6 +20,25 @@ import type { StudyBlock } from "@/server/trpc/routers/studies";
 const LIST_VALUE: Operator[] = ["isAnyOf", "includesAny"];
 
 /**
+ * Enumerable answer choices for a source block, shown by LABEL but stored by the
+ * value the runtime records (so researchers never type a raw key like `r2`).
+ * Returns null when the source has no fixed choice set (free-text / numeric).
+ */
+function valueOptionsForSource(b: StudyBlock | undefined): { value: string; label: string }[] | null {
+  if (!b) return null;
+  const cfg = (b.config ?? {}) as Record<string, unknown>;
+  if (b.key === "hot-spot" && Array.isArray(cfg.regions)) {
+    return (cfg.regions as { key?: unknown; label?: unknown }[])
+      .filter((r) => typeof r.key === "string" && r.key)
+      .map((r) => ({ value: String(r.key), label: typeof r.label === "string" && r.label ? String(r.label) : String(r.key) }));
+  }
+  if ((b.key === "multiple-choice" || b.key === "attention-check") && Array.isArray(cfg.options)) {
+    return (cfg.options as unknown[]).filter((o) => o != null && o !== "").map((o) => ({ value: String(o), label: String(o) }));
+  }
+  return null; // free-text / numeric — keep the text/number input
+}
+
+/**
  * Type-aware AND/OR condition builder (ADR-0021 amendment). Edits the visibility
  * condition for `block` — "show this block when …" — over the answers to the
  * blocks before it. Each clause's operator menu + value input adapt to the
@@ -118,6 +137,7 @@ export function ConditionBuilder({
               const isList = LIST_VALUE.includes(c.operator);
               const isBetween = c.operator === "between";
               const noValue = c.operator === "answered";
+              const opts = valueOptionsForSource(src); // hot-spot regions / choice options, by label
               return (
                 <li key={i} className="flex flex-col gap-1 rounded-[var(--radius-md)] bg-[var(--color-surface-subtle)] p-2">
                   <div className="flex items-center gap-1">
@@ -177,6 +197,40 @@ export function ConditionBuilder({
                           className={cn("w-16", fieldCls)}
                         />
                       </>
+                    ) : opts && isList ? (
+                      // multi-select source (e.g. multiple-choice "is any of") — pick by label
+                      <div role="group" aria-label="Values" className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                        {opts.map((o) => (
+                          <label key={o.value} className="flex items-center gap-1 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+                            <input
+                              type="checkbox"
+                              checked={c.value.includes(o.value)}
+                              onChange={(e) =>
+                                update(i, { value: e.target.checked ? [...c.value, o.value] : c.value.filter((v) => v !== o.value) })
+                              }
+                              className="accent-[var(--color-primary)]"
+                            />
+                            {o.label}
+                          </label>
+                        ))}
+                      </div>
+                    ) : opts ? (
+                      // fixed-choice source (hot-spot region / single choice) — pick by label, store the key
+                      <select
+                        aria-label="Value"
+                        value={c.value[0] ?? ""}
+                        onChange={(e) => update(i, { value: [e.target.value] })}
+                        className={cn("min-w-0 flex-1", fieldCls)}
+                      >
+                        <option value="" disabled>
+                          Choose…
+                        </option>
+                        {opts.map((o) => (
+                          <option key={o.value} value={o.value}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </select>
                     ) : (
                       <input
                         aria-label="Value"

@@ -77,7 +77,7 @@ export default async function ScreenPage({
             data-take-continue
             className="rounded-[var(--radius-md)] bg-[var(--color-primary)] px-5 py-2.5 text-[length:var(--text-body-emphasis)] font-medium text-white hover:opacity-90 disabled:opacity-50"
           >
-            {s.position + 1 >= s.total ? "Finish" : "Continue"}
+            {s.position + 1 >= s.total && !s.mayContinue ? "Finish" : "Continue"}
           </button>
         </div>
       </form>
