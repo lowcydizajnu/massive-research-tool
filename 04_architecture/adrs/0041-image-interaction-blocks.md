@@ -111,3 +111,14 @@ A display-only saturation slider on the Explore stimulus image (`filter: saturat
 - spatial-followups-design workflow + adversarial review (2026-06-14)
 - Wireframes: [hot-spot-region-editor](../../03_design/wireframes/hot-spot-region-editor.md), [spatial-explore](../../03_design/wireframes/spatial-explore.md) (amended)
 - Code: `lib/export/dataset.ts`, `components/feature/results/export-builder.tsx`, `app/(app)/(study)/studies/[id]/results/explore/[instanceId]/page.tsx`, `components/feature/results/spatial-explorer.tsx`, `components/feature/builder/configure-form.tsx` (`RegionsEditor`), `lib/take/image-coords.ts`
+
+---
+
+## Amendment (2026-06-14c) — invisible-but-clickable hot-spot regions
+
+Owner: "a toggle for hot-spot — show/hide, to keep it still active but invisible." Each region gains an optional `visible?: boolean` (absent ⇒ true). When `false`, the region is an **invisible click zone**: at runtime no resting outline/fill is drawn, but the region stays clickable and **keyboard-focusable** (focus ring) with its `aria-label`/`aria-pressed` intact, so it is never pointer-only (ADR-0041 parity). The Builder always *shows* every region (dashed + dimmed for hidden ones) so the researcher can still edit it, with a per-region eye/eye-off toggle in the `RegionsEditor` row.
+
+This is a **pure render attribute over the existing `regions` array** — not a new architectural concept — so it is an ADR-0041 amendment, **not** the new ADR-0043 (which begins only when the first *action* variant, `link`, lands; the adversarial review corrected the over-gating here). Additive + optional ⇒ backward-compatible, no answer-shape change, no migration (snapshot JSON, ADR-0012). The `link`/`setValue`/`advance` region **actions** the owner also asked for are deferred to ADR-0043 (waves 4–6); `setValue` will fold its tags into the answer payload, **not** `response.metadata` (that column doesn't exist — see ADR-0042's 2026-06-14 amendment).
+
+- Wireframes: [hot-spot](../../03_design/wireframes/hot-spot.md) + [hot-spot-region-editor](../../03_design/wireframes/hot-spot-region-editor.md) (amended)
+- Code: `server/modules/registry.ts` (hot-spot region `visible?`), `components/feature/take/hot-spot-input.tsx`, `components/feature/builder/configure-form.tsx` (`RegionsEditor`), `lib/take/image-coords.ts` (`Region.visible?`)

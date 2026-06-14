@@ -1820,6 +1820,9 @@ const hotSpotBlock: CoreModuleDef = {
         y: z.number().min(0).max(1),
         w: z.number().min(0).max(1),
         h: z.number().min(0).max(1),
+        /** Draw a visible outline for the participant? Absent ⇒ true. When false
+         *  the region is an invisible-but-clickable zone (ADR-0041 amendment). */
+        visible: z.boolean().optional(),
       }),
     ),
     multiple: z.boolean(),
