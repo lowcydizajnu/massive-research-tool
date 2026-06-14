@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 /** Hot-spot (ADR-0041): toggle predefined regions (focusable buttons). */
-type Region = { key: string; label: string; x: number; y: number; w: number; h: number };
+type Region = { key: string; label: string; x: number; y: number; w: number; h: number; visible?: boolean };
 export function HotSpotInput({ config, np }: { config: Record<string, unknown>; np: string }) {
   const imageUrl = typeof config.imageUrl === "string" ? config.imageUrl.trim() : "";
   const regions = (Array.isArray(config.regions) ? config.regions : []) as Region[];
@@ -33,7 +33,13 @@ export function HotSpotInput({ config, np }: { config: Record<string, unknown>; 
             aria-label={r.label}
             onClick={() => toggle(r.key)}
             style={{ left: `${r.x * 100}%`, top: `${r.y * 100}%`, width: `${r.w * 100}%`, height: `${r.h * 100}%` }}
-            className={`absolute rounded-[var(--radius-sm)] border-2 ${selected.includes(r.key) ? "border-[var(--color-primary)] bg-[var(--color-primary)]/25" : "border-[var(--color-border-medium)] bg-white/10 hover:bg-[var(--color-primary)]/10"}`}
+            className={`absolute rounded-[var(--radius-sm)] ${
+              r.visible === false
+                ? // invisible click zone: no resting outline/fill; still clickable
+                  // + keyboard-focusable (focus ring) so it's never pointer-only.
+                  "focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
+                : `border-2 ${selected.includes(r.key) ? "border-[var(--color-primary)] bg-[var(--color-primary)]/25" : "border-[var(--color-border-medium)] bg-white/10 hover:bg-[var(--color-primary)]/10"}`
+            }`}
           />
         ))}
       </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { X } from "lucide-react";
+import { Eye, EyeOff, X } from "lucide-react";
 import { useRef, useState } from "react";
 
 import type { StudyBlock } from "@/server/trpc/routers/studies";
@@ -641,10 +641,13 @@ function RegionsEditor({
   };
 
   const preview = drag ? rectFromCorners(drag.a, drag.b) : null;
-  const boxCls = (key: string) =>
+  // The builder always SHOWS every region (even ones hidden from participants) so
+  // the researcher can edit them; hidden ones get a dashed, dimmed treatment.
+  const boxCls = (r: RegionCfg) =>
     cn(
       "absolute rounded-[var(--radius-sm)] border-2 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]",
-      selectedKey === key
+      r.visible === false && "border-dashed opacity-60",
+      selectedKey === r.key
         ? "border-[var(--color-primary)] bg-[var(--color-primary)]/25"
         : "border-[var(--color-border-medium)] bg-white/10 hover:bg-[var(--color-primary)]/10",
     );
@@ -685,7 +688,7 @@ function RegionsEditor({
               onClick={() => setSelectedKey(r.key)}
               onKeyDown={(e) => onRegionKeyDown(e, r.key)}
               style={{ left: `${r.x * 100}%`, top: `${r.y * 100}%`, width: `${r.w * 100}%`, height: `${r.h * 100}%` }}
-              className={boxCls(r.key)}
+              className={boxCls(r)}
             >
               <span className="absolute left-0 top-0 rounded-br bg-black/40 px-1 text-[length:var(--text-small)] font-medium text-white">
                 {r.label}
@@ -738,6 +741,20 @@ function RegionsEditor({
               }}
               className="min-w-0 flex-1 rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-1 text-[length:var(--text-small)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
             />
+            <button
+              type="button"
+              aria-pressed={r.visible === false}
+              aria-label={
+                r.visible === false
+                  ? `Region ${r.label} is hidden from participants — show its outline`
+                  : `Region ${r.label} outline is shown — hide it from participants`
+              }
+              title={r.visible === false ? "Hidden from participants (invisible click zone)" : "Outline shown to participants"}
+              onClick={() => update(r.key, { visible: r.visible === false })}
+              className="shrink-0 rounded-[var(--radius-sm)] p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)]"
+            >
+              {r.visible === false ? <EyeOff className="size-3.5" aria-hidden /> : <Eye className="size-3.5" aria-hidden />}
+            </button>
             <button
               type="button"
               aria-label={`Remove region ${r.label}`}

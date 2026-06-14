@@ -270,6 +270,17 @@ describe("Wave 3 image-interaction blocks (ADR-0041, 2026-06-13)", () => {
     expect(d.validateAnswer!({ selected: ["x"] }, cfg)).toBe(false); // stray
     expect(d.validateAnswer!({ selected: ["r1", "r2"] }, { ...cfg, multiple: true })).toBe(true);
   });
+  it("hot-spot: region visible? is optional (ADR-0041 am. 2026-06-14c — invisible zones)", () => {
+    const d = getDef("core", "hot-spot", "1.0.0")!;
+    const region = { key: "r1", label: "R1", x: 0.1, y: 0.1, w: 0.2, h: 0.2 };
+    const base = { prompt: "", imageUrl: "/api/media/ws/x/a.png", multiple: false, required: true };
+    // absent (default visible), explicit false (invisible zone), explicit true all parse
+    expect(d.configSchema.safeParse({ ...base, regions: [region] }).success).toBe(true);
+    expect(d.configSchema.safeParse({ ...base, regions: [{ ...region, visible: false }] }).success).toBe(true);
+    expect(d.configSchema.safeParse({ ...base, regions: [{ ...region, visible: true }] }).success).toBe(true);
+    // an invisible region is still a valid click target (answer shape unchanged)
+    expect(d.validateAnswer!({ selected: ["r1"] }, { regions: [{ key: "r1", visible: false }], multiple: false })).toBe(true);
+  });
   it("graphic-slider: value in 0..1", () => {
     const d = getDef("core", "graphic-slider", "1.0.0")!;
     expect(d.validateAnswer!({ value: 0.42 }, {})).toBe(true);

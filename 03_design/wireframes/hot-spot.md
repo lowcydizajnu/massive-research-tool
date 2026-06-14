@@ -15,8 +15,9 @@ The image with translucent region overlays; clicking a region toggles it selecte
 
 ## Content inventory
 
-- **imageUrl**, **regions** (`{key, label, x, y, w, h}` normalized), **multiple?**, **required**.
+- **imageUrl**, **regions** (`{key, label, x, y, w, h}` normalized, each with an optional **visible** flag), **multiple?**, **required**.
 - Records `{selected: [regionKey]}`.
+- **Invisible regions** (ADR-0041 amendment 2026-06-14c): a region with `visible:false` draws no outline/fill for the participant but stays clickable + keyboard-focusable (focus ring + `aria-label`) — an invisible click zone, never pointer-only. Toggled per region in the Builder.
 
 ## States
 
