@@ -127,15 +127,21 @@ export function ReplicateButton({ studyId }: { studyId: string }) {
 export function ForkableControl({
   studyId,
   value,
+  frozen = true,
 }: {
   studyId: string;
   value: "public" | "link-only" | "private";
+  /** Has a frozen (preregistered/published) version? Replication needs one
+   *  (ADR-0018 am.) — can't turn a draft public. */
+  frozen?: boolean;
 }) {
   const utils = api.useUtils();
   const set = api.studies.setForkable.useMutation({
     onSuccess: () => void utils.studies.get.invalidate({ id: studyId }),
   });
   const isPublic = value === "public";
+  // Can't turn replication ON until frozen; turning OFF is always allowed.
+  const lockedOff = !frozen && !isPublic;
   return (
     <div className="flex items-center gap-2">
       <button
@@ -143,12 +149,13 @@ export function ForkableControl({
         role="switch"
         aria-checked={isPublic}
         aria-label="Public-replicable"
-        disabled={set.isPending}
+        disabled={set.isPending || lockedOff}
+        title={lockedOff ? "Preregister or publish this study before opening it for replication." : undefined}
         onClick={() => set.mutate({ studyId, forkableBy: isPublic ? "private" : "public" })}
         className={cn(
           "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors",
           isPublic ? "bg-[var(--color-primary)]" : "bg-[var(--color-border-medium)]",
-          set.isPending && "opacity-60",
+          (set.isPending || lockedOff) && "opacity-60",
         )}
       >
         <span
@@ -159,7 +166,7 @@ export function ForkableControl({
         />
       </button>
       <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
-        {isPublic ? "Public-replicable" : "Private"}
+        {isPublic ? "Public-replicable" : lockedOff ? "Private — freeze a version to share" : "Private"}
       </span>
     </div>
   );

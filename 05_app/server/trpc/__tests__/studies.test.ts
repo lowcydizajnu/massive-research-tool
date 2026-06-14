@@ -926,6 +926,23 @@ describe("studies.fork + getReplications (ADR-0018)", () => {
     expect(forkReps.parent?.studyId).toBe(src);
   });
 
+  it("replication freeze-gate (ADR-0018 am.): own-workspace draft duplication OK; public requires frozen", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id: src } = await caller.studies.create({ kind: "blank", title: "Draft" });
+    // Own-workspace member may duplicate an unfrozen draft (the carve-out).
+    const { id: dup } = await caller.studies.fork({ studyId: src });
+    expect((await caller.studies.get({ id: dup })).isReplication).toBe(true);
+    // But it can't be offered for public replication until frozen.
+    await expect(caller.studies.setForkable({ studyId: src, forkableBy: "public" })).rejects.toMatchObject({
+      code: "PRECONDITION_FAILED",
+    });
+    await caller.studies.preregister({ studyId: src });
+    await expect(caller.studies.setForkable({ studyId: src, forkableBy: "public" })).resolves.toMatchObject({
+      forkableBy: "public",
+    });
+  });
+
   it("cross-workspace fork: FORBIDDEN when private, allowed + emits fork when public (diff withheld)", async () => {
     const a = await seedUserWithWorkspace("ext_a", "Alpha");
     const beta = await seedUserWithWorkspace("ext_s", "Beta");
@@ -935,6 +952,7 @@ describe("studies.fork + getReplications (ADR-0018)", () => {
 
     await expect(sofia.studies.fork({ studyId: src })).rejects.toMatchObject({ code: "FORBIDDEN" });
 
+    await hanna.studies.preregister({ studyId: src }); // replication requires a frozen version (ADR-0018 am.)
     await hanna.studies.setForkable({ studyId: src, forkableBy: "public" });
     const { id: fork } = await sofia.studies.fork({ studyId: src });
     const [exp] = await db.select().from(experiment).where(eq(experiment.id, fork));
@@ -1127,9 +1145,12 @@ describe("studies.browsePublic + browseTags (V1.8 Stream B, ADR-0018)", () => {
 
     const shown = await makePublic(a, "Public + published");
 
-    // Public but only a Draft (never published) — not discoverable.
+    // A draft can't even be made public now (ADR-0018 am.) — so it's never
+    // discoverable; the gate is enforced at setForkable, not just at browse.
     const draft = await a.studies.create({ kind: "blank", title: "Public draft only" });
-    await a.studies.setForkable({ studyId: draft.id, forkableBy: "public" });
+    await expect(a.studies.setForkable({ studyId: draft.id, forkableBy: "public" })).rejects.toMatchObject({
+      code: "PRECONDITION_FAILED",
+    });
 
     // Published but private — not discoverable.
     const priv = await a.studies.create({ kind: "blank", title: "Private published" });

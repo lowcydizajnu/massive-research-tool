@@ -1158,7 +1158,7 @@ export function BuilderWorkspace({
             <DetailRow label="Replication">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 {currentUserId === study.ownerId ? (
-                  <ForkableControl studyId={study.id} value={study.forkableBy} />
+                  <ForkableControl studyId={study.id} value={study.forkableBy} frozen={study.stage !== "draft"} />
                 ) : null}
                 <ReplicateButton studyId={study.id} />
               </div>
