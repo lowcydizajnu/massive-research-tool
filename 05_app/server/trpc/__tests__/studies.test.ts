@@ -1621,4 +1621,68 @@ describe("getResults spatial overlay (heat-map / hot-spot, ADR-0041)", () => {
     expect(q.spatial?.points?.[0]).toEqual({ x: 0.2, y: 0.3 });
     expect(q.n).toBe(1); // one responder, two points
   });
+
+  it("heat-map exposes per-respondent rows (kind + responses[] with condition/PID), pooled fields intact", async () => {
+    await seedUserWithWorkspace("ext_hmr", "Lab HMR");
+    const caller = createCaller({ authUser: authUser("ext_hmr") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "HM responses" });
+    const hm = await caller.studies.addBlock({ studyId: id, source: "core", key: "heat-map", version: "1.0.0" });
+    const hmBlock = (await caller.studies.get({ id })).blocks.find((b) => b.instanceId === hm.instanceId)!;
+    await caller.studies.updateBlockConfig({ studyId: id, instanceId: hm.instanceId, config: { ...hmBlock.config, imageUrl: "/api/media/ws/x/post.png" } });
+    await caller.studies.publish({ studyId: id });
+    await caller.studies.openRecruitment({ studyId: id });
+    const open = await resolveOpenRecruitment(id);
+    const r1 = await startResponse({ recruitmentSessionId: open!.recruitmentSessionId, mode: "run", externalPid: "PID-1" });
+    await recordAnswer({ responseId: (r1 as { responseId: string }).responseId, questionIndex: 0, answer: { points: [{ x: 0.1, y: 0.1 }] } });
+    const r2 = await startResponse({ recruitmentSessionId: open!.recruitmentSessionId, mode: "run", externalPid: null });
+    await recordAnswer({ responseId: (r2 as { responseId: string }).responseId, questionIndex: 0, answer: { points: [{ x: 0.8, y: 0.8 }, { x: 0.9, y: 0.9 }] } });
+
+    const q = (await caller.studies.getResults({ studyId: id }))!.questions.find((x) => x.instanceId === hm.instanceId)!;
+    expect(q.spatial?.kind).toBe("heat-map");
+    expect(q.spatial?.points).toHaveLength(3); // pooled, backward-compatible
+    expect(q.spatial?.responses).toHaveLength(2);
+    const byPid = q.spatial!.responses!.find((r) => r.externalPid === "PID-1")!;
+    expect(byPid.points).toEqual([{ x: 0.1, y: 0.1 }]);
+    expect(typeof byPid.conditionSlug).toBe("string");
+    expect(q.spatial!.responses!.find((r) => r.externalPid === null)?.points).toHaveLength(2);
+  });
+
+  it("hot-spot: per-respondent regionKeys + aggregated region counts", async () => {
+    await seedUserWithWorkspace("ext_hs", "Lab HS");
+    const caller = createCaller({ authUser: authUser("ext_hs") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "HS responses" });
+    const hs = await caller.studies.addBlock({ studyId: id, source: "core", key: "hot-spot", version: "1.0.0" });
+    const hsBlock = (await caller.studies.get({ id })).blocks.find((b) => b.instanceId === hs.instanceId)!;
+    await caller.studies.updateBlockConfig({ studyId: id, instanceId: hs.instanceId, config: { ...hsBlock.config, imageUrl: "/api/media/ws/x/post.png", multiple: true } });
+    await caller.studies.publish({ studyId: id });
+    await caller.studies.openRecruitment({ studyId: id });
+    const open = await resolveOpenRecruitment(id);
+    const r1 = await startResponse({ recruitmentSessionId: open!.recruitmentSessionId, mode: "run", externalPid: null });
+    await recordAnswer({ responseId: (r1 as { responseId: string }).responseId, questionIndex: 0, answer: { selected: ["r1"] } });
+
+    const q = (await caller.studies.getResults({ studyId: id }))!.questions.find((x) => x.instanceId === hs.instanceId)!;
+    expect(q.spatial?.kind).toBe("hot-spot");
+    expect(q.spatial?.regions?.find((r) => r.key === "r1")?.count).toBe(1);
+    expect(q.spatial?.responses?.[0]?.regionKeys).toEqual(["r1"]);
+  });
+
+  it("graphic-slider: emits spatial with per-respondent value + synthesized pooled strip", async () => {
+    await seedUserWithWorkspace("ext_gs", "Lab GS");
+    const caller = createCaller({ authUser: authUser("ext_gs") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "GS responses" });
+    const gs = await caller.studies.addBlock({ studyId: id, source: "core", key: "graphic-slider", version: "1.0.0" });
+    const gsBlock = (await caller.studies.get({ id })).blocks.find((b) => b.instanceId === gs.instanceId)!;
+    await caller.studies.updateBlockConfig({ studyId: id, instanceId: gs.instanceId, config: { ...gsBlock.config, imageUrl: "/api/media/ws/x/scale.png" } });
+    await caller.studies.publish({ studyId: id });
+    await caller.studies.openRecruitment({ studyId: id });
+    const open = await resolveOpenRecruitment(id);
+    const r1 = await startResponse({ recruitmentSessionId: open!.recruitmentSessionId, mode: "run", externalPid: null });
+    await recordAnswer({ responseId: (r1 as { responseId: string }).responseId, questionIndex: 0, answer: { value: 0.7 } });
+
+    const q = (await caller.studies.getResults({ studyId: id }))!.questions.find((x) => x.instanceId === gs.instanceId)!;
+    expect(q.spatial?.kind).toBe("graphic-slider");
+    expect(q.spatial?.responses?.[0]?.value).toBe(0.7);
+    expect(q.spatial?.points).toEqual([{ x: 0.7, y: 0.5 }]); // synthesized strip
+    expect(q.n).toBe(1);
+  });
 });

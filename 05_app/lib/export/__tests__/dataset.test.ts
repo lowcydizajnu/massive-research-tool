@@ -55,6 +55,46 @@ describe("export dataset (V1.12 D)", () => {
   });
 });
 
+import { spatialLinks } from "@/lib/export/dataset";
+
+const withSpatial: ResultsSummary = {
+  ...results,
+  questions: [
+    ...results.questions,
+    {
+      instanceId: "hm1",
+      prompt: "Where did your eye go?",
+      moduleKey: "heat-map",
+      n: 1,
+      kind: "text",
+      mean: null,
+      optionCounts: [],
+      spatial: { kind: "heat-map", imageUrl: "/api/media/ws/x/a.png", points: [{ x: 0.5, y: 0.5 }], responses: [] },
+    },
+  ],
+};
+
+describe("spatial viz links (ADR-0041 amendment)", () => {
+  it("one absolute Explore URL per spatial block; none for non-spatial datasets", () => {
+    expect(spatialLinks(results, "study-1", "https://app.example")).toEqual([]);
+    expect(spatialLinks(withSpatial, "study-1", "https://app.example")).toEqual([
+      { prompt: "Where did your eye go?", url: "https://app.example/studies/study-1/results/explore/hm1" },
+    ]);
+  });
+
+  it("toDelimited appends the link section only when opts + spatial blocks are present", () => {
+    const cols = baseColumns(withSpatial);
+    expect(toDelimited(withSpatial, cols, ",")).not.toContain("Spatial visualizations"); // no opts
+    expect(toDelimited(results, cols, ",", { studyId: "s", origin: "https://app.example" })).not.toContain(
+      "Spatial visualizations",
+    ); // opts but no spatial blocks
+    const csv = toDelimited(withSpatial, cols, ",", { studyId: "study-1", origin: "https://app.example" });
+    expect(csv).toContain("# Spatial visualizations (open in browser, signed in)");
+    expect(csv).toContain("https://app.example/studies/study-1/results/explore/hm1");
+    expect(csv).toContain("\r\nblock,url\r\n"); // labeled mini-table header, instance_id dropped
+  });
+});
+
 import { toExcelCsv, toSpssSyntax, toStataDo } from "@/lib/export/dataset";
 
 describe("export companions (V1.12 D — formats)", () => {

@@ -182,7 +182,7 @@ Build  ·  Preview  ·  Share  ·  Preregister  ·  Run  ·  Results
 | **Share** | Peer review. Invite collaborators to comment / suggest. Lineage and history visible. Preregistration is NOT here — this stage is for getting feedback before commitment. |
 | **Preregister** | The commitment moment. Freeze the version (ADR-0003) + push to OSF (ADR-0005) + lock the snapshot (ADR-0002 `kind: preregistered`). Amendments (ADR-0004) re-enter this stage. |
 | **Run** | Live data collection. Real participants. Real responses. The runtime mode. |
-| **Results** | Post-collection analytics — descriptive stats, manipulation checks, data export. AI assist surfaces here in V2 per ADR-0006. |
+| **Results** | Post-collection analytics — descriptive stats, manipulation checks, data export. Per-question deep-dives hang off here: the **Export** builder (`…/results/export`) and the spatial **Explore** surface (`…/results/explore/[instanceId]` — filter by condition, aggregate↔per-respondent, dots↔density for heat-map/hot-spot/graphic-slider; [spatial-explore wireframe](../wireframes/spatial-explore.md)). AI assist surfaces here in V2 per ADR-0006. |
 
 Separating `Share` from `Preregister` accurately reflects the workflow: peer review *before* the commitment is normal practice; conflating them was a mistake in v0.1. This split also makes amendments (per ADR-0004) more clearly land back on the `Preregister` stage, not `Share`.
 

@@ -85,10 +85,53 @@ function escapeDelimited(v: string, delim: string): string {
   return v.includes(delim) || /["\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
 }
 
-/** CSV (delim ",") or TSV (delim "\t"). RFC-4180-ish quoting; CRLF rows. */
-export function toDelimited(results: ResultsSummary, columns: ExportColumn[], delim: "," | "\t"): string {
+/**
+ * Per-block links to the dedicated Explore visualization (ADR-0041 amendment).
+ * One per spatial block (heat-map/hot-spot/graphic-slider), keyed off the
+ * already-computed `q.spatial` flag. Pure: `origin` is passed in (this file
+ * never touches `window`). Returns a raw absolute https URL — auto-linkified by
+ * Excel/Sheets/editors and CSV-injection-safe (unlike a HYPERLINK() formula).
+ */
+export function spatialLinks(
+  results: ResultsSummary,
+  studyId: string,
+  origin: string,
+): { prompt: string; url: string }[] {
+  return results.questions
+    .filter((q) => q.spatial != null)
+    .map((q) => ({
+      prompt: q.prompt || q.moduleKey,
+      url: `${origin}/studies/${studyId}/results/explore/${q.instanceId}`,
+    }));
+}
+
+/**
+ * CSV (delim ",") or TSV (delim "\t"). RFC-4180-ish quoting; CRLF rows. When
+ * `opts` carries a studyId + origin AND the dataset has spatial blocks, a small
+ * "# Spatial visualizations" section is appended after the matrix — one raw
+ * https link per block. It's one-per-block (not one-per-respondent), so it would
+ * be a constant junk column in the grid; a labeled trailing section is cleaner
+ * and the leading `#` row is conventionally skippable by stats importers.
+ */
+export function toDelimited(
+  results: ResultsSummary,
+  columns: ExportColumn[],
+  delim: "," | "\t",
+  opts?: { studyId?: string; origin?: string },
+): string {
   const { headers, rows } = buildMatrix(results, columns);
-  return [headers, ...rows].map((r) => r.map((c) => escapeDelimited(c, delim)).join(delim)).join("\r\n");
+  const body = [headers, ...rows].map((r) => r.map((c) => escapeDelimited(c, delim)).join(delim)).join("\r\n");
+  const links = opts?.studyId && opts?.origin ? spatialLinks(results, opts.studyId, opts.origin) : [];
+  if (links.length === 0) return body;
+  const linkRows = [
+    [],
+    ["# Spatial visualizations (open in browser, signed in)"],
+    ["block", "url"],
+    ...links.map((l) => [l.prompt, l.url]),
+  ]
+    .map((r) => r.map((c) => escapeDelimited(c, delim)).join(delim))
+    .join("\r\n");
+  return `${body}\r\n${linkRows}`;
 }
 
 /** One JSON object per response, keyed by export label. */
@@ -106,8 +149,12 @@ export function toJSON(results: ResultsSummary, columns: ExportColumn[]): string
 }
 
 /** UTF-8 BOM so Excel opens the CSV with correct encoding (accents intact). */
-export function toExcelCsv(results: ResultsSummary, columns: ExportColumn[]): string {
-  return "﻿" + toDelimited(results, columns, ",");
+export function toExcelCsv(
+  results: ResultsSummary,
+  columns: ExportColumn[],
+  opts?: { studyId?: string; origin?: string },
+): string {
+  return "﻿" + toDelimited(results, columns, ",", opts);
 }
 
 const SPSS_TYPE: Record<ExportColumn["type"], string> = {
