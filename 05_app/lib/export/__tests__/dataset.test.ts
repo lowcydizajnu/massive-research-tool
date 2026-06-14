@@ -55,8 +55,8 @@ describe("export dataset (V1.12 D)", () => {
   });
 });
 
-import { spatialLinks } from "@/lib/export/dataset";
-
+// A spatial block where r1 answered but r2 did NOT (rows ⊋ spatial.responses) —
+// exercises the per-respondent deep-link column + the membership guard.
 const withSpatial: ResultsSummary = {
   ...results,
   questions: [
@@ -69,29 +69,46 @@ const withSpatial: ResultsSummary = {
       kind: "text",
       mean: null,
       optionCounts: [],
-      spatial: { kind: "heat-map", imageUrl: "/api/media/ws/x/a.png", points: [{ x: 0.5, y: 0.5 }], responses: [] },
+      spatial: {
+        kind: "heat-map",
+        imageUrl: "/api/media/ws/x/a.png",
+        points: [{ x: 0.5, y: 0.5 }],
+        responses: [{ responseId: "r1", conditionSlug: "control", externalPid: null, points: [{ x: 0.5, y: 0.5 }] }],
+      },
     },
   ],
 };
 
-describe("spatial viz links (ADR-0041 amendment)", () => {
-  it("one absolute Explore URL per spatial block; none for non-spatial datasets", () => {
-    expect(spatialLinks(results, "study-1", "https://app.example")).toEqual([]);
-    expect(spatialLinks(withSpatial, "study-1", "https://app.example")).toEqual([
-      { prompt: "Where did your eye go?", url: "https://app.example/studies/study-1/results/explore/hm1" },
-    ]);
+describe("per-respondent spatial deep-link column (ADR-0041 amendment 2026-06-14b)", () => {
+  it("baseColumns appends one viz column per spatial block, after questions; none when no spatial", () => {
+    expect(baseColumns(results).some((c) => c.key.startsWith("viz:"))).toBe(false);
+    const cols = baseColumns(withSpatial);
+    const viz = cols.filter((c) => c.key.startsWith("viz:"));
+    expect(viz.map((c) => c.key)).toEqual(["viz:hm1"]);
+    expect(viz[0].label).toBe("where_did_your_eye_go_explore_url"); // researcher-native, no "instanceId"
+    expect(cols[cols.length - 1].key).toBe("viz:hm1"); // appended last
   });
 
-  it("toDelimited appends the link section only when opts + spatial blocks are present", () => {
+  it("buildMatrix with ctx → per-respondent deep link, empty for respondents not in the block", () => {
+    const cols = baseColumns(withSpatial).filter((c) => c.key === "responseId" || c.key === "viz:hm1");
+    const ctx = { studyId: "study-1", origin: "https://app.example" };
+    const m = buildMatrix(withSpatial, cols, ctx);
+    expect(m.rows[0]).toEqual(["r1", "https://app.example/studies/study-1/results/explore/hm1?r=r1"]);
+    expect(m.rows[1]).toEqual(["r2", ""]); // r2 has no response for this block → blank, not a wrong link
+  });
+
+  it("buildMatrix without ctx → viz cells blank (never a relative URL)", () => {
+    const cols = baseColumns(withSpatial).filter((c) => c.key === "viz:hm1");
+    expect(buildMatrix(withSpatial, cols).rows).toEqual([[""], [""]]);
+  });
+
+  it("toDelimited emits the URL inline (no trailing section), unquoted + injection-safe", () => {
     const cols = baseColumns(withSpatial);
-    expect(toDelimited(withSpatial, cols, ",")).not.toContain("Spatial visualizations"); // no opts
-    expect(toDelimited(results, cols, ",", { studyId: "s", origin: "https://app.example" })).not.toContain(
-      "Spatial visualizations",
-    ); // opts but no spatial blocks
     const csv = toDelimited(withSpatial, cols, ",", { studyId: "study-1", origin: "https://app.example" });
-    expect(csv).toContain("# Spatial visualizations (open in browser, signed in)");
-    expect(csv).toContain("https://app.example/studies/study-1/results/explore/hm1");
-    expect(csv).toContain("\r\nblock,url\r\n"); // labeled mini-table header, instance_id dropped
+    expect(csv).not.toContain("# Spatial visualizations"); // the old collective section is gone
+    expect(csv).toContain("https://app.example/studies/study-1/results/explore/hm1?r=r1");
+    // raw https URL has no comma/quote → emitted unquoted, no leading = + - @ (CSV-injection-safe)
+    expect(csv).toContain(",https://app.example/studies/study-1/results/explore/hm1?r=r1");
   });
 });
 

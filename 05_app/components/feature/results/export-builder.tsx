@@ -89,7 +89,10 @@ export function ExportBuilder({ studyId, title }: { studyId: string; title: stri
   }
   const data = results.data;
   const visible = cols.filter((c) => !c.hidden);
-  const preview = buildMatrix(data, cols);
+  // Absolute origin for the per-respondent Explore-link columns (ADR-0041 am.) —
+  // read here (client) so dataset.ts stays pure; drives preview + every export.
+  const ctx = { studyId, origin: typeof window !== "undefined" ? window.location.origin : "" };
+  const preview = buildMatrix(data, cols, ctx);
   // Explorer: filter (any cell contains) then sort by the chosen column.
   const q = filter.trim().toLowerCase();
   let explored = q ? preview.rows.filter((r) => r.some((c) => c.toLowerCase().includes(q))) : preview.rows;
@@ -124,14 +127,12 @@ export function ExportBuilder({ studyId, title }: { studyId: string; title: stri
   const base = safeName(title);
   const csvName = `${base}.csv`;
   const exportFile = () => {
-    // Absolute origin is introduced here (client event handler — no SSR access);
-    // dataset.ts stays pure. Adds a clickable Explore-viz link section to the
-    // delimited/Excel exports when the study has spatial blocks (ADR-0041 am.).
-    const opts = { studyId, origin: window.location.origin };
-    if (format === "json") return download(`${base}.json`, "application/json", toJSON(data, cols));
-    if (format === "excel") return download(csvName, "text/csv", toExcelCsv(data, cols, opts));
-    if (format === "tsv") return download(`${base}.tsv`, "text/tab-separated-values", toDelimited(data, cols, "\t", opts));
-    download(csvName, "text/csv", toDelimited(data, cols, ",", opts));
+    // ctx carries the absolute origin (client only) so the per-respondent
+    // Explore-link columns resolve in every format; dataset.ts stays pure.
+    if (format === "json") return download(`${base}.json`, "application/json", toJSON(data, cols, ctx));
+    if (format === "excel") return download(csvName, "text/csv", toExcelCsv(data, cols, ctx));
+    if (format === "tsv") return download(`${base}.tsv`, "text/tab-separated-values", toDelimited(data, cols, "\t", ctx));
+    download(csvName, "text/csv", toDelimited(data, cols, ",", ctx));
   };
 
   const saveView = () => {

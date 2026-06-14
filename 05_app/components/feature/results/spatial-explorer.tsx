@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { ResultsSummary } from "@/server/trpc/routers/studies";
 import { cn } from "@/lib/utils";
@@ -26,17 +26,26 @@ export function SpatialExplorer({
   spatial,
   conditions,
   initialCondition,
+  initialRespondentId = null,
 }: {
   spatial: Spatial;
   conditions: { slug: string; name: string }[];
   initialCondition: string;
+  /** Deep link from the export (?r) — open per-respondent at this responseId. */
+  initialRespondentId?: string | null;
 }) {
   const responses = useMemo(() => spatial.responses ?? [], [spatial.responses]);
-  const [cond, setCond] = useState(initialCondition);
-  const [view, setView] = useState<"aggregate" | "respondent">("aggregate");
+  // Deep link (?r): land in per-respondent view at that respondent. `rows[]` is a
+  // superset of `responses[]`, so guard a miss — fall back to aggregate + notice
+  // rather than silently opening respondent #1.
+  const deepIdx = initialRespondentId ? responses.findIndex((r) => r.responseId === initialRespondentId) : -1;
+  const deepMissing = initialRespondentId != null && deepIdx === -1;
+  const [cond, setCond] = useState(initialRespondentId ? "all" : initialCondition); // "all" so the target is present
+  const [view, setView] = useState<"aggregate" | "respondent">(deepIdx >= 0 ? "respondent" : "aggregate");
   const [mode, setMode] = useState<"dots" | "density" | null>(null); // null = auto
   const [opacity, setOpacity] = useState(0.4);
-  const [idx, setIdx] = useState(0);
+  const [tone, setTone] = useState(100); // stimulus saturation %, display-only
+  const [idx, setIdx] = useState(deepIdx >= 0 ? deepIdx : 0);
 
   const condName = useMemo(() => new Map(conditions.map((c) => [c.slug, c.name])), [conditions]);
 
@@ -54,8 +63,16 @@ export function SpatialExplorer({
     [responses, cond],
   );
 
-  // Reset the per-respondent cursor when the filter changes.
-  useEffect(() => setIdx(0), [cond]);
+  // Reset the per-respondent cursor when the filter CHANGES — but not on mount,
+  // which would clobber a deep-linked (?r) starting index.
+  const didMount = useRef(false);
+  useEffect(() => {
+    if (!didMount.current) {
+      didMount.current = true;
+      return;
+    }
+    setIdx(0);
+  }, [cond]);
 
   // Reflect the condition in the URL for shareability — no navigation/refetch.
   useEffect(() => {
@@ -132,7 +149,29 @@ export function SpatialExplorer({
             />
           </label>
         ) : null}
+
+        {hasImage ? (
+          <label className="flex items-center gap-2 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+            Image saturation
+            <input
+              type="range"
+              min={0}
+              max={200}
+              step={10}
+              value={tone}
+              onChange={(e) => setTone(Number(e.target.value))}
+              className="accent-[var(--color-primary)]"
+              aria-label="Image saturation (0% mutes the stimulus, 100% is unchanged)"
+            />
+          </label>
+        ) : null}
       </div>
+
+      {deepMissing ? (
+        <p role="status" className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+          That respondent has no response for this question — showing the aggregate instead.
+        </p>
+      ) : null}
 
       {/* Per-respondent stepper */}
       {view === "respondent" && filtered.length > 0 ? (
@@ -175,7 +214,12 @@ export function SpatialExplorer({
           {hasImage ? (
             <div className="relative w-full max-w-[640px] shrink-0 overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-border-subtle)]">
               {/* eslint-disable-next-line @next/next/no-img-element -- researcher stimulus, normalized overlay */}
-              <img src={spatial.imageUrl} alt="" className="block w-full select-none" />
+              <img
+                src={spatial.imageUrl}
+                alt=""
+                className="block w-full select-none"
+                style={tone === 100 ? undefined : { filter: `saturate(${tone}%)` }}
+              />
               <Overlay
                 spatial={spatial}
                 view={view}

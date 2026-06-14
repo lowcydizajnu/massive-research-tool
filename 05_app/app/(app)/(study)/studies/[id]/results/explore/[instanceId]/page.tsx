@@ -19,11 +19,13 @@ export default async function ExploreSpatialPage({
   searchParams,
 }: {
   params: Promise<{ id: string; instanceId: string }>;
-  searchParams: Promise<{ preview?: string; c?: string }>;
+  searchParams: Promise<{ preview?: string; c?: string; r?: string }>;
 }) {
+  const sp = await searchParams;
   const { id, instanceId } = await params;
-  const includePreview = (await searchParams).preview === "1";
-  const initialCondition = (await searchParams).c ?? "all";
+  const includePreview = sp.preview === "1";
+  const initialCondition = sp.c ?? "all";
+  const initialRespondentId = sp.r ?? null;
   const api = await getServerApi();
 
   let study: StudyDetail | null = null;
@@ -69,6 +71,7 @@ export default async function ExploreSpatialPage({
             spatial={question.spatial}
             conditions={results!.conditions.map((c) => ({ slug: c.slug, name: c.name }))}
             initialCondition={initialCondition}
+            initialRespondentId={initialRespondentId}
           />
         )}
       </div>

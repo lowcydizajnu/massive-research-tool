@@ -20,7 +20,7 @@ The focused-study shell reused (StageTabs with **Results** active; work-surface 
 
 1. **Breadcrumb** — `Results › Explore` (Results is a link back).
 2. **Header** — the question prompt (Plex Serif) + a one-line caption (`n` respondents, block type in researcher words: "click map" / "region picks" / "image slider").
-3. **Control row** — condition filter chips; an Aggregate ↔ Per-respondent segmented control; for heat-map, a Dots ↔ Density segmented control; an opacity slider (aggregate dots only). Controls compose from existing v0.6 primitives — no new design-language decisions (chips, segmented control, native range input, `--color-primary` fills at varying opacity, exactly as the inline overlay).
+3. **Control row** — condition filter chips; an Aggregate ↔ Per-respondent segmented control; for heat-map, a Dots ↔ Density segmented control; an opacity slider (aggregate dots only); an **image-saturation slider** (mutes/desaturates the stimulus so the markers read clearly — display-only, applied to the image, never the markers). Controls compose from existing v0.6 primitives — no new design-language decisions (chips, segmented control, native range input, `--color-primary` fills at varying opacity, exactly as the inline overlay).
 4. **Stimulus panel** — the image at a comfortable width (~640px max) with the visualization drawn over it (normalized 0..1 coordinates, so markers place correctly at any width).
 5. **Side/under panel** — block-type-specific readout (region counts table / value histogram / per-respondent meta).
 
@@ -49,8 +49,10 @@ The focused-study shell reused (StageTabs with **Results** active; work-surface 
 - **Aggregate ↔ Per-respondent / Dots ↔ Density** — segmented controls; instant, client-side.
 - **Prev / Next** — step respondents; also ← / → when the stepper has focus.
 - **Opacity slider** — `role="slider"` (native range), tunes aggregate dot opacity live.
+- **Image-saturation slider** — native range, tunes `filter: saturate()` on the stimulus image only (display-only; the markers and the exported data are untouched). Default 100%.
 - **Explore responses →** (on Results, per spatial question) — navigates here for that `instanceId`.
-- **From the export** — the CSV/Excel "Spatial visualizations" section lists an absolute `https://…/studies/<id>/results/explore/<instanceId>` URL per spatial block (opens here, signed in).
+- **From the export** — each spatial block is a **column** in the CSV/Excel dataset whose per-row cell is an absolute deep link `https://…/studies/<id>/results/explore/<instanceId>?r=<responseId>` that opens **that respondent** here in per-respondent view (opens signed in). A respondent with no response for the block gets an empty cell.
+- **Deep-link landing (`?r=<responseId>`)** — opens directly in per-respondent view focused on that respondent (condition defaults to All so the respondent is present). If the id isn't among this block's responses, a "no response for this block" notice shows and the view falls back to aggregate.
 
 ## Edge cases
 
