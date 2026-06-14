@@ -214,7 +214,7 @@ The right context panel (per the design-language brief) is contextual. Its tab l
 
 | Tab | Content |
 | --- | --- |
-| **Configure** | Module-specific configuration (the typed inputs against the module's schema). |
+| **Configure** | Module-specific configuration (the typed inputs against the module's schema). Image-interaction blocks render an in-place visual editor here — e.g. hot-spot draws/reads its clickable regions directly on the stimulus ([hot-spot-region-editor](../wireframes/hot-spot-region-editor.md)). |
 | **Validation** | Real-time schema check; "looks valid" / "missing X" / "warning: Y." |
 | **Preview** | Live render of this specific module instance. |
 | **History** | This module instance's edit history within the current draft. |
