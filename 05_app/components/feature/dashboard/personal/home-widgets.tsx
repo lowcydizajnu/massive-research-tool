@@ -2,6 +2,7 @@ import { ArrowRight, FlaskConical } from "lucide-react";
 import Link from "next/link";
 
 import { openStudyAction, switchWorkspaceAction } from "@/app/actions/switch-workspace";
+import { PaginatedList } from "@/components/feature/dashboard/paginated-list";
 import { NewStudyButton } from "@/components/feature/new-study/new-study-button";
 import type { MeStats, RecentStudy, RecruitingStudy } from "@/server/trpc/routers/me";
 import type { WorkspaceListItem } from "@/server/trpc/routers/workspace";
@@ -83,7 +84,7 @@ export function WorkspacesWidget({
       {workspaces.length === 0 ? (
         <Empty>You’re not in any workspaces yet.</Empty>
       ) : (
-        <ul className="flex flex-col gap-1">
+        <PaginatedList>
           {workspaces.map((w) => (
             <li
               key={w.id}
@@ -113,7 +114,7 @@ export function WorkspacesWidget({
               )}
             </li>
           ))}
-        </ul>
+        </PaginatedList>
       )}
     </Card>
   );
@@ -125,7 +126,7 @@ export function RecruitingWidget({ studies }: { studies: RecruitingStudy[] }) {
       {studies.length === 0 ? (
         <Empty>No studies are recruiting right now.</Empty>
       ) : (
-        <ul className="flex flex-col gap-1">
+        <PaginatedList>
           {studies.map((s) => (
             <li key={s.studyId}>
               <form action={openStudyAction.bind(null, s.workspaceId, s.studyId, "run")}>
@@ -149,7 +150,7 @@ export function RecruitingWidget({ studies }: { studies: RecruitingStudy[] }) {
               </form>
             </li>
           ))}
-        </ul>
+        </PaginatedList>
       )}
     </Card>
   );
@@ -161,7 +162,7 @@ export function RecentStudiesWidget({ studies }: { studies: RecentStudy[] }) {
       {studies.length === 0 ? (
         <Empty>No studies yet — start one below.</Empty>
       ) : (
-        <ul className="flex flex-col gap-1">
+        <PaginatedList>
           {studies.map((s) => (
             <li key={s.studyId}>
               <form action={openStudyAction.bind(null, s.workspaceId, s.studyId, "build")}>
@@ -180,7 +181,7 @@ export function RecentStudiesWidget({ studies }: { studies: RecentStudy[] }) {
               </form>
             </li>
           ))}
-        </ul>
+        </PaginatedList>
       )}
     </Card>
   );

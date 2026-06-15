@@ -1,6 +1,8 @@
 import type { Route } from "next";
 import Link from "next/link";
 
+import { PaginatedList } from "@/components/feature/dashboard/paginated-list";
+
 import type {
   WorkspaceActivityItem,
   WorkspaceDashboardStats,
@@ -75,7 +77,7 @@ export function ActiveRecruitmentWidget({ studies }: { studies: WorkspaceRecruit
       {studies.length === 0 ? (
         <Empty>No studies are recruiting right now.</Empty>
       ) : (
-        <ul className="flex flex-col gap-1">
+        <PaginatedList>
           {studies.map((s) => (
             <li key={s.studyId}>
               <Link
@@ -92,7 +94,7 @@ export function ActiveRecruitmentWidget({ studies }: { studies: WorkspaceRecruit
               </Link>
             </li>
           ))}
-        </ul>
+        </PaginatedList>
       )}
     </Card>
   );
@@ -104,7 +106,7 @@ export function RecentlyEditedWidget({ studies }: { studies: WorkspaceRecentStud
       {studies.length === 0 ? (
         <Empty>No studies yet.</Empty>
       ) : (
-        <ul className="flex flex-col gap-1">
+        <PaginatedList>
           {studies.map((s) => (
             <li key={s.studyId}>
               <Link
@@ -115,7 +117,7 @@ export function RecentlyEditedWidget({ studies }: { studies: WorkspaceRecentStud
               </Link>
             </li>
           ))}
-        </ul>
+        </PaginatedList>
       )}
     </Card>
   );
@@ -140,7 +142,7 @@ export function RecentActivityWidget({ items }: { items: WorkspaceActivityItem[]
       {items.length === 0 ? (
         <Empty>No activity yet.</Empty>
       ) : (
-        <ul className="flex flex-col gap-1">
+        <PaginatedList>
           {items.map((a) => (
             <li
               key={a.id}
@@ -152,7 +154,7 @@ export function RecentActivityWidget({ items }: { items: WorkspaceActivityItem[]
               </span>
             </li>
           ))}
-        </ul>
+        </PaginatedList>
       )}
     </Card>
   );

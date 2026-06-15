@@ -30,7 +30,7 @@ export default async function HomePage() {
   const [active, workspaces, recent, recruiting, stats] = await Promise.allSettled([
     api.workspace.active(),
     api.workspace.list(),
-    api.me.recentStudies({ limit: 6 }),
+    api.me.recentStudies({ limit: 30 }),
     api.me.recruitingStudies(),
     api.me.stats(),
   ]);
@@ -46,9 +46,9 @@ export default async function HomePage() {
 
       {stats.status === "fulfilled" ? <StatsStrip stats={stats.value} /> : <WidgetError title="Your stats" />}
 
-      {/* items-start so each card sizes to its own content — without it the grid
-          stretches short widgets to the tallest neighbour's height. */}
-      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+      {/* CSS multi-column (masonry) so cards pack to content and don't leave
+          gaps between widgets; break-inside-avoid keeps each card whole. */}
+      <div className="columns-1 gap-4 lg:columns-2 [&>*]:mb-4 [&>*]:break-inside-avoid">
         {recruiting.status === "fulfilled" ? (
           <RecruitingWidget studies={recruiting.value} />
         ) : (

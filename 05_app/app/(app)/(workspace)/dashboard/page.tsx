@@ -22,8 +22,8 @@ export default async function WorkspaceDashboardPage() {
     api.workspace.active(),
     api.workspace.dashboardStats(),
     api.workspace.activeRecruitment(),
-    api.workspace.recentlyEdited({ limit: 6 }),
-    api.workspace.recentActivity({ limit: 15 }),
+    api.workspace.recentlyEdited({ limit: 30 }),
+    api.workspace.recentActivity({ limit: 30 }),
   ]);
   const name = active.status === "fulfilled" ? active.value.name : "Workspace";
 
@@ -35,7 +35,8 @@ export default async function WorkspaceDashboardPage() {
         <WidgetError title={name} />
       )}
 
-      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+      {/* CSS multi-column (masonry) so cards pack to content without gaps. */}
+      <div className="columns-1 gap-4 lg:columns-2 [&>*]:mb-4 [&>*]:break-inside-avoid">
         {recruiting.status === "fulfilled" ? (
           <ActiveRecruitmentWidget studies={recruiting.value} />
         ) : (
