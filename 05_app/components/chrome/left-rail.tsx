@@ -33,7 +33,7 @@ type Destination = {
 const DESTINATIONS: Destination[] = [
   { label: "Dashboard", icon: LayoutDashboard, href: "/dashboard" as Route },
   { label: "Studies", icon: FlaskConical, href: "/studies" },
-  { label: "Library", icon: Library },
+  { label: "Library", icon: Library, href: "/library" as Route },
   { label: "Frameworks", icon: Boxes, href: "/frameworks" as Route },
   { label: "Browse", icon: Compass, href: "/browse" as Route },
   { label: "Participants", icon: Users },
