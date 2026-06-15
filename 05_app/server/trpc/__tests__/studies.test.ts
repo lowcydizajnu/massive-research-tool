@@ -2082,3 +2082,44 @@ describe("meRouter (cross-workspace personal data, ADR-0033)", () => {
     expect(recruiting[0]).toMatchObject({ studyId: id, title: "Recruiting one", workspaceName: "Alpha", currentN: 0 });
   });
 });
+
+describe("workspace dashboard aggregates (V1.13.0 Stream B)", () => {
+  it("dashboardStats + activeRecruitment + recentlyEdited reflect a recruiting study", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "Stream B study" });
+    await caller.studies.addBlock({ studyId: id, source: "core", key: "likert-7", version: "1.0.0" });
+    await caller.studies.preregister({ studyId: id });
+    await caller.studies.openRecruitment({ studyId: id });
+
+    const stats = await caller.workspace.dashboardStats();
+    expect(stats).toMatchObject({ totalStudies: 1, recruiting: 1, responsesThisWeek: 0 });
+
+    const recruiting = await caller.workspace.activeRecruitment();
+    expect(recruiting).toHaveLength(1);
+    expect(recruiting[0]).toMatchObject({ studyId: id, title: "Stream B study", currentN: 0 });
+
+    const recent = await caller.workspace.recentlyEdited({ limit: 6 });
+    expect(recent.map((r) => r.title)).toContain("Stream B study");
+  });
+
+  it("recentActivity is scoped to the active workspace", async () => {
+    const { user: u, workspace: ws } = await seedUserWithWorkspace("ext_a", "Alpha");
+    const [beta] = await db.insert(workspace).values({ name: "Beta", slug: "beta", ownerId: u.id }).returning();
+    await db.insert(member).values({ workspaceId: beta.id, userId: u.id, role: "owner", status: "active" });
+    await db.insert(activityEvent).values({
+      id: ulid(), type: "preregister_complete", workspaceId: ws.id,
+      targetType: "study", targetId: "x", relatedStudyId: "x", payload: { studyTitle: "Mine" },
+    });
+    await db.insert(activityEvent).values({
+      id: ulid(), type: "preregister_complete", workspaceId: beta.id,
+      targetType: "study", targetId: "y", relatedStudyId: "y", payload: { studyTitle: "Other" },
+    });
+
+    // Active workspace = Alpha (earliest owner) → only its event shows.
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const activity = await caller.workspace.recentActivity({ limit: 15 });
+    expect(activity.map((a) => a.studyTitle)).toEqual(["Mine"]);
+    expect(activity[0]).toMatchObject({ type: "preregister_complete", studyTitle: "Mine" });
+  });
+});
