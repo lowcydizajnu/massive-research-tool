@@ -102,8 +102,8 @@ For each vendor:
 
 | | |
 | --- | --- |
-| **What we use it for** | V1.11 block drag-reorder in the Builder list + whiteboard List — a smooth, keyboard-accessible sortable. Researcher-only. |
-| **Behind an adapter** | No server adapter — dnd-kit is a client-only UI library, so the boundary is a component wrapper (`05_app/components/feature/whiteboard/sortable-list.tsx`); `@dnd-kit/*` imports are confined to that wrapper + the two list components that consume it. The reorder *result* is a plain `instanceId[]` handed to `studies.reorderBlocks` — no dnd-kit type touches the data layer. |
+| **What we use it for** | V1.11 block drag-reorder in the Builder list + whiteboard List; V1.13.0 the dashboard customize grid (`rectSortingStrategy` drag-reorder on `/home` + `/dashboard`, ADR-0045 amendment). Researcher-only. |
+| **Behind an adapter** | No server adapter — dnd-kit is a client-only UI library, so the boundary is the component wrappers that use it (`05_app/components/feature/whiteboard/sortable-list.tsx` + `components/feature/dashboard/dashboard-grid.tsx`); `@dnd-kit/*` imports are confined to those. The reorder *result* is a plain array order (block `instanceId[]` for the Builder; widget-key order for the dashboard) — no dnd-kit type touches the data layer. |
 | **Deliberate exceptions** | (none — the wrapper boundary holds.) |
 | **Migration target** | Native HTML5 DnD (what we had pre-V1.11) or another sortable lib; a migration swaps the wrapper, since order is just the `blocks` array order (ADR-0012). |
 | **Cost-ceiling trigger** | None — MIT, no SaaS tier, no per-seat cost. Revisit only on a React-major incompatibility or unmaintained status (ADR-0022 triggers). |
@@ -118,15 +118,7 @@ For each vendor:
 | **Migration target** | Browser print-to-PDF (the ADR-0027 Option B fallback) or another server PDF lib; a migration rewrites the one document component. |
 | **Cost-ceiling trigger** | None — MIT, no SaaS tier. Operational note: must run on the Node runtime + be in `next.config` `serverExternalPackages` (not bundled). Revisit on a React/Node-major incompatibility or Vercel bundle/runtime cost (ADR-0027 triggers). |
 
-## react-grid-layout (Dashboard flexible grid — per ADR-0045 amendment 2026-06-15)
-
-| | |
-| --- | --- |
-| **What we use it for** | V1.13.0 dashboard customization — the draggable + resizable 2D grid on `/home` + `/dashboard` (drag widgets on the real layout, resize narrower/wider, 3 responsive columns). Researcher-only. |
-| **Behind an adapter** | No server adapter — `react-grid-layout` is a client-only UI library, so the boundary is the dashboard grid island (`05_app/components/feature/dashboard/dashboard-grid.tsx`) + its CSS import; no `react-grid-layout` type touches the data layer. Geometry is stored as our own `{x,y,w,h}` grid units inside the existing `dashboard_layout.widgets` jsonb (ADR-0045) — the data shape is **ours**, so a migration swaps only the renderer. |
-| **Deliberate exceptions** | (none — the single-island boundary holds.) |
-| **Migration target** | The "flowing grid" fallback — a CSS grid with per-widget `colSpan` + the `@dnd-kit` we already own for reorder. Well-bounded: the stored `{x,y,w,h}` degrades cleanly to a width + order. (This is also the fallback if RGL ever breaks on a React major.) |
-| **Cost-ceiling trigger** | None — MIT, no SaaS tier, no per-seat cost. `react-grid-layout@2.x` peers `react >= 16.3.0` (React 19 OK; 2.x dropped `findDOMNode`). Revisit on a React-major incompatibility, unmaintained status, or a future `bundle-size` budget. |
+> **Note (2026-06-15):** `react-grid-layout` was briefly added for the dashboard flexible grid (ADR-0045 amendment) and **removed** — its fixed-cell model truncated content-sized widgets and its responsive layout misbehaved. The dashboard grid is now a plain CSS grid + the `@dnd-kit` row above (no new dependency). See the ADR-0045 amendment for the rationale.
 
 ## Review discipline
 
