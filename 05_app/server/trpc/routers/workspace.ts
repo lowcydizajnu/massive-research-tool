@@ -60,6 +60,9 @@ export type WorkspaceActivityItem = {
   studyTitle: string | null;
 };
 
+/** A tag + how many of the workspace's studies carry it (top-tags widget). */
+export type WorkspaceTopTag = { tag: string; count: number };
+
 export const workspaceRouter = router({
   /** The current user's active workspace (chrome: workspace chip + breadcrumb). */
   active: workspaceProcedure.query(({ ctx }): ActiveWorkspace => ({
@@ -238,6 +241,45 @@ export const workspaceRouter = router({
         })
         .from(activityEvent)
         .where(eq(activityEvent.workspaceId, ctx.workspace.id))
+        .orderBy(desc(activityEvent.createdAt))
+        .limit(input.limit);
+      return rows.map((r) => ({
+        id: r.id,
+        type: r.type,
+        createdAt: r.createdAt.toISOString(),
+        studyId: r.studyId ?? null,
+        studyTitle: (r.payload as { studyTitle?: string } | null)?.studyTitle ?? null,
+      }));
+    }),
+
+  /** Most-used study tags in this workspace (top-tags widget). Counted app-side. */
+  topTags: workspaceProcedure.query(async ({ ctx }): Promise<WorkspaceTopTag[]> => {
+    const rows = await db
+      .select({ tags: experiment.tags })
+      .from(experiment)
+      .where(and(eq(experiment.tenantId, ctx.workspace.id), isNull(experiment.archivedAt)));
+    const counts = new Map<string, number>();
+    for (const r of rows) for (const t of r.tags ?? []) counts.set(t, (counts.get(t) ?? 0) + 1);
+    return [...counts.entries()]
+      .map(([tag, count]) => ({ tag, count }))
+      .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag))
+      .slice(0, 20);
+  }),
+
+  /** Recent replications (fork events) involving this workspace (recent-forks widget). */
+  recentForks: workspaceProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(50).default(10) }))
+    .query(async ({ ctx, input }): Promise<WorkspaceActivityItem[]> => {
+      const rows = await db
+        .select({
+          id: activityEvent.id,
+          type: activityEvent.type,
+          createdAt: activityEvent.createdAt,
+          studyId: activityEvent.relatedStudyId,
+          payload: activityEvent.payload,
+        })
+        .from(activityEvent)
+        .where(and(eq(activityEvent.workspaceId, ctx.workspace.id), eq(activityEvent.type, "fork")))
         .orderBy(desc(activityEvent.createdAt))
         .limit(input.limit);
       return rows.map((r) => ({

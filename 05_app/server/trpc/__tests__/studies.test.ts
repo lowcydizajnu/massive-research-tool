@@ -2354,3 +2354,56 @@ describe("studies.runningOverview + runningList (Running tab, N4.1)", () => {
     expect(ov.responsesThisWeek).toBe(5);
   });
 });
+
+describe("workspace.topTags + recentForks (deferred dashboard widgets, N5)", () => {
+  it("topTags counts study tags across the workspace, most-used first", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const a = await caller.studies.create({ kind: "blank", title: "A" });
+    const b = await caller.studies.create({ kind: "blank", title: "B" });
+    await caller.studies.setTags({ studyId: a.id, tags: ["misinformation", "trust"] });
+    await caller.studies.setTags({ studyId: b.id, tags: ["misinformation"] });
+
+    const tags = await caller.workspace.topTags();
+    expect(tags[0]).toEqual({ tag: "misinformation", count: 2 });
+    expect(tags.find((t) => t.tag === "trust")).toEqual({ tag: "trust", count: 1 });
+  });
+
+  it("recentForks returns only fork events, tenant-scoped", async () => {
+    const { workspace: ws } = await seedUserWithWorkspace("ext_a", "Alpha");
+    const beta = await seedUserWithWorkspace("ext_b", "Beta");
+    await db.insert(activityEvent).values([
+      {
+        id: ulid(),
+        type: "fork",
+        workspaceId: ws.id,
+        targetType: "study",
+        targetId: "s1",
+        relatedStudyId: "s1",
+        payload: { studyTitle: "Forked One" },
+      },
+      {
+        id: ulid(),
+        type: "preregister_complete",
+        workspaceId: ws.id,
+        targetType: "study",
+        targetId: "s2",
+        relatedStudyId: "s2",
+        payload: { studyTitle: "Not a fork" },
+      },
+      {
+        id: ulid(),
+        type: "fork",
+        workspaceId: beta.workspace.id,
+        targetType: "study",
+        targetId: "s3",
+        relatedStudyId: "s3",
+        payload: { studyTitle: "Beta fork" },
+      },
+    ]);
+
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const forks = await caller.workspace.recentForks({ limit: 10 });
+    expect(forks.map((f) => f.studyTitle)).toEqual(["Forked One"]);
+  });
+});
