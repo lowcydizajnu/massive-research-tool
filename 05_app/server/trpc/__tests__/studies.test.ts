@@ -942,6 +942,29 @@ describe("studies.conditions (builder-conditions.md)", () => {
     expect((v.definitionSnapshot as { blocks: { visibility?: unknown }[] }).blocks[0].visibility).toBeUndefined();
   });
 
+  it("removeCondition refuses (no FK error) when responses reference the group", async () => {
+    const { caller, id } = await studyWithBlock();
+    const c = await caller.studies.addCondition({ studyId: id, name: "Control" });
+    const [tipv] = await db.select().from(experimentVersion).where(eq(experimentVersion.kind, "autosave"));
+    // A response (e.g. a preview run) assigned to this condition on the tip.
+    const rsId = ulid();
+    await db.insert(recruitmentSession).values({ id: rsId, experimentVersionId: tipv.id, status: "open" });
+    await db.insert(response).values({
+      id: ulid(),
+      recruitmentSessionId: rsId,
+      experimentVersionId: tipv.id,
+      conditionId: c.id,
+      mode: "preview",
+      status: "completed",
+    });
+
+    // Graceful refusal (returned, not a thrown FK error) + the group survives.
+    const res = await caller.studies.removeCondition({ studyId: id, conditionId: c.id });
+    expect(res.ok).toBe(false);
+    expect(res.reason).toMatch(/responses/i);
+    expect(await caller.studies.listConditions({ studyId: id })).toHaveLength(1);
+  });
+
   it("preregister copies the working-tip conditions onto the immutable version", async () => {
     const { caller, id } = await studyWithBlock();
     await caller.studies.addCondition({ studyId: id, name: "Control" });
