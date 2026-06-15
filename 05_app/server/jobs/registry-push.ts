@@ -13,8 +13,10 @@ import { emit } from "@/server/events/emit";
 import {
   experiment,
   experimentVersion,
+  member,
   registry as registryTable,
   registryPush,
+  user,
 } from "@/server/db/schema";
 
 /**
@@ -132,6 +134,27 @@ export async function runRegistryPush(data: JobCatalog["registry.push"]): Promis
   const appBase = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, "");
   const permalink = appBase ? `${appBase}/studies/${version.experimentId}` : undefined;
 
+  // Co-authors (ADR-0005 am. 4): active workspace members other than the pusher
+  // (who is already the node's creator/admin via their OSF token), pushed to the
+  // OSF node as unregistered contributors. Only takes effect on a NEW node
+  // (the adapter skips contributors when reusing a node for an amendment).
+  const contributors =
+    exp?.tenantId
+      ? (
+          await db
+            .select({ name: user.displayName, email: user.email })
+            .from(member)
+            .innerJoin(user, eq(member.userId, user.id))
+            .where(
+              and(
+                eq(member.workspaceId, exp.tenantId),
+                eq(member.status, "active"),
+                ne(member.userId, data.userId),
+              ),
+            )
+        ).map((m) => ({ fullName: m.name || m.email || "Researcher", email: m.email ?? null }))
+      : [];
+
   const payload: RegistrationPayload = {
     experimentVersionId: version.id,
     title: exp?.title ?? version.name ?? "Untitled study",
@@ -154,6 +177,7 @@ export async function runRegistryPush(data: JobCatalog["registry.push"]): Promis
     ...(exp?.description?.trim() ? { description: exp.description.trim() } : {}),
     ...(exp?.tags && exp.tags.length ? { tags: exp.tags } : {}),
     ...(permalink ? { permalink } : {}),
+    ...(contributors.length ? { contributors } : {}),
     ...(amendmentHeader ? { summaryPrefix: amendmentHeader } : {}),
     existingNodeId,
   };
