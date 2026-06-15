@@ -159,6 +159,20 @@ export const WIDGET_REGISTRY: Record<WidgetKey, WidgetMeta> = {
     size: "full",
     dashboard: "workspace",
     defaultInLayout: true,
+    settings: [
+      {
+        key: "kpiCount",
+        label: "Stats",
+        type: "select",
+        options: [
+          { value: 0, label: "Off" },
+          { value: 3, label: "3" },
+          { value: 4, label: "4" },
+          { value: 5, label: "5" },
+        ],
+        default: 3,
+      },
+    ],
   },
   "active-recruitment": {
     key: "active-recruitment",

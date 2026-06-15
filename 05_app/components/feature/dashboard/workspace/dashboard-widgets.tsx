@@ -44,30 +44,48 @@ function Empty({ children }: { children: React.ReactNode }) {
   return <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">{children}</p>;
 }
 
-export function WorkspaceHeader({ name, stats }: { name: string; stats: WorkspaceDashboardStats }) {
-  const items = [
+/**
+ * Workspace header: the name + a configurable number of at-a-glance KPI tiles.
+ * `kpiCount` comes from the widget's settings gear (Off / 3 / 4 / 5, ADR-0045) —
+ * 0 shows just the name. Tiles auto-fit the full-width header.
+ */
+export function WorkspaceHeader({
+  name,
+  stats,
+  kpiCount = 3,
+}: {
+  name: string;
+  stats: WorkspaceDashboardStats;
+  kpiCount?: number;
+}) {
+  const allKpis = [
     { label: "Studies", value: stats.totalStudies },
     { label: "Running", value: stats.recruiting },
     { label: "Responses this week", value: stats.responsesThisWeek },
+    { label: "Responses (all time)", value: stats.responsesTotal },
+    { label: "Members", value: stats.members },
   ];
+  const items = allKpis.slice(0, Math.max(0, kpiCount));
   return (
     <section className="flex flex-col gap-3">
       <h1 className="font-serif text-[length:var(--text-display)] font-medium text-[var(--color-text-primary)]">
         {name}
       </h1>
-      <div className="grid grid-cols-3 gap-3">
-        {items.map((i) => (
-          <div
-            key={i.label}
-            className="flex flex-col gap-0.5 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-4"
-          >
-            <span className="font-serif text-[length:var(--text-display)] font-medium text-[var(--color-text-primary)]">
-              {i.value}
-            </span>
-            <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">{i.label}</span>
-          </div>
-        ))}
-      </div>
+      {items.length > 0 ? (
+        <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(150px,1fr))]">
+          {items.map((i) => (
+            <div
+              key={i.label}
+              className="flex flex-col gap-0.5 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-4"
+            >
+              <span className="font-serif text-[length:var(--text-display)] font-medium text-[var(--color-text-primary)]">
+                {i.value}
+              </span>
+              <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">{i.label}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
     </section>
   );
 }

@@ -46,10 +46,16 @@ export default async function WorkspaceDashboardPage() {
   };
   const cap = <T,>(arr: T[], n: number | undefined): T[] => (typeof n === "number" ? arr.slice(0, n) : arr);
 
+  // The header's KPI count is its own widget setting (Off / 3 / 4 / 5).
+  const headerKpiCount = (() => {
+    const v = layout.find((e) => e.widgetKey === "workspace-header")?.settings?.kpiCount;
+    return typeof v === "number" ? v : 3;
+  })();
+
   const nodes: Record<string, ReactNode> = {
     "workspace-header":
       stats.status === "fulfilled" ? (
-        <WorkspaceHeader name={active.name} stats={stats.value} />
+        <WorkspaceHeader name={active.name} stats={stats.value} kpiCount={headerKpiCount} />
       ) : (
         <WidgetError title={active.name} />
       ),

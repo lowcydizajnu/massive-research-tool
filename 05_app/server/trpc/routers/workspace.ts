@@ -41,6 +41,8 @@ export type WorkspaceDashboardStats = {
   totalStudies: number;
   recruiting: number;
   responsesThisWeek: number;
+  responsesTotal: number;
+  members: number;
 };
 
 export type WorkspaceRecruitingStudy = {
@@ -167,6 +169,19 @@ export const workspaceRouter = router({
         ),
       );
 
+    const completedRun = and(
+      eq(experiment.tenantId, wsId),
+      eq(response.status, "completed"),
+      eq(response.mode, "run"),
+    );
+    // All-time completed run responses for this workspace.
+    const [respTotal] = await db
+      .select({ c: count() })
+      .from(response)
+      .innerJoin(experimentVersion, eq(response.experimentVersionId, experimentVersion.id))
+      .innerJoin(experiment, eq(experimentVersion.experimentId, experiment.id))
+      .where(completedRun);
+
     const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const [resp] = await db
       .select({ c: count() })
@@ -182,7 +197,18 @@ export const workspaceRouter = router({
         ),
       );
 
-    return { totalStudies: studies?.c ?? 0, recruiting: recruitingRows.length, responsesThisWeek: resp?.c ?? 0 };
+    const [mem] = await db
+      .select({ c: count() })
+      .from(member)
+      .where(and(eq(member.workspaceId, wsId), eq(member.status, "active")));
+
+    return {
+      totalStudies: studies?.c ?? 0,
+      recruiting: recruitingRows.length,
+      responsesThisWeek: resp?.c ?? 0,
+      responsesTotal: respTotal?.c ?? 0,
+      members: mem?.c ?? 0,
+    };
   }),
 
   /** Currently-recruiting studies in this workspace (an open recruitment session). */
