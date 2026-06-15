@@ -1,3 +1,6 @@
+import type { ReactNode } from "react";
+
+import { DashboardGrid } from "@/components/feature/dashboard/dashboard-grid";
 import {
   ActiveRecruitmentWidget,
   RecentActivityWidget,
@@ -9,50 +12,58 @@ import { getServerApi } from "@/server/trpc/server";
 
 /**
  * Workspace dashboard — `/dashboard` (workspace mode, workspace-dashboard.md /
- * V1.13.0 Stream B). The team overview a member lands on when entering a
- * workspace; Studies stays a sibling destination. Parallel fetch with per-widget
- * error isolation (allSettled). `items-start` so cards size to content. Fixed
- * default layout; customization is Stream F.
+ * V1.13.0 Stream B). The team overview a member lands on; Studies stays a
+ * sibling destination. Resolves the customizable layout (ADR-0045), pre-renders
+ * every workspace widget into a keyed map, and hands the saved order to
+ * `DashboardGrid` (masonry in view; drag/add/remove in edit). Parallel fetch
+ * with per-widget error isolation (allSettled).
  */
 export const dynamic = "force-dynamic";
 
 export default async function WorkspaceDashboardPage() {
   const api = await getServerApi();
-  const [active, stats, recruiting, recent, activity] = await Promise.allSettled([
-    api.workspace.active(),
-    api.workspace.dashboardStats(),
-    api.workspace.activeRecruitment(),
-    api.workspace.recentlyEdited({ limit: 30 }),
-    api.workspace.recentActivity({ limit: 30 }),
+  const active = await api.workspace.active(); // the workspace the layout + widgets are scoped to
+  const [layout, settled] = await Promise.all([
+    api.dashboard.getLayout({ kind: "workspace", workspaceId: active.id }),
+    Promise.allSettled([
+      api.workspace.dashboardStats(),
+      api.workspace.activeRecruitment(),
+      api.workspace.recentlyEdited({ limit: 30 }),
+      api.workspace.recentActivity({ limit: 30 }),
+    ]),
   ]);
-  const name = active.status === "fulfilled" ? active.value.name : "Workspace";
+  const [stats, recruiting, recent, activity] = settled;
+
+  const nodes: Record<string, ReactNode> = {
+    "workspace-header":
+      stats.status === "fulfilled" ? (
+        <WorkspaceHeader name={active.name} stats={stats.value} />
+      ) : (
+        <WidgetError title={active.name} />
+      ),
+    "active-recruitment":
+      recruiting.status === "fulfilled" ? (
+        <ActiveRecruitmentWidget studies={recruiting.value} />
+      ) : (
+        <WidgetError title="Active recruitment" />
+      ),
+    "recently-edited":
+      recent.status === "fulfilled" ? (
+        <RecentlyEditedWidget studies={recent.value} />
+      ) : (
+        <WidgetError title="Recently edited" />
+      ),
+    "workspace-activity":
+      activity.status === "fulfilled" ? (
+        <RecentActivityWidget items={activity.value} />
+      ) : (
+        <WidgetError title="Recent activity" />
+      ),
+  };
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-4">
-      {stats.status === "fulfilled" ? (
-        <WorkspaceHeader name={name} stats={stats.value} />
-      ) : (
-        <WidgetError title={name} />
-      )}
-
-      {/* CSS multi-column (masonry) so cards pack to content without gaps. */}
-      <div className="columns-1 gap-4 lg:columns-2 [&>*]:mb-4 [&>*]:break-inside-avoid">
-        {recruiting.status === "fulfilled" ? (
-          <ActiveRecruitmentWidget studies={recruiting.value} />
-        ) : (
-          <WidgetError title="Active recruitment" />
-        )}
-        {recent.status === "fulfilled" ? (
-          <RecentlyEditedWidget studies={recent.value} />
-        ) : (
-          <WidgetError title="Recently edited" />
-        )}
-        {activity.status === "fulfilled" ? (
-          <RecentActivityWidget items={activity.value} />
-        ) : (
-          <WidgetError title="Recent activity" />
-        )}
-      </div>
+      <DashboardGrid kind="workspace" workspaceId={active.id} layout={layout} nodes={nodes} />
     </main>
   );
 }
