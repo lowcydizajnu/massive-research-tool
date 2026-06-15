@@ -169,6 +169,40 @@ async function conditionSlugs(versionId: string): Promise<Set<string>> {
   return new Set((await conditionsForVersion(versionId)).map((c) => c.slug));
 }
 
+/** Stable JSON (recursively sorted keys) so snapshot/condition comparisons are
+ *  order-insensitive — a key-reorder never reads as a meaningful change. */
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "null";
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
+  const obj = value as Record<string, unknown>;
+  return `{${Object.keys(obj)
+    .sort()
+    .map((k) => `${JSON.stringify(k)}:${stableStringify(obj[k])}`)
+    .join(",")}}`;
+}
+
+/**
+ * Everything a frozen version captures that reaches participants — the FULL
+ * definition snapshot (blocks + consent + theme + overview + groups) AND the
+ * per-version conditions (slug/name/weight/position). Comparing two versions'
+ * fingerprints detects whether the editable tip has diverged from a frozen
+ * version (ADR-0044). Comparing only blocks (the old check) missed consent /
+ * theme / condition-weight edits — the same silent-drift failure, narrower.
+ */
+async function versionFingerprint(versionId: string, snapshot: unknown): Promise<string> {
+  const raw = await conditionsForVersion(versionId);
+  // Normalize empty → the implicit default control that ensureConditions seeds at
+  // freeze/open time. Without this, a study that relied on the auto-seeded control
+  // (no explicit conditions on the tip) would read as drift vs its frozen copy.
+  const effective = raw.length
+    ? raw
+    : [{ slug: "control", name: "Control", allocationWeight: 1, position: 0 } as ConditionRow];
+  const conds = effective
+    .map((c) => ({ slug: c.slug, name: c.name, weight: c.allocationWeight, position: c.position }))
+    .sort((a, b) => (a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : a.position - b.position));
+  return stableStringify({ snapshot, conds });
+}
+
 /**
  * The ONE permission-gated cross-tenant read (ADR-0018). Loads a fork source
  * WITHOUT the active-workspace filter, and only if the caller may fork it:
@@ -579,7 +613,13 @@ export type RunInfo = {
 
 /** Per-condition + per-question results, plus per-response rows for CSV export. */
 export type ResultsSummary = {
+  /** The latest runnable version number (canonical label). */
   versionNumber: number;
+  /** Which version this summary is scoped to; null = pooled across all
+   *  runnable versions (ADR-0044). Drives the Results version filter. */
+  selectedVersion: number | null;
+  /** Every runnable version number, newest first (the version-filter list). */
+  availableVersions: number[];
   totalCompleted: number;
   includesPreview: boolean;
   conditions: { slug: string; name: string; completed: number }[];
@@ -607,6 +647,8 @@ export type ResultsSummary = {
         responseId: string;
         conditionSlug: string;
         externalPid: string | null;
+        /** Which runnable version this respondent took (ADR-0044). */
+        versionNumber?: number;
         /** heat-map */
         points?: { x: number; y: number }[];
         /** hot-spot — region keys this respondent selected */
@@ -623,6 +665,9 @@ export type ResultsSummary = {
     responseId: string;
     conditionSlug: string;
     externalPid: string | null;
+    /** Which runnable version this respondent took (ADR-0044) — the export
+     *  `version` column; lets a pooled dataset be split by version. */
+    versionNumber: number;
     startedAt: string;
     completedAt: string | null;
     /** Per-block answer, stringified for CSV (number / joined selections / text). */
@@ -2905,29 +2950,46 @@ export const studiesRouter = router({
         .limit(1);
       if (!ver) return { runnable: false, versionKind: null, liveVersionNumber: null, divergedFromLive: false, recruitment: null };
 
-      // Drift: the editable autosave tip's blocks vs the frozen live version's —
-      // edits made after freezing don't reach participants until publish/amend.
+      // Drift: the editable autosave tip vs the frozen live version — edits made
+      // after freezing don't reach participants until publish/amend/make-live.
+      // Compares the FULL snapshot + conditions, not just blocks (ADR-0044), so a
+      // consent / theme / condition-weight edit also reads as drift.
       const [tip] = await db
-        .select({ snapshot: experimentVersion.definitionSnapshot })
+        .select({ id: experimentVersion.id, snapshot: experimentVersion.definitionSnapshot })
         .from(experimentVersion)
         .where(and(eq(experimentVersion.experimentId, input.studyId), eq(experimentVersion.kind, "autosave")))
         .orderBy(desc(experimentVersion.versionNumber))
         .limit(1);
       const divergedFromLive =
-        !!tip && JSON.stringify(readBlocks(tip.snapshot)) !== JSON.stringify(readBlocks(ver.snapshot));
+        !!tip &&
+        (await versionFingerprint(tip.id, tip.snapshot)) !== (await versionFingerprint(ver.id, ver.snapshot));
 
+      // Status from the latest session of the live version; the response count is
+      // POOLED across every runnable version's sessions, so a make-live cutover
+      // doesn't make the collected total appear to reset to 0 (ADR-0044).
       const [rs] = await db
-        .select({ status: recruitmentSession.status, currentN: recruitmentSession.currentN })
+        .select({ status: recruitmentSession.status })
         .from(recruitmentSession)
         .where(eq(recruitmentSession.experimentVersionId, ver.id))
         .orderBy(desc(recruitmentSession.openedAt))
         .limit(1);
+      const sessionCounts = await db
+        .select({ currentN: recruitmentSession.currentN })
+        .from(recruitmentSession)
+        .innerJoin(experimentVersion, eq(recruitmentSession.experimentVersionId, experimentVersion.id))
+        .where(
+          and(
+            eq(experimentVersion.experimentId, input.studyId),
+            inArray(experimentVersion.kind, RUNNABLE_KINDS),
+          ),
+        );
+      const pooledN = sessionCounts.reduce((sum, s) => sum + s.currentN, 0);
       return {
         runnable: true,
         versionKind: ver.kind as "preregistered" | "published",
         liveVersionNumber: ver.n,
         divergedFromLive,
-        recruitment: rs ? { status: rs.status, currentN: rs.currentN } : null,
+        recruitment: rs ? { status: rs.status, currentN: pooledN } : null,
       };
     }),
 
@@ -2996,17 +3058,237 @@ export const studiesRouter = router({
     }),
 
   /**
-   * Results for the study's latest preregistered version (results-stage.md):
-   * per-condition completion counts, per-question summaries (likert mean + n),
-   * and per-response rows for CSV export. Excludes preview unless asked.
-   * Aggregated in-memory (V1 study sizes are small). Null if not preregistered.
+   * Make the current draft live mid-recruitment (ADR-0044). ONE transaction:
+   * (1) freeze the working tip into a new immutable version — an `amend` for a
+   * preregistered study (requires `changeSummary`, re-pushes to OSF per ADR-0004)
+   * or a `publish` for a published study; (2) close EVERY open recruitment
+   * session on the study's prior runnable versions; (3) open a fresh session on
+   * the new version. The studyId-based public link instantly serves the new
+   * version (resolveOpenRecruitment picks newest-with-open-session), so the link
+   * never changes and never goes dark. In-flight participants finish on their
+   * pinned version (response.experimentVersionId is immutable). Refused unless
+   * the study is runnable AND the draft diverges from the live version (no no-op
+   * amendments). Keeps standalone `amend`/`publish` (freeze without recruitment).
+   * Freeze inserts mirror amend (L2662) / publish (L2737) — keep them in sync.
+   */
+  makeLive: writeProcedure
+    .input(
+      z.object({
+        studyId: z.string().uuid(),
+        changeSummary: z.string().trim().max(2000).optional(),
+        classification: z
+          .enum(["typo", "methodological-correction", "clarification", "scope-change", "other"])
+          .optional(),
+      }),
+    )
+    .mutation(
+      async ({
+        ctx,
+        input,
+      }): Promise<{ versionNumber: number; versionKind: "preregistered" | "published"; pushStatus: "pending" | "no_credentials" | null }> => {
+        const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+
+        // The live frozen version we're superseding (latest runnable). Tenancy is
+        // already enforced by loadWorkingTip, so this can be experimentId-scoped.
+        const [live] = await db
+          .select({ id: experimentVersion.id, kind: experimentVersion.kind, snapshot: experimentVersion.definitionSnapshot })
+          .from(experimentVersion)
+          .where(and(eq(experimentVersion.experimentId, input.studyId), inArray(experimentVersion.kind, RUNNABLE_KINDS)))
+          .orderBy(desc(experimentVersion.versionNumber))
+          .limit(1);
+        if (!live) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "Freeze and open recruitment before making edits live.",
+          });
+        }
+
+        // No-op guard: the editable draft must actually differ from the live
+        // version — compares the FULL snapshot + conditions (ADR-0044), so a
+        // consent / theme / condition-weight edit also counts as a change.
+        const diverged =
+          (await versionFingerprint(tip.version.id, tip.version.definitionSnapshot)) !==
+          (await versionFingerprint(live.id, live.snapshot));
+        if (!diverged) {
+          throw new TRPCError({ code: "PRECONDITION_FAILED", message: "No unpublished changes to make live." });
+        }
+
+        const versionKind = live.kind as "preregistered" | "published";
+
+        // Preregistered → this IS an amendment (ADR-0004): require a change summary,
+        // supersede the live (== latest preregistered) version, and re-push to OSF.
+        let changeSummary: string | null = null;
+        let supersedesVersionId: string | null = null;
+        let pushStatus: "pending" | "no_credentials" | null = null;
+        let connected = false;
+        if (versionKind === "preregistered") {
+          const summary = input.changeSummary?.trim();
+          if (!summary) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: "Describe what changed — amendments to a preregistration require a summary.",
+            });
+          }
+          changeSummary = summary;
+          supersedesVersionId = live.id;
+          const connection = await registry.getConnection(ctx.dbUser.id);
+          connected = connection.connected;
+          pushStatus = connected ? "pending" : "no_credentials";
+        }
+
+        const nextNumber = await nextVersionNumber(input.studyId);
+        const versionName = versionKind === "preregistered" ? `Amendment v${nextNumber}` : `Published v${nextNumber}`;
+        const tipConditions = await conditionsForVersion(tip.version.id);
+
+        // Prior runnable versions whose live sessions we supersede, so the new
+        // version is the only one with a live session (no DB partial-unique
+        // guard, ADR-0044).
+        const priorRunnable = await db
+          .select({ id: experimentVersion.id })
+          .from(experimentVersion)
+          .where(and(eq(experimentVersion.experimentId, input.studyId), inArray(experimentVersion.kind, RUNNABLE_KINDS)));
+        const priorIds = priorRunnable.map((v) => v.id);
+
+        // Inherit the prior recruitment INTENT (ADR-0044): if the study was
+        // paused or stopped, making edits live must NOT silently re-open it. The
+        // new session carries forward open/paused/closed from the latest prior
+        // session (default open when none existed). Resume/Reopen then acts on
+        // the new version's session as usual.
+        const [priorSession] = priorIds.length
+          ? await db
+              .select({ status: recruitmentSession.status })
+              .from(recruitmentSession)
+              .where(inArray(recruitmentSession.experimentVersionId, priorIds))
+              .orderBy(desc(recruitmentSession.openedAt))
+              .limit(1)
+          : [];
+        const newStatus = priorSession?.status ?? "open";
+
+        const newVersionId = await db.transaction(async (tx) => {
+          const [created] = await tx
+            .insert(experimentVersion)
+            .values({
+              experimentId: input.studyId,
+              versionNumber: nextNumber,
+              kind: versionKind,
+              name: versionName,
+              definitionSnapshot: tip.version.definitionSnapshot,
+              moduleVersionLocks: tip.version.moduleVersionLocks,
+              createdBy: ctx.dbUser.id,
+              ...(versionKind === "preregistered"
+                ? {
+                    registryPushStatus: pushStatus ?? undefined,
+                    // ADR-0004 lineage (CHECK: supersedes + non-empty summary together).
+                    supersedesVersionId,
+                    changeSummary,
+                    amendmentClassification: input.classification ?? null,
+                  }
+                : {}),
+            })
+            .returning({ id: experimentVersion.id });
+
+          // Freeze conditions into the immutable version (mirror amend/publish); if
+          // the draft had none, seed a default control so assignment works.
+          if (tipConditions.length) {
+            await tx.insert(conditionTable).values(
+              tipConditions.map((c) => ({
+                id: ulid(),
+                experimentVersionId: created.id,
+                slug: c.slug,
+                name: c.name,
+                allocationWeight: String(c.allocationWeight),
+                position: c.position,
+              })),
+            );
+          } else {
+            await tx.insert(conditionTable).values({
+              id: ulid(),
+              experimentVersionId: created.id,
+              slug: "control",
+              name: "Control",
+              allocationWeight: "1.0",
+              position: 0,
+            });
+          }
+
+          // Supersede the old version: terminate any live (open/paused) prior
+          // session so the new version's session is the only live one.
+          if (priorIds.length) {
+            await tx
+              .update(recruitmentSession)
+              .set({ status: "closed", closedAt: new Date() })
+              .where(
+                and(
+                  inArray(recruitmentSession.experimentVersionId, priorIds),
+                  inArray(recruitmentSession.status, ["open", "paused"]),
+                ),
+              );
+          }
+
+          // Open the new version's session carrying forward the prior INTENT —
+          // open keeps recruiting, paused stays inactive, closed stays terminal.
+          await tx.insert(recruitmentSession).values({
+            id: ulid(),
+            experimentVersionId: created.id,
+            status: newStatus,
+            closedAt: newStatus === "closed" ? new Date() : null,
+          });
+
+          await tx.update(experiment).set({ updatedAt: new Date() }).where(eq(experiment.id, input.studyId));
+          return created.id;
+        });
+
+        // Side effects after commit (a preregistered make-live is an amendment).
+        if (versionKind === "preregistered") {
+          if (connected) {
+            await jobs.enqueue("registry.push", {
+              experimentVersionId: newVersionId,
+              registryKey: "osf",
+              userId: ctx.dbUser.id,
+              isAmendment: true,
+            });
+          }
+          await emit({
+            type: "preregister_complete",
+            actorUserId: ctx.dbUser.id,
+            workspaceId: ctx.workspace.id,
+            targetType: "study",
+            targetId: input.studyId,
+            related: {
+              authorUserId: tip.experiment.ownerId,
+              studyId: input.studyId,
+              tagSlugs: tip.experiment.tags ?? undefined,
+            },
+            data: { studyTitle: tip.experiment.title, versionName, versionNumber: nextNumber },
+          });
+        }
+
+        return { versionNumber: nextNumber, versionKind, pushStatus };
+      },
+    ),
+
+  /**
+   * Results (results-stage.md): per-condition completion counts, per-question
+   * summaries (likert mean + n), and per-response rows for CSV export. By default
+   * POOLS all runnable versions (preregistered OR published) so a made-live v2
+   * never silently hides v1's data (ADR-0044); `version` scopes to one. Each row
+   * carries its versionNumber. Excludes preview unless asked. Aggregated
+   * in-memory (V1 study sizes are small). Null only when the study has no
+   * runnable version yet.
    */
   getResults: workspaceProcedure
     .input(
-      z.object({ studyId: z.string().uuid(), includePreview: z.boolean().default(false) }),
+      z.object({
+        studyId: z.string().uuid(),
+        includePreview: z.boolean().default(false),
+        /** Scope to one runnable version; omit/null = pool ALL versions (ADR-0044). */
+        version: z.number().int().positive().nullable().default(null),
+      }),
     )
     .query(async ({ ctx, input }): Promise<ResultsSummary | null> => {
-      const [ver] = await db
+      // All runnable versions (newest first), tenant-scoped. Pooling across them
+      // is the default so a made-live v2 never silently hides v1's data (ADR-0044).
+      const versions = await db
         .select({ id: experimentVersion.id, n: experimentVersion.versionNumber, snapshot: experimentVersion.definitionSnapshot })
         .from(experimentVersion)
         .innerJoin(experiment, eq(experimentVersion.experimentId, experiment.id))
@@ -3017,16 +3299,25 @@ export const studiesRouter = router({
             inArray(experimentVersion.kind, RUNNABLE_KINDS),
           ),
         )
-        .orderBy(desc(experimentVersion.versionNumber))
-        .limit(1);
-      if (!ver) return null;
+        .orderBy(desc(experimentVersion.versionNumber));
+      if (!versions.length) return null;
 
-      const conditions = await db
-        .select({ id: conditionTable.id, slug: conditionTable.slug, name: conditionTable.name, position: conditionTable.position })
+      const latest = versions[0];
+      const availableVersions = versions.map((v) => v.n);
+      const verNumById = new Map(versions.map((v) => [v.id, v.n]));
+      // Selected scope: a specific version (if it exists) or all pooled (null).
+      const selected = input.version != null ? versions.find((v) => v.n === input.version) ?? null : null;
+      const scopeVersions = selected ? [selected] : versions; // newest-first
+      const scopeIds = scopeVersions.map((v) => v.id);
+
+      // Conditions across the scoped versions; the per-condition aggregate merges
+      // by slug (below), per-response rows resolve their own condition by id.
+      const conditionRows = await db
+        .select({ id: conditionTable.id, slug: conditionTable.slug, name: conditionTable.name, position: conditionTable.position, versionId: conditionTable.experimentVersionId })
         .from(conditionTable)
-        .where(eq(conditionTable.experimentVersionId, ver.id))
+        .where(inArray(conditionTable.experimentVersionId, scopeIds))
         .orderBy(conditionTable.position);
-      const condBySlug = new Map(conditions.map((c) => [c.id, c]));
+      const condById = new Map(conditionRows.map((c) => [c.id, c]));
 
       const modes: ("run" | "preview")[] = input.includePreview ? ["run", "preview"] : ["run"];
       const completed = await db
@@ -3036,11 +3327,12 @@ export const studiesRouter = router({
           externalPid: responseTable.externalPid,
           startedAt: responseTable.startedAt,
           completedAt: responseTable.completedAt,
+          experimentVersionId: responseTable.experimentVersionId,
         })
         .from(responseTable)
         .where(
           and(
-            eq(responseTable.experimentVersionId, ver.id),
+            inArray(responseTable.experimentVersionId, scopeIds),
             eq(responseTable.status, "completed"),
             inArray(responseTable.mode, modes),
           ),
@@ -3064,8 +3356,19 @@ export const studiesRouter = router({
       }
 
       // Per-question summary by answer shape (numeric / categorical / text) +
-      // a stringified per-response value for the CSV.
-      const blocks = readBlocks(ver.snapshot);
+      // a stringified per-response value for the CSV. Block catalog spans the
+      // scoped versions, deduped by instanceId NEWEST-first so the latest
+      // version's prompt/config labels a merged question; a block only in an
+      // older version still appears (its responses are never dropped).
+      const seenInstance = new Set<string>();
+      const blocks: ReturnType<typeof readBlocks> = [];
+      for (const v of scopeVersions) {
+        for (const b of readBlocks(v.snapshot)) {
+          if (seenInstance.has(b.instanceId)) continue;
+          seenInstance.add(b.instanceId);
+          blocks.push(b);
+        }
+      }
       const questionBlocks = blocks.filter(
         (b) => getModuleDef(b.source, b.key, b.version)?.collectsResponse,
       );
@@ -3097,7 +3400,11 @@ export const studiesRouter = router({
       const respMeta = new Map(
         completed.map((r) => [
           r.id,
-          { conditionSlug: condBySlug.get(r.conditionId)?.slug ?? "?", externalPid: r.externalPid },
+          {
+            conditionSlug: condById.get(r.conditionId)?.slug ?? "?",
+            externalPid: r.externalPid,
+            versionNumber: verNumById.get(r.experimentVersionId) ?? latest.n,
+          },
         ]),
       );
 
@@ -3234,7 +3541,7 @@ export const studiesRouter = router({
                   .filter((pt) => typeof pt.x === "number" && typeof pt.y === "number")
                   .map((pt) => ({ x: pt.x as number, y: pt.y as number }))
               : [];
-            return { responseId, conditionSlug: m?.conditionSlug ?? "?", externalPid: m?.externalPid ?? null, points };
+            return { responseId, conditionSlug: m?.conditionSlug ?? "?", externalPid: m?.externalPid ?? null, versionNumber: m?.versionNumber, points };
           });
           const points = responses.flatMap((r) => r.points);
           const responders = responses.filter((r) => r.points.length > 0).length;
@@ -3253,7 +3560,7 @@ export const studiesRouter = router({
               responders++;
               for (const k of regionKeys) counts.set(k, (counts.get(k) ?? 0) + 1);
             }
-            return { responseId, conditionSlug: m?.conditionSlug ?? "?", externalPid: m?.externalPid ?? null, regionKeys };
+            return { responseId, conditionSlug: m?.conditionSlug ?? "?", externalPid: m?.externalPid ?? null, versionNumber: m?.versionNumber, regionKeys };
           });
           const regions = regionDefs.map((r) => ({ ...r, count: counts.get(r.key) ?? 0 }));
           return { instanceId: b.instanceId, prompt, moduleKey: b.key, n: responders, kind, mean: null, optionCounts: [], spatial: { kind: "hot-spot", imageUrl, regions, responses } };
@@ -3263,7 +3570,7 @@ export const studiesRouter = router({
           const responses = withResp.map(({ responseId, answer }) => {
             const m = respMeta.get(responseId);
             const v = (answer as { value?: unknown })?.value;
-            return { responseId, conditionSlug: m?.conditionSlug ?? "?", externalPid: m?.externalPid ?? null, value: typeof v === "number" ? v : undefined };
+            return { responseId, conditionSlug: m?.conditionSlug ?? "?", externalPid: m?.externalPid ?? null, versionNumber: m?.versionNumber, value: typeof v === "number" ? v : undefined };
           });
           const valued = responses.filter((r) => typeof r.value === "number");
           // Synthesized pooled strip so the inline overlay shows the spread of
@@ -3279,7 +3586,7 @@ export const studiesRouter = router({
               const m = respMeta.get(responseId);
               const r2Key = typeof (answer as { r2Key?: unknown })?.r2Key === "string" ? ((answer as { r2Key: string }).r2Key) : "";
               return r2Key
-                ? { responseId, conditionSlug: m?.conditionSlug ?? "?", externalPid: m?.externalPid ?? null, r2Key }
+                ? { responseId, conditionSlug: m?.conditionSlug ?? "?", externalPid: m?.externalPid ?? null, versionNumber: m?.versionNumber, r2Key }
                 : null;
             })
             .filter((r): r is NonNullable<typeof r> => r !== null);
@@ -3291,20 +3598,41 @@ export const studiesRouter = router({
         })(b)];
       });
 
+      // Per-condition aggregate: merge by slug across scoped versions (the newest
+      // version's name/position wins). Every condition appears, even at 0.
+      const condAgg = new Map<string, { slug: string; name: string; completed: number; position: number; verN: number }>();
+      for (const c of conditionRows) {
+        const verN = verNumById.get(c.versionId) ?? 0;
+        const add = completedByCondition.get(c.id) ?? 0;
+        const cur = condAgg.get(c.slug);
+        if (!cur) {
+          condAgg.set(c.slug, { slug: c.slug, name: c.name, completed: add, position: c.position, verN });
+        } else {
+          cur.completed += add;
+          if (verN > cur.verN) {
+            cur.name = c.name;
+            cur.position = c.position;
+            cur.verN = verN;
+          }
+        }
+      }
+      const conditions = [...condAgg.values()]
+        .sort((a, b) => a.position - b.position)
+        .map(({ slug, name, completed }) => ({ slug, name, completed }));
+
       return {
-        versionNumber: ver.n,
+        versionNumber: latest.n,
+        selectedVersion: selected ? selected.n : null,
+        availableVersions,
         totalCompleted: completed.length,
         includesPreview: input.includePreview,
-        conditions: conditions.map((c) => ({
-          slug: c.slug,
-          name: c.name,
-          completed: completedByCondition.get(c.id) ?? 0,
-        })),
+        conditions,
         questions,
         rows: completed.map((r) => ({
           responseId: r.id,
-          conditionSlug: condBySlug.get(r.conditionId)?.slug ?? "?",
+          conditionSlug: condById.get(r.conditionId)?.slug ?? "?",
           externalPid: r.externalPid,
+          versionNumber: verNumById.get(r.experimentVersionId) ?? latest.n,
           startedAt: r.startedAt.toISOString(),
           completedAt: r.completedAt ? r.completedAt.toISOString() : null,
           answers: answersByResponse.get(r.id) ?? {},

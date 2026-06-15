@@ -5,6 +5,8 @@ import type { ResultsSummary } from "@/server/trpc/routers/studies";
 
 const results: ResultsSummary = {
   versionNumber: 1,
+  selectedVersion: null,
+  availableVersions: [1],
   totalCompleted: 2,
   includesPreview: false,
   conditions: [{ slug: "control", name: "Control", completed: 2 }],
@@ -13,8 +15,8 @@ const results: ResultsSummary = {
     { instanceId: "q2", prompt: "Why, in your words?", moduleKey: "free-text", n: 2, kind: "text", mean: null, optionCounts: [] },
   ],
   rows: [
-    { responseId: "r1", conditionSlug: "control", externalPid: null, startedAt: "2026-06-08T10:00:00Z", completedAt: "2026-06-08T10:05:00Z", answers: { q1: "5", q2: "Looks legit, has a source" } },
-    { responseId: "r2", conditionSlug: "control", externalPid: "PID9", startedAt: "2026-06-08T11:00:00Z", completedAt: "2026-06-08T11:04:00Z", answers: { q1: "3", q2: 'She said "maybe", unsure' } },
+    { responseId: "r1", conditionSlug: "control", externalPid: null, versionNumber: 1, startedAt: "2026-06-08T10:00:00Z", completedAt: "2026-06-08T10:05:00Z", answers: { q1: "5", q2: "Looks legit, has a source" } },
+    { responseId: "r2", conditionSlug: "control", externalPid: "PID9", versionNumber: 1, startedAt: "2026-06-08T11:00:00Z", completedAt: "2026-06-08T11:04:00Z", answers: { q1: "3", q2: 'She said "maybe", unsure' } },
   ],
 };
 
@@ -24,10 +26,11 @@ describe("export dataset (V1.12 D)", () => {
     expect(slugifyLabel("  ")).toBe("var");
   });
 
-  it("baseColumns = 5 meta + one per question, with de-duped labels", () => {
+  it("baseColumns = 6 meta + one per question, with de-duped labels", () => {
     const cols = baseColumns(results);
-    expect(cols.map((c) => c.key)).toEqual(["responseId", "conditionSlug", "externalPid", "startedAt", "completedAt", "q1", "q2"]);
+    expect(cols.map((c) => c.key)).toEqual(["responseId", "conditionSlug", "versionNumber", "externalPid", "startedAt", "completedAt", "q1", "q2"]);
     expect(cols.find((c) => c.key === "q1")?.label).toBe("how_credible");
+    expect(cols.find((c) => c.key === "versionNumber")?.label).toBe("version");
   });
 
   it("buildMatrix respects visibility + order", () => {
@@ -109,6 +112,36 @@ describe("per-respondent spatial deep-link column (ADR-0041 amendment 2026-06-14
     expect(csv).toContain("https://app.example/studies/study-1/results/explore/hm1?r=r1");
     // raw https URL has no comma/quote → emitted unquoted, no leading = + - @ (CSV-injection-safe)
     expect(csv).toContain(",https://app.example/studies/study-1/results/explore/hm1?r=r1");
+  });
+});
+
+// A pooled multi-version dataset (ADR-0044): r1 took v1, r2 took v2. The export
+// must carry a per-row `version` column so the pool is disambiguable.
+const pooled: ResultsSummary = {
+  ...results,
+  versionNumber: 2,
+  selectedVersion: null,
+  availableVersions: [2, 1],
+  rows: [
+    { ...results.rows[0], versionNumber: 1 },
+    { ...results.rows[1], versionNumber: 2 },
+  ],
+};
+
+describe("version column for pooled multi-version exports (ADR-0044)", () => {
+  it("emits a `version` meta column reflecting each respondent's version", () => {
+    const cols = baseColumns(pooled).filter((c) => c.key === "responseId" || c.key === "versionNumber");
+    const m = buildMatrix(pooled, cols);
+    expect(m.headers).toEqual(["response_id", "version"]);
+    expect(m.rows).toEqual([["r1", "1"], ["r2", "2"]]);
+  });
+
+  it("JSON + dictionary include the version variable", () => {
+    const cols = baseColumns(pooled);
+    const json = JSON.parse(toJSON(pooled, cols));
+    expect(json[0].version).toBe("1");
+    expect(json[1].version).toBe("2");
+    expect(dataDictionary(cols).variables.find((v) => v.name === "version")?.source).toBe("Version");
   });
 });
 

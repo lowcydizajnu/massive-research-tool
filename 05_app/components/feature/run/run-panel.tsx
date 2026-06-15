@@ -128,6 +128,13 @@ export function RunPanel({
             Stop collecting
           </button>
         </div>
+        {info.divergedFromLive && info.versionKind ? (
+          <MakeLiveControl
+            studyId={studyId}
+            versionKind={info.versionKind}
+            liveVersionNumber={info.liveVersionNumber}
+          />
+        ) : null}
       </section>
     );
   }
@@ -205,6 +212,14 @@ export function RunPanel({
         Preview as a participant (no data recorded) →
       </a>
 
+      {info.divergedFromLive && info.versionKind ? (
+        <MakeLiveControl
+          studyId={studyId}
+          versionKind={info.versionKind}
+          liveVersionNumber={info.liveVersionNumber}
+        />
+      ) : null}
+
       {/* Stop / Pause — non-destructive; both gate the link, keeping all data. */}
       <div className="flex flex-wrap items-center gap-2 border-t border-[var(--color-border-subtle)] pt-3">
         <PendingButton
@@ -242,5 +257,129 @@ export function RunPanel({
         )}
       </div>
     </section>
+  );
+}
+
+type Classification = "" | "typo" | "methodological-correction" | "clarification" | "scope-change" | "other";
+
+/**
+ * Make-live control (ADR-0044) — shown in the recruiting/paused branches only
+ * when the draft diverges from the live version. One action that freezes the
+ * draft and switches recruitment to it (server `studies.makeLive`). For a
+ * preregistered study it collects the required amendment summary inline (the
+ * change is filed as an ADR-0004 amendment + re-pushed to OSF); for a published
+ * study it's a one-step confirm. The recruitment link is unchanged.
+ */
+function MakeLiveControl({
+  studyId,
+  versionKind,
+  liveVersionNumber,
+}: {
+  studyId: string;
+  versionKind: "preregistered" | "published";
+  liveVersionNumber: number | null;
+}) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [summary, setSummary] = useState("");
+  const [classification, setClassification] = useState<Classification>("");
+  const makeLive = api.studies.makeLive.useMutation({
+    onSuccess: () => {
+      setOpen(false);
+      setSummary("");
+      setClassification("");
+      router.refresh();
+    },
+  });
+  const isPrereg = versionKind === "preregistered";
+  const canSubmit = !isPrereg || summary.trim().length > 0;
+
+  return (
+    <div className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--color-warning-subtle)] bg-[var(--color-warning-subtle)] p-3">
+      <p className="text-[length:var(--text-small)] text-[var(--color-warning-text-on-subtle)]">
+        <strong className="font-medium">You have unpublished edits.</strong> New participants get the
+        frozen {versionKind} version {liveVersionNumber}. Make your edits live to switch new
+        participants to a fresh version — anyone in progress finishes on v{liveVersionNumber}, and
+        your existing responses stay in Results.
+      </p>
+      {!open ? (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="w-fit rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-4 py-2 text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)] hover:bg-[var(--color-surface-subtle)]"
+        >
+          Make these edits live
+        </button>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {isPrereg ? (
+            <>
+              <label
+                htmlFor="make-live-summary"
+                className="text-[length:var(--text-small)] font-medium text-[var(--color-warning-text-on-subtle)]"
+              >
+                What changed? (filed as an amendment to your preregistration)
+              </label>
+              <textarea
+                id="make-live-summary"
+                value={summary}
+                onChange={(e) => setSummary(e.target.value)}
+                rows={2}
+                placeholder="e.g. Fixed a broken stimulus URL in the treatment condition"
+                className="w-full rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-3 py-2 text-[length:var(--text-small)] text-[var(--color-text-primary)]"
+              />
+              <select
+                aria-label="Amendment classification (optional)"
+                value={classification}
+                onChange={(e) => setClassification(e.target.value as Classification)}
+                className="w-fit rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-3 py-1.5 text-[length:var(--text-small)] text-[var(--color-text-secondary)]"
+              >
+                <option value="">Classification (optional)</option>
+                <option value="typo">Typo</option>
+                <option value="methodological-correction">Methodological correction</option>
+                <option value="clarification">Clarification</option>
+                <option value="scope-change">Scope change</option>
+                <option value="other">Other</option>
+              </select>
+            </>
+          ) : (
+            <p className="text-[length:var(--text-small)] text-[var(--color-warning-text-on-subtle)]">
+              This publishes a new version and switches recruitment to it.
+            </p>
+          )}
+          <div className="flex items-center gap-2">
+            <PendingButton
+              onClick={() =>
+                makeLive.mutate({
+                  studyId,
+                  ...(isPrereg
+                    ? {
+                        changeSummary: summary.trim(),
+                        classification: classification || undefined,
+                      }
+                    : {}),
+                })
+              }
+              pending={makeLive.isPending}
+              disabled={!canSubmit}
+              idleLabel={isPrereg ? "File amendment & make live" : "Make live"}
+              pendingLabel="Making live…"
+            />
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="text-[length:var(--text-small)] text-[var(--color-text-muted)] underline hover:opacity-80"
+            >
+              Cancel
+            </button>
+          </div>
+          {makeLive.error ? (
+            <p role="alert" className="text-[length:var(--text-small)] text-[var(--color-danger)]">
+              {makeLive.error.message}
+            </p>
+          ) : null}
+        </div>
+      )}
+    </div>
   );
 }
