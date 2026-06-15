@@ -639,6 +639,26 @@ describe("studies.getRunInfo + openRecruitment", () => {
     expect(info.recruitment?.status).toBe("open");
   });
 
+  it("openRecruitment closes an older runnable version's live session (one-open-session invariant, ADR-0044)", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    await caller.studies.addBlock({ studyId: id, source: "core", key: "likert-7", version: "1.0.0" });
+    await caller.studies.preregister({ studyId: id }); // v1 (preregistered)
+    await caller.studies.openRecruitment({ studyId: id }); // v1 session open
+    const firstSession = await resolveOpenRecruitment(id);
+
+    // Freeze a v2 directly (publish, no makeLive), then open recruitment on it.
+    await caller.studies.publish({ studyId: id }); // v2 (published)
+    await caller.studies.openRecruitment({ studyId: id });
+
+    // Exactly one open session across the study — the v1 session was closed.
+    const openSessions = await db.select().from(recruitmentSession).where(eq(recruitmentSession.status, "open"));
+    expect(openSessions).toHaveLength(1);
+    const resolved = await resolveOpenRecruitment(id);
+    expect(resolved!.recruitmentSessionId).not.toBe(firstSession!.recruitmentSessionId);
+  });
+
   it("setRecruitmentStatus pause/resume/close gates the /take link, keeps data (run-stage.md)", async () => {
     await seedUserWithWorkspace("ext_a", "Alpha");
     const caller = createCaller({ authUser: authUser("ext_a") });

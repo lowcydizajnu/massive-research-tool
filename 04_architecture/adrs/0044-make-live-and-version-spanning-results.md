@@ -57,9 +57,19 @@ Keeping `getResults` latest-only (even relabeled) leaves prior-version data invi
 - **What we are now committed to.** `makeLive` is transactional and idempotent-safe; closing the old session is mandatory whenever a new version is opened for an already-recruiting study. `ResultsSummary` carries `selectedVersion`, `availableVersions`, and `rows[].versionNumber`; the export contract includes a `version` column. In-flight participants always finish on their pinned version.
 - **What we are now precluded from.** Silently serving a draft's edits to live participants; repointing a live session to a different version; returning results for only the newest version by default.
 
+## Amendment — 2026-06-15 (follow-ups)
+
+Three owner-directed follow-ups to the deferred items above:
+
+1. **One-open-session invariant: app-layer, not DB.** The owner chose the "most capable and flexible option without unnecessary DB work." We therefore keep the "at most one open recruitment session among a study's runnable versions" invariant in the **application layer** — a shared `closeOtherRunnableSessions(studyId, keepVersionId)` helper called by `openRecruitment` (and the equivalent close enforced inside `makeLive`'s transaction) — and deliberately do **not** add a DB partial-unique constraint. Rationale: a rigid DB constraint would have to be migrated away the moment we add concurrent multi-version routing (item below), so keeping it in code preserves flexibility. Preview sessions live on the autosave (non-runnable) tip and are exempt. Covered by an invariant test (open v1 → freeze v2 → open → exactly one open session).
+
+2. **A/B testing stays conditions-based (option A), made explicit + opt-in.** Rather than version-level concurrency, an A/B test is N **conditions** within one frozen version (the runtime already does weighted random assignment + per-condition results). The Builder conditions section gains an opt-in **"Set up an A/B test"** affordance (empty state) that creates two even arms in one click via existing `addCondition` — researcher-renamable/reweightable after. No new model, no schema change; running as an A/B test is the researcher's explicit choice.
+
+3. **Concurrent version-level A/B remains deferred** (see Revisit triggers) — if a real need appears, the lowest-risk path is per-version recruitment links (results already carry the `version` column), not weighted version-level routing.
+
 ## Revisit triggers
 
-- A researcher needs **concurrent** versions live (e.g. an A/B of protocols) rather than a clean cutover — that needs a different recruitment-routing model than "newest wins."
+- A researcher needs **concurrent** versions live (e.g. an A/B of whole protocols, not within-version arms) rather than a clean cutover — that needs a different recruitment-routing model than "newest wins." Likely shape: per-version recruitment links (cheap, composes with the version column) before weighted version-level allocation.
 - Two simultaneously-open sessions become possible through some other caller — then add the DB-level partial-unique on `recruitment_session(experiment_version_id) WHERE status='open'` (or per-study) as a hard guard (a migration; deferred now because `makeLive` always closes-then-opens in one transaction).
 - Cross-version aggregation needs to reconcile blocks whose `instanceId` was reused with different semantics (not possible today — freeze copies the tip's instanceIds verbatim).
 
