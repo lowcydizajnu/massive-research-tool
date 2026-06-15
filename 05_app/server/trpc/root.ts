@@ -1,6 +1,7 @@
 import { commentsRouter } from "@/server/trpc/routers/comments";
 import { followsRouter } from "@/server/trpc/routers/follows";
 import { frameworksRouter } from "@/server/trpc/routers/frameworks";
+import { meRouter } from "@/server/trpc/routers/me";
 import { modulesRouter } from "@/server/trpc/routers/modules";
 import { proposalsRouter } from "@/server/trpc/routers/proposals";
 import { notificationsRouter } from "@/server/trpc/routers/notifications";
@@ -20,6 +21,7 @@ export const appRouter = router({
   comments: commentsRouter,
   notifications: notificationsRouter,
   follows: followsRouter,
+  me: meRouter,
   profile: profileRouter,
   previewTokens: previewTokensRouter,
   uploads: uploadsRouter,

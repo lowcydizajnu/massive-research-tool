@@ -2022,3 +2022,63 @@ describe("getResults spatial overlay (heat-map / hot-spot, ADR-0041)", () => {
     expect(q.n).toBe(1);
   });
 });
+
+describe("workspace.list + active-workspace switching (ADR-0033)", () => {
+  it("lists the caller's workspaces (role + study count) and the switcher preference picks the active one", async () => {
+    const { user: u } = await seedUserWithWorkspace("ext_a", "Alpha");
+    const [beta] = await db.insert(workspace).values({ name: "Beta", slug: "beta", ownerId: u.id }).returning();
+    await db.insert(member).values({ workspaceId: beta.id, userId: u.id, role: "owner", status: "active" });
+
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    await caller.studies.create({ kind: "blank", title: "S1" }); // lands in the default active (Alpha)
+
+    const list = await caller.workspace.list();
+    expect(list.map((w) => w.name).sort()).toEqual(["Alpha", "Beta"]);
+    const alpha = list.find((w) => w.name === "Alpha")!;
+    expect(alpha.role).toBe("owner");
+    expect(alpha.studyCount).toBe(1);
+
+    // Default active = Alpha (earliest owner); the switcher preference flips it to Beta.
+    expect((await caller.workspace.active()).name).toBe("Alpha");
+    const callerBeta = createCaller({ authUser: authUser("ext_a"), preferredWorkspaceId: beta.id });
+    expect((await callerBeta.workspace.active()).name).toBe("Beta");
+
+    // A non-member / bogus preference falls back to the default.
+    const callerBogus = createCaller({ authUser: authUser("ext_a"), preferredWorkspaceId: "00000000-0000-0000-0000-000000000000" });
+    expect((await callerBogus.workspace.active()).name).toBe("Alpha");
+  });
+});
+
+describe("meRouter (cross-workspace personal data, ADR-0033)", () => {
+  it("recentStudies + stats span the caller's authored studies across workspaces", async () => {
+    const { user: u } = await seedUserWithWorkspace("ext_a", "Alpha");
+    const [beta] = await db.insert(workspace).values({ name: "Beta", slug: "beta", ownerId: u.id }).returning();
+    await db.insert(member).values({ workspaceId: beta.id, userId: u.id, role: "owner", status: "active" });
+
+    await createCaller({ authUser: authUser("ext_a") }).studies.create({ kind: "blank", title: "Alpha study" });
+    await createCaller({ authUser: authUser("ext_a"), preferredWorkspaceId: beta.id }).studies.create({ kind: "blank", title: "Beta study" });
+
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const recent = await caller.me.recentStudies({ limit: 10 });
+    expect(recent.map((r) => r.title).sort()).toEqual(["Alpha study", "Beta study"]);
+    expect(new Set(recent.map((r) => r.workspaceName))).toEqual(new Set(["Alpha", "Beta"]));
+
+    const stats = await caller.me.stats();
+    expect(stats.studiesAuthored).toBe(2);
+    expect(stats.followers).toBe(0);
+    expect(stats.totalParticipants).toBe(0);
+  });
+
+  it("recruitingStudies returns authored studies that have an open recruitment session", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "Recruiting one" });
+    await caller.studies.addBlock({ studyId: id, source: "core", key: "likert-7", version: "1.0.0" });
+    await caller.studies.preregister({ studyId: id });
+    await caller.studies.openRecruitment({ studyId: id });
+
+    const recruiting = await caller.me.recruitingStudies();
+    expect(recruiting).toHaveLength(1);
+    expect(recruiting[0]).toMatchObject({ studyId: id, title: "Recruiting one", workspaceName: "Alpha", currentN: 0 });
+  });
+});
