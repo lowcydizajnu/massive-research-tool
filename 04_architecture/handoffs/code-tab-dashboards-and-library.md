@@ -1,6 +1,6 @@
-# Code tab handoff — User dashboard + Workspace dashboard + Library (updated 2026-06-15 round 2)
+# Code tab handoff — User dashboard + Workspace dashboard + Library (updated 2026-06-15 round 3)
 
-> **V1.13.0 = Dashboards + Library shell.** Owner picked this scope after answering 6 open questions on 2026-06-15. Three new dashboard layers + Library destination + IA v0.5 amendments. Estimated ~5 weeks Code-tab time.
+> **V1.13.0 = Dashboards + Library shell.** Owner picked this scope + added dashboard customization on 2026-06-15. Three new dashboard layers + Library destination + IA v0.5 amendments + per-user dashboard customization (drag-reorder, add/remove widgets, workspace-default-settable-by-admin). Estimated ~6 weeks Code-tab time.
 
 Owner asked for these three destinations together. They're independent surfaces with shared characteristics: all three are **read-heavy landing experiences** built on top of data that already mostly exists. Today's state:
 
@@ -186,6 +186,151 @@ ADR-0033 (or ADR-0034 if Personal mode took 0033) — IA v0.5: workspace dashboa
 ### Estimated work
 
 ~1.5 weeks (data layer ~4 days; widgets ~4 days; IA v0.5 + ADR + wireframe ~2 days).
+
+---
+
+## Section N5 — Dashboard customization (owner-added 2026-06-15)
+
+Owner: "User should be able customise dashboard (drag and drop items — reordering, add new widgets, remove old)."
+
+Both **User dashboard** (Section N1) and **Workspace dashboard** (Section N2) are customizable. Studies · Running tab (Section N4) is operational — researcher can hide/show columns but the layout is fixed (live data table doesn't benefit from drag-reorder).
+
+### Customization model
+
+Each dashboard has:
+
+1. **A default widget set + order** (defined by us in the widget registry). New users see this on first visit.
+2. **Per-user override** stored in a new `dashboard_layout` table. When a user customizes, their layout replaces the default for them only.
+3. **Workspace default override** (admin-set; optional) — workspace admins can set a "house default" for the Workspace dashboard. New researchers in that workspace see the admin's default, not ours; they can still customize on top per-user.
+
+### Customize affordance
+
+Each dashboard has a **"Customize"** button in the top-right next to a "Reset to defaults" link.
+
+- **View mode** (default): widgets render normally; drag handles hidden; no remove buttons.
+- **Edit mode** (after clicking Customize): every widget shows a drag handle (grip icon top-left) + an ✕ remove button (top-right). A floating "+ Add widget" bar appears at the bottom showing all available widgets the user hasn't yet added; click → adds to the end of the layout.
+- **Save** / **Cancel** in the top bar of edit mode; auto-save on drag-end + remove + add (with a "Reset" undo for the session).
+
+### Implementation
+
+**Drag-reorder library:** reuse `@dnd-kit/core` + `@dnd-kit/sortable` already in the repo from ADR-0022 (block reorder). Same `SortableList` primitive Code tab already built for block reorder. Zero new vendor.
+
+**Data model — new table:**
+
+```sql
+CREATE TABLE dashboard_layout (
+  id text PRIMARY KEY,                              -- ULID
+  user_id uuid NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+  dashboard_kind text NOT NULL,                     -- 'user' | 'workspace'
+  workspace_id uuid REFERENCES workspace(id) ON DELETE CASCADE,
+                                                    -- null for dashboard_kind='user'
+  widgets jsonb NOT NULL,                           -- ordered [{ widget_key, settings? }]
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (user_id, dashboard_kind, workspace_id)
+);
+
+-- Workspace-level default (admin-set; optional)
+CREATE TABLE workspace_dashboard_default (
+  workspace_id uuid PRIMARY KEY REFERENCES workspace(id) ON DELETE CASCADE,
+  widgets jsonb NOT NULL,
+  set_by_user_id uuid NOT NULL REFERENCES "user"(id),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+```
+
+Additive migration; nothing existing changes.
+
+**Widget registry:**
+
+```ts
+// lib/dashboard/widget-registry.ts
+export type WidgetKey = 'welcome' | 'workspaces-card' | 'mentions-inbox'
+  | 'follows-feed' | 'notifications' | 'recruiting-studies'
+  | 'recent-drafts' | 'upcoming-deadlines' | 'osf-activity'
+  | 'your-stats' | 'saved-searches' | 'quick-actions'
+  // workspace dashboard widgets
+  | 'workspace-header' | 'workspace-announcement' | 'at-a-glance-stats'
+  | 'active-recruitment' | 'workspace-activity' | 'pending-reviews'
+  | 'recently-edited' | 'workspace-osf-status' | 'recent-forks'
+  | 'top-tags' | 'team-activity' | 'storage-cost';
+
+export interface WidgetDef {
+  key: WidgetKey;
+  name: string;
+  description: string;
+  category: 'activity' | 'studies' | 'team' | 'osf' | 'admin' | 'personal';
+  size: 'small' | 'medium' | 'large' | 'full';
+  dashboard: 'user' | 'workspace' | 'both';
+  ownerOnly?: boolean;           // 'storage-cost' = owners only
+  defaultInLayout?: boolean;     // ships in default layout
+  settings?: { /* per-widget config schema */ };
+  Component: React.ComponentType<WidgetProps>;
+  loader: (ctx) => Promise<WidgetData>;
+}
+
+export const USER_DASHBOARD_DEFAULT_LAYOUT: WidgetKey[] = [
+  'welcome', 'workspaces-card', 'mentions-inbox',
+  'follows-feed', 'notifications', 'recruiting-studies',
+  'recent-drafts', 'upcoming-deadlines', 'osf-activity',
+  'your-stats', 'saved-searches', 'quick-actions',
+];
+
+export const WORKSPACE_DASHBOARD_DEFAULT_LAYOUT: WidgetKey[] = [
+  'workspace-header', 'workspace-announcement', 'at-a-glance-stats',
+  'active-recruitment', 'workspace-activity', 'pending-reviews',
+  'recently-edited', 'workspace-osf-status', 'recent-forks',
+  'top-tags', 'team-activity', 'storage-cost',
+];
+```
+
+**Layout resolution (server-side at page load):**
+
+1. Look up `dashboard_layout` for `(user_id, dashboard_kind, workspace_id)`.
+2. If exists: use that.
+3. If not: for workspace dashboard, look up `workspace_dashboard_default`. If exists, use that; otherwise use the workspace default `WORKSPACE_DASHBOARD_DEFAULT_LAYOUT`.
+4. For user dashboard, use `USER_DASHBOARD_DEFAULT_LAYOUT`.
+5. Filter the resolved list against the widget registry — remove any keys that no longer exist (forward-compat for widget removal) + skip `ownerOnly` widgets the viewer isn't authorized for.
+
+**Per-widget settings (optional, V1.13.0):**
+
+A few widgets support inline settings via a small gear icon when in edit mode:
+
+- `follows-feed` — "Show N items" (5 / 10 / 20)
+- `recent-drafts` — "Show N items" (3 / 5 / 10)
+- `workspace-activity` — "Show N items" + "Filter by event type"
+- `active-recruitment` — "Sort by: response count / completion rate / projected finish"
+- `top-tags` — "Window: 30d / 90d / all time"
+
+Settings stored in the `widgets` jsonb per-entry: `[{ widget_key, settings: { itemCount: 10 } }]`. Other widgets have no settings (just key).
+
+**tRPC procedures:**
+
+- `dashboard.getLayout({ kind: 'user' | 'workspace', workspaceId? })` — resolves the layout per the rules above
+- `dashboard.saveLayout({ kind, workspaceId?, widgets })` — writes user override
+- `dashboard.resetLayout({ kind, workspaceId? })` — deletes user override; falls back to default
+- `workspace.setDashboardDefault({ widgets })` — admin-only; writes `workspace_dashboard_default`
+
+**UX micro-details:**
+
+- Drag during edit mode shows a placeholder shadow at the target drop location (dnd-kit's default behavior).
+- Removing a widget animates out; restoring it (Add widget palette) animates in.
+- Add widget palette is a horizontal scroll bar at the bottom in edit mode; each available widget shows a small preview thumbnail + name + category badge.
+- "Reset to defaults" prompts a confirmation modal — "This will replace your current layout with the workspace default. Continue?"
+- Keyboard accessibility: drag handles are focusable; arrow keys reorder; Delete removes; Enter on palette item adds.
+
+### ADR-0036 — Dashboard customization
+
+Covers: dashboard_layout + workspace_dashboard_default tables; widget registry shape + contracts; per-widget settings schema; layout-resolution algorithm; admin-default precedence rules; reset semantics; ownerOnly filtering.
+
+### Wireframe gate
+
+`03_design/wireframes/dashboard-customize-mode.md`.
+
+### Estimated work
+
+~1 week (data layer + 2 migrations ~2 days; widget registry refactor + layout resolver ~2 days; edit-mode UI + drag/drop + add palette ~2 days; per-widget settings + wireframe + tests ~1 day).
+
+Applies to both User dashboard and Workspace dashboard. Studies · Running tab (Section N4) stays fixed-layout for V1.13.0 (operational view; revisit if researchers ask for it).
 
 ---
 
@@ -419,6 +564,7 @@ Code tab's choice based on PR queue.
 - **ADR-0033 — IA v0.5: Three-mode chrome + workspace switcher "Home" + workspace dashboard as workspace landing.** Three-mode chrome model (Personal + Workspace + Focused study); URL-driven mode switch; workspace switcher dropdown gains "Home" option above the workspace list; root redirect goes to `/home` for authed users; picking a workspace lands on `/dashboard`. Bundles N1 + N2 IA changes.
 - **ADR-0034 — Templates as `kind: template` + checkbox-based save flow.** Extends `experimentVersionKind` enum; template share scopes (4 per IA v0.3); save-as-template dialog includes 8 element checkboxes for what to bundle; fork-from-template applies bundled elements + defaults un-bundled.
 - **ADR-0035 — Imports as a first-class destination.** `imported_content` table; 5 source_kind values for V1.13.0; extensibility for V2.0 sandbox-ai.
+- **ADR-0036 — Dashboard customization.** `dashboard_layout` + `workspace_dashboard_default` tables; widget registry shape + per-widget settings schema; layout-resolution precedence (user override → workspace default → system default); ownerOnly filtering; reset semantics. Reuses dnd-kit from ADR-0022. No new vendor.
 
 ---
 
@@ -433,6 +579,7 @@ Code tab's choice based on PR queue.
 - `library-materials.md` (Stream E)
 - `library-themes.md` (Stream E)
 - `personal-mode-topbar.md` (the slim TopBar for personal mode + workspace switcher "Home" option)
+- `dashboard-customize-mode.md` (Stream F — edit mode chrome + drag handles + add-widget palette + per-widget settings)
 
 ---
 
@@ -449,17 +596,22 @@ Total estimate updated: **~5 weeks Code-tab time** (added ~1 week for the new Ru
 
 ---
 
-## Sequencing PRs (~5 weeks Code-tab time total = V1.13.0)
+## Sequencing PRs (~6 weeks Code-tab time total = V1.13.0)
 
 **Stream A — User dashboard + Personal mode (~1.5 weeks):**
 - PR N1.1: `meRouter` with `workspaces` + `recentStudies` + `stats` procedures + mentions/reviews-waiting aggregate (~2 days)
 - PR N1.2: personal mode chrome + route group split + ADR-0033 IA v0.5 + workspace switcher "Home" option (~3 days)
-- PR N1.3: `/home` page + 12 widgets + wireframe (~3 days)
+- PR N1.3: `/home` page + 12 widgets (registered in the widget registry from Stream F) + wireframe (~3 days)
 
 **Stream B — Workspace dashboard (~1.5 weeks):**
 - PR N2.1: `workspace.dashboard.*` aggregate procedures + tests (~3 days)
-- PR N2.2: `/dashboard` page + 12 widgets + role-respecting storage widget (owners only) + workspace-announcement editor (~4 days)
+- PR N2.2: `/dashboard` page + 12 widgets (registered in the widget registry from Stream F) + role-respecting storage widget (owners only) + workspace-announcement editor (~4 days)
 - PR N2.3: root redirect + landing change (workspace-mode `/` → `/dashboard`) (~2 days)
+
+**Stream F — Dashboard customization (~1 week, NEW; gated on Streams A + B widget components existing):**
+- PR N5.1: `dashboard_layout` + `workspace_dashboard_default` migrations + widget registry refactor + layout resolver + ADR-0036 (~2 days)
+- PR N5.2: edit-mode UI + drag/drop via dnd-kit + add-widget palette + remove + per-widget settings (~3 days)
+- PR N5.3: workspace-admin "set workspace default" affordance + wireframe + tests (~2 days)
 
 **Stream C — Studies · Running tab (~1 week, NEW):**
 - PR N4.1: `studies.runningOverview()` + `studies.runningList()` + `studies.runningDetail()` aggregate procedures (~3 days)
@@ -475,7 +627,7 @@ Total estimate updated: **~5 weeks Code-tab time** (added ~1 week for the new Ru
 **Stream E — Library Materials / Themes (~3 days each, gated on V1.12 Sections C1 / F):**
 - Land in V1.13.x sub-releases as those V1.12 dependencies ship
 
-All five streams largely independent; Code tab can land in parallel.
+Streams A + B + C + D largely independent; Code tab can land in parallel. Stream F (customization) gates on A + B widget components existing in the registry, so lands last in the bundle.
 
 Streams A, B, C are independent — Code tab can land them in any order or in parallel.
 
