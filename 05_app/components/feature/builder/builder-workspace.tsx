@@ -46,6 +46,7 @@ import { ReplicationBanner } from "./replication-banner";
 import { ReplicationConfigExtras } from "./replication-config-extras";
 import { BlockProvenance } from "./block-provenance";
 import { ConsentEditor } from "./consent-editor";
+import { BuildDriftBanner } from "./build-drift-banner";
 
 /**
  * Builder mode — the interactive three-zone body (build-stage-builder-mode.md).
@@ -540,6 +541,7 @@ export function BuilderWorkspace({
       ) : null}
       <main className="flex min-w-0 flex-1 flex-col gap-3">
         <StageTabs studyId={study.id} />
+        <BuildDriftBanner studyId={study.id} />
 
         <div className="flex flex-1 flex-col gap-5 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6">
           {/* Title row */}

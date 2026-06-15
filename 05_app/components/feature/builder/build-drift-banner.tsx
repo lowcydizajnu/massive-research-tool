@@ -24,7 +24,7 @@ export function BuildDriftBanner({ studyId }: { studyId: string }) {
     <div
       role="status"
       className={
-        "flex flex-wrap items-center gap-x-2 gap-y-1 border-b px-4 py-2 text-[length:var(--text-small)] " +
+        "flex flex-wrap items-center gap-x-2 gap-y-1 rounded-[var(--radius-md)] border px-4 py-2 text-[length:var(--text-small)] " +
         (diverged
           ? "border-[var(--color-warning-subtle)] bg-[var(--color-warning-subtle)] text-[var(--color-warning-text-on-subtle)]"
           : "border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] text-[var(--color-text-secondary)]")
