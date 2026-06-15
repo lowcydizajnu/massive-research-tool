@@ -1,6 +1,6 @@
-# Code tab handoff — V1.14 Participants destination
+# Code tab handoff — V1.15 Participants destination
 
-> **V1.14 = Participants destination + Prolific integration.** The 5-sub-view destination per IA v0.3 (Connections / Open recruitment / Panels / Compensation / Quality) + first `RecruitmentAdapter` for Prolific. Closes the loop opened by V1.5's manual-URL-copy workflow. Estimated **~6 weeks Code-tab time** across 7 PR streams.
+> **V1.15 = Participants destination + Prolific integration.** The 5-sub-view destination per IA v0.3 (Connections / Open recruitment / Panels / Compensation / Quality) + first `RecruitmentAdapter` for Prolific. Closes the loop opened by V1.5's manual-URL-copy workflow. Estimated **~6 weeks Code-tab time** across 7 PR streams. **Originally planned as V1.14; reordered 2026-06-15 to ship V1.14 = Team first** (smaller scope; unblocks lab-collaboration workflows). Lands after V1.14 Team ships.
 
 The Participants destination has been in IA v0.3 since 2026-05-28 + listed in the LeftRail since V1.7.0 but inert (no `href`). V1.5 shipped the participant runtime + `recruitment_session` table + manual URL copy workflow ("Hanna pastes the URL into Prolific by hand"); V1.6 shipped attention checks + demographics blocks; V1.7+ shipped the full review network. The piece that's been waiting since V1.5: real recruitment provider integrations + a researcher-facing destination to manage participants across studies.
 
