@@ -10,7 +10,7 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { SortableContext, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
-import { GripVertical, Maximize2, Minimize2, Pencil, Plus, RotateCcw, Settings2, Sparkles, X } from "lucide-react";
+import { GripVertical, Maximize2, Pencil, Plus, RotateCcw, Settings2, Sparkles, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, type CSSProperties, type ReactNode } from "react";
 import { ulid } from "ulid";
@@ -366,7 +366,8 @@ function EditTile({
               type="button"
               onClick={() => onSetFull(id, !full)}
               aria-pressed={full}
-              aria-label={full ? `Make ${label} normal width` : `Make ${label} full width`}
+              aria-label={`Full width for ${label}`}
+              title={full ? "Full width (on) — click for normal" : "Make full width"}
               className={cn(
                 "inline-flex items-center gap-1 rounded-[var(--radius-sm)] px-1.5 py-0.5 text-[length:var(--text-small)] font-medium",
                 full
@@ -374,8 +375,8 @@ function EditTile({
                   : "text-[var(--color-text-muted)] hover:bg-[var(--color-surface-canvas)]",
               )}
             >
-              {full ? <Minimize2 className="size-3.5" aria-hidden /> : <Maximize2 className="size-3.5" aria-hidden />}
-              {full ? "Normal" : "Full"}
+              <Maximize2 className="size-3.5" aria-hidden />
+              Full width
             </button>
             {hasSettings ? (
               <button
