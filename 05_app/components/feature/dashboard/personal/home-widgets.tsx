@@ -122,9 +122,9 @@ export function WorkspacesWidget({
 
 export function RecruitingWidget({ studies }: { studies: RecruitingStudy[] }) {
   return (
-    <Card title="Your recruiting studies">
+    <Card title="Your running studies">
       {studies.length === 0 ? (
-        <Empty>No studies are recruiting right now.</Empty>
+        <Empty>No studies are running right now.</Empty>
       ) : (
         <PaginatedList>
           {studies.map((s) => (

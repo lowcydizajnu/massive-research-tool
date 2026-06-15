@@ -47,7 +47,7 @@ export default async function HomePage() {
   const activeId = active.status === "fulfilled" ? active.value.id : null;
   const studyCount = stats.status === "fulfilled" ? stats.value.studiesAuthored : 0;
   const recruitingCount = recruiting.status === "fulfilled" ? recruiting.value.length : 0;
-  const summary = `${studyCount} stud${studyCount === 1 ? "y" : "ies"} · ${recruitingCount} recruiting now`;
+  const summary = `${studyCount} stud${studyCount === 1 ? "y" : "ies"} · ${recruitingCount} running now`;
 
   // Per-widget settings (ADR-0045): cap a list to the widget's resolved itemCount.
   const limitFor = (key: string): number | undefined => {
@@ -63,7 +63,7 @@ export default async function HomePage() {
       recruiting.status === "fulfilled" ? (
         <RecruitingWidget studies={cap(recruiting.value, limitFor("recruiting-studies"))} />
       ) : (
-        <WidgetError title="Your recruiting studies" />
+        <WidgetError title="Your running studies" />
       ),
     "workspaces-card":
       workspaces.status === "fulfilled" ? (

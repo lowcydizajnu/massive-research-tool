@@ -85,7 +85,7 @@ export const WIDGET_REGISTRY: Record<WidgetKey, WidgetMeta> = {
   },
   "recruiting-studies": {
     key: "recruiting-studies",
-    name: "Your recruiting studies",
+    name: "Your running studies",
     description: "Studies of yours collecting responses right now.",
     category: "studies",
     size: "medium",
@@ -133,8 +133,8 @@ export const WIDGET_REGISTRY: Record<WidgetKey, WidgetMeta> = {
   },
   "active-recruitment": {
     key: "active-recruitment",
-    name: "Active recruitment",
-    description: "Studies recruiting in this workspace.",
+    name: "Running studies",
+    description: "Studies running in this workspace.",
     category: "studies",
     size: "medium",
     dashboard: "workspace",

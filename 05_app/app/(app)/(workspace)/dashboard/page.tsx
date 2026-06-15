@@ -53,7 +53,7 @@ export default async function WorkspaceDashboardPage() {
       recruiting.status === "fulfilled" ? (
         <ActiveRecruitmentWidget studies={cap(recruiting.value, limitFor("active-recruitment"))} />
       ) : (
-        <WidgetError title="Active recruitment" />
+        <WidgetError title="Running studies" />
       ),
     "recently-edited":
       recent.status === "fulfilled" ? (
