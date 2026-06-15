@@ -2413,11 +2413,28 @@ export const studiesRouter = router({
   /** Remove a condition + strip its slug from every block's visibility. */
   removeCondition: writeProcedure
     .input(z.object({ studyId: z.string().uuid(), conditionId: z.string() }))
-    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+    .mutation(async ({ ctx, input }): Promise<{ ok: boolean; reason?: string }> => {
       const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
       const all = await conditionsForVersion(tip.version.id);
       const target = all.find((c) => c.id === input.conditionId);
       if (!target) throw new TRPCError({ code: "NOT_FOUND" });
+
+      // A condition that participants have been assigned to can't be hard-deleted —
+      // response.conditionId references it (including PREVIEW runs), so a raw DELETE
+      // throws an FK error that leaked to the UI. Refuse gracefully (RETURNED, not
+      // thrown, so the global autosave indicator doesn't read it as a lost edit)
+      // and point at the non-destructive workaround.
+      const [refs] = await db
+        .select({ n: count() })
+        .from(responseTable)
+        .where(eq(responseTable.conditionId, target.id));
+      if ((refs?.n ?? 0) > 0) {
+        return {
+          ok: false,
+          reason:
+            "This group already has responses recorded against it (including any preview runs), so it can’t be deleted. Rename it, or set its weight to 0 to stop assigning new participants to it.",
+        };
+      }
 
       const blocks = readBlocks(tip.version.definitionSnapshot).map((b) => {
         const gate = b.visibility?.showIfCondition;

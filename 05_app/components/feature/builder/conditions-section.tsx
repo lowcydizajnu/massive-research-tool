@@ -29,17 +29,26 @@ export function ConditionsSection({ studyId }: { studyId: string }) {
   };
   const add = api.studies.addCondition.useMutation({ onSuccess: onOk, onError });
   const update = api.studies.updateCondition.useMutation({ onSuccess: onOk, onError });
-  const remove = api.studies.removeCondition.useMutation({ onSuccess: onOk, onError });
+  const remove = api.studies.removeCondition.useMutation({
+    // removeCondition returns {ok:false, reason} (not a throw) when the group has
+    // responses, so a legitimate refusal shows here and never trips the global
+    // autosave "Couldn't save" indicator.
+    onSuccess: (res) => {
+      if (res.ok) onOk();
+      else setError(res.reason ?? "Couldn’t remove this group.");
+    },
+    onError,
+  });
 
-  // Opt-in A/B setup: create two balanced arms in one click. Reuses addCondition
-  // (auto-slug + default weight 1.0 → an even 50/50 split); the researcher can
-  // rename, reweight, or add more arms afterwards. Offered only from the empty
-  // state, so running as an A/B test is the researcher's explicit choice.
+  // Opt-in A/B setup: balance to two arms in one click (auto-slug + default
+  // weight 1.0 → an even 50/50 split); the researcher can rename, reweight, or
+  // add more arms after. Offered while a study has ≤1 condition — 0 creates both
+  // arms, 1 adds the second — so running as an A/B test is an explicit choice.
   const setupAb = async () => {
     setError(null);
     try {
-      await add.mutateAsync({ studyId, name: "Group A" });
-      await add.mutateAsync({ studyId, name: "Group B" });
+      const names = (data ?? []).length === 0 ? ["Group A", "Group B"] : ["Group B"];
+      for (const name of names) await add.mutateAsync({ studyId, name });
     } catch (e) {
       onError(e);
     }
@@ -141,6 +150,21 @@ export function ConditionsSection({ studyId }: { studyId: string }) {
           })}
         </ul>
       )}
+
+      {data !== undefined && list.length === 1 ? (
+        <div className="flex flex-col gap-1 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] p-2">
+          <PendingButton
+            onClick={() => void setupAb()}
+            pending={add.isPending}
+            idleLabel="Make this an A/B test"
+            pendingLabel="Setting up…"
+            className="self-start px-2.5 py-1 text-[length:var(--text-small)]"
+          />
+          <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+            Adds a second group so new participants are split 50/50 at random — compare results per group on the Results tab.
+          </p>
+        </div>
+      ) : null}
 
       <PendingButton
         variant="secondary"
