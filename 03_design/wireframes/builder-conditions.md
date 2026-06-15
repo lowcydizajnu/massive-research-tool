@@ -23,12 +23,12 @@ Two attachment points in the existing Build-stage right context panel:
 - **Allocation weight** — relative weight; the helper shows the resulting split (e.g. "≈50% / 50%") computed client-side from the weights.
 - **Remove condition** — ✕ per row; on confirm, deletes the condition AND strips its slug from any block's `visibility.showIfCondition` (server-side).
 - **Show-only-if multi-select** (Configure tab) — checkbox list of the study's condition slugs; persists via `studies.setBlockVisibility(instanceId, slugs[])`. A "Shown to everyone" hint when none selected.
-- **Empty state (no conditions)** — copy explains that to run an **A/B test** you split participants into groups and compare per group. Two affordances: a primary **"Set up an A/B test"** button (creates two even arms — *Group A* + *Group B*, 50/50 — in one click via two `addCondition` calls; researcher-renamable/reweightable after) and the regular **Add condition** button for a single condition. A/B is opt-in: the researcher consciously chooses it; nothing about the model changes (conditions already do weighted random assignment + per-condition results). Once ≥1 condition exists, the empty state is replaced by the list and the A/B starter is no longer shown (you just add conditions).
+- **Empty state (no conditions)** — copy: "No conditions yet — this study runs as a single Control group. Add a condition to compare groups." (A short-lived conditions-based "Set up an A/B test" shortcut was added 2026-06-15 and **reverted** the same day — it merely created two conditions and duplicated/obscured the existing concept; the genuine ask is *version-level* A/B comparison, which is the deferred concurrent-versions feature, not a conditions shortcut.)
 
 ## States
 
 - **Default (Details, ≥1 condition):** the conditions list + Add.
-- **Empty (no conditions):** empty-state copy + **Set up an A/B test** + Add (the runtime still runs the study as implicit `control` until a condition exists).
+- **Empty (no conditions):** empty-state copy + Add (the runtime still runs the study as implicit `control` until a condition exists).
 - **Adding / editing:** inline; saves on blur / Enter (autosave semantics, like the block config). A duplicate slug shows an inline error and doesn't persist.
 - **Per-block visibility (Configure):** the multi-select reflects the block's current `showIfCondition`; toggling persists immediately; "Shown to everyone" when empty.
 - **Block references a since-removed condition:** not possible to reach — removing a condition strips it from block visibility server-side; the multi-select only lists current conditions.
