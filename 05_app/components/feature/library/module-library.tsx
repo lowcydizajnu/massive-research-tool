@@ -40,21 +40,28 @@ export function ModuleLibrary({ modules }: { modules: CatalogueModule[] }) {
   return (
     <div className="flex flex-col gap-4">
       {/* Filter + sort bar. */}
-      <div className="flex flex-wrap items-center gap-2">
-        <FilterChip active={category === null} onClick={() => setCategory(null)}>
-          All
-        </FilterChip>
-        {categories.map((c) => (
-          <FilterChip key={c} active={category === c} onClick={() => setCategory(c)}>
-            {c}
-          </FilterChip>
-        ))}
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="flex items-center gap-1.5 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+          Category
+          <select
+            value={category ?? ""}
+            onChange={(e) => setCategory(e.target.value || null)}
+            className="rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-1 text-[var(--color-text-secondary)]"
+          >
+            <option value="">All categories</option>
+            {categories.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </label>
         <label className="ml-auto flex items-center gap-1.5 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
           Sort
           <select
             value={sort}
             onChange={(e) => setSort(e.target.value as Sort)}
-            className="rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-0.5 text-[var(--color-text-secondary)]"
+            className="rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-1 text-[var(--color-text-secondary)]"
           >
             <option value="name">Title</option>
             <option value="source">Identifier</option>
@@ -140,32 +147,6 @@ export function ModuleLibrary({ modules }: { modules: CatalogueModule[] }) {
         </aside>
       </div>
     </div>
-  );
-}
-
-function FilterChip({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={cn(
-        "rounded-[var(--radius-md)] px-2.5 py-1 text-[length:var(--text-small)] font-medium",
-        active
-          ? "bg-[var(--color-primary-subtle)] text-[var(--color-primary-text-on-subtle)]"
-          : "text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]",
-      )}
-    >
-      {children}
-    </button>
   );
 }
 
