@@ -340,6 +340,15 @@ Rendering: use a markdown library configured with the allowlist (e.g., `marked` 
 - Compliance request for comment audit log / immutable history. Currently comments support edit-in-place via `edited_at`; if we need full history, add a `comment_revision` table.
 - Image attachments become a real demand (probably with the participant-runtime stimulus upload feature in V2).
 
+## Amendment (2026-06-15) — `module` as a fifth follow target
+
+This ADR locked **four** follow targets (tag, author, framework, study; saved_search → V1.7). V1.13.0's Library destination surfaces reusable modules, and a researcher who builds on a module wants to hear when it changes (new version / breaking change / deprecation). So **`module` is added as a fifth `follow.target_type`** — no new mechanism, just one more allowed value.
+
+- **Schema:** the `follow_target_type` CHECK widens to include `'module'` (migration `0013`, additive — existing rows stay valid). `target_id` for a module follow is its **`source/key`** (version-agnostic — you follow the module, not a pinned version), matching how `modules.versions` / `modules.usedIn` key a module.
+- **Surface:** the one reusable `FollowButton` on the Library module inspect (`module-library.tsx`); `FOLLOW_TARGET_TYPES` gains `module`, so `follow`/`unfollow`/`myFollows` accept it with no other change.
+- **Known limitation (deliberate):** modules don't emit `activity_event`s yet, so the Activity·Follows feed's partition intentionally omits `module` — a module follow is a **stored subscription** that produces no feed rows until module-update events exist. Recording the intent now keeps the data ready. **Revisit trigger:** when module versioning emits events (a `module_version_published` / `module_deprecated` event type), wire the feed partition + a reason label.
+- **Why not a new ADR:** this reuses the follow primitive wholesale (no table, no pattern) — it's an extension of this ADR's decision, not a new architectural concept.
+
 ## References
 
 - ADR-0001 — modular composition; block instance ids are the `target_id` for block-anchored comments.

@@ -1,0 +1,2 @@
+ALTER TABLE "follow" DROP CONSTRAINT "follow_target_type";--> statement-breakpoint
+ALTER TABLE "follow" ADD CONSTRAINT "follow_target_type" CHECK ("follow"."target_type" IN ('tag', 'author', 'framework', 'study', 'module'));

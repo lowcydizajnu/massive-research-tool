@@ -73,6 +73,22 @@ describe("follows.follow / unfollow / myFollows", () => {
     await caller.follows.unfollow({ targetType: "tag", targetId: "misinformation" });
     expect(await caller.follows.myFollows()).toEqual([]);
   });
+
+  it("follows a module (a source/key) and unfollows; a module follow yields no feed rows", async () => {
+    await seedUser("maya");
+    const caller = createCaller({ authUser: authUser("maya") });
+
+    // The widened CHECK + z.enum accept 'module'; myFollows round-trips it.
+    await caller.follows.follow({ targetType: "module", targetId: "core/social-post" });
+    expect(await caller.follows.myFollows()).toEqual([
+      { targetType: "module", targetId: "core/social-post" },
+    ]);
+    // Modules don't emit activity events yet, so a module follow surfaces nothing.
+    expect(await caller.follows.feed()).toEqual([]);
+
+    await caller.follows.unfollow({ targetType: "module", targetId: "core/social-post" });
+    expect(await caller.follows.myFollows()).toEqual([]);
+  });
 });
 
 describe("follows.feed (activity_event × follow)", () => {
