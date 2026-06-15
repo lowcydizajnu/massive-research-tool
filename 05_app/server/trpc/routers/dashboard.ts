@@ -40,6 +40,16 @@ const kindSchema = z.enum(["user", "workspace"]);
 const layoutEntrySchema = z.object({
   widgetKey: z.string().min(1).max(64),
   settings: z.record(z.string(), z.unknown()).optional(),
+  // 2D grid geometry (ADR-0045 amendment). Bounds are sane caps, not the live
+  // column count — the client clamps to the active breakpoint's columns.
+  layout: z
+    .object({
+      x: z.number().int().min(0).max(48),
+      y: z.number().int().min(0).max(2048),
+      w: z.number().int().min(1).max(12),
+      h: z.number().int().min(1).max(48),
+    })
+    .optional(),
 });
 /** A whole layout. Capped well above the registry size; unknown keys are dropped at resolve time. */
 const widgetsInput = z.array(layoutEntrySchema).max(40);
@@ -112,7 +122,7 @@ export const dashboardRouter = router({
         workspaceDefault,
         isOwner,
       });
-      return resolved.map((r) => ({ widgetKey: r.widgetKey, settings: r.settings }));
+      return resolved.map((r) => ({ widgetKey: r.widgetKey, settings: r.settings, layout: r.layout }));
     }),
 
   /** Write (upsert) the caller's per-user layout override for a dashboard. */
