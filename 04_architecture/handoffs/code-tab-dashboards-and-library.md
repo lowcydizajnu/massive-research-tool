@@ -318,7 +318,9 @@ Settings stored in the `widgets` jsonb per-entry: `[{ widget_key, settings: { it
 - "Reset to defaults" prompts a confirmation modal — "This will replace your current layout with the workspace default. Continue?"
 - Keyboard accessibility: drag handles are focusable; arrow keys reorder; Delete removes; Enter on palette item adds.
 
-### ADR-0036 — Dashboard customization
+### ADR-0045 — Dashboard customization
+
+> NOTE: this handoff originally said "ADR-0036", but 0036 was already taken (propose-changes / PR-lite). The accepted ADR is **0045** (`04_architecture/adrs/0045-dashboard-customization.md`).
 
 Covers: dashboard_layout + workspace_dashboard_default tables; widget registry shape + contracts; per-widget settings schema; layout-resolution algorithm; admin-default precedence rules; reset semantics; ownerOnly filtering.
 
