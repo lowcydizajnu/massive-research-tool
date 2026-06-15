@@ -37,7 +37,9 @@ export const protectedProcedure = t.procedure.use(async ({ ctx, next }) => {
  * `ctx.workspace.id` (the tenant boundary); reads are open to any member.
  */
 export const workspaceProcedure = protectedProcedure.use(async ({ ctx, next }) => {
-  const active = await resolveActiveWorkspace(ctx.dbUser.id);
+  // ctx.preferredWorkspaceId comes from the base request context (the switcher
+  // cookie, ADR-0033); tRPC merges ctx across middleware, so it persists here.
+  const active = await resolveActiveWorkspace(ctx.dbUser.id, ctx.preferredWorkspaceId);
   if (!active) {
     throw new TRPCError({
       code: "FORBIDDEN",

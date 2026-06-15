@@ -11,14 +11,20 @@ export type ActiveWorkspace = {
   role: MemberRole;
 };
 
+/** httpOnly cookie holding the workspace-switcher selection (ADR-0033). Read in
+ *  `createContext` (request-scoped) and threaded in as `preferredWorkspaceId`. */
+export const ACTIVE_WORKSPACE_COOKIE = "active_workspace";
+
 /**
- * Resolve the user's active workspace + their role in it. V1: a user typically
- * has one (created at onboarding); when several exist, prefer the owned one,
- * then the earliest. The `lastWorkspaceId` hint in Clerk metadata is a future
- * refinement (the workspace switcher per IA v0.3).
+ * Resolve the user's active workspace + their role in it. If `preferredWorkspaceId`
+ * (the switcher selection, ADR-0033) names a workspace the user is still an active
+ * member of, that wins; otherwise fall back to the owned-then-earliest default.
+ * One query (all active memberships, ordered) + an in-memory pick — no extra round
+ * trip, and unit tests that pass no preference get the unchanged default.
  */
 export async function resolveActiveWorkspace(
   dbUserId: string,
+  preferredWorkspaceId?: string,
 ): Promise<ActiveWorkspace | null> {
   const rows = await db
     .select({ ws: workspace, role: member.role })
@@ -34,9 +40,12 @@ export async function resolveActiveWorkspace(
     .orderBy(
       sql`case when ${member.role} = 'owner' then 0 else 1 end`,
       asc(member.createdAt),
-    )
-    .limit(1);
+    );
 
-  const row = rows[0];
-  return row ? { workspace: row.ws, role: row.role } : null;
+  if (rows.length === 0) return null;
+  const preferred = preferredWorkspaceId
+    ? rows.find((r) => r.ws.id === preferredWorkspaceId)
+    : undefined;
+  const row = preferred ?? rows[0];
+  return { workspace: row.ws, role: row.role };
 }
