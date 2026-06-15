@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
  * via ADR-0012:
  *  - Continue autosaving → no checkpoint (autosave is already on).
  *  - Save as named version (default) → studies.saveAsNamed (snapshots the tip).
- *  - Save & request review → needs the Share stage (deferred), shown disabled.
+ *  - Save & request review → saves a named version AND emits a review_request to the workspace (live).
  *
  * Incomplete blocks are advisory in V1 (a draft checkpoint may be a WIP), not a
  * hard block on saving — noted as a deviation from the wireframe's blocking row.

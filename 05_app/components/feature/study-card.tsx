@@ -4,7 +4,7 @@ import type { StudyListItem, StudyStage } from "@/server/trpc/routers/studies";
 
 /**
  * Study card for the Studies destination list. Links to the study's Build
- * stage (placeholder until the three-zone Builder lands, ADR-0011 item 7).
+ * stage (the three-zone Builder, ADR-0011).
  *
  * Stage badge encoding per studies-destination.md (token .subtle washes with
  * dark-on-subtle text; the full token only on the status dot).

@@ -9,11 +9,11 @@ import type { StudyVersion } from "@/server/trpc/routers/studies";
 
 /**
  * Versions sub-tab (V1.7.1 item 3 + ADR-0019). Lists every version of the study
- * oldest→newest: the autosave working copy + each frozen conscious save. Numbering
- * counts conscious saves only — the working copy is unnumbered. Clicking a row
+ * oldest→newest: the autosave draft + each frozen conscious save. Numbering
+ * counts conscious saves only — the draft is unnumbered. Clicking a row
  * reveals a read-only preview of that version's blocks; a frozen version's
- * preview carries a "Restore as working copy" button (copies its blocks onto the
- * working copy — the frozen version is never mutated, ADR-0019).
+ * preview carries a "Restore as draft" button (copies its blocks onto the
+ * draft — the frozen version is never mutated, ADR-0019).
  */
 function label(v: StudyVersion): string {
   switch (v.kind) {
@@ -89,7 +89,7 @@ export function VersionsPanel({
                   {label(v)}
                   {v.isWorkingCopy ? (
                     <span className="rounded-full bg-[var(--color-primary-subtle)] px-1.5 py-0.5 text-[length:var(--text-small)] text-[var(--color-primary-text-on-subtle)]">
-                      {v.hasUnsavedChanges ? "Unsaved changes" : "Working copy"}
+                      {v.hasUnsavedChanges ? "Unsaved changes" : "Draft"}
                     </span>
                   ) : v.isLatestSaved ? (
                     <span className="rounded-full bg-[var(--color-surface-subtle)] px-1.5 py-0.5 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
@@ -176,7 +176,7 @@ function VersionPreview({
         utils.studies.listVersions.invalidate({ studyId }),
       ]);
       setConfirming(false);
-      onRestored(`Restored ${label(version)} into your working copy (${r.blockCount} block${r.blockCount === 1 ? "" : "s"}).`);
+      onRestored(`Restored ${label(version)} into your draft (${r.blockCount} block${r.blockCount === 1 ? "" : "s"}).`);
     },
   });
 
@@ -203,12 +203,12 @@ function VersionPreview({
 
       {version.isWorkingCopy ? (
         <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-          This is your live working copy — edit it on the Build tab.
+          This is your live draft — edit it on the Build tab.
         </p>
       ) : confirming ? (
         <div className="flex flex-col gap-2 rounded-[var(--radius-md)] bg-[var(--color-surface-subtle)] p-2">
           <p className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
-            Restore overwrites your current working copy and discards unsaved edits. Continue?
+            Restore overwrites your current draft and discards unsaved edits. Continue?
           </p>
           <div className="flex items-center gap-2">
             <PendingButton
@@ -234,7 +234,7 @@ function VersionPreview({
           onClick={() => setConfirming(true)}
           className="self-start rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-1.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
         >
-          Restore as working copy
+          Restore as draft
         </button>
       )}
       {restore.isError ? (

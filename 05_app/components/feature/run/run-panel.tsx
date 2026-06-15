@@ -10,11 +10,23 @@ import { api } from "@/lib/trpc/react";
 import type { RunInfo } from "@/server/trpc/routers/studies";
 
 /**
- * Run stage (serves the run-a-study JTBD). Opens recruitment for the
- * preregistered version and surfaces the recruitment link Hanna pastes into
- * Prolific (provider integration is V1.6), plus a Preview link. Pause/close are
- * V1.6 — V1.5 opens and shares.
+ * Run stage (serves the run-a-study JTBD). Opens recruitment for the frozen
+ * (preregistered or published) version and surfaces the recruitment link the
+ * researcher pastes into Prolific, plus a Preview link. Pause / resume / stop
+ * (ADR-0044) and "Make these edits live" are live; provider auto-integration
+ * (push to Prolific's API) is still a future enhancement.
  */
+/** Inline error for a Run-stage mutation (open/publish/pause/stop) — without it
+ *  a server failure just returned the button to idle, stranding the user. */
+function ActionError({ message }: { message?: string }) {
+  if (!message) return null;
+  return (
+    <p role="alert" className="text-[length:var(--text-small)] text-[var(--color-danger)]">
+      {message}
+    </p>
+  );
+}
+
 export function RunPanel({
   studyId,
   info,
@@ -65,6 +77,7 @@ export function RunPanel({
             />
           </div>
         </PreflightChecklist>
+        <ActionError message={publish.error?.message} />
         <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
           Preregister is the open-science path; Publish &amp; run is for pilots and exploratory work.
         </p>
@@ -95,6 +108,7 @@ export function RunPanel({
             Preview
           </a>
         </div>
+        <ActionError message={open.error?.message} />
       </section>
     );
   }
@@ -135,6 +149,7 @@ export function RunPanel({
             liveVersionNumber={info.liveVersionNumber}
           />
         ) : null}
+        <ActionError message={setStatus.error?.message} />
       </section>
     );
   }
@@ -160,6 +175,7 @@ export function RunPanel({
           idleLabel="Reopen recruitment"
           pendingLabel="Reopening…"
         />
+        <ActionError message={setStatus.error?.message} />
       </section>
     );
   }
@@ -256,6 +272,7 @@ export function RunPanel({
           </button>
         )}
       </div>
+      <ActionError message={setStatus.error?.message} />
     </section>
   );
 }

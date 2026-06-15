@@ -42,7 +42,10 @@ export function BuildDriftBanner({ studyId }: { studyId: string }) {
           </>
         )}
       </span>
-      <Link href={`/studies/${studyId}/preregister`} className="font-medium underline hover:opacity-80">
+      <Link
+        href={`/studies/${studyId}/${data.versionKind === "preregistered" ? "preregister" : "run"}`}
+        className="font-medium underline hover:opacity-80"
+      >
         Go to {data.versionKind === "preregistered" ? "Preregister" : "Run"} →
       </Link>
     </div>
