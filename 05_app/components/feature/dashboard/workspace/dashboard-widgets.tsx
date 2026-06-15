@@ -8,6 +8,7 @@ import type {
   WorkspaceDashboardStats,
   WorkspaceRecentStudy,
   WorkspaceRecruitingStudy,
+  WorkspaceTopTag,
 } from "@/server/trpc/routers/workspace";
 
 /**
@@ -152,6 +153,59 @@ export function RecentActivityWidget({ items }: { items: WorkspaceActivityItem[]
                 <span className="text-[var(--color-text-primary)]">{activityLabel(a.type)}</span>
                 {a.studyTitle ? ` · ${a.studyTitle}` : ""}
               </span>
+            </li>
+          ))}
+        </PaginatedList>
+      )}
+    </Card>
+  );
+}
+
+export function TopTagsWidget({ tags }: { tags: WorkspaceTopTag[] }) {
+  return (
+    <Card title="Top tags">
+      {tags.length === 0 ? (
+        <Empty>No tags yet — add tags to studies in the Builder.</Empty>
+      ) : (
+        <ul className="flex flex-wrap gap-1.5">
+          {tags.map((t) => (
+            <li key={t.tag}>
+              <Link
+                href={`/browse?tag=${encodeURIComponent(t.tag)}` as Route}
+                className="inline-flex items-center gap-1 rounded-[var(--radius-sm)] bg-[var(--color-surface-subtle)] px-2 py-0.5 text-[length:var(--text-small)] text-[var(--color-text-secondary)] hover:bg-[var(--color-primary-subtle)] hover:text-[var(--color-primary-text-on-subtle)]"
+              >
+                <span className="truncate">#{t.tag}</span>
+                <span className="text-[var(--color-text-muted)]">{t.count}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+export function RecentForksWidget({ items }: { items: WorkspaceActivityItem[] }) {
+  return (
+    <Card title="Recent replications">
+      {items.length === 0 ? (
+        <Empty>No replications yet — when someone replicates a study, it shows here.</Empty>
+      ) : (
+        <PaginatedList>
+          {items.map((a) => (
+            <li key={a.id}>
+              {a.studyId ? (
+                <Link
+                  href={`/studies/${a.studyId}/replications` as Route}
+                  className="block truncate rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-2 text-[length:var(--text-body)] text-[var(--color-text-primary)] hover:bg-[var(--color-surface-subtle)]"
+                >
+                  {a.studyTitle ?? "A study"}
+                </Link>
+              ) : (
+                <span className="block truncate px-3 py-2 text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
+                  {a.studyTitle ?? "A study"}
+                </span>
+              )}
             </li>
           ))}
         </PaginatedList>

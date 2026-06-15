@@ -29,7 +29,9 @@ export type WidgetKey =
   | "workspace-header"
   | "active-recruitment"
   | "recently-edited"
-  | "workspace-activity";
+  | "workspace-activity"
+  | "top-tags"
+  | "recent-forks";
 
 export type WidgetCategory = "personal" | "studies" | "activity" | "team" | "osf" | "admin";
 export type WidgetSize = "small" | "medium" | "large" | "full";
@@ -187,6 +189,23 @@ export const WIDGET_REGISTRY: Record<WidgetKey, WidgetMeta> = {
     dashboard: "workspace",
     defaultInLayout: true,
     settings: [ITEM_COUNT(15, [10, 15, 30])],
+  },
+  "top-tags": {
+    key: "top-tags",
+    name: "Top tags",
+    description: "The most-used study tags in this workspace.",
+    category: "studies",
+    size: "small",
+    dashboard: "workspace",
+  },
+  "recent-forks": {
+    key: "recent-forks",
+    name: "Recent replications",
+    description: "Studies recently replicated (forked) from this workspace.",
+    category: "studies",
+    size: "medium",
+    dashboard: "workspace",
+    settings: [ITEM_COUNT(10, [5, 10, 20])],
   },
 };
 

@@ -4,7 +4,9 @@ import { DashboardGrid } from "@/components/feature/dashboard/dashboard-grid";
 import {
   ActiveRecruitmentWidget,
   RecentActivityWidget,
+  RecentForksWidget,
   RecentlyEditedWidget,
+  TopTagsWidget,
   WidgetError,
   WorkspaceHeader,
 } from "@/components/feature/dashboard/workspace/dashboard-widgets";
@@ -31,9 +33,11 @@ export default async function WorkspaceDashboardPage() {
       api.workspace.activeRecruitment(),
       api.workspace.recentlyEdited({ limit: 30 }),
       api.workspace.recentActivity({ limit: 30 }),
+      api.workspace.topTags(),
+      api.workspace.recentForks({ limit: 20 }),
     ]),
   ]);
-  const [stats, recruiting, recent, activity] = settled;
+  const [stats, recruiting, recent, activity, topTags, recentForks] = settled;
 
   // Per-widget settings (ADR-0045): cap a list to the widget's resolved itemCount.
   const limitFor = (key: string): number | undefined => {
@@ -66,6 +70,18 @@ export default async function WorkspaceDashboardPage() {
         <RecentActivityWidget items={cap(activity.value, limitFor("workspace-activity"))} />
       ) : (
         <WidgetError title="Recent activity" />
+      ),
+    "top-tags":
+      topTags.status === "fulfilled" ? (
+        <TopTagsWidget tags={topTags.value} />
+      ) : (
+        <WidgetError title="Top tags" />
+      ),
+    "recent-forks":
+      recentForks.status === "fulfilled" ? (
+        <RecentForksWidget items={cap(recentForks.value, limitFor("recent-forks"))} />
+      ) : (
+        <WidgetError title="Recent replications" />
       ),
   };
 
