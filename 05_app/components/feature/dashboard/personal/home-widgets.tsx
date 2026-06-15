@@ -100,7 +100,7 @@ export function WorkspacesWidget({
               </div>
               {w.id === activeId ? (
                 <span className="shrink-0 rounded-[var(--radius-sm)] bg-[var(--color-surface-subtle)] px-2 py-0.5 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
-                  Current
+                  Active
                 </span>
               ) : (
                 <form action={switchWorkspaceAction.bind(null, w.id)}>
