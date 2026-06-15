@@ -652,6 +652,56 @@ export const previewToken = pgTable(
   (t) => [index("idx_preview_token_experiment").on(t.experimentId)],
 );
 
+/* ---------- dashboard customization (ADR-0045) ---------- */
+
+/**
+ * Per-user dashboard layout override. One row per (user, dashboard kind,
+ * workspace). `workspace_id` is NULL for the personal `/home` dashboard and set
+ * for a per-workspace `/dashboard`. `widgets` is the ordered list the resolver
+ * renders; unknown keys are filtered at resolve time (forward-compat, ADR-0045).
+ * The unique index enforces one row per (user, kind, workspace) for workspace
+ * dashboards; for the personal dashboard (`workspace_id IS NULL`, where Postgres
+ * treats NULLs as distinct) the single-row invariant is held by the app-layer
+ * upsert in `dashboard.saveLayout` (select-then-write).
+ */
+export const dashboardLayout = pgTable(
+  "dashboard_layout",
+  {
+    id: text("id").primaryKey(), // ULID
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    dashboardKind: text("dashboard_kind").notNull(), // 'user' | 'workspace'
+    workspaceId: uuid("workspace_id").references(() => workspace.id, { onDelete: "cascade" }), // null for 'user'
+    widgets: jsonb("widgets")
+      .notNull()
+      .$type<{ widgetKey: string; settings?: Record<string, unknown> }[]>(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("dashboard_layout_user_kind_ws_unique").on(t.userId, t.dashboardKind, t.workspaceId),
+    index("idx_dashboard_layout_user").on(t.userId),
+  ],
+);
+
+/**
+ * Workspace admin "house default" layout for the workspace dashboard. New
+ * members inherit this until they customize per-user (ADR-0045). One row per
+ * workspace; writes are admin-only (enforced in the tRPC layer).
+ */
+export const workspaceDashboardDefault = pgTable("workspace_dashboard_default", {
+  workspaceId: uuid("workspace_id")
+    .primaryKey()
+    .references(() => workspace.id, { onDelete: "cascade" }),
+  widgets: jsonb("widgets")
+    .notNull()
+    .$type<{ widgetKey: string; settings?: Record<string, unknown> }[]>(),
+  setByUserId: uuid("set_by_user_id")
+    .notNull()
+    .references(() => user.id),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 /* ---------- inferred types ---------- */
 
 export type User = typeof user.$inferSelect;
@@ -690,3 +740,7 @@ export type ActivityEvent = typeof activityEvent.$inferSelect;
 export type NewActivityEvent = typeof activityEvent.$inferInsert;
 export type Follow = typeof follow.$inferSelect;
 export type NewFollow = typeof follow.$inferInsert;
+export type DashboardLayout = typeof dashboardLayout.$inferSelect;
+export type NewDashboardLayout = typeof dashboardLayout.$inferInsert;
+export type WorkspaceDashboardDefault = typeof workspaceDashboardDefault.$inferSelect;
+export type NewWorkspaceDashboardDefault = typeof workspaceDashboardDefault.$inferInsert;

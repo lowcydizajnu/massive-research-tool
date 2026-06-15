@@ -1,4 +1,5 @@
 import { commentsRouter } from "@/server/trpc/routers/comments";
+import { dashboardRouter } from "@/server/trpc/routers/dashboard";
 import { followsRouter } from "@/server/trpc/routers/follows";
 import { frameworksRouter } from "@/server/trpc/routers/frameworks";
 import { meRouter } from "@/server/trpc/routers/me";
@@ -15,6 +16,7 @@ import { router } from "@/server/trpc/trpc";
 export const appRouter = router({
   workspace: workspaceRouter,
   studies: studiesRouter,
+  dashboard: dashboardRouter,
   modules: modulesRouter,
   proposals: proposalsRouter,
   frameworks: frameworksRouter,
