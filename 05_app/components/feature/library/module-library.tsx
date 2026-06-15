@@ -1,6 +1,8 @@
 "use client";
 
+import type { Route } from "next";
 import { ArrowRight, Check, Plus } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 
 import { BlockView } from "@/components/feature/take/block-view";
@@ -156,8 +158,11 @@ export function ModuleLibrary({ modules }: { modules: CatalogueModule[] }) {
   );
 }
 
+type DetailTab = "preview" | "versions" | "usedIn";
+
 function ModuleDetail({ module: m }: { module: CatalogueModule }) {
   const Icon = blockIcon(m.key);
+  const [tab, setTab] = useState<DetailTab>("preview");
   return (
     <section className="flex flex-col gap-3 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-5">
       <div className="flex items-start gap-2.5">
@@ -173,44 +178,161 @@ function ModuleDetail({ module: m }: { module: CatalogueModule }) {
       </div>
       <p className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">{m.description}</p>
 
-      {/* Full interactive preview — the real participant renderer (BlockView) with
-          sample copy, in the same non-interactive treatment as the Builder picker. */}
-      <div className="flex flex-col gap-1.5">
-        <span className="text-[length:var(--text-small)] font-medium text-[var(--color-text-muted)]">
-          Preview {m.collectsResponse ? "· records a response" : "· stimulus only"}
-        </span>
-        <div className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-page)] p-3">
-          {NO_PREVIEW.has(m.key) ? (
-            <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-              This block needs researcher-supplied media (an image, video, or URL) to preview — add it in a
-              study after inserting.
-            </p>
-          ) : (
-            <div aria-hidden className="pointer-events-none select-none text-[13px]">
-              <BlockView
-                block={
-                  {
-                    instanceId: "library-preview",
-                    source: m.source,
-                    key: m.key,
-                    version: m.version,
-                    config: previewConfig(m.key, m.defaultConfig),
-                  } as never
-                }
-                namePrefix="pv__"
-                seed="library-preview"
-              />
-            </div>
-          )}
-        </div>
+      {/* Tabs: Preview (interactive participant render) · Versions · Used in. */}
+      <nav
+        role="tablist"
+        aria-label="Module details"
+        className="flex gap-1 border-b border-[var(--color-border-subtle)] pb-1.5"
+      >
+        {(["preview", "versions", "usedIn"] as const).map((t) => (
+          <button
+            key={t}
+            type="button"
+            role="tab"
+            aria-selected={tab === t}
+            onClick={() => setTab(t)}
+            className={cn(
+              "rounded-[var(--radius-md)] px-2.5 py-1 text-[length:var(--text-small)] font-medium",
+              tab === t
+                ? "bg-[var(--color-primary-subtle)] text-[var(--color-primary-text-on-subtle)]"
+                : "text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]",
+            )}
+          >
+            {t === "preview" ? "Preview" : t === "versions" ? "Versions" : "Used in"}
+          </button>
+        ))}
+      </nav>
+
+      <div role="tabpanel">
+        {tab === "preview" ? (
+          <PreviewPane module={m} />
+        ) : tab === "versions" ? (
+          <VersionsPane module={m} />
+        ) : (
+          <UsedInPane module={m} />
+        )}
       </div>
 
       <InsertInto module={m} />
 
       <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-        Versions, “used in”, and following a module are coming soon.
+        Following a module is coming soon.
       </p>
     </section>
+  );
+}
+
+function PaneNote({ children, alert }: { children: React.ReactNode; alert?: boolean }) {
+  return (
+    <p
+      role={alert ? "alert" : undefined}
+      className={cn(
+        "text-[length:var(--text-small)]",
+        alert ? "text-[var(--color-danger)]" : "text-[var(--color-text-muted)]",
+      )}
+    >
+      {children}
+    </p>
+  );
+}
+
+function Tag({ children, tone }: { children: React.ReactNode; tone: "primary" | "warning" | "muted" }) {
+  const cls =
+    tone === "primary"
+      ? "bg-[var(--color-primary-subtle)] text-[var(--color-primary-text-on-subtle)]"
+      : tone === "warning"
+        ? "bg-[var(--color-warning-subtle)] text-[var(--color-warning-text-on-subtle)]"
+        : "bg-[var(--color-surface-subtle)] text-[var(--color-text-muted)]";
+  return (
+    <span className={cn("rounded-[var(--radius-sm)] px-1.5 py-0.5 text-[length:var(--text-small)] font-medium", cls)}>
+      {children}
+    </span>
+  );
+}
+
+function PreviewPane({ module: m }: { module: CatalogueModule }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+        {m.collectsResponse ? "Records a response" : "Stimulus only"}
+      </span>
+      <div className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-page)] p-3">
+        {NO_PREVIEW.has(m.key) ? (
+          <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+            This block needs researcher-supplied media (an image, video, or URL) to preview — add it in a study
+            after inserting.
+          </p>
+        ) : (
+          <div aria-hidden className="pointer-events-none select-none text-[13px]">
+            <BlockView
+              block={
+                {
+                  instanceId: "library-preview",
+                  source: m.source,
+                  key: m.key,
+                  version: m.version,
+                  config: previewConfig(m.key, m.defaultConfig),
+                } as never
+              }
+              namePrefix="pv__"
+              seed="library-preview"
+            />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function VersionsPane({ module: m }: { module: CatalogueModule }) {
+  const { data, isLoading, isError } = api.modules.versions.useQuery({ source: m.source, key: m.key });
+  if (isLoading) return <PaneNote>Loading…</PaneNote>;
+  if (isError) return <PaneNote alert>Couldn’t load versions.</PaneNote>;
+  if (!data || data.length === 0) return <PaneNote>No version history.</PaneNote>;
+  return (
+    <ul className="flex flex-col gap-2">
+      {data.map((v) => (
+        <li
+          key={v.version}
+          className="flex flex-col gap-1 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-2.5"
+        >
+          <span className="flex flex-wrap items-center gap-1.5">
+            <span className="font-mono text-[length:var(--text-mono)] text-[var(--color-text-primary)]">
+              v{v.version}
+            </span>
+            {v.version === m.version ? <Tag tone="primary">Current</Tag> : null}
+            {v.isBreaking ? <Tag tone="warning">Breaking</Tag> : null}
+            {v.deprecated ? <Tag tone="muted">Deprecated</Tag> : null}
+          </span>
+          {v.changelog ? (
+            <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+              {v.changelog}
+            </span>
+          ) : null}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function UsedInPane({ module: m }: { module: CatalogueModule }) {
+  const { data, isLoading, isError } = api.modules.usedIn.useQuery({ source: m.source, key: m.key });
+  if (isLoading) return <PaneNote>Loading…</PaneNote>;
+  if (isError) return <PaneNote alert>Couldn’t load usage.</PaneNote>;
+  if (!data || data.length === 0) return <PaneNote>Not used in any study yet.</PaneNote>;
+  return (
+    <ul className="flex flex-col gap-1">
+      {data.map((s) => (
+        <li key={s.studyId}>
+          <Link
+            href={`/studies/${s.studyId}/build` as Route}
+            className="block truncate rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-2 text-[length:var(--text-small)] text-[var(--color-text-primary)] hover:bg-[var(--color-surface-subtle)]"
+          >
+            {s.title}
+          </Link>
+        </li>
+      ))}
+    </ul>
   );
 }
 
