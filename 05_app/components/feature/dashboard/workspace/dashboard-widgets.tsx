@@ -46,7 +46,7 @@ function Empty({ children }: { children: React.ReactNode }) {
 export function WorkspaceHeader({ name, stats }: { name: string; stats: WorkspaceDashboardStats }) {
   const items = [
     { label: "Studies", value: stats.totalStudies },
-    { label: "Recruiting", value: stats.recruiting },
+    { label: "Running", value: stats.recruiting },
     { label: "Responses this week", value: stats.responsesThisWeek },
   ];
   return (
@@ -73,9 +73,9 @@ export function WorkspaceHeader({ name, stats }: { name: string; stats: Workspac
 
 export function ActiveRecruitmentWidget({ studies }: { studies: WorkspaceRecruitingStudy[] }) {
   return (
-    <Card title="Active recruitment">
+    <Card title="Running studies">
       {studies.length === 0 ? (
-        <Empty>No studies are recruiting right now.</Empty>
+        <Empty>No studies are running right now.</Empty>
       ) : (
         <PaginatedList>
           {studies.map((s) => (

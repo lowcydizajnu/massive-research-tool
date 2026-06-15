@@ -91,7 +91,7 @@ export function RunningBoard() {
           </p>
         ) : (
           <>
-            <Kpi label="Recruiting" value={overview.data?.recruitingStudies} loading={overview.isLoading} />
+            <Kpi label="Running" value={overview.data?.recruitingStudies} loading={overview.isLoading} />
             <Kpi label="Responses today" value={overview.data?.responsesToday} loading={overview.isLoading} />
             <Kpi label="This week" value={overview.data?.responsesThisWeek} loading={overview.isLoading} />
             <Kpi
@@ -107,7 +107,7 @@ export function RunningBoard() {
       {/* Recruitment table. */}
       {list.isError ? (
         <p role="alert" className="text-[length:var(--text-small)] text-[var(--color-danger-text-on-subtle)]">
-          Couldn’t load recruiting studies.{" "}
+          Couldn’t load running studies.{" "}
           <button type="button" onClick={() => void list.refetch()} className="underline">
             Retry
           </button>
@@ -383,7 +383,7 @@ function Empty() {
   return (
     <div className="flex flex-col items-start gap-2 rounded-[var(--radius-md)] bg-[var(--color-surface-subtle)] p-6">
       <p className="text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
-        Nothing recruiting right now — open recruitment from a study’s Run stage.
+        Nothing running right now — open recruitment from a study’s Run stage.
       </p>
       <Link
         href="/studies"
