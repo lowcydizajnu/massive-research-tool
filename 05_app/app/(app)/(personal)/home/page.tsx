@@ -2,6 +2,9 @@ import type { ReactNode } from "react";
 
 import { DashboardGrid } from "@/components/feature/dashboard/dashboard-grid";
 import {
+  FollowsFeedWidget,
+  MentionsWidget,
+  NotificationsWidget,
   QuickActionsWidget,
   RecentStudiesWidget,
   RecruitingWidget,
@@ -40,9 +43,12 @@ export default async function HomePage() {
       api.me.recentStudies({ limit: 30 }),
       api.me.recruitingStudies(),
       api.me.stats(),
+      api.follows.feed(),
+      api.notifications.list(),
     ]),
   ]);
-  const [active, workspaces, recent, recruiting, stats] = settled;
+  const [active, workspaces, recent, recruiting, stats, follows, notifications] = settled;
+  const notifs = notifications.status === "fulfilled" ? notifications.value : [];
 
   const activeId = active.status === "fulfilled" ? active.value.id : null;
   const studyCount = stats.status === "fulfilled" ? stats.value.studiesAuthored : 0;
@@ -78,6 +84,24 @@ export default async function HomePage() {
         <WidgetError title="Your recent studies" />
       ),
     "quick-actions": <QuickActionsWidget />,
+    "follows-feed":
+      follows.status === "fulfilled" ? (
+        <FollowsFeedWidget items={cap(follows.value, limitFor("follows-feed") ?? 6)} />
+      ) : (
+        <WidgetError title="Following" />
+      ),
+    notifications:
+      notifications.status === "fulfilled" ? (
+        <NotificationsWidget items={cap(notifs, limitFor("notifications") ?? 6)} />
+      ) : (
+        <WidgetError title="Notifications" />
+      ),
+    "mentions-inbox":
+      notifications.status === "fulfilled" ? (
+        <MentionsWidget items={cap(notifs.filter((n) => n.type === "mention"), limitFor("mentions-inbox") ?? 6)} />
+      ) : (
+        <WidgetError title="Mentions" />
+      ),
   };
 
   return (

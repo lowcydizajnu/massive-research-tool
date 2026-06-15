@@ -22,6 +22,9 @@ export type WidgetKey =
   | "workspaces-card"
   | "recent-studies"
   | "quick-actions"
+  | "follows-feed"
+  | "notifications"
+  | "mentions-inbox"
   // workspace dashboard (/dashboard)
   | "workspace-header"
   | "active-recruitment"
@@ -120,6 +123,30 @@ export const WIDGET_REGISTRY: Record<WidgetKey, WidgetMeta> = {
     size: "small",
     dashboard: "user",
     defaultInLayout: true,
+  },
+  "follows-feed": {
+    key: "follows-feed",
+    name: "Following",
+    description: "Updates from tags, authors, frameworks, and studies you follow.",
+    category: "activity",
+    size: "medium",
+    dashboard: "user",
+  },
+  notifications: {
+    key: "notifications",
+    name: "Notifications",
+    description: "Comments, mentions, reviews, and OSF updates addressed to you.",
+    category: "activity",
+    size: "medium",
+    dashboard: "user",
+  },
+  "mentions-inbox": {
+    key: "mentions-inbox",
+    name: "Mentions",
+    description: "Where teammates @-mentioned you.",
+    category: "activity",
+    size: "small",
+    dashboard: "user",
   },
   // ---- workspace dashboard (/dashboard) ----
   "workspace-header": {
