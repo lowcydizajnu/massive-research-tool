@@ -31,6 +31,20 @@ export function ConditionsSection({ studyId }: { studyId: string }) {
   const update = api.studies.updateCondition.useMutation({ onSuccess: onOk, onError });
   const remove = api.studies.removeCondition.useMutation({ onSuccess: onOk, onError });
 
+  // Opt-in A/B setup: create two balanced arms in one click. Reuses addCondition
+  // (auto-slug + default weight 1.0 → an even 50/50 split); the researcher can
+  // rename, reweight, or add more arms afterwards. Offered only from the empty
+  // state, so running as an A/B test is the researcher's explicit choice.
+  const setupAb = async () => {
+    setError(null);
+    try {
+      await add.mutateAsync({ studyId, name: "Group A" });
+      await add.mutateAsync({ studyId, name: "Group B" });
+    } catch (e) {
+      onError(e);
+    }
+  };
+
   const list = data ?? [];
   const totalWeight = list.reduce((a, c) => a + (c.allocationWeight || 0), 0);
   const inputCls =
@@ -43,10 +57,25 @@ export function ConditionsSection({ studyId }: { studyId: string }) {
       </h2>
 
       {list.length === 0 ? (
-        <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-          No conditions yet — this study runs as a single Control group. Add a condition to compare
-          groups.
-        </p>
+        <div className="flex flex-col gap-2">
+          <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+            No groups yet — this study runs as a single group. To run an{" "}
+            <strong className="font-medium text-[var(--color-text-secondary)]">A/B test</strong>,
+            split participants into groups and compare results per group.
+          </p>
+          <PendingButton
+            onClick={() => void setupAb()}
+            pending={add.isPending}
+            idleLabel="Set up an A/B test"
+            pendingLabel="Setting up…"
+            className="self-start px-2.5 py-1 text-[length:var(--text-small)]"
+          />
+          <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+            Creates two groups (A and B) and splits participants evenly (50/50) at random. Compare
+            their results on the Results tab. You can rename, reweight, or add more groups any time —
+            or just add a single condition below.
+          </p>
+        </div>
       ) : (
         <ul className="flex flex-col gap-2">
           {list.map((c) => {

@@ -397,6 +397,34 @@ const STAGE_RANK: Record<StudyStage, number> = { draft: 0, preregistered: 1, pub
  *  runnable once it's preregistered (OSF) OR published (no OSF). ADR-0013. */
 const RUNNABLE_KINDS: ("preregistered" | "published")[] = ["preregistered", "published"];
 
+/**
+ * Enforce the "at most one OPEN recruitment session among a study's RUNNABLE
+ * versions" invariant at the APPLICATION layer (ADR-0044). Deliberately not a DB
+ * constraint — keeping it in code leaves room for future multi-version routing
+ * (e.g. concurrent A/B versions) without a migration to undo. Closes any
+ * open/paused session on the study's runnable versions EXCEPT `keepVersionId`.
+ * Preview sessions live on the autosave tip (non-runnable) and are untouched.
+ * `makeLive` enforces the same invariant inside its own transaction.
+ */
+async function closeOtherRunnableSessions(studyId: string, keepVersionId: string): Promise<void> {
+  const runnable = await db
+    .select({ id: experimentVersion.id })
+    .from(experimentVersion)
+    .where(and(eq(experimentVersion.experimentId, studyId), inArray(experimentVersion.kind, RUNNABLE_KINDS)));
+  const others = runnable.map((v) => v.id).filter((id) => id !== keepVersionId);
+  if (others.length) {
+    await db
+      .update(recruitmentSession)
+      .set({ status: "closed", closedAt: new Date() })
+      .where(
+        and(
+          inArray(recruitmentSession.experimentVersionId, others),
+          inArray(recruitmentSession.status, ["open", "paused"]),
+        ),
+      );
+  }
+}
+
 /** A study's stage = the FURTHEST milestone any of its versions reached (the
  *  autosave working tip is always 'draft', so the tip's kind under-reports a
  *  preregistered/published study). */
@@ -3020,6 +3048,9 @@ export const studiesRouter = router({
           message: "Preregister or publish this study before opening recruitment.",
         });
       }
+      // One-open-session invariant (ADR-0044): if an older runnable version still
+      // has a live session, close it so recruitment can't silently fork.
+      await closeOtherRunnableSessions(input.studyId, ver.id);
       await runtimeOpenRecruitment(ver.id);
       return { ok: true };
     }),
