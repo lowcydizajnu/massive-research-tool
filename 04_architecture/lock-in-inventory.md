@@ -118,6 +118,16 @@ For each vendor:
 | **Migration target** | Browser print-to-PDF (the ADR-0027 Option B fallback) or another server PDF lib; a migration rewrites the one document component. |
 | **Cost-ceiling trigger** | None — MIT, no SaaS tier. Operational note: must run on the Node runtime + be in `next.config` `serverExternalPackages` (not bundled). Revisit on a React/Node-major incompatibility or Vercel bundle/runtime cost (ADR-0027 triggers). |
 
+## react-grid-layout (Dashboard flexible grid — per ADR-0045 amendment 2026-06-15)
+
+| | |
+| --- | --- |
+| **What we use it for** | V1.13.0 dashboard customization — the draggable + resizable 2D grid on `/home` + `/dashboard` (drag widgets on the real layout, resize narrower/wider, 3 responsive columns). Researcher-only. |
+| **Behind an adapter** | No server adapter — `react-grid-layout` is a client-only UI library, so the boundary is the dashboard grid island (`05_app/components/feature/dashboard/dashboard-grid.tsx`) + its CSS import; no `react-grid-layout` type touches the data layer. Geometry is stored as our own `{x,y,w,h}` grid units inside the existing `dashboard_layout.widgets` jsonb (ADR-0045) — the data shape is **ours**, so a migration swaps only the renderer. |
+| **Deliberate exceptions** | (none — the single-island boundary holds.) |
+| **Migration target** | The "flowing grid" fallback — a CSS grid with per-widget `colSpan` + the `@dnd-kit` we already own for reorder. Well-bounded: the stored `{x,y,w,h}` degrades cleanly to a width + order. (This is also the fallback if RGL ever breaks on a React major.) |
+| **Cost-ceiling trigger** | None — MIT, no SaaS tier, no per-seat cost. `react-grid-layout@2.x` peers `react >= 16.3.0` (React 19 OK; 2.x dropped `findDOMNode`). Revisit on a React-major incompatibility, unmaintained status, or a future `bundle-size` budget. |
+
 ## Review discipline
 
 When opening a PR that touches an adapter or adds a vendor SDK import:
