@@ -13,8 +13,8 @@ import { ACTIVE_WORKSPACE_COOKIE } from "@/server/workspace/active";
  * Set the active workspace (workspace switcher, ADR-0033) and land on it.
  * Writes the selection to an httpOnly cookie (read per-request in createContext,
  * honored by resolveActiveWorkspace) — no migration, no per-request Clerk call.
- * Membership is validated before the selection is honored. Lands on /studies for
- * now; flips to /dashboard once the workspace dashboard ships (Stream B).
+ * Membership is validated before the selection is honored. Lands on the
+ * workspace dashboard (/dashboard, Stream B).
  */
 export async function switchWorkspaceAction(workspaceId: string): Promise<void> {
   const dbUser = await getCurrentDbUser();
@@ -34,7 +34,7 @@ export async function switchWorkspaceAction(workspaceId: string): Promise<void> 
   if (!m) redirect("/"); // stale / not a member → the auth-aware root landing
 
   await setActiveCookie(workspaceId);
-  redirect("/studies");
+  redirect("/dashboard");
 }
 
 /**

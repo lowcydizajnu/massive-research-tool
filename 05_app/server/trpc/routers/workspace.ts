@@ -1,10 +1,21 @@
-import { and, count, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/server/db/client";
-import { experiment, member, user, workspace } from "@/server/db/schema";
+import {
+  activityEvent,
+  experiment,
+  experimentVersion,
+  member,
+  recruitmentSession,
+  response,
+  user,
+  workspace,
+} from "@/server/db/schema";
 import { protectedProcedure, router, workspaceProcedure, writeProcedure } from "@/server/trpc/trpc";
 import type { MemberRole } from "@/server/workspace/active";
+
+const RUNNABLE_KINDS = ["preregistered", "published"] as const;
 
 export type ActiveWorkspace = {
   id: string;
@@ -23,6 +34,30 @@ export type WorkspaceListItem = {
   role: MemberRole;
   studyCount: number;
   lastActivityAt: string;
+};
+
+/** At-a-glance KPIs for the workspace dashboard (workspace-dashboard.md). */
+export type WorkspaceDashboardStats = {
+  totalStudies: number;
+  recruiting: number;
+  responsesThisWeek: number;
+};
+
+export type WorkspaceRecruitingStudy = {
+  studyId: string;
+  title: string;
+  currentN: number;
+  targetN: number | null;
+};
+
+export type WorkspaceRecentStudy = { studyId: string; title: string; updatedAt: string };
+
+export type WorkspaceActivityItem = {
+  id: string;
+  type: string;
+  createdAt: string;
+  studyId: string | null;
+  studyTitle: string | null;
 };
 
 export const workspaceRouter = router({
@@ -106,6 +141,113 @@ export const workspaceRouter = router({
       .filter((r): r is { userId: string; displayName: string } => !!r.userId)
       .map((r) => ({ userId: r.userId, displayName: r.displayName ?? "" }));
   }),
+
+  /** At-a-glance KPIs for the workspace dashboard (V1.13.0 Stream B). */
+  dashboardStats: workspaceProcedure.query(async ({ ctx }): Promise<WorkspaceDashboardStats> => {
+    const wsId = ctx.workspace.id;
+    const [studies] = await db
+      .select({ c: count() })
+      .from(experiment)
+      .where(and(eq(experiment.tenantId, wsId), isNull(experiment.archivedAt)));
+
+    const recruitingRows = await db
+      .selectDistinct({ id: experiment.id })
+      .from(recruitmentSession)
+      .innerJoin(experimentVersion, eq(recruitmentSession.experimentVersionId, experimentVersion.id))
+      .innerJoin(experiment, eq(experimentVersion.experimentId, experiment.id))
+      .where(
+        and(
+          eq(experiment.tenantId, wsId),
+          eq(recruitmentSession.status, "open"),
+          inArray(experimentVersion.kind, [...RUNNABLE_KINDS]),
+          isNull(experiment.archivedAt),
+        ),
+      );
+
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const [resp] = await db
+      .select({ c: count() })
+      .from(response)
+      .innerJoin(experimentVersion, eq(response.experimentVersionId, experimentVersion.id))
+      .innerJoin(experiment, eq(experimentVersion.experimentId, experiment.id))
+      .where(
+        and(
+          eq(experiment.tenantId, wsId),
+          eq(response.status, "completed"),
+          eq(response.mode, "run"),
+          gte(response.completedAt, weekAgo),
+        ),
+      );
+
+    return { totalStudies: studies?.c ?? 0, recruiting: recruitingRows.length, responsesThisWeek: resp?.c ?? 0 };
+  }),
+
+  /** Currently-recruiting studies in this workspace (an open recruitment session). */
+  activeRecruitment: workspaceProcedure.query(async ({ ctx }): Promise<WorkspaceRecruitingStudy[]> => {
+    const rows = await db
+      .select({
+        studyId: experiment.id,
+        title: experiment.title,
+        currentN: recruitmentSession.currentN,
+        targetN: recruitmentSession.targetN,
+      })
+      .from(recruitmentSession)
+      .innerJoin(experimentVersion, eq(recruitmentSession.experimentVersionId, experimentVersion.id))
+      .innerJoin(experiment, eq(experimentVersion.experimentId, experiment.id))
+      .where(
+        and(
+          eq(experiment.tenantId, ctx.workspace.id),
+          eq(recruitmentSession.status, "open"),
+          isNull(experiment.archivedAt),
+        ),
+      );
+    const seen = new Set<string>();
+    const out: WorkspaceRecruitingStudy[] = [];
+    for (const r of rows) {
+      if (seen.has(r.studyId)) continue;
+      seen.add(r.studyId);
+      out.push(r);
+    }
+    return out;
+  }),
+
+  /** Studies in this workspace, most-recently-updated first. */
+  recentlyEdited: workspaceProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(50).default(6) }))
+    .query(async ({ ctx, input }): Promise<WorkspaceRecentStudy[]> => {
+      const rows = await db
+        .select({ studyId: experiment.id, title: experiment.title, updatedAt: experiment.updatedAt })
+        .from(experiment)
+        .where(and(eq(experiment.tenantId, ctx.workspace.id), isNull(experiment.archivedAt)))
+        .orderBy(desc(experiment.updatedAt))
+        .limit(input.limit);
+      return rows.map((r) => ({ ...r, updatedAt: r.updatedAt.toISOString() }));
+    }),
+
+  /** Workspace-scoped activity feed (distinct from the user-scoped Activity·Follows). */
+  recentActivity: workspaceProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(50).default(15) }))
+    .query(async ({ ctx, input }): Promise<WorkspaceActivityItem[]> => {
+      const rows = await db
+        .select({
+          id: activityEvent.id,
+          type: activityEvent.type,
+          createdAt: activityEvent.createdAt,
+          studyId: activityEvent.relatedStudyId,
+          payload: activityEvent.payload,
+        })
+        .from(activityEvent)
+        .where(eq(activityEvent.workspaceId, ctx.workspace.id))
+        .orderBy(desc(activityEvent.createdAt))
+        .limit(input.limit);
+      return rows.map((r) => ({
+        id: r.id,
+        type: r.type,
+        createdAt: r.createdAt.toISOString(),
+        studyId: r.studyId ?? null,
+        studyTitle: (r.payload as { studyTitle?: string } | null)?.studyTitle ?? null,
+      }));
+    }),
 
   /** Toggle whether seeded demo content shows in this workspace's lists (ADR-0023). */
   setShowDemoContent: writeProcedure

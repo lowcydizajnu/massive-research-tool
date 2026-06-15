@@ -5,6 +5,7 @@ import {
   Boxes,
   Compass,
   FlaskConical,
+  LayoutDashboard,
   Library,
   Settings,
   Users,
@@ -30,6 +31,7 @@ type Destination = {
 };
 
 const DESTINATIONS: Destination[] = [
+  { label: "Dashboard", icon: LayoutDashboard, href: "/dashboard" as Route },
   { label: "Studies", icon: FlaskConical, href: "/studies" },
   { label: "Library", icon: Library },
   { label: "Frameworks", icon: Boxes, href: "/frameworks" as Route },
