@@ -236,3 +236,18 @@ export function defaultLayoutFor(kind: DashboardKind): WidgetKey[] {
 export function isWidgetKey(key: string): key is WidgetKey {
   return Object.prototype.hasOwnProperty.call(WIDGET_REGISTRY, key);
 }
+
+/**
+ * Synthetic meta for a custom widget instance (ADR-0045 amendment). Custom
+ * widgets aren't in WIDGET_REGISTRY (their keys are `custom:<ulid>`); the
+ * resolver maps any `custom:`-prefixed entry to this so it renders + reorders
+ * like any other widget. Both dashboards; "medium" footprint.
+ */
+export const CUSTOM_META: WidgetMeta = {
+  key: "custom" as WidgetKey,
+  name: "Custom widget",
+  description: "A metric or list you choose.",
+  category: "personal",
+  size: "medium",
+  dashboard: "both",
+};

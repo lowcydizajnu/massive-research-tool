@@ -1,11 +1,14 @@
 "use client";
 
-import { GripVertical, Pencil, Plus, RotateCcw, Settings2, X } from "lucide-react";
+import { GripVertical, Pencil, Plus, RotateCcw, Settings2, Sparkles, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
+import { ulid } from "ulid";
 
+import { CustomWidget, type CustomSettings } from "@/components/feature/dashboard/custom-widget";
 import { SortableList } from "@/components/feature/whiteboard/sortable-list";
 import { PendingButton } from "@/components/ui/pending-button";
+import { CUSTOM_KEY_PREFIX, isCustomKey } from "@/lib/dashboard/custom-sources";
 import { WIDGET_REGISTRY } from "@/lib/dashboard/widget-registry";
 import { api } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
@@ -68,6 +71,10 @@ export function DashboardGrid({
         e.widgetKey === widgetKey ? { ...e, settings: { ...e.settings, [settingKey]: value } } : e,
       ),
     );
+  /** Replace a custom widget instance's whole settings object (its inline config). */
+  const setEntrySettings = (widgetKey: string, settings: CustomSettings) =>
+    setDraft((d) => d.map((e) => (e.widgetKey === widgetKey ? { ...e, settings } : e)));
+  const addCustomWidget = () => setDraft((d) => [...d, { widgetKey: CUSTOM_KEY_PREFIX + ulid() }]);
 
   const startEdit = () => {
     setDraft(layout);
@@ -108,7 +115,17 @@ export function DashboardGrid({
                   "[column-span:all]",
               )}
             >
-              {nodes[e.widgetKey]}
+              {isCustomKey(e.widgetKey) ? (
+                <CustomWidget
+                  kind={kind}
+                  workspaceId={workspaceId}
+                  settings={(e.settings ?? {}) as CustomSettings}
+                  editing={false}
+                  onConfig={() => {}}
+                />
+              ) : (
+                nodes[e.widgetKey]
+              )}
             </div>
           ))}
         </div>
@@ -173,6 +190,8 @@ export function DashboardGrid({
           {(id, handle) => {
             const meta = WIDGET_REGISTRY[id as keyof typeof WIDGET_REGISTRY];
             const entry = draft.find((e) => e.widgetKey === id);
+            const custom = isCustomKey(id);
+            const label = custom ? "Custom widget" : (meta?.name ?? id);
             const hasSettings = (meta?.settings?.length ?? 0) > 0;
             const open = settingsOpen === id;
             return (
@@ -184,13 +203,13 @@ export function DashboardGrid({
                       {...handle.attributes}
                       {...handle.listeners}
                       type="button"
-                      aria-label={`Reorder ${meta?.name ?? id}`}
+                      aria-label={`Reorder ${label}`}
                       className="cursor-grab touch-none rounded-[var(--radius-sm)] p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-canvas)] active:cursor-grabbing"
                     >
                       <GripVertical className="size-4" aria-hidden />
                     </button>
                     <span className="text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)]">
-                      {meta?.name ?? id}
+                      {label}
                     </span>
                   </span>
                   <span className="flex items-center gap-1">
@@ -198,7 +217,7 @@ export function DashboardGrid({
                       <button
                         type="button"
                         onClick={() => setSettingsOpen(open ? null : id)}
-                        aria-label={`Settings for ${meta?.name ?? id}`}
+                        aria-label={`Settings for ${label}`}
                         aria-expanded={open}
                         className="rounded-[var(--radius-sm)] p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-canvas)]"
                       >
@@ -208,7 +227,7 @@ export function DashboardGrid({
                     <button
                       type="button"
                       onClick={() => setDraft(draft.filter((e) => e.widgetKey !== id))}
-                      aria-label={`Remove ${meta?.name ?? id}`}
+                      aria-label={`Remove ${label}`}
                       className="rounded-[var(--radius-sm)] p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-danger-subtle)] hover:text-[var(--color-danger-text-on-subtle)]"
                     >
                       <X className="size-4" aria-hidden />
@@ -238,38 +257,57 @@ export function DashboardGrid({
                     ))}
                   </div>
                 ) : null}
-                {/* Non-interactive preview of the widget while editing. */}
-                <div className="pointer-events-none p-3 opacity-90">{nodes[id]}</div>
+                {/* Preview while editing. Registry widgets are inert; a custom
+                    widget stays live so its inline source/params form works. */}
+                {custom ? (
+                  <div className="p-3">
+                    <CustomWidget
+                      kind={kind}
+                      workspaceId={workspaceId}
+                      settings={(entry?.settings ?? {}) as CustomSettings}
+                      editing
+                      onConfig={(s) => setEntrySettings(id, s)}
+                    />
+                  </div>
+                ) : (
+                  <div className="pointer-events-none p-3 opacity-90">{nodes[id]}</div>
+                )}
               </div>
             );
           }}
         </SortableList>
       )}
 
-      {/* Add-widget bar. */}
-      {available.length > 0 ? (
-        <div className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-dashed border-[var(--color-border-subtle)] p-3">
-          <span className="text-[length:var(--text-small)] font-medium text-[var(--color-text-muted)]">
-            Add a widget
-          </span>
-          <div className="flex flex-wrap gap-2">
-            {available.map((k) => {
-              const meta = WIDGET_REGISTRY[k as keyof typeof WIDGET_REGISTRY];
-              return (
-                <button
-                  key={k}
-                  type="button"
-                  onClick={() => setDraft([...draft, { widgetKey: k }])}
-                  className="inline-flex items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-2.5 py-1 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
-                >
-                  <Plus className="size-3.5" aria-hidden />
-                  {meta?.name ?? k}
-                </button>
-              );
-            })}
-          </div>
+      {/* Add-widget bar — always shown: a custom widget can always be added. */}
+      <div className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-dashed border-[var(--color-border-subtle)] p-3">
+        <span className="text-[length:var(--text-small)] font-medium text-[var(--color-text-muted)]">
+          Add a widget
+        </span>
+        <div className="flex flex-wrap gap-2">
+          {available.map((k) => {
+            const meta = WIDGET_REGISTRY[k as keyof typeof WIDGET_REGISTRY];
+            return (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setDraft([...draft, { widgetKey: k }])}
+                className="inline-flex items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-2.5 py-1 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
+              >
+                <Plus className="size-3.5" aria-hidden />
+                {meta?.name ?? k}
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            onClick={addCustomWidget}
+            className="inline-flex items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--color-accent)] bg-[var(--color-accent-subtle)] px-2.5 py-1 text-[length:var(--text-small)] font-medium text-[var(--color-accent-text-on-subtle)] hover:opacity-90"
+          >
+            <Sparkles className="size-3.5" aria-hidden />
+            Custom widget
+          </button>
         </div>
-      ) : null}
+      </div>
 
       {/* Reset to default. */}
       <div className="flex items-center gap-2 border-t border-[var(--color-border-subtle)] pt-3">

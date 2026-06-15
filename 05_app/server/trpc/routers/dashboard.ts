@@ -1,13 +1,30 @@
 import { TRPCError } from "@trpc/server";
-import { and, eq, isNull } from "drizzle-orm";
+import { type SQL, and, count, desc, eq, gte, inArray, isNull } from "drizzle-orm";
 import { ulid } from "ulid";
 import { z } from "zod";
 
 import { db } from "@/server/db/client";
-import { dashboardLayout, member, workspaceDashboardDefault } from "@/server/db/schema";
+import {
+  activityEvent,
+  dashboardLayout,
+  experiment,
+  experimentVersion,
+  member,
+  recruitmentSession,
+  response,
+  workspaceDashboardDefault,
+} from "@/server/db/schema";
+import { type DateRange, customSource, dateRangeDays } from "@/lib/dashboard/custom-sources";
 import { type LayoutEntry, resolveDashboardLayout } from "@/lib/dashboard/resolve-layout";
 import { protectedProcedure, router } from "@/server/trpc/trpc";
 import type { MemberRole } from "@/server/workspace/active";
+
+const RUNNABLE_KINDS: ("preregistered" | "published")[] = ["preregistered", "published"];
+
+/** Result of a custom widget's chosen data source (ADR-0045 amendment). */
+export type CustomData =
+  | { type: "metric"; label: string; value: number }
+  | { type: "list"; label: string; items: { id: string; text: string; href: string | null }[] };
 
 /**
  * Dashboard customization data layer (ADR-0045, V1.13.0 Stream F / N5.1).
@@ -149,6 +166,116 @@ export const dashboardRouter = router({
         )
         .limit(1);
       return m?.role === "owner" || m?.role === "admin";
+    }),
+
+  /**
+   * Data for a custom widget's chosen source (ADR-0045 amendment). The source
+   * must be in the curated catalog and apply to this dashboard kind. Workspace
+   * kind scopes to the workspace's studies (membership-checked); user kind to
+   * the caller's own authored studies. Returns a metric (number) or a short list.
+   */
+  customData: protectedProcedure
+    .input(
+      z.object({
+        kind: kindSchema,
+        workspaceId: z.string().uuid().optional(),
+        source: z.string().min(1).max(64),
+        dateRange: z.enum(["7d", "30d", "90d", "all"]).optional(),
+        itemCount: z.number().int().min(1).max(20).default(5),
+      }),
+    )
+    .query(async ({ ctx, input }): Promise<CustomData> => {
+      const def = customSource(input.source);
+      if (!def || !def.dashboards.includes(input.kind)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Unknown data source for this dashboard." });
+      }
+      const wsId = requireWorkspaceId(input.kind, input.workspaceId);
+      if (input.kind === "workspace") await requireActiveRole(ctx.dbUser.id, wsId!);
+      // The workspace's studies, or the caller's own authored studies.
+      const scope: SQL =
+        input.kind === "workspace" ? eq(experiment.tenantId, wsId!) : eq(experiment.ownerId, ctx.dbUser.id);
+
+      switch (input.source) {
+        case "studies": {
+          const [r] = await db
+            .select({ c: count() })
+            .from(experiment)
+            .where(and(scope, isNull(experiment.archivedAt)));
+          return { type: "metric", label: "Studies", value: r?.c ?? 0 };
+        }
+        case "running": {
+          const rows = await db
+            .selectDistinct({ id: experiment.id })
+            .from(recruitmentSession)
+            .innerJoin(experimentVersion, eq(recruitmentSession.experimentVersionId, experimentVersion.id))
+            .innerJoin(experiment, eq(experimentVersion.experimentId, experiment.id))
+            .where(
+              and(
+                scope,
+                eq(recruitmentSession.status, "open"),
+                inArray(experimentVersion.kind, RUNNABLE_KINDS),
+                isNull(experiment.archivedAt),
+              ),
+            );
+          return { type: "metric", label: "Running studies", value: rows.length };
+        }
+        case "responses": {
+          const days = dateRangeDays(input.dateRange as DateRange | undefined);
+          const filters: SQL[] = [scope, eq(response.status, "completed"), eq(response.mode, "run")];
+          if (days != null) filters.push(gte(response.completedAt, new Date(Date.now() - days * 86_400_000)));
+          const [r] = await db
+            .select({ c: count() })
+            .from(response)
+            .innerJoin(experimentVersion, eq(response.experimentVersionId, experimentVersion.id))
+            .innerJoin(experiment, eq(experimentVersion.experimentId, experiment.id))
+            .where(and(...filters));
+          return {
+            type: "metric",
+            label: days == null ? "Responses (all time)" : `Responses (last ${days}d)`,
+            value: r?.c ?? 0,
+          };
+        }
+        case "recent-studies": {
+          const rows = await db
+            .select({ id: experiment.id, title: experiment.title })
+            .from(experiment)
+            .where(and(scope, isNull(experiment.archivedAt)))
+            .orderBy(desc(experiment.updatedAt))
+            .limit(input.itemCount);
+          return {
+            type: "list",
+            label: "Recent studies",
+            items: rows.map((s) => ({ id: s.id, text: s.title, href: `/studies/${s.id}/build` })),
+          };
+        }
+        case "recent-activity": {
+          const rows = await db
+            .select({
+              id: activityEvent.id,
+              type: activityEvent.type,
+              studyId: activityEvent.relatedStudyId,
+              payload: activityEvent.payload,
+            })
+            .from(activityEvent)
+            .where(eq(activityEvent.workspaceId, wsId!))
+            .orderBy(desc(activityEvent.createdAt))
+            .limit(input.itemCount);
+          return {
+            type: "list",
+            label: "Recent activity",
+            items: rows.map((a) => {
+              const title = (a.payload as { studyTitle?: string } | null)?.studyTitle;
+              return {
+                id: a.id,
+                text: `${a.type.replace(/_/g, " ")}${title ? ` · ${title}` : ""}`,
+                href: a.studyId ? `/studies/${a.studyId}/build` : null,
+              };
+            }),
+          };
+        }
+        default:
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Unsupported data source." });
+      }
     }),
 
   /** Delete the caller's override so the dashboard falls back to the default. */

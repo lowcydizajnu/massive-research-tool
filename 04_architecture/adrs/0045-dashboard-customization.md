@@ -63,3 +63,13 @@ A dashboard's rendered layout is computed by a pure resolver with a fixed preced
 - ADR-0022 — drag-reorder library (`@dnd-kit`); the same `SortableList` primitive backs edit-mode reorder.
 - ADR-0007 — vendor lock-in boundary (why layout state lives in our DB, not Clerk metadata).
 - Wireframe — `03_design/wireframes/dashboard-customize-mode.md` (the edit-mode UX gate).
+
+## Amendment (2026-06-15) — custom data widgets
+
+The owner asked for user-defined widgets: "a dropdown with endpoints the user can display, define date range, etc." This extends the registry model rather than replacing it.
+
+- **A custom widget is an instance, not a singleton key.** Its layout entry uses a `widgetKey` of the form `custom:<ulid>` so a user can add several. The resolver recognizes the `custom:` prefix and resolves it against a synthetic `CUSTOM` meta (it is NOT in `WIDGET_REGISTRY`, so it never appears in the normal Add-widget palette — a dedicated "Add a custom widget" action mints a new instance key).
+- **Configuration lives in `settings`** (the same jsonb already on every layout entry — no schema change): `{ source: string, dateRange?: '7d'|'30d'|'90d'|'all', itemCount?: number, title?: string }`.
+- **Sources are a curated catalog** (`lib/dashboard/custom-sources.ts`), never arbitrary internals: metric sources (a single number — e.g. responses in a window, studies authored, followers) and list sources (a short list — recent studies, recent activity). Each source declares which dashboard kind(s) it applies to.
+- **The widget fetches its own data** (`dashboard.customData({ kind, workspaceId?, source, dateRange, itemCount })` → a discriminated `{ type:'metric', label, value } | { type:'list', items }`). So custom widgets are self-contained client components — the RSC pages don't pre-render their nodes, which keeps add/configure instant without a server round-trip per instance.
+- **Why not a new table:** instance identity + config fit the existing `dashboard_layout.widgets` jsonb; no migration. **Why a curated catalog (not free SQL/URL):** safety + tenancy — every source is a vetted, workspace-scoped read. Free-form embeds/queries are explicitly out of scope (the rejected "embed-a-URL" option).
