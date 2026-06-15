@@ -57,6 +57,8 @@ describe("first migration — forward apply", () => {
       "notification",
       "activity_event",
       "follow",
+      "dashboard_layout",
+      "workspace_dashboard_default",
     ]) {
       expect(tables).toContain(t);
     }
