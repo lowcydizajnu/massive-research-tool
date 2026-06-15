@@ -15,7 +15,12 @@ import { protectedProcedure, router } from "@/server/trpc/trpc";
  * follow people + areas across the network), so this uses `protectedProcedure`
  * scoped to `ctx.dbUser.id`, like notifications.
  */
-export const FOLLOW_TARGET_TYPES = ["tag", "author", "framework", "study"] as const;
+// `module` (a "source/key") is a followable target so researchers can subscribe
+// to a reusable module from the Library. Modules don't emit activity_events yet,
+// so a module follow is a stored subscription that produces no feed rows until
+// they do (the feed partition below intentionally omits it) — recording the
+// intent now keeps the data ready for module-update events later.
+export const FOLLOW_TARGET_TYPES = ["tag", "author", "framework", "study", "module"] as const;
 export type FollowTargetType = (typeof FOLLOW_TARGET_TYPES)[number];
 
 export type MyFollow = { targetType: FollowTargetType; targetId: string };

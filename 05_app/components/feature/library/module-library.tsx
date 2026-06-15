@@ -5,6 +5,7 @@ import { ArrowRight, Check, Plus } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
+import { FollowButton } from "@/components/feature/follow/follow-button";
 import { BlockView } from "@/components/feature/take/block-view";
 import { PendingButton } from "@/components/ui/pending-button";
 import { NO_PREVIEW, blockIcon, previewConfig } from "@/lib/modules/block-presentation";
@@ -17,9 +18,10 @@ import type { CatalogueModule } from "@/server/trpc/routers/modules";
  * catalogue: a filterable/sortable card list + a right detail panel + an
  * "Insert into…" action that adds the module to one of the workspace's studies
  * (reuses `studies.addBlock` — no new backend). Read-only catalogue from
- * `modules.list`. DEFERRED (noted in the detail panel): Follow a module (modules
- * aren't a follow target yet — needs a schema change), the Versions + Used-in
- * tabs (need queries that don't exist). Workspace-scoped destination.
+ * `modules.list`. The detail panel is tabbed (Preview · Versions · Used in) and
+ * carries a +Follow toggle — `module` is a follow target (the targetId is a
+ * "source/key"); the follow is a stored subscription until modules emit activity
+ * events. Workspace-scoped destination.
  */
 
 type Sort = "name" | "source";
@@ -175,6 +177,12 @@ function ModuleDetail({ module: m }: { module: CatalogueModule }) {
             {m.source}/{m.key}@{m.version}
           </span>
         </div>
+        <FollowButton
+          targetType="module"
+          targetId={moduleId(m)}
+          name={m.name}
+          className="ml-auto mt-0.5"
+        />
       </div>
       <p className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">{m.description}</p>
 
@@ -214,10 +222,6 @@ function ModuleDetail({ module: m }: { module: CatalogueModule }) {
       </div>
 
       <InsertInto module={m} />
-
-      <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-        Following a module is coming soon.
-      </p>
     </section>
   );
 }

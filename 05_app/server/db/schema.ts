@@ -607,7 +607,7 @@ export const activityEvent = pgTable(
   ],
 );
 
-// A user's follow targets (tag / author / framework / study).
+// A user's follow targets (tag / author / framework / study / module).
 export const follow = pgTable(
   "follow",
   {
@@ -615,12 +615,12 @@ export const follow = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => user.id),
-    targetType: text("target_type").notNull(), // 'tag' | 'author' | 'framework' | 'study'
-    targetId: text("target_id").notNull(), // tag slug, or the entity id (as text)
+    targetType: text("target_type").notNull(), // 'tag' | 'author' | 'framework' | 'study' | 'module'
+    targetId: text("target_id").notNull(), // tag slug, the entity id (as text), or a module "source/key"
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    check("follow_target_type", sql`${t.targetType} IN ('tag', 'author', 'framework', 'study')`),
+    check("follow_target_type", sql`${t.targetType} IN ('tag', 'author', 'framework', 'study', 'module')`),
     uniqueIndex("follow_user_target_unique").on(t.userId, t.targetType, t.targetId),
     index("idx_follow_user").on(t.userId),
     index("idx_follow_target").on(t.targetType, t.targetId),
