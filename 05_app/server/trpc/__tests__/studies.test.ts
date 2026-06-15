@@ -2123,3 +2123,234 @@ describe("workspace dashboard aggregates (V1.13.0 Stream B)", () => {
     expect(activity[0]).toMatchObject({ type: "preregister_complete", studyTitle: "Mine" });
   });
 });
+
+describe("studies.runningOverview + runningList (Running tab, N4.1)", () => {
+  const HOUR = 60 * 60 * 1000;
+  const DAY = 24 * HOUR;
+
+  type Recruiting = {
+    studyId: string;
+    sessionId: string;
+    versionId: string;
+    condBySlug: Map<string, string>;
+  };
+
+  /** Publish + open recruitment on a fresh study with the named conditions. */
+  async function seedRecruiting(
+    caller: ReturnType<typeof createCaller>,
+    title: string,
+    conditionNames: string[],
+  ): Promise<Recruiting> {
+    const { id } = await caller.studies.create({ kind: "blank", title });
+    for (const name of conditionNames) await caller.studies.addCondition({ studyId: id, name });
+    await caller.studies.publish({ studyId: id });
+    await caller.studies.openRecruitment({ studyId: id });
+    const open = await resolveOpenRecruitment(id);
+    const [pub] = await db
+      .select()
+      .from(experimentVersion)
+      .where(and(eq(experimentVersion.experimentId, id), eq(experimentVersion.kind, "published")));
+    const conds = await db.select().from(condition).where(eq(condition.experimentVersionId, pub.id));
+    return {
+      studyId: id,
+      sessionId: open!.recruitmentSessionId,
+      versionId: pub.id,
+      condBySlug: new Map(conds.map((c) => [c.slug, c.id])),
+    };
+  }
+
+  /** Insert `n` completed RUN responses for a condition slug at a given time. */
+  async function insertCompleted(s: Recruiting, slug: string, completedAt: Date, n = 1) {
+    for (let i = 0; i < n; i++) {
+      await db.insert(response).values({
+        id: ulid(),
+        recruitmentSessionId: s.sessionId,
+        experimentVersionId: s.versionId,
+        conditionId: s.condBySlug.get(slug)!,
+        mode: "run",
+        status: "completed",
+        completedAt,
+      });
+    }
+  }
+
+  it("is empty + zeroed when nothing is recruiting (a draft must not appear)", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    await caller.studies.create({ kind: "blank", title: "Draft only" });
+
+    expect(await caller.studies.runningList()).toEqual([]);
+    expect(await caller.studies.runningOverview()).toEqual({
+      recruitingStudies: 0,
+      responsesToday: 0,
+      responsesThisWeek: 0,
+      needingAttention: 0,
+    });
+  });
+
+  it("a balanced, freshly-collecting study reads healthy with its metrics", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const s = await seedRecruiting(caller, "Balanced", ["Control", "Treatment"]);
+    await db
+      .update(recruitmentSession)
+      .set({ currentN: 10, targetN: 100 })
+      .where(eq(recruitmentSession.id, s.sessionId));
+    const now = Date.now();
+    await insertCompleted(s, "control", new Date(now - HOUR), 5);
+    await insertCompleted(s, "treatment", new Date(now - HOUR), 5);
+
+    const list = await caller.studies.runningList();
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({
+      studyId: s.studyId,
+      title: "Balanced",
+      conditionCount: 2,
+      currentN: 10,
+      targetN: 100,
+      stalled: false,
+      imbalanced: false,
+      status: "healthy",
+      conditionBalance: { min: 5, max: 5 },
+    });
+    expect(list[0].lastResponseAt).not.toBeNull();
+
+    const ov = await caller.studies.runningOverview();
+    expect(ov).toMatchObject({
+      recruitingStudies: 1,
+      needingAttention: 0,
+      responsesToday: 10,
+      responsesThisWeek: 10,
+    });
+  });
+
+  it("flags stalled after 24h with no response — but a brand-new open session is not stalled", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const now = Date.now();
+
+    // Opened 3 days ago, last response 30h ago → stalled.
+    const stale = await seedRecruiting(caller, "Stale", ["Control"]);
+    await db
+      .update(recruitmentSession)
+      .set({ currentN: 4, openedAt: new Date(now - 3 * DAY) })
+      .where(eq(recruitmentSession.id, stale.sessionId));
+    await insertCompleted(stale, "control", new Date(now - 30 * HOUR), 4);
+
+    // Just opened, no responses yet → NOT stalled.
+    const fresh = await seedRecruiting(caller, "Fresh", ["Control"]);
+    await db
+      .update(recruitmentSession)
+      .set({ openedAt: new Date(now - HOUR) })
+      .where(eq(recruitmentSession.id, fresh.sessionId));
+
+    const byTitle = new Map((await caller.studies.runningList()).map((r) => [r.title, r]));
+    expect(byTitle.get("Stale")).toMatchObject({ stalled: true, status: "stalled" });
+    expect(byTitle.get("Fresh")).toMatchObject({ stalled: false, status: "healthy" });
+    expect((await caller.studies.runningOverview()).needingAttention).toBe(1);
+  });
+
+  it("flags imbalance above 20% skew; a single-condition study can't be imbalanced", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const now = Date.now();
+
+    const skew = await seedRecruiting(caller, "Skewed", ["Control", "Treatment"]);
+    await insertCompleted(skew, "control", new Date(now - HOUR), 10);
+    await insertCompleted(skew, "treatment", new Date(now - HOUR), 3); // (10-3)/10 = 0.7 > 0.2
+
+    const solo = await seedRecruiting(caller, "Solo", ["Control"]);
+    await insertCompleted(solo, "control", new Date(now - HOUR), 9);
+
+    const byTitle = new Map((await caller.studies.runningList()).map((r) => [r.title, r]));
+    expect(byTitle.get("Skewed")).toMatchObject({
+      imbalanced: true,
+      status: "imbalanced",
+      conditionBalance: { min: 3, max: 10 },
+    });
+    expect(byTitle.get("Solo")).toMatchObject({
+      imbalanced: false,
+      conditionCount: 1,
+      conditionBalance: null,
+      status: "healthy",
+    });
+  });
+
+  it("status target_reached wins over stalled; a null target never 'reaches'", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const now = Date.now();
+
+    // Target met AND stale (opened long ago, old responses) → target_reached wins.
+    const done = await seedRecruiting(caller, "Done", ["Control"]);
+    await db
+      .update(recruitmentSession)
+      .set({ currentN: 100, targetN: 100, openedAt: new Date(now - 5 * DAY) })
+      .where(eq(recruitmentSession.id, done.sessionId));
+    await insertCompleted(done, "control", new Date(now - 40 * HOUR), 6);
+
+    // No target, lots collected → never "target reached".
+    const open = await seedRecruiting(caller, "OpenEnded", ["Control"]);
+    await db
+      .update(recruitmentSession)
+      .set({ currentN: 500, targetN: null })
+      .where(eq(recruitmentSession.id, open.sessionId));
+    await insertCompleted(open, "control", new Date(now - HOUR), 5);
+
+    const byTitle = new Map((await caller.studies.runningList()).map((r) => [r.title, r]));
+    expect(byTitle.get("Done")).toMatchObject({ status: "target_reached", targetN: 100, currentN: 100 });
+    expect(byTitle.get("OpenEnded")).toMatchObject({ status: "healthy", targetN: null });
+  });
+
+  it("only the active workspace's OPEN runnable sessions count (tenant + status scoping)", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    await seedUserWithWorkspace("ext_b", "Beta");
+    const callerA = createCaller({ authUser: authUser("ext_a") });
+    const callerB = createCaller({ authUser: authUser("ext_b") });
+
+    await seedRecruiting(callerA, "Alpha study", ["Control"]);
+    await seedRecruiting(callerB, "Beta study", ["Control"]); // must not leak into Alpha's view
+    const paused = await seedRecruiting(callerA, "Paused", ["Control"]);
+    await db
+      .update(recruitmentSession)
+      .set({ status: "paused" })
+      .where(eq(recruitmentSession.id, paused.sessionId)); // paused ≠ recruiting
+
+    const listA = await callerA.studies.runningList();
+    expect(listA.map((r) => r.title)).toEqual(["Alpha study"]);
+    expect((await callerA.studies.runningOverview()).recruitingStudies).toBe(1);
+  });
+
+  it("responsesToday is rolling 24h, responsesThisWeek rolling 7d; preview + incomplete excluded", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const now = Date.now();
+    const s = await seedRecruiting(caller, "Windows", ["Control"]);
+    await insertCompleted(s, "control", new Date(now - 2 * HOUR), 3); // today + week
+    await insertCompleted(s, "control", new Date(now - 3 * DAY), 2); // week only
+    await insertCompleted(s, "control", new Date(now - 10 * DAY), 4); // neither
+
+    // A preview-mode completion + a started (incomplete) run must both be ignored.
+    await db.insert(response).values({
+      id: ulid(),
+      recruitmentSessionId: s.sessionId,
+      experimentVersionId: s.versionId,
+      conditionId: s.condBySlug.get("control")!,
+      mode: "preview",
+      status: "completed",
+      completedAt: new Date(now - HOUR),
+    });
+    await db.insert(response).values({
+      id: ulid(),
+      recruitmentSessionId: s.sessionId,
+      experimentVersionId: s.versionId,
+      conditionId: s.condBySlug.get("control")!,
+      mode: "run",
+      status: "started",
+    });
+
+    const ov = await caller.studies.runningOverview();
+    expect(ov.responsesToday).toBe(3);
+    expect(ov.responsesThisWeek).toBe(5);
+  });
+});
