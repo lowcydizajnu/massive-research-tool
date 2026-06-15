@@ -125,6 +125,24 @@ describe("dashboard.getLayout / saveLayout / resetLayout — user dashboard", ()
     expect(afterReset.map((w) => w.widgetKey)).toEqual(USER_DASHBOARD_DEFAULT_LAYOUT);
   });
 
+  it("save → get round-trips per-widget grid geometry (ADR-0045 amendment)", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+
+    await caller.dashboard.saveLayout({
+      kind: "user",
+      widgets: [
+        { widgetKey: "welcome", layout: { x: 0, y: 0, w: 3, h: 2 } },
+        { widgetKey: "your-stats", settings: { itemCount: 5 }, layout: { x: 0, y: 2, w: 2, h: 4 } },
+      ],
+    });
+    const saved = await caller.dashboard.getLayout({ kind: "user" });
+    expect(saved).toEqual([
+      { widgetKey: "welcome", settings: undefined, layout: { x: 0, y: 0, w: 3, h: 2 } },
+      { widgetKey: "your-stats", settings: { itemCount: 5 }, layout: { x: 0, y: 2, w: 2, h: 4 } },
+    ]);
+  });
+
   it("saveLayout upserts a single row (saving twice updates, not duplicates)", async () => {
     const { user: u } = await seedUserWithWorkspace("ext_a", "Alpha");
     const caller = createCaller({ authUser: authUser("ext_a") });

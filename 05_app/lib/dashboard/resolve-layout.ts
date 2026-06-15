@@ -9,6 +9,7 @@
  * widgets are dropped for non-owners, and duplicates are collapsed.
  */
 import { isCustomKey } from "./custom-sources";
+import type { WidgetGeometry } from "./grid-layout";
 import {
   CUSTOM_META,
   WIDGET_REGISTRY,
@@ -17,14 +18,20 @@ import {
   defaultLayoutFor,
 } from "./widget-registry";
 
-/** One stored entry: a widget key + optional per-widget settings. */
-export type LayoutEntry = { widgetKey: string; settings?: Record<string, unknown> };
+/** One stored entry: a widget key + optional per-widget settings + optional grid geometry. */
+export type LayoutEntry = {
+  widgetKey: string;
+  settings?: Record<string, unknown>;
+  /** 2D grid position/size (ADR-0045 amendment); absent on pre-amendment + code-default layouts. */
+  layout?: WidgetGeometry;
+};
 
-/** A resolved, render-ready widget (key + its metadata + any settings). */
+/** A resolved, render-ready widget (key + its metadata + any settings + any geometry). */
 export type ResolvedWidget = {
   widgetKey: string;
   meta: WidgetMeta;
   settings?: Record<string, unknown>;
+  layout?: WidgetGeometry;
 };
 
 export function resolveDashboardLayout(opts: {
@@ -54,7 +61,7 @@ export function resolveDashboardLayout(opts: {
     // them against the synthetic meta so they render + reorder like any widget.
     if (isCustomKey(entry.widgetKey)) {
       seen.add(entry.widgetKey);
-      resolved.push({ widgetKey: entry.widgetKey, meta: CUSTOM_META, settings: entry.settings });
+      resolved.push({ widgetKey: entry.widgetKey, meta: CUSTOM_META, settings: entry.settings, layout: entry.layout });
       continue;
     }
     const meta = registry[entry.widgetKey];
@@ -62,7 +69,7 @@ export function resolveDashboardLayout(opts: {
     if (meta.dashboard !== "both" && meta.dashboard !== opts.kind) continue; // wrong dashboard
     if (meta.ownerOnly && !opts.isOwner) continue; // owner-gated widget
     seen.add(entry.widgetKey);
-    resolved.push({ widgetKey: entry.widgetKey, meta, settings: entry.settings });
+    resolved.push({ widgetKey: entry.widgetKey, meta, settings: entry.settings, layout: entry.layout });
   }
   return resolved;
 }
