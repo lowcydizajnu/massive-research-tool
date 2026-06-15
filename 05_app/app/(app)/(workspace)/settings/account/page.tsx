@@ -145,6 +145,12 @@ export default async function AccountSettingsPage({
 
           {!connection.connected ? (
             <div className="flex flex-col gap-3 border-t border-[var(--color-border-subtle)] pt-3">
+              <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                Connect once with <strong className="font-medium text-[var(--color-text-secondary)]">either</strong> method below — you only need one.
+                {osfConfigured
+                  ? " Pasting a Personal Access Token works immediately; signing in with OSF (below) is a convenience if your OSF account allows it."
+                  : " Paste a Personal Access Token — it's the quickest way and needs no extra setup."}
+              </p>
               <form action={connectOsfTokenAction} className="flex flex-col gap-2">
                 <label
                   htmlFor="osf-token"

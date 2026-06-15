@@ -56,7 +56,11 @@ export function ConditionsSection({ studyId }: { studyId: string }) {
         Conditions
       </h2>
 
-      {list.length === 0 ? (
+      {data === undefined ? (
+        // Loading — render no body yet, so the empty-state A/B affordance doesn't
+        // flash on a study that actually has conditions (the "blink" bug).
+        <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">Loading…</p>
+      ) : list.length === 0 ? (
         <div className="flex flex-col gap-2">
           <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
             No groups yet — this study runs as a single group. To run an{" "}
