@@ -439,8 +439,8 @@
   "project": "Massive Research Tool",
   "tagline": "Multi-tenant SaaS for psychological experiments",
   "lastUpdated": "2026-06-15",
-  "currentFocus": "V1.13.0 dashboard masonry + consistent pagination (v1.13.0-a13, live 5246374). Two issues the owner caught on prod after a12. (1) Gaps: a12's flowing CSS grid row-aligned tiles, so a tall widget left empty space beside short ones. Switched to CSS multi-column masonry (columns-1 → md:2 → xl:3, break-inside-avoid) — cards pack with no vertical gaps (the approach that worked before the RGL/grid detour). Width is now a binary normal / full-width toggle (full = column-span:all), what column-masonry supports (no 2-of-3 span); drag-reorder + customize stay on the grid via @dnd-kit (grip handle). (2) Pagination: PaginatedList only rendered its footer when >10 items, so similar widgets looked inconsistent (Recent activity paged, Recently edited didn't). The footer now always renders when there are rows (Prev/Next disable on a single page) — every list widget reads the same. 455 vitest green; tsc/lint/build clean; migration-free.",
-  "currentFocusPrev": "V1.13.0 dashboard grid FIXED (v1.13.0-a12, live 9f75ecb) — reverted the broken react-grid-layout (a11; fixed cells truncated content, responsive layout collapsed to one column) to a CSS grid; a13 then replaced that grid with masonry to kill the row-gaps. RGL removed.",
+  "currentFocus": "V1.13.0 dashboard polish — configurable header KPIs + clearer width toggle (v1.13.0-a14, live 4295739). Owner asks after a13: (1) the Workspace header's KPI tiles are now toggleable + count-configurable — the header's settings gear (ADR-0045) sets how many stats show: Off (just the workspace name) / 3 / 4 / 5. Added two KPIs to reach five — Responses (all time) + Members — alongside Studies / Running / Responses this week (dashboardStats gains responsesTotal + members, two cheap counts; migration-free); tiles auto-fit the full-width header. (2) the width control no longer flips between the confusing Normal/Full — it's a single 'Full width' toggle (highlighted when on). 455 vitest green; tsc/lint/build clean; migration-free.",
+  "currentFocusPrev": "V1.13.0 dashboard masonry + consistent pagination (v1.13.0-a13, live 5246374) — switched the row-gapped grid to CSS multi-column masonry (no vertical gaps; width = Normal/Full toggle since column-masonry has no 2-of-3 span); PaginatedList footer always renders so every list widget reads the same.",
   "phases": [
     {
       "id": "foundation",
@@ -1213,6 +1213,10 @@
     }
   ],
   "recentActivity": [
+    {
+      "date": "2026-06-15",
+      "text": "feat(dashboard): configurable header KPIs + clearer width label (v1.13.0-a14, live 4295739). (1) Workspace header KPI tiles are now toggleable + count-configurable via the header's settings gear: Off (just the name) / 3 / 4 / 5. Added Responses (all time) + Members to reach five KPIs; dashboardStats gains responsesTotal + members (two cheap counts, migration-free); tiles auto-fit. (2) Width control is now a single 'Full width' toggle (highlighted when on) instead of the confusing Normal/Full text-swap. 455 vitest green; tsc/lint/build clean; migration-free."
+    },
     {
       "date": "2026-06-15",
       "text": "fix(dashboard): masonry layout (no gaps) + consistent pagination footer (v1.13.0-a13, live 5246374). Owner caught two things on prod: (1) the a12 flowing CSS grid row-aligned tiles → empty space beside short widgets; switched to CSS multi-column masonry (columns-1 → md:2 → xl:3, break-inside-avoid) so cards pack with no gaps. Width is now a binary normal / full-width toggle (full = column-span:all); drag-reorder stays via @dnd-kit grip. (2) PaginatedList only showed its footer when >10 items, so widgets looked inconsistent; footer now always renders when there are rows (Prev/Next disable on a single page). 455 vitest green; tsc/lint/build clean; migration-free."
