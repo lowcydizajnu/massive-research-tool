@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { NewStudyButton } from "@/components/feature/new-study/new-study-button";
+import { RunningBoard } from "@/components/feature/studies/running-board";
 import { StudyCard } from "@/components/feature/study-card";
 import { cn } from "@/lib/utils";
 import { getServerApi } from "@/server/trpc/server";
@@ -30,11 +31,15 @@ function parseFilter(value: string | string[] | undefined): StudyFilter {
 export default async function StudiesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string | string[] }>;
+  searchParams: Promise<{ filter?: string | string[]; tab?: string | string[] }>;
 }) {
-  const filter = parseFilter((await searchParams).filter);
+  const sp = await searchParams;
+  // Running is a distinct ops mode (?tab=running), not a list filter — it
+  // replaces the study list with the live recruitment board (studies-running-tab.md).
+  const running = (Array.isArray(sp.tab) ? sp.tab[0] : sp.tab) === "running";
+  const filter = parseFilter(sp.filter);
   const api = await getServerApi();
-  const studies = await api.studies.list({ filter });
+  const studies = running ? [] : await api.studies.list({ filter });
 
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-5 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6">
@@ -49,7 +54,7 @@ export default async function StudiesPage({
         className="flex flex-wrap gap-1 border-b border-[var(--color-border-subtle)] pb-2"
       >
         {SUBNAV.map((tab) => {
-          const active = tab.filter === filter;
+          const active = !running && tab.filter === filter;
           return (
             <Link
               key={tab.filter}
@@ -66,9 +71,24 @@ export default async function StudiesPage({
             </Link>
           );
         })}
+        {/* Running — the live recruitment board, a sibling of the list filters. */}
+        <Link
+          href="/studies?tab=running"
+          aria-current={running ? "page" : undefined}
+          className={cn(
+            "rounded-[var(--radius-md)] px-2.5 py-1 text-[length:var(--text-small)] font-medium",
+            running
+              ? "bg-[var(--color-primary-subtle)] text-[var(--color-primary-text-on-subtle)]"
+              : "text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]",
+          )}
+        >
+          Running
+        </Link>
       </nav>
 
-      {studies.length > 0 ? (
+      {running ? (
+        <RunningBoard />
+      ) : studies.length > 0 ? (
         <ul className="flex flex-col gap-3">
           {studies.map((study) => (
             <li key={study.id}>
