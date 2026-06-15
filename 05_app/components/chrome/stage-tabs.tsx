@@ -5,8 +5,8 @@ import { cn } from "@/lib/utils";
 
 /**
  * Stage-tabs pill (build-stage-builder-mode.md v0.5.3) — a floating card that
- * spans only the center column, above the work surface. Six stages; the ones
- * with a route are live (Build, Preregister), the rest are shown but inert.
+ * spans only the center column, above the work surface. All eight stages
+ * (Overview · Build · Design · Preview · Share · Preregister · Run · Results) route.
  */
 const STAGES = ["Overview", "Build", "Design", "Preview", "Share", "Preregister", "Run", "Results"] as const;
 type Stage = (typeof STAGES)[number];

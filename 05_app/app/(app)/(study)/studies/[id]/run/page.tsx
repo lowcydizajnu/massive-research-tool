@@ -30,7 +30,9 @@ export default async function RunStagePage({
 
   const base = process.env.NEXT_PUBLIC_SITE_URL ?? "";
   const recruitmentUrl = `${base}/take/${id}/start`;
-  const previewUrl = `${base}/take/${id}/start?preview=true`;
+  // The dedicated participant preview needs no open recruitment session — the
+  // `/take` link is recruitment-gated and dead-ends before recruitment opens.
+  const previewUrl = `/studies/${id}/preview`;
 
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-3">

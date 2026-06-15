@@ -131,6 +131,10 @@ export function PreflightChecklist({
 
       <div
         aria-disabled={!gateOpen}
+        // `inert` removes the subtree from focus order + blocks activation for
+        // BOTH mouse and keyboard — pointer-events-none alone let keyboard users
+        // tab to the action and fire it without acknowledging the flagged issues.
+        {...(!gateOpen ? { inert: true } : {})}
         className={cn(!gateOpen && "pointer-events-none select-none opacity-50")}
       >
         {children}

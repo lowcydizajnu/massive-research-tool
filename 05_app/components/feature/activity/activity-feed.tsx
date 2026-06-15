@@ -12,7 +12,7 @@ import type { NotificationDTO } from "@/server/trpc/routers/notifications";
 /**
  * Activity destination (activity-destination.md, ADR-0015). Two sub-streams:
  * Yours (notification table, live) and Follows (activity_event × follow —
- * deferred to PR-3; shows its empty-state here). No bell: opening Yours marks
+ * live). No bell: opening Yours marks
  * the unread rows read so the rail badge clears (IA v0.3 §Notifications), while
  * the rows still carry this-visit "new" accents from a first-load snapshot.
  */

@@ -40,7 +40,7 @@ function safeName(s: string): string {
  * Export builder (V1.12 D, export-builder.md). Shapes a download from the live
  * Results dataset — choose/reorder/rename variables, preview the real rows, and
  * export CSV/TSV/JSON + a JSON data dictionary, entirely client-side from
- * `studies.getResults`. SPSS/Stata/Excel + named templates are follow-ups.
+ * `studies.getResults`. SPSS syntax, Stata do-file, and Excel CSV are supported; named templates are a follow-up.
  */
 export function ExportBuilder({ studyId, title }: { studyId: string; title: string }) {
   const [includePreview, setIncludePreview] = useState(false);

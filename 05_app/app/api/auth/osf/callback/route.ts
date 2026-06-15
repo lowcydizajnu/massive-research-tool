@@ -19,6 +19,10 @@ export async function GET(req: Request) {
   const cookieState = (await cookies()).get("osf_oauth_state")?.value;
 
   const settings = new URL("/settings/account", req.url);
+  // Land on the Connections tab so the success/error banner actually renders —
+  // it only shows under tab=connections; otherwise the user lands on Profile and
+  // sees nothing ("logged in but still asks for a token").
+  settings.searchParams.set("tab", "connections");
 
   if (!code || !state || !cookieState || state !== cookieState) {
     settings.searchParams.set("osf", "error");
