@@ -40,14 +40,14 @@ const kindSchema = z.enum(["user", "workspace"]);
 const layoutEntrySchema = z.object({
   widgetKey: z.string().min(1).max(64),
   settings: z.record(z.string(), z.unknown()).optional(),
-  // 2D grid geometry (ADR-0045 amendment). Bounds are sane caps, not the live
-  // column count — the client clamps to the active breakpoint's columns.
+  // Grid geometry (ADR-0045 amendment). `w` is the column span (1–3); the rest
+  // are tolerated for older saved layouts. All optional — the client clamps.
   layout: z
     .object({
-      x: z.number().int().min(0).max(48),
-      y: z.number().int().min(0).max(2048),
-      w: z.number().int().min(1).max(12),
-      h: z.number().int().min(1).max(48),
+      x: z.number().int().min(0).max(48).optional(),
+      y: z.number().int().min(0).max(4096).optional(),
+      w: z.number().int().min(1).max(12).optional(),
+      h: z.number().int().min(1).max(96).optional(),
     })
     .optional(),
 });
