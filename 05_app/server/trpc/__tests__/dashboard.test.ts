@@ -198,4 +198,18 @@ describe("dashboard — workspace dashboard + admin default", () => {
       code: "BAD_REQUEST",
     });
   });
+
+  it("canSetWorkspaceDefault is true for owner/admin, false for viewer/non-member", async () => {
+    const { workspace: ws } = await seedUserWithWorkspace("ext_owner", "Lab");
+    await addMember(ws.id, "ext_admin", "admin");
+    await addMember(ws.id, "ext_viewer", "viewer");
+    await seedUserWithWorkspace("ext_out", "Other"); // member of a different workspace
+
+    const can = (ext: string) =>
+      createCaller({ authUser: authUser(ext) }).dashboard.canSetWorkspaceDefault({ workspaceId: ws.id });
+    expect(await can("ext_owner")).toBe(true);
+    expect(await can("ext_admin")).toBe(true);
+    expect(await can("ext_viewer")).toBe(false);
+    expect(await can("ext_out")).toBe(false);
+  });
 });
