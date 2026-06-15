@@ -1,4 +1,6 @@
-# Code tab handoff — User dashboard + Workspace dashboard + Library
+# Code tab handoff — User dashboard + Workspace dashboard + Library (updated 2026-06-15 round 2)
+
+> **V1.13.0 = Dashboards + Library shell.** Owner picked this scope after answering 6 open questions on 2026-06-15. Three new dashboard layers + Library destination + IA v0.5 amendments. Estimated ~5 weeks Code-tab time.
 
 Owner asked for these three destinations together. They're independent surfaces with shared characteristics: all three are **read-heavy landing experiences** built on top of data that already mostly exists. Today's state:
 
@@ -14,9 +16,39 @@ This handoff covers all three. **Recommended versioning** at the bottom — coul
 
 ---
 
+## The three-level dashboard model (owner-clarified 2026-06-15)
+
+Owner introduced a clean conceptual model worth stating upfront, because it shapes everything below:
+
+**Three dashboards exist; each serves a different question:**
+
+| Dashboard | Question it answers | Entered via | Route |
+|---|---|---|---|
+| **User dashboard** | "What's happening across ALL my workspaces?" | Top-nav workspace dropdown → pick **"Home"** (new option above the workspace list) | `/home` (Personal mode chrome) |
+| **Workspace dashboard** | "What's happening in THIS workspace?" | Top-nav workspace dropdown → pick a workspace | `/dashboard` (Workspace mode; becomes the default landing on workspace switch) |
+| **Studies · Running tab** | "How are my currently-recruiting studies doing right now?" | Studies destination → new "Running" sub-tab alongside the existing All/Mine/Drafts/etc. | `/studies?tab=running` (workspace mode; operational view) |
+
+**Critical clarification: Studies destination stays as-is.** Owner's "studies are as they are actually" means the existing Studies list + sub-nav filters (All / Mine / Drafts / Preregistered / Published / Replicating / Archived) all stay. The Workspace dashboard is a SIBLING destination, not a replacement. The Running tab is a NEW sub-tab inside the existing Studies destination.
+
+**Workspace switcher gets the "Home" affordance:**
+
+```
+┌─ Workspace selector dropdown ────┐
+│  ▸ Home — All my workspaces      │ ← NEW: enters Personal mode
+│  ─────────────────────────────── │
+│  ★ Misinformation Lab (current)  │ ← workspaces
+│    Design Team                   │
+│    Personal                      │
+│  ─────────────────────────────── │
+│  + Create workspace              │
+└──────────────────────────────────┘
+```
+
+Picking "Home" switches to Personal mode (the new third chrome variant per ADR-0033 IA v0.5). Picking a workspace switches to Workspace mode + lands you on `/dashboard` (the workspace dashboard).
+
 ## Section N1 — User dashboard (cross-workspace personal landing)
 
-**Route:** new route `/home` under the `(workspace)` group (or top-level — see "Mode question" below). Single page, no sub-nav. Replaces the current `/` → `/studies` redirect for authenticated users: `/` → `/home` instead.
+**Route:** `/home` under a new `(personal)` route group. Single page, no sub-nav. Entered via "Home" in the workspace switcher dropdown. `/` → `/home` for authenticated users with workspace memberships (was `/` → `/studies`).
 
 ### What it shows
 
@@ -26,11 +58,16 @@ A personal dashboard that summarizes the user's activity ACROSS all workspaces t
 
 1. **Welcome block** — "Good morning, {firstName}." + a one-line context ("3 studies in flight; 2 review requests pending; last activity 2 hours ago"). Time-of-day-aware greeting.
 2. **Workspaces card** — list of every workspace the user belongs to with: workspace name + role + their study count + their last activity timestamp + a "Switch to" link. Sortable; default by last-activity-desc. The current active workspace is highlighted. Quick-create-workspace at the bottom.
-3. **Activity · My follows** — feed from `followsRouter.feed` (already shipped). Cross-workspace; shows the items the researcher follows (tags, authors, frameworks, studies) doing things. Reuses the Activity destination's `ActivityFeed` component scoped to the user.
-4. **Notifications inbox** — `notificationsRouter.list` already shipped. Mention notifications, comment-on-your-study, fork notifications, OSF-push-complete events. Mark-read affordance. Empty state.
-5. **Your studies — recent drafts across workspaces** — top N studies the user authored or has unsaved-changes in, across all workspaces. Cards link to that study in its workspace (auto-switches workspace context). New tRPC procedure needed: `studies.recentForUser({ limit })` over all workspaces the user is a member of.
-6. **Your stats** — small KPI strip: studies authored / replications received / followers count / total participants across all your studies. Sourced from existing tables; ~1 lightweight aggregate query.
-7. **Quick actions** — "+ New study in [workspace dropdown]" + "Import a paper" (V2.0 Sandbox link when shipped) + "Open a recent study" (recents list).
+3. **Mentions & review requests waiting on me** — cross-workspace inbox of "Maya needs your review on Study X", "Hanna mentioned you in Study Y comment". Distinct from generic notifications; these need ACTION from the user. Counter badge in TopBar mirrors this.
+4. **Activity · My follows** — feed from `followsRouter.feed` (already shipped). Cross-workspace; shows the items the researcher follows (tags, authors, frameworks, studies) doing things. Reuses the Activity destination's `ActivityFeed` component scoped to the user.
+5. **Notifications inbox** — `notificationsRouter.list` already shipped. Mention notifications, comment-on-your-study, fork notifications, OSF-push-complete events. Mark-read affordance. Empty state.
+6. **Your recruiting studies — across workspaces** — currently-running studies the user authored, regardless of workspace. Per row: study + workspace + n_responses / target_n + days remaining. Owner-noted: "running studies" is the operational view that matters most. Reuses the new Running-tab procedure (`studies.runningOverview()`).
+7. **Your drafts — across workspaces** — top N studies the user authored with unsaved-or-recent changes, across all workspaces. Cards link to that study in its workspace (auto-switches workspace context). New tRPC procedure: `me.recentStudies({ limit, kind: 'draft' })`.
+8. **Upcoming deadlines** — recruitment-window close dates within 14 days; preregistration approval reminders (OSF pending); review-request deadlines if any. Calendar-style mini-timeline. Helps researchers prioritize.
+9. **OSF activity** — across all workspaces: pending owner-approval registrations + recent DOIs minted + any push errors. Pairs with V1.5's OSF integration (ADR-0005).
+10. **Your stats** — small KPI strip: studies authored / replications received / followers count / total participants across all your studies. Sourced from existing tables; ~1 lightweight aggregate query.
+11. **Saved searches / followed tags activity** — recent studies in this user's followed-tag set (cross-workspace public + private-with-membership). Pairs with V1.7 tags + follows.
+12. **Quick actions** — "+ New study in [workspace dropdown]" + "Import a paper" (V2.0 Sandbox link when shipped) + "Open a recent study" (recents list).
 
 ### Data layer
 
@@ -78,18 +115,14 @@ ADR-0033 — IA v0.5: Personal mode. Extends ADR-0032's two-mode model (Workspac
 
 ## Section N2 — Workspace dashboard (team-shared workspace overview)
 
-**Route:** new route `/dashboard` under `(workspace)`. OR `/` at workspace root. Becomes the new default landing in workspace mode (replacing today's `/studies`); `/studies` stays as the destination for the studies list.
+**Route:** new route `/dashboard` under `(workspace)`. Becomes the **default landing** when a user picks a workspace from the top-nav switcher. Studies destination **stays unchanged** as a sibling destination — owner-confirmed 2026-06-15: "studies are as they are actually."
 
-### Background — this overrides IA v0.4
+### IA changes (owner-confirmed)
 
-IA v0.4 explicitly said "Studies destination IS the workspace landing — no separate dashboard planned." Owner now wants something richer. This is a meaningful IA change.
-
-**Two options:**
-
-- **(a) Workspace dashboard REPLACES Studies as the landing.** Sign-in lands on `/dashboard`; Studies becomes a sibling destination in the LeftRail. The dashboard summarizes the workspace; Studies is the canonical list.
-- **(b) Workspace dashboard sits ALONGSIDE Studies in the LeftRail.** Users still land on `/studies` by default; `/dashboard` is opt-in via the nav. Lower commitment; researchers who prefer the list view keep getting it.
-
-**Recommendation: (a) replace.** A workspace landing should orient you to the workspace, not just list studies. Studies list is one click away in the LeftRail. Matches GitHub (repo lands on Code / Issues overview, not on a flat issue list), Linear (workspace lands on dashboard, not on the issue list).
+- Picking a workspace from the top-nav dropdown lands you on `/dashboard` (not `/studies`).
+- Studies destination remains in the LeftRail with its existing sub-nav (All / Mine / Drafts / Preregistered / Published / Replicating / Archived) + NEW Running tab (see Section N4 below).
+- The workspace dashboard is read-mostly + team-shared; Studies is the canonical operational list.
+- Workspace-mode `/` redirects to `/dashboard` (was `/studies`).
 
 ### What it shows
 
@@ -97,14 +130,23 @@ A dense overview of the workspace's recent state. Designed for "I just opened th
 
 **Widget layout:**
 
-1. **Workspace header** — workspace name + member count + study count + a small "Settings" link for owners/admins.
-2. **At-a-glance stats** — KPI strip: total studies (by stage badge: draft / preregistered / published / archived) + total responses this week + active recruitment count + pending review requests.
-3. **Recent activity** — workspace-scoped activity feed (last ~15 events): comments, mentions, OSF pushes, recruitment opens, new versions saved. Sourced from `activity_event` table filtered to `workspace_id` (vs the current Activity destination which is user-scoped via follows).
-4. **Pending reviews** — studies in this workspace with open `review_request` events not yet resolved. Lists requestor + requestee + study + age. Click to jump to Share stage.
-5. **Recently edited studies** — top 5-8 studies updated in the last 7 days, with the editor's name + brief diff summary ("3 blocks added"). Reuses existing study cards.
-6. **Top tags** — most-used tags in this workspace (last 30 days). Click to filter Studies list.
-7. **Team activity** — members ranked by recent contribution count (comments + edits + reviews); humanizes the workspace.
-8. **Storage + cost** (admins only) — R2 storage used / quota; Inngest invocations / quota; AI invocation count + cost (per ADR-0006 + V2.0 when AI features exist). Owner-only view; respects role.
+1. **Workspace header** — workspace name + member count + study count + small "Settings" link for owners/admins + workspace switcher hint.
+2. **Workspace announcement** (owner/admin can pin a note) — "Lab meeting Tuesday 3pm" / "Recruitment paused on Study X this week" / "New ethics requirements". Single pinned post; markdown; small avatar of pinner + timestamp. Optional + dismissible by individual viewers.
+3. **At-a-glance stats** — KPI strip:
+   - Total studies (by stage: draft / preregistered / published / archived)
+   - Active recruitment count
+   - Total responses this week + delta vs last week
+   - Pending review requests
+   - Open mentions across workspace
+4. **Active recruitment** — currently-recruiting studies in this workspace + per-study: response count vs target / collection rate (responses per day, last 7d) / projected finish date / status badge (healthy / stalled / imbalanced). Click → jumps to study's Run stage. Helps spot stalled recruitment fast.
+5. **Recent activity** — workspace-scoped activity feed (last ~15 events): comments, mentions, OSF pushes, recruitment opens, new versions saved. Sourced from `activity_event` table filtered to `workspace_id` (distinct from the user-scoped Activity destination via follows).
+6. **Pending reviews** — studies in this workspace with open `review_request` events not yet resolved. Lists requestor + requestee + study + age + age-warning badge if >7d. Click to jump to Share stage.
+7. **Recently edited studies** — top 5-8 studies updated in the last 7 days + editor's name + brief diff summary ("3 blocks added"). Reuses existing study cards.
+8. **OSF status** — workspace's pending OSF registrations (awaiting owner approval at osf.io) + recent DOIs minted + push errors. Pairs with V1.5's OSF integration.
+9. **Recent fork activity** — studies in this workspace that have been replicated FROM (downstream forks landed in last 30d). Good for owner-visibility into impact + replication interest.
+10. **Top tags** — most-used tags in this workspace (last 30 days). Click to filter Studies list.
+11. **Team activity** — members ranked by recent contribution count (comments + edits + reviews); humanizes the workspace.
+12. **Storage + cost** (owners only — owner confirmed 2026-06-15) — R2 storage used / quota; Inngest invocations / quota; AI invocation count + spend month-over-month (per ADR-0006 + V2.0 when AI features exist); cost burn-rate forecast. Owners-only view; respects role.
 
 ### Data layer
 
@@ -147,6 +189,71 @@ ADR-0033 (or ADR-0034 if Personal mode took 0033) — IA v0.5: workspace dashboa
 
 ---
 
+## Section N4 — Studies · Running tab (operational dashboard inside Studies; owner-added 2026-06-15)
+
+Owner: "Running studies should also have dedicated dashboard tab in studies view too." Third dashboard layer — operational, real-time, focused on currently-collecting studies.
+
+**Where it lives:** Studies destination gains a new sub-tab **"Running"** alongside the existing All / Mine / Drafts / Preregistered / Published / Replicating / Archived. Route: `/studies?tab=running`.
+
+**Why a tab, not a destination:** running-studies management is fundamentally a slice of Studies (a filter view + extra widgets). Keeps the IA flat. Researchers already think of recruitment as part of "Studies."
+
+### What it shows
+
+Operational view — not strategic. Answers "is my data collection going well right now?" + "do any studies need my attention?"
+
+**Layout:**
+
+1. **Recruitment overview KPI strip:** total recruiting studies / total responses today / total responses this week / studies needing attention (alerts triggered).
+2. **Recruitment table** — one row per recruiting study with these columns:
+   - Study title + condition count
+   - n_responses / target_n + percentage bar
+   - Collection rate (responses/day, last 7d) + trend arrow
+   - Average completion time
+   - Drop-off rate (% who start but don't complete)
+   - Condition balance (smallest condition n / largest condition n, ratio) — flags imbalanced random assignment
+   - Last response timestamp + "no responses in 24h" warning if stalled
+   - Status badges: healthy / stalled (no responses 24h) / imbalanced (>20% condition skew) / target_reached / target_overrun
+   - Quick action: Pause / Resume / Close recruitment / View live responses
+3. **Per-study drill-down (modal or right panel)** — click a row to see:
+   - Per-block drop-off chart (which question loses participants?)
+   - Per-condition response distribution
+   - Attention-check failure rate
+   - Estimated time to target_n at current rate
+   - Recent participant identifiers (anonymized) + completion timestamps
+4. **Alert center** — list of all alert states needing attention across recruiting studies. Examples:
+   - "Study X: no responses in 24 hours"
+   - "Study Y: condition imbalance — control n=87, treatment n=34"
+   - "Study Z: attention-check failure rate 22% (warning threshold 15%)"
+   - "Study W: target_n reached — consider closing recruitment"
+   - Each alert has Mute / Snooze / Address actions.
+
+### Data layer
+
+| Widget | What exists | New tRPC |
+|---|---|---|
+| KPI strip | counts from `recruitment_session` + `response` tables | `studies.runningOverview()` returning the 4 KPIs |
+| Recruitment table | `recruitment_session` (V1.5) + `response` + `condition` | `studies.runningList()` returning per-row data (1 row per recruiting study with computed metrics) |
+| Per-study drill-down | `response_item` + `response` already exist | `studies.runningDetail({ studyId })` returning per-block + per-condition aggregates |
+| Alert center | derived from recruitmentList computed states | included in `runningList` response; client filters to alert-state rows |
+
+All workspace-scoped (`workspaceProcedure`). One namespace under existing `studiesRouter`.
+
+### Refresh strategy
+
+- **Polling default** — every 60 seconds while the tab is visible. Cheap (single aggregate query); deterministic; no infrastructure.
+- **Optional later** — SSE (Server-Sent Events) push when a new response lands. Defer; polling is fine for V1.13.0.
+- **Visible-only** — pause polling when tab is in background per the Page Visibility API.
+
+### Wireframe gate
+
+`03_design/wireframes/studies-running-tab.md`.
+
+### Estimated work
+
+~1 week (data layer ~3 days; table + drill-down + alerts ~3 days; wireframe + tests ~1 day).
+
+---
+
 ## Section N3 — Library destination (5 sub-sections)
 
 **Route:** new top-level `/library` under `(workspace)`. Sub-nav as planned in IA v0.3: Modules / Themes / Materials / Templates / Imports.
@@ -186,8 +293,23 @@ Templates = pre-made study skeletons. Different from Frameworks (which carry met
 
 - Data model change: extend `experimentVersionKind` enum to add `template`. Per ADR-0002 + ADR-0012 immutability: a `template` kind version is immutable (you can't edit the template; you fork it into a new study with kind:autosave).
 - New tRPC: `studies.listTemplates({ scope: 'workspace' | 'public' })` — returns templates the researcher can see (their workspace + public templates from any workspace).
-- New tRPC: `studies.saveAsTemplate({ studyId, name, description })` — creates a frozen kind:template version of an existing study; copies blocks + conditions + (optionally) theme + (optionally) overview narrative. Per the IA v0.3 picks: 4 share scopes (Public-replicable / Workspace / Invite link / Submit to Framework).
-- UI: card grid of templates with title + author + description + "Used N times" + Fork-to-new-study button.
+- New tRPC: `studies.saveAsTemplate({ studyId, name, description, includes })` — creates a frozen kind:template version of an existing study. The `includes` parameter is the **owner-confirmed checkbox set** (2026-06-15) — researcher picks what to copy into the template:
+
+  **Save-as-template dialog includes checkboxes for:**
+  - ☑ Blocks + block configs (always on; can't be unchecked — the structural skeleton is the template)
+  - ☑ Conditions + branching rules
+  - ☐ Theme + layout (per-study visual identity per V1.12 §F)
+  - ☐ Overview narrative (per V1.12 §B1)
+  - ☐ Recruitment settings (target_n, sample_size_helper, etc.) — recruitment-runs aren't copied; just the intended config
+  - ☐ Consent screen text + debrief copy (per V1.12 §G researcher-controlled copy)
+  - ☐ Tags (per V1.7 ADR-0017)
+  - ☐ OSF configuration (registry connections aren't copied; just the schema choice if preregistered)
+
+  Owner-confirmed: defaults to blocks + conditions on; everything else off. Researcher checks what they want to include.
+
+- Per IA v0.3 picks: 4 share scopes (Public-replicable / Workspace / Invite link / Submit to Framework).
+- UI: card grid of templates with title + author + description + "Used N times" + "Includes: blocks, conditions, theme" subtitle showing what's bundled + Fork-to-new-study button.
+- Fork-from-template flow: when researcher forks a template, every included element copies to the new draft; un-included elements get defaults from the workspace (e.g., default theme if no theme was bundled).
 - Pairs with the V1.12 Section L question-group work — researcher can save a group as a template too (template-of-group; smaller scope than template-of-study). Defer template-of-group to a sub-PR if needed.
 
 #### Library · Materials (~3 days, blocks on V1.12 Section C1)
@@ -209,13 +331,47 @@ Read view over saved themes (created by V1.12 Section F theme editor).
 - Distinction: workspace-saved themes (rebuilt from researcher edits) vs system platform presets (the 17 from V1.12 F1.5 — Academic / FB / X / etc.)
 - The Themes sub-section is also where researchers download a theme as a JSON file or import one from another workspace (cross-workspace sharing)
 
-#### Library · Imports (~3 days, blocks on V2.0 Sandbox)
+#### Library · Imports (~5 days, ships now per owner 2026-06-15 — does NOT wait for V2.0 Sandbox)
 
-Read view over the `imported_content` table created by V2.0 Sandbox (the BYOAI paste-back surface).
+Owner-confirmed 2026-06-15: ship Imports as a general-purpose "imported content" destination NOW; V2.0 Sandbox extends it later as one more source.
 
-- Per-import row: source (Consensus / Elicit / Claude / etc.) + import date + what was imported (study structure, hypotheses, methods) + applied-to-study link + "Re-apply" button
-- Useful for: re-running the same AI extraction with a fresh paste; auditing what AI-derived content went into a study (for preregistration honesty)
-- The `imported_content` table also feeds the ADR-0006 `ai_invocation` audit log when an AI provider is configured
+Read view + write surface over a new `imported_content` table (Drizzle migration):
+
+```
+imported_content
+  id (text PK, ULID)
+  workspace_id (FK, workspace-scoped)
+  user_id (FK, who imported)
+  source_kind (enum: 'paper-pdf', 'paper-doi', 'osf-registration',
+                'csv', 'manual-paste', 'sandbox-ai' /* future */)
+  source_url (text, nullable)
+  source_label (text — researcher's free-text "what is this")
+  payload (jsonb — the raw imported content)
+  parsed (jsonb, nullable — structured extraction if parsing succeeded)
+  applied_to_study_id (FK to experiment, nullable — set when import was used)
+  created_at, updated_at
+```
+
+**V1.13.0 launch sources (no AI needed):**
+
+- **Paper DOI** — researcher pastes a DOI; Crossref/OpenAlex API resolves to metadata (title, authors, abstract); stored as imported_content with `source_kind='paper-doi'`. Useful as "I want to remember which papers informed this study." Click an import → see its abstract + "Cite as background in Overview tab" button.
+- **OSF Registration URL** — researcher pastes an OSF registration URL; the public OSF API returns the registration's structure; stored as imported_content with `source_kind='osf-registration'`. Useful for replication: "import the structure of this registration as a starting point for my replication."
+- **Manual paste** — researcher pastes any text (a hypothesis, a method paragraph, a question wording) + labels it; stored as `source_kind='manual-paste'`. The simplest "I want to remember this for later" affordance.
+- **CSV import** — researcher uploads a CSV of, e.g., stimuli (rows = trials, columns = stimulus + condition). Becomes a stimulus set referenceable from the Builder. Useful for migrating from other tools.
+- **PDF import** (lightweight) — researcher uploads a paper PDF; we store + index with `source_kind='paper-pdf'`; no AI extraction at V1.13.0, just storage + "open PDF" link. V2.0 Sandbox can later run BYOAI extraction over the same PDF.
+
+**Future sources V2.0 adds:**
+
+- **Sandbox-AI** — V2.0 BYOAI paste-back results land here with `source_kind='sandbox-ai'`. Extends Imports with structured extraction.
+
+**UI:**
+
+- Card grid; each card: source kind icon + label + date + "applied to N studies" + view-detail action
+- Filter by source_kind + by applied-or-unused
+- Per-import detail: payload preview + parse status + "Apply to study" picker
+- Bulk actions: archive + delete + tag
+
+This makes Imports a useful destination even without AI — it's the researcher's "external context library" they can build over time.
 
 ### IA changes
 
@@ -258,57 +414,68 @@ Code tab's choice based on PR queue.
 
 ---
 
-## ADRs needed (Code tab drafts as each Wave nears)
+## ADRs needed (Code tab drafts as each Stream nears)
 
-- **ADR-0033 (or whatever number is next) — IA v0.5: Personal mode + workspace dashboard as landing.** Three-mode chrome model (Personal + Workspace + Focused study); URL-driven mode switch; root redirect goes to `/home` for authed users → workspace switch from there to workspace's `/dashboard`. Bundles N1 + N2 IA changes.
-- **ADR-0034 — Templates as `kind: template`.** Extends `experimentVersionKind` enum; template share scopes (4 per IA v0.3); save-as-template + fork-from-template flows.
-- (Existing) **ADR-0003 amendment** for Materials storage metering surfaces (defer until materials volume is real).
+- **ADR-0033 — IA v0.5: Three-mode chrome + workspace switcher "Home" + workspace dashboard as workspace landing.** Three-mode chrome model (Personal + Workspace + Focused study); URL-driven mode switch; workspace switcher dropdown gains "Home" option above the workspace list; root redirect goes to `/home` for authed users; picking a workspace lands on `/dashboard`. Bundles N1 + N2 IA changes.
+- **ADR-0034 — Templates as `kind: template` + checkbox-based save flow.** Extends `experimentVersionKind` enum; template share scopes (4 per IA v0.3); save-as-template dialog includes 8 element checkboxes for what to bundle; fork-from-template applies bundled elements + defaults un-bundled.
+- **ADR-0035 — Imports as a first-class destination.** `imported_content` table; 5 source_kind values for V1.13.0; extensibility for V2.0 sandbox-ai.
 
 ---
 
 ## Wireframes needed (phase-gate per CLAUDE.md)
 
-- `user-dashboard.md` (N1)
-- `workspace-dashboard.md` (N2)
-- `library-modules.md` (N3 Wave A)
-- `library-templates.md` (N3 Wave A)
-- `library-materials.md` (N3 Wave B)
-- `library-themes.md` (N3 Wave C)
-- `library-imports.md` (N3 Wave D)
-- `personal-mode-topbar.md` (the slim TopBar for personal mode)
+- `user-dashboard.md` (Stream A)
+- `workspace-dashboard.md` (Stream B)
+- `studies-running-tab.md` (Stream C — NEW)
+- `library-modules.md` (Stream D)
+- `library-templates.md` (Stream D — includes the checkbox save-as dialog)
+- `library-imports.md` (Stream D)
+- `library-materials.md` (Stream E)
+- `library-themes.md` (Stream E)
+- `personal-mode-topbar.md` (the slim TopBar for personal mode + workspace switcher "Home" option)
 
 ---
 
-## Open questions for owner
+## Open questions — fully resolved 2026-06-15
 
-1. **Workspace dashboard replaces /studies as landing, or sits alongside?** (Recommendation: replaces, per Section N2 option (a).)
-2. **Personal mode as a third chrome variant?** (Recommendation: yes — cleaner mental model than cross-workspace data inside workspace chrome.)
-3. **Templates: save-as-template flow — copy theme + overview narrative too, or just blocks?** (Recommendation: blocks + conditions are core; theme + overview are opt-in checkboxes in the save dialog.)
-4. **Library · Imports: should it surface AI-derived content even before V2.0 Sandbox ships?** Could repurpose for any "imported from elsewhere" content (CSV imports, etc.). (Recommendation: defer; ship when Sandbox lands.)
-5. **Storage + cost widget on workspace dashboard: visible to all members or owners only?** (Recommendation: owners + admins only; cost data is sensitive.)
-6. **Versioning: V1.12 Section N, or V1.13.0?** (Recommendation: V1.12 Section N — keeps V1.13 clean for Participants + Prolific.)
+1. ✅ **Workspace dashboard sits ALONGSIDE Studies** — Studies destination stays as-is per owner ("studies are as they are actually"). Workspace dashboard becomes the default landing when picking a workspace from the top-nav switcher. Section N2 updated.
+2. ✅ **Three-level dashboard model** — owner introduced the cleanest framing: top-nav workspace dropdown gains a "Home" option that puts you in Personal mode (User dashboard); workspaces land you on their dashboard; Studies destination gains a "Running" sub-tab (Section N4 added). Personal mode is the third chrome variant per ADR-0033 IA v0.5.
+3. ✅ **Template save-as-template flow** — checkbox set; researcher picks what to include (blocks always; conditions + theme + overview + recruitment-config + consent-copy + tags + OSF config all opt-in). Section N3 updated.
+4. ✅ **Library · Imports ships now** as general-purpose imported-content surface (paper DOI / OSF registration URL / CSV / manual paste / PDF upload). V2.0 Sandbox extends with `source_kind='sandbox-ai'` later. Section N3 updated.
+5. ✅ **Storage + cost widget — owners only.** Confirmed.
+6. ✅ **Versioning: V1.13.0** = "Dashboards + Library shell" per Cowork pick. V1.14 = Participants + Prolific (was original V1.13).
+
+Total estimate updated: **~5 weeks Code-tab time** (added ~1 week for the new Running tab + a bit for the expanded Imports + theme/overview-now-checkbox templates).
 
 ---
 
-## Sequencing PRs (~4 weeks Code-tab time total)
+## Sequencing PRs (~5 weeks Code-tab time total = V1.13.0)
 
-**Stream A — User dashboard (~1.5 weeks):**
-- PR N1.1: `meRouter` with workspaces / recentStudies / stats procedures (~2 days)
-- PR N1.2: personal mode chrome + route group split + ADR-0033 (~3 days)
-- PR N1.3: `/home` page + widgets + wireframe (~3 days)
+**Stream A — User dashboard + Personal mode (~1.5 weeks):**
+- PR N1.1: `meRouter` with `workspaces` + `recentStudies` + `stats` procedures + mentions/reviews-waiting aggregate (~2 days)
+- PR N1.2: personal mode chrome + route group split + ADR-0033 IA v0.5 + workspace switcher "Home" option (~3 days)
+- PR N1.3: `/home` page + 12 widgets + wireframe (~3 days)
 
 **Stream B — Workspace dashboard (~1.5 weeks):**
 - PR N2.1: `workspace.dashboard.*` aggregate procedures + tests (~3 days)
-- PR N2.2: `/dashboard` page + widgets + role-respecting storage widget (~4 days)
-- PR N2.3: root redirect + landing change + IA v0.5 doc (~2 days)
+- PR N2.2: `/dashboard` page + 12 widgets + role-respecting storage widget (owners only) + workspace-announcement editor (~4 days)
+- PR N2.3: root redirect + landing change (workspace-mode `/` → `/dashboard`) (~2 days)
 
-**Stream C — Library shell + Modules + Templates (~1 week):**
-- PR N3.1: `/library` route + sub-nav scaffold + ADR-0034 templates kind extension (~2 days)
-- PR N3.2: Library · Modules page (~2 days)
-- PR N3.3: Library · Templates page + save-as-template + fork-from-template (~3 days)
+**Stream C — Studies · Running tab (~1 week, NEW):**
+- PR N4.1: `studies.runningOverview()` + `studies.runningList()` + `studies.runningDetail()` aggregate procedures (~3 days)
+- PR N4.2: Running tab UI in Studies destination + per-study drill-down + alert center + polling refresh (~3 days)
+- PR N4.3: wireframe + tests (~1 day)
 
-**Stream D — Library Materials / Themes / Imports (~1 week, gated on V1.12 Sections C1 / F / V2.0):**
-- Land in V1.12.x sub-releases as dependencies ship
+**Stream D — Library shell + Modules + Templates + Imports (~1.5 weeks):**
+- PR N3.1: `/library` route + sub-nav scaffold + ADR-0034 templates `kind: template` enum extension (~2 days)
+- PR N3.2: Library · Modules page (read-view over existing modules.list) (~2 days)
+- PR N3.3: Library · Templates page + save-as-template dialog with checkbox `includes` + fork-from-template (~3 days)
+- PR N3.4: Library · Imports — `imported_content` table + 5 source ingestors (paper-doi via Crossref/OpenAlex / osf-registration via OSF API / manual-paste / csv / paper-pdf) + UI (~3 days)
+
+**Stream E — Library Materials / Themes (~3 days each, gated on V1.12 Sections C1 / F):**
+- Land in V1.13.x sub-releases as those V1.12 dependencies ship
+
+All five streams largely independent; Code tab can land in parallel.
 
 Streams A, B, C are independent — Code tab can land them in any order or in parallel.
 
