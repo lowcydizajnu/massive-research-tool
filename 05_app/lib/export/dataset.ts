@@ -22,6 +22,9 @@ type Row = ResultsSummary["rows"][number];
 const META: { key: string; source: string; label: string }[] = [
   { key: "responseId", source: "Response ID", label: "response_id" },
   { key: "conditionSlug", source: "Condition", label: "condition" },
+  // Which runnable version each respondent took (ADR-0044) — disambiguates a
+  // pooled multi-version dataset so no version's rows are silently merged.
+  { key: "versionNumber", source: "Version", label: "version" },
   { key: "externalPid", source: "External PID", label: "external_pid" },
   { key: "startedAt", source: "Started", label: "started_at" },
   { key: "completedAt", source: "Completed", label: "completed_at" },
@@ -99,6 +102,8 @@ function cell(row: Row, key: string, ctx?: ExportCtx, members?: Map<string, Set<
       return row.responseId;
     case "conditionSlug":
       return row.conditionSlug;
+    case "versionNumber":
+      return String(row.versionNumber);
     case "externalPid":
       return row.externalPid ?? "";
     case "startedAt":

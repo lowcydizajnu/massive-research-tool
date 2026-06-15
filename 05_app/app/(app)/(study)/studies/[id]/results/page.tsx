@@ -18,21 +18,39 @@ export default async function ResultsStagePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ preview?: string }>;
+  searchParams: Promise<{ preview?: string; v?: string }>;
 }) {
   const { id } = await params;
-  const includePreview = (await searchParams).preview === "1";
+  const sp = await searchParams;
+  const includePreview = sp.preview === "1";
+  // Version filter (ADR-0044): ?v=<n> scopes to one runnable version; absent = pooled.
+  const vParsed = sp.v ? Number(sp.v) : NaN;
+  const version = Number.isInteger(vParsed) && vParsed > 0 ? vParsed : null;
   const api = await getServerApi();
 
   let study: StudyDetail | null = null;
   let results: ResultsSummary | null = null;
   try {
     study = await api.studies.get({ id });
-    results = await api.studies.getResults({ studyId: id, includePreview });
+    results = await api.studies.getResults({ studyId: id, includePreview, version });
   } catch {
     study = null;
   }
   if (!study) notFound();
+
+  // Filter links preserve the preview toggle.
+  const previewQs = includePreview ? "preview=1" : "";
+  const versionHref = (n: number | null): Route => {
+    const parts = [n != null ? `v=${n}` : "", previewQs].filter(Boolean);
+    return `/studies/${id}/results${parts.length ? `?${parts.join("&")}` : ""}` as Route;
+  };
+  const multiVersion = !!results && results.availableVersions.length > 1;
+  const scopeLabel =
+    results && multiVersion
+      ? results.selectedVersion != null
+        ? ` · v${results.selectedVersion} only`
+        : ` · pooled across v${Math.min(...results.availableVersions)}–v${Math.max(...results.availableVersions)}`
+      : "";
 
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-3">
@@ -49,7 +67,7 @@ export default async function ResultsStagePage({
             </h1>
             <p className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
               {results
-                ? `${results.totalCompleted} completed response${results.totalCompleted === 1 ? "" : "s"} across ${results.conditions.length} condition${results.conditions.length === 1 ? "" : "s"}${results.includesPreview ? " (including preview)" : ""}.`
+                ? `${results.totalCompleted} completed response${results.totalCompleted === 1 ? "" : "s"} across ${results.conditions.length} condition${results.conditions.length === 1 ? "" : "s"}${results.includesPreview ? " (including preview)" : ""}${scopeLabel}.`
                 : "Results appear here once the study is preregistered and collecting responses."}
             </p>
           </div>
@@ -62,6 +80,20 @@ export default async function ResultsStagePage({
             </Link>
           ) : null}
         </div>
+
+        {multiVersion && results ? (
+          <div className="flex flex-wrap items-center gap-2 text-[length:var(--text-small)]">
+            <span className="text-[var(--color-text-muted)]">Version</span>
+            <Link href={versionHref(null)} className={versionChip(results.selectedVersion == null)}>
+              All versions
+            </Link>
+            {results.availableVersions.map((n) => (
+              <Link key={n} href={versionHref(n)} className={versionChip(results.selectedVersion === n)}>
+                v{n}
+              </Link>
+            ))}
+          </div>
+        ) : null}
 
         {results === null ? (
           <Empty>
@@ -173,6 +205,16 @@ export default async function ResultsStagePage({
         )}
       </div>
     </main>
+  );
+}
+
+/** Version-filter chip (ADR-0044) — active = primary, inert = subtle. */
+function versionChip(active: boolean): string {
+  return (
+    "rounded-[var(--radius-sm)] border px-2 py-0.5 font-medium " +
+    (active
+      ? "border-[var(--color-primary)] bg-[var(--color-primary)] text-white"
+      : "border-[var(--color-border-subtle)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]")
   );
 }
 

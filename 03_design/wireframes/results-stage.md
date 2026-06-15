@@ -18,6 +18,7 @@ The Build-stage shell reused (StageTabs pill with **Results** active; work-surfa
 - **Study title** — from the preregistered version.
 - **Summary caption** — e.g. "12 completed responses across 2 conditions" (run mode; excludes preview unless toggled).
 - **Preview-included toggle** — default off; when on, includes `mode='preview'` responses (URL-param driven so it's server-rendered, shareable, and bookmarkable).
+- **Version filter** (ADR-0044) — shown only when the study has run more than one runnable version (`availableVersions.length > 1`). Default **All versions** (pooled — every response counted, never silently dropped). Choosing a specific **v{n}** scopes the summaries + export to that version. URL-param driven (`?v=<n>`) so it's server-rendered + shareable. The caption states the scope ("pooled across v1–v2" / "v2 only"). Each per-response export row carries a **`version`** column regardless of filter, so a pooled export is always disambiguable.
 - **Export CSV button** — downloads one row per response (see States · Export).
 - **Per-condition rows** — condition name/slug + completed count (+ % of total).
 - **Per-question blocks** — for each question block (modules where `collectsResponse`): the prompt + a summary appropriate to the module: likert-7 → **mean + n** (V1.5; distribution bars are a later nice-to-have). Stimulus blocks (social-post) are listed as "shown, no answer collected" or omitted.
@@ -41,6 +42,7 @@ The Build-stage shell reused (StageTabs pill with **Results** active; work-surfa
 - **A condition with zero completes** — still shown with n=0 (so Hanna sees the assignment imbalance), not hidden.
 - **A question never answered** (all skipped/optional) — summary shows n=0 / "—".
 - **Long prompts / many questions** — the card scrolls; summaries stay compact.
+- **Multiple live versions** (ADR-0044, after Make-edits-live) — pooled by default; per-condition counts merge by condition **slug** and per-question summaries merge by block **instanceId** across versions (the newest version's prompt/options label the merged card). A block that exists in only one version aggregates over that version's responses only; its per-respondent rows are still exported (never dropped). The `version` column disambiguates every row. **Caveat (accepted, ADR-0044):** for spatial overlays (hot-spot), if a region **key** is renamed/removed between versions, a prior-version selection of that key won't match the newest version's region definitions and so won't show in the pooled overlay totals — the raw selection still appears in that respondent's `regionKeys` and in the CSV, and the respondent still counts in `n`. Use the per-version filter to read each version's overlay cleanly.
 - **Mixed module versions across responses** (replication edge) — group by block instanceId; the CSV records `module_version` provenance per the data model (not necessarily surfaced in the on-screen summary in V1.5).
 - **Only preview responses exist, toggle off** — reads as the empty state (correct: no real data yet).
 

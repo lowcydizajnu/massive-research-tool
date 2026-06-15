@@ -673,6 +673,174 @@ describe("studies.getRunInfo + openRecruitment", () => {
   });
 });
 
+describe("studies.makeLive (ADR-0044)", () => {
+  it("preregistered: makes the edited draft live as an amendment, reopens recruitment, closes the old session", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    const { instanceId } = await caller.studies.addBlock({ studyId: id, source: "core", key: "likert-7", version: "1.0.0" });
+    await caller.studies.preregister({ studyId: id });
+    await caller.studies.openRecruitment({ studyId: id });
+    const v1 = (await caller.studies.getRunInfo({ studyId: id })).liveVersionNumber!;
+    const firstSession = await resolveOpenRecruitment(id);
+
+    // Edit the draft → it diverges from the frozen live version.
+    await caller.studies.setBlockTitle({ studyId: id, instanceId, title: "Reworded item" });
+    expect((await caller.studies.getRunInfo({ studyId: id })).divergedFromLive).toBe(true);
+
+    const res = await caller.studies.makeLive({
+      studyId: id,
+      changeSummary: "Reworded the credibility item.",
+      classification: "clarification",
+    });
+    expect(res.versionKind).toBe("preregistered");
+    expect(res.versionNumber).toBeGreaterThan(v1);
+
+    // Live version is now the new one; drift cleared; recruitment still open.
+    const after = await caller.studies.getRunInfo({ studyId: id });
+    expect(after.liveVersionNumber).toBe(res.versionNumber);
+    expect(after.divergedFromLive).toBe(false);
+    expect(after.recruitment?.status).toBe("open");
+
+    // Amendment lineage recorded (ADR-0004).
+    const pre = (await caller.studies.getPreregistration({ studyId: id }))!;
+    expect(pre.changeSummary).toBe("Reworded the credibility item.");
+    expect(pre.amends).toBe(v1);
+
+    // The OLD session is closed; the new link resolves to the new version; exactly
+    // one open session remains for the study (the mandatory close-old guard).
+    const newOpen = await resolveOpenRecruitment(id);
+    expect(newOpen!.recruitmentSessionId).not.toBe(firstSession!.recruitmentSessionId);
+    expect(newOpen!.versionId).not.toBe(firstSession!.versionId);
+    const openSessions = await db.select().from(recruitmentSession).where(eq(recruitmentSession.status, "open"));
+    expect(openSessions).toHaveLength(1);
+  });
+
+  it("published: makes the edited draft live without OSF and without a summary", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    const { instanceId } = await caller.studies.addBlock({ studyId: id, source: "core", key: "likert-7", version: "1.0.0" });
+    await caller.studies.publish({ studyId: id });
+    await caller.studies.openRecruitment({ studyId: id });
+    await caller.studies.setBlockTitle({ studyId: id, instanceId, title: "Edited" });
+
+    const res = await caller.studies.makeLive({ studyId: id });
+    expect(res.versionKind).toBe("published");
+    expect(res.pushStatus).toBeNull();
+    expect(enqueue.mock.calls.filter((c) => c[0] === "registry.push")).toHaveLength(0);
+    const after = await caller.studies.getRunInfo({ studyId: id });
+    expect(after.divergedFromLive).toBe(false);
+    expect(after.recruitment?.status).toBe("open");
+  });
+
+  it("refuses when the draft hasn't diverged from the live version", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    await caller.studies.addBlock({ studyId: id, source: "core", key: "likert-7", version: "1.0.0" });
+    await caller.studies.publish({ studyId: id });
+    await expect(caller.studies.makeLive({ studyId: id })).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+  });
+
+  it("preregistered: requires a change summary", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    const { instanceId } = await caller.studies.addBlock({ studyId: id, source: "core", key: "likert-7", version: "1.0.0" });
+    await caller.studies.preregister({ studyId: id });
+    await caller.studies.setBlockTitle({ studyId: id, instanceId, title: "Edited" });
+    await expect(caller.studies.makeLive({ studyId: id })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("refuses a study that was never frozen", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    await expect(caller.studies.makeLive({ studyId: id })).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+  });
+
+  it("inherits the prior recruitment intent — making edits live on a PAUSED study does not silently re-open it", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    const { instanceId } = await caller.studies.addBlock({ studyId: id, source: "core", key: "likert-7", version: "1.0.0" });
+    await caller.studies.publish({ studyId: id });
+    await caller.studies.openRecruitment({ studyId: id });
+    await caller.studies.setRecruitmentStatus({ studyId: id, status: "paused" });
+    await caller.studies.setBlockTitle({ studyId: id, instanceId, title: "Edited" });
+
+    await caller.studies.makeLive({ studyId: id });
+
+    // Still paused — the public link stays inactive; no session is open anywhere.
+    expect((await caller.studies.getRunInfo({ studyId: id })).recruitment?.status).toBe("paused");
+    expect(await resolveOpenRecruitment(id)).toBeNull();
+    const openSessions = await db.select().from(recruitmentSession).where(eq(recruitmentSession.status, "open"));
+    expect(openSessions).toHaveLength(0);
+  });
+
+  it("divergence covers non-block edits — a condition-weight change reads as drift and can be made live (ADR-0044)", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    await caller.studies.addBlock({ studyId: id, source: "core", key: "likert-7", version: "1.0.0" });
+    const c = await caller.studies.addCondition({ studyId: id, name: "Treatment" });
+    await caller.studies.publish({ studyId: id });
+    await caller.studies.openRecruitment({ studyId: id });
+    expect((await caller.studies.getRunInfo({ studyId: id })).divergedFromLive).toBe(false);
+
+    // Change ONLY a condition weight — no block edit at all.
+    await caller.studies.updateCondition({ studyId: id, conditionId: c.id, allocationWeight: 3 });
+    expect((await caller.studies.getRunInfo({ studyId: id })).divergedFromLive).toBe(true);
+    const res = await caller.studies.makeLive({ studyId: id });
+    expect(res.versionKind).toBe("published");
+    expect((await caller.studies.getRunInfo({ studyId: id })).divergedFromLive).toBe(false);
+  });
+});
+
+describe("getResults spans versions (ADR-0044 — no silent v1 data loss)", () => {
+  it("pools all runnable versions by default, tags each row's version, and filters by version", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    const { instanceId } = await caller.studies.addBlock({ studyId: id, source: "core", key: "likert-7", version: "1.0.0" });
+    await caller.studies.publish({ studyId: id });
+    await caller.studies.openRecruitment({ studyId: id });
+
+    // One completed response on v1 (likert = 2).
+    const s1 = await resolveOpenRecruitment(id);
+    const r1 = await startResponse({ recruitmentSessionId: s1!.recruitmentSessionId, mode: "run", externalPid: "P1" });
+    await recordAnswer({ responseId: (r1 as { responseId: string }).responseId, questionIndex: 0, answer: { value: 2 } });
+
+    // Edit the draft (keeps a single question), then make it live as v2.
+    await caller.studies.setBlockTitle({ studyId: id, instanceId, title: "How credible now?" });
+    const live = await caller.studies.makeLive({ studyId: id });
+    expect(live.versionNumber).toBe(2);
+
+    // One completed response on v2 (likert = 6).
+    const s2 = await resolveOpenRecruitment(id);
+    expect(s2!.recruitmentSessionId).not.toBe(s1!.recruitmentSessionId); // switched to v2's session
+    const r2 = await startResponse({ recruitmentSessionId: s2!.recruitmentSessionId, mode: "run", externalPid: "P2" });
+    await recordAnswer({ responseId: (r2 as { responseId: string }).responseId, questionIndex: 0, answer: { value: 6 } });
+
+    // Pooled (default): BOTH responses present — v1 data is NOT silently dropped.
+    const pooled = (await caller.studies.getResults({ studyId: id }))!;
+    expect(pooled.totalCompleted).toBe(2);
+    expect(pooled.selectedVersion).toBeNull();
+    expect(pooled.availableVersions).toEqual([2, 1]);
+    expect(pooled.rows.map((r) => r.versionNumber).sort()).toEqual([1, 2]);
+    const likert = pooled.questions.find((q) => q.instanceId === instanceId)!;
+    expect(likert.n).toBe(2);
+    expect(likert.mean).toBe(4); // (2 + 6) / 2 — merged across versions by instanceId
+
+    // Scoped to v1: only the first response.
+    const onlyV1 = (await caller.studies.getResults({ studyId: id, version: 1 }))!;
+    expect(onlyV1.totalCompleted).toBe(1);
+    expect(onlyV1.selectedVersion).toBe(1);
+    expect(onlyV1.rows[0].versionNumber).toBe(1);
+  });
+});
+
 describe("studies.conditions (builder-conditions.md)", () => {
   async function studyWithBlock() {
     await seedUserWithWorkspace("ext_a", "Alpha");
@@ -1806,7 +1974,7 @@ describe("getResults spatial overlay (heat-map / hot-spot, ADR-0041)", () => {
     expect(q.spatial?.kind).toBe("signature");
     expect(q.spatial?.imageUrl).toBe(""); // no stimulus — the viewer renders each signature
     expect(q.spatial?.responses).toEqual([
-      { responseId: (r1 as { responseId: string }).responseId, conditionSlug: expect.any(String), externalPid: "PID-S", r2Key: "resp/r1/sig.png" },
+      { responseId: (r1 as { responseId: string }).responseId, conditionSlug: expect.any(String), externalPid: "PID-S", versionNumber: 1, r2Key: "resp/r1/sig.png" },
     ]);
     expect(q.n).toBe(1);
   });
