@@ -3,7 +3,9 @@
 import { ArrowRight, Check, Plus } from "lucide-react";
 import { useState } from "react";
 
+import { BlockView } from "@/components/feature/take/block-view";
 import { PendingButton } from "@/components/ui/pending-button";
+import { NO_PREVIEW, blockIcon, previewConfig } from "@/lib/modules/block-presentation";
 import { api } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
 import type { CatalogueModule } from "@/server/trpc/routers/modules";
@@ -89,6 +91,7 @@ export function ModuleLibrary({ modules }: { modules: CatalogueModule[] }) {
             {filtered.map((m) => {
               const id = moduleId(m);
               const active = id === selectedId;
+              const Icon = blockIcon(m.key);
               return (
                 <li key={`${id}@${m.version}`}>
                   <button
@@ -103,8 +106,11 @@ export function ModuleLibrary({ modules }: { modules: CatalogueModule[] }) {
                     )}
                   >
                     <span className="flex items-baseline justify-between gap-3">
-                      <span className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">
-                        {m.name}
+                      <span className="flex min-w-0 items-center gap-2">
+                        <Icon className="size-4 shrink-0 text-[var(--color-text-muted)]" aria-hidden />
+                        <span className="truncate text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">
+                          {m.name}
+                        </span>
                       </span>
                       <span className="shrink-0 rounded-[var(--radius-sm)] bg-[var(--color-surface-subtle)] px-1.5 py-0.5 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
                         {m.collectsResponse ? "Records a response" : "Stimulus only"}
@@ -151,28 +157,53 @@ export function ModuleLibrary({ modules }: { modules: CatalogueModule[] }) {
 }
 
 function ModuleDetail({ module: m }: { module: CatalogueModule }) {
-  const configKeys = Object.keys(m.defaultConfig);
+  const Icon = blockIcon(m.key);
   return (
     <section className="flex flex-col gap-3 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-5">
-      <div className="flex flex-col gap-1">
-        <h2 className="font-serif text-[17px] font-medium text-[var(--color-text-primary)]">{m.name}</h2>
-        <span className="font-mono text-[length:var(--text-mono)] text-[var(--color-text-muted)]">
-          {m.source}/{m.key}@{m.version}
+      <div className="flex items-start gap-2.5">
+        <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-[var(--color-surface-subtle)] text-[var(--color-text-secondary)]">
+          <Icon className="size-4.5" aria-hidden />
         </span>
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <h2 className="font-serif text-[17px] font-medium text-[var(--color-text-primary)]">{m.name}</h2>
+          <span className="truncate font-mono text-[length:var(--text-mono)] text-[var(--color-text-muted)]">
+            {m.source}/{m.key}@{m.version}
+          </span>
+        </div>
       </div>
       <p className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">{m.description}</p>
-      <dl className="flex flex-col gap-1 text-[length:var(--text-small)]">
-        <div className="flex justify-between gap-3">
-          <dt className="text-[var(--color-text-muted)]">Records a response</dt>
-          <dd className="text-[var(--color-text-secondary)]">{m.collectsResponse ? "Yes" : "No"}</dd>
+
+      {/* Full interactive preview — the real participant renderer (BlockView) with
+          sample copy, in the same non-interactive treatment as the Builder picker. */}
+      <div className="flex flex-col gap-1.5">
+        <span className="text-[length:var(--text-small)] font-medium text-[var(--color-text-muted)]">
+          Preview {m.collectsResponse ? "· records a response" : "· stimulus only"}
+        </span>
+        <div className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-page)] p-3">
+          {NO_PREVIEW.has(m.key) ? (
+            <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+              This block needs researcher-supplied media (an image, video, or URL) to preview — add it in a
+              study after inserting.
+            </p>
+          ) : (
+            <div aria-hidden className="pointer-events-none select-none text-[13px]">
+              <BlockView
+                block={
+                  {
+                    instanceId: "library-preview",
+                    source: m.source,
+                    key: m.key,
+                    version: m.version,
+                    config: previewConfig(m.key, m.defaultConfig),
+                  } as never
+                }
+                namePrefix="pv__"
+                seed="library-preview"
+              />
+            </div>
+          )}
         </div>
-        {configKeys.length > 0 ? (
-          <div className="flex justify-between gap-3">
-            <dt className="text-[var(--color-text-muted)]">Config keys</dt>
-            <dd className="truncate text-[var(--color-text-secondary)]">{configKeys.join(", ")}</dd>
-          </div>
-        ) : null}
-      </dl>
+      </div>
 
       <InsertInto module={m} />
 
