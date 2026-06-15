@@ -4,9 +4,10 @@ import Link from "next/link";
 import type { Route } from "next";
 import { useEffect, useRef, useState } from "react";
 
+import { FollowButton } from "@/components/feature/follow/follow-button";
 import { api } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
-import type { FollowsFeedItem } from "@/server/trpc/routers/follows";
+import type { FollowListItem, FollowsFeedItem } from "@/server/trpc/routers/follows";
 import type { NotificationDTO } from "@/server/trpc/routers/notifications";
 
 /**
@@ -114,8 +115,73 @@ function YoursStream() {
   );
 }
 
+const FOLLOW_TYPE_LABEL: Record<string, string> = {
+  tag: "Tag",
+  author: "Researcher",
+  framework: "Framework",
+  study: "Study",
+  module: "Module",
+};
+
 function FollowsStream() {
-  // activity_event × follow (query-time, ADR-0015) — follow-affordances.md.
+  // Two parts: a list of WHAT you follow (manage + unfollow), then the activity
+  // feed FROM those follows (activity_event × follow, query-time, ADR-0015).
+  const list = api.follows.list.useQuery();
+  const followCount = list.data?.length ?? 0;
+
+  return (
+    <div className="flex flex-col gap-6">
+      {followCount > 0 ? (
+        <section className="flex flex-col gap-2">
+          <h2 className="text-[length:var(--text-small)] font-medium text-[var(--color-text-muted)]">
+            Following ({followCount})
+          </h2>
+          <ul className="flex flex-col gap-1.5">
+            {list.data!.map((it) => (
+              <FollowingRow key={`${it.targetType}:${it.targetId}`} item={it} />
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      <section className="flex flex-col gap-2">
+        {followCount > 0 ? (
+          <h2 className="text-[length:var(--text-small)] font-medium text-[var(--color-text-muted)]">
+            Recent activity
+          </h2>
+        ) : null}
+        <FollowsFeed hasFollows={followCount > 0} />
+      </section>
+    </div>
+  );
+}
+
+function FollowingRow({ item }: { item: FollowListItem }) {
+  return (
+    <li className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-2">
+      <span className="flex min-w-0 items-center gap-2">
+        <span className="shrink-0 rounded-[var(--radius-sm)] bg-[var(--color-surface-subtle)] px-1.5 py-0.5 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+          {FOLLOW_TYPE_LABEL[item.targetType] ?? item.targetType}
+        </span>
+        {item.href ? (
+          <Link
+            href={item.href as Route}
+            className="truncate text-[length:var(--text-body)] text-[var(--color-text-primary)] hover:underline"
+          >
+            {item.label}
+          </Link>
+        ) : (
+          <span className="truncate text-[length:var(--text-body)] text-[var(--color-text-primary)]">
+            {item.label}
+          </span>
+        )}
+      </span>
+      <FollowButton targetType={item.targetType} targetId={item.targetId} name={item.label} />
+    </li>
+  );
+}
+
+function FollowsFeed({ hasFollows }: { hasFollows: boolean }) {
   const { data, isLoading, isError } = api.follows.feed.useQuery();
 
   if (isLoading) {
@@ -131,8 +197,14 @@ function FollowsStream() {
   if (!data || data.length === 0) {
     return (
       <Empty>
-        Your Follows feed is empty. Follow a tag, an author, a Framework, or a study — look for
-        <strong className="font-medium"> + Follow</strong> on tags, bylines, and details panels.
+        {hasFollows ? (
+          "No recent activity from the things you follow yet — new versions, replications, and OSF registrations will show up here. (Modules don’t post updates yet.)"
+        ) : (
+          <>
+            Your Follows feed is empty. Follow a tag, an author, a Framework, a study, or a module — look for
+            <strong className="font-medium"> + Follow</strong> on tags, bylines, details panels, and the Library.
+          </>
+        )}
       </Empty>
     );
   }

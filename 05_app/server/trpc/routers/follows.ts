@@ -4,7 +4,7 @@ import { ulid } from "ulid";
 import { z } from "zod";
 
 import { db } from "@/server/db/client";
-import { activityEvent, follow, user } from "@/server/db/schema";
+import { activityEvent, experiment, follow, user } from "@/server/db/schema";
 import { getFrameworkDef } from "@/server/frameworks/registry";
 import { protectedProcedure, router } from "@/server/trpc/trpc";
 
@@ -24,6 +24,14 @@ export const FOLLOW_TARGET_TYPES = ["tag", "author", "framework", "study", "modu
 export type FollowTargetType = (typeof FOLLOW_TARGET_TYPES)[number];
 
 export type MyFollow = { targetType: FollowTargetType; targetId: string };
+
+/** A follow resolved to a human label + an optional navigation target, for the "Following" list. */
+export type FollowListItem = {
+  targetType: FollowTargetType;
+  targetId: string;
+  label: string;
+  href: string | null;
+};
 
 export type FollowsFeedItem = {
   id: string;
@@ -84,6 +92,59 @@ export const followsRouter = router({
         );
       return { ok: true };
     }),
+
+  /**
+   * The current user's follows, each resolved to a human label + a navigation
+   * target — backs the "Following" list (a place to SEE + manage what you follow,
+   * distinct from the activity feed which only shows events). Cross-workspace,
+   * like every follows query. Author/study labels are batch-resolved; tag,
+   * framework, and module labels need no DB lookup.
+   */
+  list: protectedProcedure.query(async ({ ctx }): Promise<FollowListItem[]> => {
+    const rows = await db
+      .select({ targetType: follow.targetType, targetId: follow.targetId })
+      .from(follow)
+      .where(eq(follow.userId, ctx.dbUser.id))
+      .orderBy(desc(follow.createdAt));
+    if (rows.length === 0) return [];
+
+    const authorIds = rows.filter((r) => r.targetType === "author").map((r) => r.targetId);
+    const studyIds = rows.filter((r) => r.targetType === "study").map((r) => r.targetId);
+
+    const authorNames = new Map<string, string>();
+    if (authorIds.length) {
+      const us = await db
+        .select({ id: user.id, name: user.displayName })
+        .from(user)
+        .where(inArray(user.id, authorIds));
+      us.forEach((u) => authorNames.set(u.id, u.name));
+    }
+    const studyTitles = new Map<string, string>();
+    if (studyIds.length) {
+      const es = await db
+        .select({ id: experiment.id, title: experiment.title })
+        .from(experiment)
+        .where(inArray(experiment.id, studyIds));
+      es.forEach((e) => studyTitles.set(e.id, e.title));
+    }
+
+    return rows.map((r): FollowListItem => {
+      const targetType = r.targetType as FollowTargetType;
+      const targetId = r.targetId;
+      switch (targetType) {
+        case "tag":
+          return { targetType, targetId, label: `#${targetId}`, href: "/browse" };
+        case "author":
+          return { targetType, targetId, label: authorNames.get(targetId) ?? "Unknown researcher", href: null };
+        case "framework":
+          return { targetType, targetId, label: getFrameworkDef(targetId)?.name ?? targetId, href: "/frameworks" };
+        case "study":
+          return { targetType, targetId, label: studyTitles.get(targetId) ?? "A study", href: `/studies/${targetId}/build` };
+        case "module":
+          return { targetType, targetId, label: targetId, href: "/library" };
+      }
+    });
+  }),
 
   /** The current user's follows — backs every Follow button's state. */
   myFollows: protectedProcedure.query(async ({ ctx }): Promise<MyFollow[]> => {
