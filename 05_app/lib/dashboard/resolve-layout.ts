@@ -8,7 +8,9 @@
  * widgets that don't belong to this dashboard kind are dropped, `ownerOnly`
  * widgets are dropped for non-owners, and duplicates are collapsed.
  */
+import { isCustomKey } from "./custom-sources";
 import {
+  CUSTOM_META,
   WIDGET_REGISTRY,
   type DashboardKind,
   type WidgetMeta,
@@ -47,9 +49,16 @@ export function resolveDashboardLayout(opts: {
   const seen = new Set<string>();
   const resolved: ResolvedWidget[] = [];
   for (const entry of base) {
+    if (seen.has(entry.widgetKey)) continue; // de-dupe a malformed layout
+    // Custom widget instances (`custom:<ulid>`) aren't in the registry — resolve
+    // them against the synthetic meta so they render + reorder like any widget.
+    if (isCustomKey(entry.widgetKey)) {
+      seen.add(entry.widgetKey);
+      resolved.push({ widgetKey: entry.widgetKey, meta: CUSTOM_META, settings: entry.settings });
+      continue;
+    }
     const meta = registry[entry.widgetKey];
     if (!meta) continue; // unknown / retired widget — drop (forward-compat)
-    if (seen.has(entry.widgetKey)) continue; // de-dupe a malformed layout
     if (meta.dashboard !== "both" && meta.dashboard !== opts.kind) continue; // wrong dashboard
     if (meta.ownerOnly && !opts.isOwner) continue; // owner-gated widget
     seen.add(entry.widgetKey);
