@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { and, arrayContains, count, desc, eq, ilike, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
+import { and, arrayContains, count, desc, eq, gte, ilike, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { ulid } from "ulid";
 import { z } from "zod";
 
@@ -816,6 +816,184 @@ const blockInstanceSchema = z.object({
   groupId: z.string().optional(), // ADR-0028 question-group membership
   divergenceNote: z.string().max(1000).optional(), // ADR-0039 replication rationale
 });
+
+/**
+ * Studies·Running tab data layer (studies-running-tab.md, V1.13.0 Stream C / N4.1).
+ * The operational "is data collection going well right now?" board. Phase 1 only:
+ * the KPI strip (`runningOverview`) + the per-study table (`runningList`). The
+ * per-study drill-down (`runningDetail`) is Phase 2. Built on existing tables
+ * (recruitment_session / response / condition) — no migration.
+ */
+
+/** Health verdict for a recruiting study (status badge). */
+export type RunningStatus = "healthy" | "stalled" | "imbalanced" | "target_reached";
+
+/** Stalled = no completed run response (and no fresh open) in this many ms. */
+const RUNNING_STALL_MS = 24 * 60 * 60 * 1000;
+/** Imbalanced = the gap between the smallest- and largest-arm n exceeds this share of the largest. */
+const RUNNING_IMBALANCE_RATIO = 0.2;
+
+export type RunningStudyRow = {
+  studyId: string;
+  title: string;
+  conditionCount: number;
+  /** Completed run responses on the open session (the recruitment counter). */
+  currentN: number;
+  targetN: number | null;
+  /** ISO of the most recent completed run response, or null if none yet. */
+  lastResponseAt: string | null;
+  /** No completed response in 24h (a brand-new open session is never stalled). */
+  stalled: boolean;
+  /** Smallest- and largest-arm completed-response counts; null when <2 conditions. */
+  conditionBalance: { min: number; max: number } | null;
+  /** >20% skew between the arms; always false when <2 conditions or no data yet. */
+  imbalanced: boolean;
+  status: RunningStatus;
+};
+
+/** KPI strip for the Running tab. `responsesToday`/`ThisWeek` are rolling 24h/7d windows. */
+export type RunningOverview = {
+  recruitingStudies: number;
+  responsesToday: number;
+  responsesThisWeek: number;
+  /** Rows whose status is not "healthy" — the alert-center count. */
+  needingAttention: number;
+};
+
+/**
+ * Build one running-row per recruiting study in a workspace — the shared core
+ * of `runningList` (returns the rows) and `runningOverview` (derives the KPIs).
+ * Workspace-scoped. Dedupes by study like `me.recruitingStudies`/`activeRecruitment`
+ * (the one-open-session invariant means there's normally a single open runnable
+ * session per study; if a legacy duplicate exists we keep the most recently opened).
+ *
+ * Why a shared builder rather than deriving the attention count client-side from
+ * `runningList`: the KPI strip's a11y live region reads "needing attention: N", so
+ * that count should be server-authoritative and the strip should render before the
+ * (heavier) table loads. Cost is one extra aggregation over a small set (a
+ * workspace's handful of recruiting studies) — acceptable for Phase 1.
+ */
+async function buildRunningRows(workspaceId: string): Promise<RunningStudyRow[]> {
+  const sessions = await db
+    .select({
+      studyId: experiment.id,
+      title: experiment.title,
+      sessionId: recruitmentSession.id,
+      versionId: experimentVersion.id,
+      currentN: recruitmentSession.currentN,
+      targetN: recruitmentSession.targetN,
+      openedAt: recruitmentSession.openedAt,
+    })
+    .from(recruitmentSession)
+    .innerJoin(experimentVersion, eq(recruitmentSession.experimentVersionId, experimentVersion.id))
+    .innerJoin(experiment, eq(experimentVersion.experimentId, experiment.id))
+    .where(
+      and(
+        eq(experiment.tenantId, workspaceId),
+        eq(recruitmentSession.status, "open"),
+        inArray(experimentVersion.kind, RUNNABLE_KINDS),
+        isNull(experiment.archivedAt),
+      ),
+    )
+    .orderBy(desc(recruitmentSession.openedAt));
+
+  // One row per study (most-recently-opened session wins on a legacy duplicate).
+  const seen = new Set<string>();
+  const rows = sessions.filter((s) => (seen.has(s.studyId) ? false : (seen.add(s.studyId), true)));
+  if (rows.length === 0) return [];
+
+  const versionIds = [...new Set(rows.map((r) => r.versionId))];
+  const sessionIds = rows.map((r) => r.sessionId);
+
+  // All conditions for the involved versions — including zero-response arms, which
+  // are exactly the ones that make a study imbalanced (min n = 0).
+  const conds = await db
+    .select({ versionId: conditionTable.experimentVersionId, conditionId: conditionTable.id })
+    .from(conditionTable)
+    .where(inArray(conditionTable.experimentVersionId, versionIds));
+  const condIdsByVersion = new Map<string, string[]>();
+  for (const c of conds) {
+    const list = condIdsByVersion.get(c.versionId) ?? [];
+    list.push(c.conditionId);
+    condIdsByVersion.set(c.versionId, list);
+  }
+
+  // Completed run responses per (session, condition) + the session's last completion.
+  const respAgg = sessionIds.length
+    ? await db
+        .select({
+          sessionId: responseTable.recruitmentSessionId,
+          conditionId: responseTable.conditionId,
+          n: count(),
+          lastAt: sql<string | null>`max(${responseTable.completedAt})`,
+        })
+        .from(responseTable)
+        .where(
+          and(
+            inArray(responseTable.recruitmentSessionId, sessionIds),
+            eq(responseTable.status, "completed"),
+            eq(responseTable.mode, "run"),
+          ),
+        )
+        .groupBy(responseTable.recruitmentSessionId, responseTable.conditionId)
+    : [];
+  const countBySessionCond = new Map<string, number>();
+  const lastBySession = new Map<string, number>();
+  for (const a of respAgg) {
+    countBySessionCond.set(`${a.sessionId}:${a.conditionId}`, a.n);
+    if (a.lastAt) {
+      const t = new Date(a.lastAt).getTime();
+      lastBySession.set(a.sessionId, Math.max(lastBySession.get(a.sessionId) ?? 0, t));
+    }
+  }
+
+  const now = Date.now();
+  return rows.map((r) => {
+    const condIds = condIdsByVersion.get(r.versionId) ?? [];
+    const conditionCount = condIds.length;
+    const perArm = condIds.map((cid) => countBySessionCond.get(`${r.sessionId}:${cid}`) ?? 0);
+
+    const lastMs = lastBySession.get(r.sessionId) ?? null;
+    const lastResponseAt = lastMs ? new Date(lastMs).toISOString() : null;
+    // A freshly-opened session with no data yet is NOT stalled — measure from the
+    // most recent of (last completed response, session opened).
+    const sinceMs = Math.max(lastMs ?? 0, new Date(r.openedAt).getTime());
+    const stalled = now - sinceMs > RUNNING_STALL_MS;
+
+    let conditionBalance: { min: number; max: number } | null = null;
+    let imbalanced = false;
+    if (conditionCount >= 2) {
+      const min = Math.min(...perArm);
+      const max = Math.max(...perArm);
+      conditionBalance = { min, max };
+      // Only judgeable once some data exists; >20% skew of the largest arm.
+      imbalanced = max > 0 && (max - min) / max > RUNNING_IMBALANCE_RATIO;
+    }
+
+    const targetReached = r.targetN != null && r.currentN >= r.targetN;
+    // target-reached (you have your data) > stalled (none coming) > imbalanced > healthy.
+    const status: RunningStatus = targetReached
+      ? "target_reached"
+      : stalled
+        ? "stalled"
+        : imbalanced
+          ? "imbalanced"
+          : "healthy";
+
+    return {
+      studyId: r.studyId,
+      title: r.title,
+      conditionCount,
+      currentN: r.currentN,
+      targetN: r.targetN,
+      lastResponseAt,
+      stalled,
+      conditionBalance,
+      imbalanced,
+      status,
+    };
+  });
+}
 
 export const studiesRouter = router({
   /**
@@ -3104,6 +3282,59 @@ export const studiesRouter = router({
       }
       return { ok: true };
     }),
+
+  /**
+   * Studies·Running KPI strip (studies-running-tab.md, Phase 1). Recruiting
+   * studies / responses today (rolling 24h) / responses this week (rolling 7d) /
+   * studies needing attention (rows with a non-healthy status). Polled ~60s while
+   * the tab is visible. Read-only — `workspaceProcedure` so viewers see it too.
+   */
+  runningOverview: workspaceProcedure.query(async ({ ctx }): Promise<RunningOverview> => {
+    const wsId = ctx.workspace.id;
+    const now = Date.now();
+    const dayAgo = new Date(now - RUNNING_STALL_MS);
+    const weekAgo = new Date(now - 7 * RUNNING_STALL_MS);
+
+    const windowCount = (since: Date) =>
+      db
+        .select({ c: count() })
+        .from(responseTable)
+        .innerJoin(experimentVersion, eq(responseTable.experimentVersionId, experimentVersion.id))
+        .innerJoin(experiment, eq(experimentVersion.experimentId, experiment.id))
+        .where(
+          and(
+            eq(experiment.tenantId, wsId),
+            eq(responseTable.status, "completed"),
+            eq(responseTable.mode, "run"),
+            gte(responseTable.completedAt, since),
+          ),
+        );
+
+    const [rows, [today], [week]] = await Promise.all([
+      buildRunningRows(wsId),
+      windowCount(dayAgo),
+      windowCount(weekAgo),
+    ]);
+
+    return {
+      recruitingStudies: rows.length,
+      responsesToday: today?.c ?? 0,
+      responsesThisWeek: week?.c ?? 0,
+      needingAttention: rows.filter((r) => r.status !== "healthy").length,
+    };
+  }),
+
+  /**
+   * Studies·Running recruitment table (studies-running-tab.md, Phase 1). One row
+   * per recruiting study with the at-a-glance health metrics (n/target, last
+   * response + stalled, condition balance + imbalance, status badge). The alert
+   * center is the client-side filter of these rows to non-healthy status, so it
+   * needs no separate query. Read-only; the per-row Pause/Stop actions are the
+   * write-gated `setRecruitmentStatus`. Drill-down (`runningDetail`) is Phase 2.
+   */
+  runningList: workspaceProcedure.query(
+    async ({ ctx }): Promise<RunningStudyRow[]> => buildRunningRows(ctx.workspace.id),
+  ),
 
   /**
    * Make the current draft live mid-recruitment (ADR-0044). ONE transaction:
