@@ -49,12 +49,19 @@ export default async function HomePage() {
   const recruitingCount = recruiting.status === "fulfilled" ? recruiting.value.length : 0;
   const summary = `${studyCount} stud${studyCount === 1 ? "y" : "ies"} · ${recruitingCount} recruiting now`;
 
+  // Per-widget settings (ADR-0045): cap a list to the widget's resolved itemCount.
+  const limitFor = (key: string): number | undefined => {
+    const v = layout.find((e) => e.widgetKey === key)?.settings?.itemCount;
+    return typeof v === "number" ? v : undefined;
+  };
+  const cap = <T,>(arr: T[], n: number | undefined): T[] => (typeof n === "number" ? arr.slice(0, n) : arr);
+
   const nodes: Record<string, ReactNode> = {
     welcome: <WelcomeWidget greeting={greeting(new Date().getHours(), user?.displayName ?? "")} summary={summary} />,
     "your-stats": stats.status === "fulfilled" ? <StatsStrip stats={stats.value} /> : <WidgetError title="Your stats" />,
     "recruiting-studies":
       recruiting.status === "fulfilled" ? (
-        <RecruitingWidget studies={recruiting.value} />
+        <RecruitingWidget studies={cap(recruiting.value, limitFor("recruiting-studies"))} />
       ) : (
         <WidgetError title="Your recruiting studies" />
       ),
@@ -66,7 +73,7 @@ export default async function HomePage() {
       ),
     "recent-studies":
       recent.status === "fulfilled" ? (
-        <RecentStudiesWidget studies={recent.value} />
+        <RecentStudiesWidget studies={cap(recent.value, limitFor("recent-studies"))} />
       ) : (
         <WidgetError title="Your recent studies" />
       ),

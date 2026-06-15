@@ -1,6 +1,6 @@
 "use client";
 
-import { GripVertical, Pencil, Plus, RotateCcw, X } from "lucide-react";
+import { GripVertical, Pencil, Plus, RotateCcw, Settings2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 
@@ -30,6 +30,7 @@ export function DashboardGrid({
   workspaceId,
   layout,
   nodes,
+  canSetWorkspaceDefault = false,
 }: {
   kind: "user" | "workspace";
   workspaceId?: string;
@@ -37,11 +38,14 @@ export function DashboardGrid({
   layout: LayoutEntry[];
   /** Pre-rendered content for every widget valid on this dashboard, keyed by widget key. */
   nodes: Record<string, ReactNode>;
+  /** Workspace dashboard only: the caller may set the workspace "house default". */
+  canSetWorkspaceDefault?: boolean;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<LayoutEntry[]>(layout);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState<string | null>(null);
 
   const save = api.dashboard.saveLayout.useMutation({
     onSuccess: () => {
@@ -56,6 +60,14 @@ export function DashboardGrid({
       router.refresh();
     },
   });
+  const setDefault = api.dashboard.setWorkspaceDefault.useMutation();
+
+  const setEntrySetting = (widgetKey: string, settingKey: string, value: number) =>
+    setDraft((d) =>
+      d.map((e) =>
+        e.widgetKey === widgetKey ? { ...e, settings: { ...e.settings, [settingKey]: value } } : e,
+      ),
+    );
 
   const startEdit = () => {
     setDraft(layout);
@@ -114,7 +126,16 @@ export function DashboardGrid({
         <span className="text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)]">
           Editing layout — drag to reorder, remove or add widgets, then Save.
         </span>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {kind === "workspace" && canSetWorkspaceDefault ? (
+            <PendingButton
+              variant="secondary"
+              onClick={() => workspaceId && setDefault.mutate({ workspaceId, widgets: draft })}
+              pending={setDefault.isPending}
+              idleLabel={setDefault.isSuccess ? "Saved as default ✓" : "Set as workspace default"}
+              pendingLabel="Setting…"
+            />
+          ) : null}
           <PendingButton
             onClick={onSave}
             pending={save.isPending}
@@ -151,6 +172,9 @@ export function DashboardGrid({
         >
           {(id, handle) => {
             const meta = WIDGET_REGISTRY[id as keyof typeof WIDGET_REGISTRY];
+            const entry = draft.find((e) => e.widgetKey === id);
+            const hasSettings = (meta?.settings?.length ?? 0) > 0;
+            const open = settingsOpen === id;
             return (
               <div className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)]">
                 <div className="flex items-center justify-between gap-2 border-b border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] px-3 py-1.5">
@@ -169,15 +193,51 @@ export function DashboardGrid({
                       {meta?.name ?? id}
                     </span>
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => setDraft(draft.filter((e) => e.widgetKey !== id))}
-                    aria-label={`Remove ${meta?.name ?? id}`}
-                    className="rounded-[var(--radius-sm)] p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-danger-subtle)] hover:text-[var(--color-danger-text-on-subtle)]"
-                  >
-                    <X className="size-4" aria-hidden />
-                  </button>
+                  <span className="flex items-center gap-1">
+                    {hasSettings ? (
+                      <button
+                        type="button"
+                        onClick={() => setSettingsOpen(open ? null : id)}
+                        aria-label={`Settings for ${meta?.name ?? id}`}
+                        aria-expanded={open}
+                        className="rounded-[var(--radius-sm)] p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-canvas)]"
+                      >
+                        <Settings2 className="size-4" aria-hidden />
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => setDraft(draft.filter((e) => e.widgetKey !== id))}
+                      aria-label={`Remove ${meta?.name ?? id}`}
+                      className="rounded-[var(--radius-sm)] p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-danger-subtle)] hover:text-[var(--color-danger-text-on-subtle)]"
+                    >
+                      <X className="size-4" aria-hidden />
+                    </button>
+                  </span>
                 </div>
+                {hasSettings && open ? (
+                  <div className="flex flex-wrap items-center gap-3 border-b border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] px-3 py-2">
+                    {meta!.settings!.map((spec) => (
+                      <label
+                        key={spec.key}
+                        className="flex items-center gap-1.5 text-[length:var(--text-small)] text-[var(--color-text-secondary)]"
+                      >
+                        {spec.label}
+                        <select
+                          value={Number(entry?.settings?.[spec.key] ?? spec.default)}
+                          onChange={(ev) => setEntrySetting(id, spec.key, Number(ev.target.value))}
+                          className="rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-0.5 text-[var(--color-text-primary)]"
+                        >
+                          {spec.options.map((o) => (
+                            <option key={o.value} value={o.value}>
+                              {o.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ))}
+                  </div>
+                ) : null}
                 {/* Non-interactive preview of the widget while editing. */}
                 <div className="pointer-events-none p-3 opacity-90">{nodes[id]}</div>
               </div>

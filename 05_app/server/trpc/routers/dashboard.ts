@@ -129,6 +129,28 @@ export const dashboardRouter = router({
       return { ok: true };
     }),
 
+  /**
+   * Whether the caller may set this workspace's house default (owner/admin).
+   * Non-throwing (returns false for non-members/non-admins) — it gates a UI
+   * affordance; the write itself is enforced in `setWorkspaceDefault`.
+   */
+  canSetWorkspaceDefault: protectedProcedure
+    .input(z.object({ workspaceId: z.string().uuid() }))
+    .query(async ({ ctx, input }): Promise<boolean> => {
+      const [m] = await db
+        .select({ role: member.role })
+        .from(member)
+        .where(
+          and(
+            eq(member.userId, ctx.dbUser.id),
+            eq(member.workspaceId, input.workspaceId),
+            eq(member.status, "active"),
+          ),
+        )
+        .limit(1);
+      return m?.role === "owner" || m?.role === "admin";
+    }),
+
   /** Delete the caller's override so the dashboard falls back to the default. */
   resetLayout: protectedProcedure
     .input(z.object({ kind: kindSchema, workspaceId: z.string().uuid().optional() }))
