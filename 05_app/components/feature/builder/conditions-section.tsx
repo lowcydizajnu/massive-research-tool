@@ -40,20 +40,6 @@ export function ConditionsSection({ studyId }: { studyId: string }) {
     onError,
   });
 
-  // Opt-in A/B setup: balance to two arms in one click (auto-slug + default
-  // weight 1.0 → an even 50/50 split); the researcher can rename, reweight, or
-  // add more arms after. Offered while a study has ≤1 condition — 0 creates both
-  // arms, 1 adds the second — so running as an A/B test is an explicit choice.
-  const setupAb = async () => {
-    setError(null);
-    try {
-      const names = (data ?? []).length === 0 ? ["Group A", "Group B"] : ["Group B"];
-      for (const name of names) await add.mutateAsync({ studyId, name });
-    } catch (e) {
-      onError(e);
-    }
-  };
-
   const list = data ?? [];
   const totalWeight = list.reduce((a, c) => a + (c.allocationWeight || 0), 0);
   const inputCls =
@@ -66,29 +52,14 @@ export function ConditionsSection({ studyId }: { studyId: string }) {
       </h2>
 
       {data === undefined ? (
-        // Loading — render no body yet, so the empty-state A/B affordance doesn't
-        // flash on a study that actually has conditions (the "blink" bug).
+        // Loading — render no body yet so the empty-state doesn't flash on a
+        // study that already has conditions.
         <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">Loading…</p>
       ) : list.length === 0 ? (
-        <div className="flex flex-col gap-2">
-          <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-            No groups yet — this study runs as a single group. To run an{" "}
-            <strong className="font-medium text-[var(--color-text-secondary)]">A/B test</strong>,
-            split participants into groups and compare results per group.
-          </p>
-          <PendingButton
-            onClick={() => void setupAb()}
-            pending={add.isPending}
-            idleLabel="Set up an A/B test"
-            pendingLabel="Setting up…"
-            className="self-start px-2.5 py-1 text-[length:var(--text-small)]"
-          />
-          <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-            Creates two groups (A and B) and splits participants evenly (50/50) at random. Compare
-            their results on the Results tab. You can rename, reweight, or add more groups any time —
-            or just add a single condition below.
-          </p>
-        </div>
+        <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+          No conditions yet — this study runs as a single Control group. Add a condition to compare
+          groups.
+        </p>
       ) : (
         <ul className="flex flex-col gap-2">
           {list.map((c) => {
@@ -150,21 +121,6 @@ export function ConditionsSection({ studyId }: { studyId: string }) {
           })}
         </ul>
       )}
-
-      {data !== undefined && list.length === 1 ? (
-        <div className="flex flex-col gap-1 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] p-2">
-          <PendingButton
-            onClick={() => void setupAb()}
-            pending={add.isPending}
-            idleLabel="Make this an A/B test"
-            pendingLabel="Setting up…"
-            className="self-start px-2.5 py-1 text-[length:var(--text-small)]"
-          />
-          <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-            Adds a second group so new participants are split 50/50 at random — compare results per group on the Results tab.
-          </p>
-        </div>
-      ) : null}
 
       <PendingButton
         variant="secondary"
