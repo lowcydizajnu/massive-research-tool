@@ -32,6 +32,7 @@ export function FollowButton({
   const invalidate = () => {
     void utils.follows.myFollows.invalidate();
     void utils.follows.feed.invalidate();
+    void utils.follows.list.invalidate();
   };
   const follow = api.follows.follow.useMutation({ onSuccess: invalidate });
   const unfollow = api.follows.unfollow.useMutation({ onSuccess: invalidate });

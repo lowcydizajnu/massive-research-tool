@@ -89,6 +89,27 @@ describe("follows.follow / unfollow / myFollows", () => {
     await caller.follows.unfollow({ targetType: "module", targetId: "core/social-post" });
     expect(await caller.follows.myFollows()).toEqual([]);
   });
+
+  it("list resolves each follow to a label + href (tag / author / module)", async () => {
+    await seedUser("maya");
+    const hanna = await seedUser("hanna");
+    const caller = createCaller({ authUser: authUser("maya") });
+
+    await caller.follows.follow({ targetType: "tag", targetId: "misinformation" });
+    await caller.follows.follow({ targetType: "author", targetId: hanna });
+    await caller.follows.follow({ targetType: "module", targetId: "core/social-post" });
+
+    const list = await caller.follows.list();
+    const byType = Object.fromEntries(list.map((i) => [i.targetType, i]));
+    expect(byType.tag).toEqual({ targetType: "tag", targetId: "misinformation", label: "#misinformation", href: "/browse" });
+    expect(byType.author).toEqual({ targetType: "author", targetId: hanna, label: "hanna", href: null });
+    expect(byType.module).toEqual({
+      targetType: "module",
+      targetId: "core/social-post",
+      label: "core/social-post",
+      href: "/library",
+    });
+  });
 });
 
 describe("follows.feed (activity_event × follow)", () => {
