@@ -46,7 +46,9 @@ export default async function HomePage() {
 
       {stats.status === "fulfilled" ? <StatsStrip stats={stats.value} /> : <WidgetError title="Your stats" />}
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      {/* items-start so each card sizes to its own content — without it the grid
+          stretches short widgets to the tallest neighbour's height. */}
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
         {recruiting.status === "fulfilled" ? (
           <RecruitingWidget studies={recruiting.value} />
         ) : (
