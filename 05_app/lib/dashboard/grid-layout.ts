@@ -33,3 +33,15 @@ export function clampSpan(n: number | undefined, fallback: number): number {
 export function spanFor(size: WidgetSize, layout?: WidgetGeometry): number {
   return clampSpan(layout?.w, defaultSpan(size));
 }
+
+/**
+ * Masonry width is binary — a widget is either 1 column (normal) or spans every
+ * column (full). Stored `w >= 2` means full; absent, `full`-size widgets default
+ * to full and everything else to normal. (CSS column-masonry can't do a 2-of-3
+ * span — only 1 or all — so width is a toggle, which also reads cleanly.)
+ */
+export function isFullWidth(size: WidgetSize, layout?: WidgetGeometry): boolean {
+  const w = layout?.w;
+  if (w != null && Number.isFinite(w)) return w >= 2;
+  return size === "full";
+}

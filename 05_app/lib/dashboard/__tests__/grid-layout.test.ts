@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { clampSpan, defaultSpan, spanFor } from "@/lib/dashboard/grid-layout";
+import { clampSpan, defaultSpan, isFullWidth, spanFor } from "@/lib/dashboard/grid-layout";
 
 describe("dashboard grid-layout helpers (ADR-0045 amendment)", () => {
   it("defaultSpan: full → 3, large → 2, medium/small → 1", () => {
@@ -25,5 +25,14 @@ describe("dashboard grid-layout helpers (ADR-0045 amendment)", () => {
     expect(spanFor("full", { w: 2 })).toBe(2);
     expect(spanFor("small", { x: 0, y: 0, w: 2, h: 4 })).toBe(2); // legacy geometry → reads w
     expect(spanFor("large", {})).toBe(2); // empty layout → size default
+  });
+
+  it("isFullWidth: stored w>=2 → full; absent → only 'full'-size widgets are full", () => {
+    expect(isFullWidth("medium", { w: 3 })).toBe(true); // stored full
+    expect(isFullWidth("medium", { w: 1 })).toBe(false); // stored normal
+    expect(isFullWidth("full")).toBe(true); // size default
+    expect(isFullWidth("medium")).toBe(false);
+    expect(isFullWidth("large")).toBe(false); // not 'full' size → normal unless stored
+    expect(isFullWidth("full", { w: 1 })).toBe(false); // explicit normal overrides the size default
   });
 });

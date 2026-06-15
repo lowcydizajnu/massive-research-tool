@@ -10,7 +10,7 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { SortableContext, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
-import { GripVertical, Pencil, Plus, RotateCcw, Settings2, Sparkles, X } from "lucide-react";
+import { GripVertical, Maximize2, Minimize2, Pencil, Plus, RotateCcw, Settings2, Sparkles, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, type CSSProperties, type ReactNode } from "react";
 import { ulid } from "ulid";
@@ -18,7 +18,7 @@ import { ulid } from "ulid";
 import { CustomWidget, type CustomSettings } from "@/components/feature/dashboard/custom-widget";
 import { PendingButton } from "@/components/ui/pending-button";
 import { CUSTOM_KEY_PREFIX, isCustomKey } from "@/lib/dashboard/custom-sources";
-import { SPAN_OPTIONS, spanFor, type WidgetGeometry } from "@/lib/dashboard/grid-layout";
+import { isFullWidth, type WidgetGeometry } from "@/lib/dashboard/grid-layout";
 import { WIDGET_REGISTRY, type WidgetSize } from "@/lib/dashboard/widget-registry";
 import { api } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
@@ -26,13 +26,13 @@ import { cn } from "@/lib/utils";
 /**
  * Dashboard grid + customize mode (ADR-0045 + the flexible-grid amendment). The
  * RSC page pre-renders EVERY widget valid for this dashboard into `nodes`; this
- * island lays them on a flowing CSS grid — 1 column on mobile, 2 on tablet, 3 on
- * desktop. Each widget carries a column SPAN (1–3, "narrower/wider"); tile
- * height follows its content (no fixed cells → nothing truncates). View mode is
- * the grid as-is; Customize turns each tile into a dnd-kit sortable (drag by the
- * grip to reorder on the real grid, set width with the 1·2·3 control, remove,
+ * island lays them in a **masonry** — CSS columns (1 mobile / 2 tablet / 3
+ * desktop) so cards pack tightly with no vertical gaps, and tile height follows
+ * content (nothing truncates). Each widget is normal (1 column) or **full width**
+ * (spans all columns). View mode is the masonry as-is; Customize wraps each tile
+ * in a dnd-kit sortable (drag by the grip to reorder, toggle full width, remove,
  * per-widget settings, custom widgets). Save persists `{widgetKey, settings?,
- * layout?}[]` (span in `layout.w`, order = array order) — no migration.
+ * layout?}[]` (full = `layout.w >= 2`, order = array order) — no migration.
  */
 
 export type LayoutEntry = {
@@ -41,14 +41,11 @@ export type LayoutEntry = {
   layout?: WidgetGeometry;
 };
 
-const GRID_CLASS = "grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 items-start";
+/** CSS multi-column masonry: balanced columns, cards pack with no gaps. */
+const MASONRY_CLASS = "columns-1 gap-4 md:columns-2 xl:columns-3";
 
-/** Static (JIT-safe) responsive col-span per stored span. 1 = default (1 col everywhere). */
-const SPAN_CLASS: Record<number, string> = {
-  1: "",
-  2: "md:col-span-2 xl:col-span-2",
-  3: "md:col-span-2 xl:col-span-3",
-};
+/** Per-item wrapper: bottom margin = the vertical gap; never split a card across columns. */
+const itemClass = (full: boolean) => cn("mb-4 break-inside-avoid", full && "[column-span:all]");
 
 const sizeOf = (widgetKey: string): WidgetSize =>
   isCustomKey(widgetKey)
@@ -64,7 +61,7 @@ export function DashboardGrid({
 }: {
   kind: "user" | "workspace";
   workspaceId?: string;
-  /** The resolved, saved layout (order + settings + span). */
+  /** The resolved, saved layout (order + settings + width). */
   layout: LayoutEntry[];
   /** Pre-rendered content for every widget valid on this dashboard, keyed by widget key. */
   nodes: Record<string, ReactNode>;
@@ -105,8 +102,8 @@ export function DashboardGrid({
     );
   const setEntrySettings = (widgetKey: string, settings: CustomSettings) =>
     setDraft((d) => d.map((e) => (e.widgetKey === widgetKey ? { ...e, settings } : e)));
-  const setEntrySpan = (widgetKey: string, w: number) =>
-    setDraft((d) => d.map((e) => (e.widgetKey === widgetKey ? { ...e, layout: { ...e.layout, w } } : e)));
+  const setEntryFull = (widgetKey: string, full: boolean) =>
+    setDraft((d) => d.map((e) => (e.widgetKey === widgetKey ? { ...e, layout: { ...e.layout, w: full ? 3 : 1 } } : e)));
   const addCustomWidget = () => setDraft((d) => [...d, { widgetKey: CUSTOM_KEY_PREFIX + ulid() }]);
 
   const startEdit = () => {
@@ -139,7 +136,7 @@ export function DashboardGrid({
     });
   };
 
-  // ---- View mode: the flowing grid + a Customize button. ----
+  // ---- View mode: the masonry + a Customize button. ----
   if (!editing) {
     return (
       <div className="flex flex-col gap-3">
@@ -153,9 +150,9 @@ export function DashboardGrid({
             Customize
           </button>
         </div>
-        <div className={GRID_CLASS}>
+        <div className={MASONRY_CLASS}>
           {layout.map((e) => (
-            <div key={e.widgetKey} className={cn("min-w-0", SPAN_CLASS[spanFor(sizeOf(e.widgetKey), e.layout)])}>
+            <div key={e.widgetKey} className={itemClass(isFullWidth(sizeOf(e.widgetKey), e.layout))}>
               {isCustomKey(e.widgetKey) ? (
                 <CustomWidget
                   kind={kind}
@@ -174,7 +171,7 @@ export function DashboardGrid({
     );
   }
 
-  // ---- Edit mode: controls + the live grid (drag/resize/remove) + add + reset. ----
+  // ---- Edit mode: controls + the live masonry (drag/full-width/remove) + add + reset. ----
   return (
     <div className="flex flex-col gap-4">
       <div
@@ -182,7 +179,7 @@ export function DashboardGrid({
         className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] px-3 py-2"
       >
         <span className="text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)]">
-          Editing layout — drag by the grip to reorder, set width with 1·2·3, add or remove widgets, then Save.
+          Editing layout — drag by the grip to reorder, toggle full width, add or remove widgets, then Save.
         </span>
         <div className="flex flex-wrap items-center gap-2">
           {kind === "workspace" && canSetWorkspaceDefault ? (
@@ -217,7 +214,7 @@ export function DashboardGrid({
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
           <SortableContext items={draftKeys} strategy={rectSortingStrategy}>
-            <div className={GRID_CLASS}>
+            <div className={MASONRY_CLASS}>
               {draft.map((e) => (
                 <EditTile
                   key={e.widgetKey}
@@ -230,7 +227,7 @@ export function DashboardGrid({
                   onRemove={(id) => setDraft((d) => d.filter((x) => x.widgetKey !== id))}
                   onSetSetting={setEntrySetting}
                   onSetSettings={setEntrySettings}
-                  onSetSpan={setEntrySpan}
+                  onSetFull={setEntryFull}
                 />
               ))}
             </div>
@@ -304,7 +301,7 @@ export function DashboardGrid({
   );
 }
 
-/** One editable tile: a dnd-kit sortable cell with grip / width control / settings / remove. */
+/** One editable tile: a dnd-kit sortable masonry cell with grip / full-width / settings / remove. */
 function EditTile({
   entry,
   kind,
@@ -315,7 +312,7 @@ function EditTile({
   onRemove,
   onSetSetting,
   onSetSettings,
-  onSetSpan,
+  onSetFull,
 }: {
   entry: LayoutEntry;
   kind: "user" | "workspace";
@@ -326,19 +323,19 @@ function EditTile({
   onRemove: (id: string) => void;
   onSetSetting: (id: string, key: string, value: number) => void;
   onSetSettings: (id: string, settings: CustomSettings) => void;
-  onSetSpan: (id: string, w: number) => void;
+  onSetFull: (id: string, full: boolean) => void;
 }) {
   const id = entry.widgetKey;
   const custom = isCustomKey(id);
   const meta = WIDGET_REGISTRY[id as keyof typeof WIDGET_REGISTRY];
   const label = custom ? "Custom widget" : (meta?.name ?? id);
   const hasSettings = (meta?.settings?.length ?? 0) > 0;
-  const span = spanFor(custom ? "medium" : (meta?.size ?? "medium"), entry.layout);
+  const full = isFullWidth(custom ? "medium" : (meta?.size ?? "medium"), entry.layout);
 
   const { setNodeRef, setActivatorNodeRef, transform, transition, isDragging, attributes, listeners } = useSortable({
     id,
   });
-  // Translate only (never scale) so a tile keeps its size while dragging.
+  // Translate only (never scale) so the tile keeps its size while dragging.
   const style: CSSProperties = {
     transform: transform ? `translate3d(${Math.round(transform.x)}px, ${Math.round(transform.y)}px, 0)` : undefined,
     transition,
@@ -346,7 +343,7 @@ function EditTile({
   };
 
   return (
-    <div ref={setNodeRef} style={style} className={cn("min-w-0", SPAN_CLASS[span], isDragging && "opacity-60")}>
+    <div ref={setNodeRef} style={style} className={cn(itemClass(full), isDragging && "opacity-60")}>
       <div className="flex flex-col overflow-hidden rounded-[var(--radius-lg)] border-2 border-dashed border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)]">
         <div className="flex items-center justify-between gap-2 border-b border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] px-2 py-1">
           <span className="flex min-w-0 items-center gap-1.5">
@@ -364,30 +361,22 @@ function EditTile({
               {label}
             </span>
           </span>
-          <span className="flex items-center gap-1.5">
-            <span
-              role="group"
-              aria-label={`Width of ${label}`}
-              className="flex items-center overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)]"
+          <span className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => onSetFull(id, !full)}
+              aria-pressed={full}
+              aria-label={full ? `Make ${label} normal width` : `Make ${label} full width`}
+              className={cn(
+                "inline-flex items-center gap-1 rounded-[var(--radius-sm)] px-1.5 py-0.5 text-[length:var(--text-small)] font-medium",
+                full
+                  ? "bg-[var(--color-primary-subtle)] text-[var(--color-primary-text-on-subtle)]"
+                  : "text-[var(--color-text-muted)] hover:bg-[var(--color-surface-canvas)]",
+              )}
             >
-              {SPAN_OPTIONS.map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  onClick={() => onSetSpan(id, n)}
-                  aria-pressed={span === n}
-                  aria-label={`${n} column${n > 1 ? "s" : ""} wide`}
-                  className={cn(
-                    "px-1.5 py-0.5 text-[length:var(--text-small)] font-medium",
-                    span === n
-                      ? "bg-[var(--color-primary-subtle)] text-[var(--color-primary-text-on-subtle)]"
-                      : "text-[var(--color-text-muted)] hover:bg-[var(--color-surface-canvas)]",
-                  )}
-                >
-                  {n}
-                </button>
-              ))}
-            </span>
+              {full ? <Minimize2 className="size-3.5" aria-hidden /> : <Maximize2 className="size-3.5" aria-hidden />}
+              {full ? "Normal" : "Full"}
+            </button>
             {hasSettings ? (
               <button
                 type="button"

@@ -25,7 +25,9 @@ export function PaginatedList({
   return (
     <div className="flex flex-col gap-2">
       <ul className="flex flex-col gap-1">{shown}</ul>
-      {pages > 1 ? (
+      {/* Footer always renders when there are rows, so every list widget looks
+          consistent (Prev/Next disable themselves on a single page). */}
+      {all.length > 0 ? (
         <div className="flex items-center justify-between text-[length:var(--text-small)] text-[var(--color-text-muted)]">
           <button
             type="button"
