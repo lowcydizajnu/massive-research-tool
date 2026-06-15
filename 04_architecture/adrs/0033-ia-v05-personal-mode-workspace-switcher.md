@@ -1,6 +1,6 @@
 # ADR 0033 — IA v0.5 — personal mode + workspace switcher
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-06-15
 - **Deciders:** project owner (with Claude as collaborator)
 - **Tags:** ia, chrome, navigation, multi-workspace
@@ -72,6 +72,10 @@ New `workspaceRouter` procedures:
 - Workspace-mode and focused-study chrome are untouched.
 - `studyRouter` / Studies destination unchanged.
 - No DB migration (active workspace stays in auth metadata).
+
+## Implementation note (2026-06-15, V1.13.0 Stream A)
+
+Shipped with one deliberate deviation from the "active selection in Clerk metadata" sketch above: the active workspace is an **httpOnly cookie** (`active_workspace`), read in `createContext` (request-scoped) → `ctx.preferredWorkspaceId` → honored by `resolveActiveWorkspace`. Reason: `AuthUser` doesn't carry `lastWorkspaceId`, so honoring metadata would cost a Clerk round-trip on every workspace request; a cookie is free to read per request and needs no migration. The switch is a **server action** (`switchWorkspaceAction`) that validates membership, sets the cookie, and redirects to `/studies` (→ `/dashboard` once Stream B lands). Cross-device "last workspace" via metadata stays a future refinement. Unit tests build ctx directly (no cookie), so the resolver's default behavior is unchanged for them.
 
 ## Consequences
 
