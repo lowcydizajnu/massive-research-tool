@@ -147,6 +147,83 @@ describe("osfRegistry.pushRegistration (verified OSF flow)", () => {
     // JSON:API content type on writes.
     expect(calls.every((c) => c.url.startsWith("https://api.osf.io/v2"))).toBe(true);
   });
+
+  it("pushes co-authors as unregistered contributors on a new node; a failure is non-fatal (ADR-0005 am. 4)", async () => {
+    const calls: Array<{ method: string; url: string; body: any }> = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      const body = init?.body ? JSON.parse(String(init.body)) : undefined;
+      calls.push({ method, url, body });
+      if (method === "GET" && url.includes("/schemas/registrations/"))
+        return new Response(JSON.stringify({ data: [{ id: "schema-oe", attributes: { name: "Open-Ended Registration" } }] }), { status: 200 });
+      if (method === "POST" && url.endsWith("/nodes/"))
+        return new Response(JSON.stringify({ data: { id: "node-1" } }), { status: 201 });
+      if (method === "POST" && url.includes("/contributors/")) {
+        // Second contributor (no email) fails — must NOT abort the registration.
+        if (body?.data?.attributes?.full_name === "Bo Q") return new Response("dupe", { status: 400 });
+        return new Response(JSON.stringify({ data: { id: "contrib-1" } }), { status: 201 });
+      }
+      if (method === "POST" && url.includes("/draft_registrations/"))
+        return new Response(JSON.stringify({ data: { id: "draft-1" } }), { status: 201 });
+      if (method === "PATCH" && url.includes("/draft_registrations/draft-1/"))
+        return new Response(JSON.stringify({ data: { id: "draft-1" } }), { status: 200 });
+      if (method === "POST" && url.includes("/registrations/"))
+        return new Response(JSON.stringify({ data: { id: "reg-xyz", links: { html: "https://osf.io/reg-xyz/" } } }), { status: 201 });
+      throw new Error(`unexpected OSF call: ${method} ${url}`);
+    });
+
+    const result = await osfRegistry.pushRegistration("user-1", {
+      experimentVersionId: "v-1",
+      title: "Co-authored study",
+      snapshot: { blocks: [] },
+      templateFields: {},
+      contributors: [
+        { fullName: "Ada L", email: "ada@lab.org" },
+        { fullName: "Bo Q", email: null },
+      ],
+    });
+    expect(result.registrationId).toBe("reg-xyz"); // registration still succeeded
+
+    const contribCalls = calls.filter((c) => c.url.includes("/contributors/"));
+    expect(contribCalls).toHaveLength(2);
+    expect(contribCalls.every((c) => c.url.includes("send_email=false"))).toBe(true);
+    expect(contribCalls[0].body.data).toMatchObject({
+      type: "contributors",
+      attributes: { full_name: "Ada L", bibliographic: true, permission: "write", email: "ada@lab.org" },
+    });
+    // No email when absent (unregistered-by-name only).
+    expect(contribCalls[1].body.data.attributes.email).toBeUndefined();
+  });
+
+  it("does NOT add contributors when reusing an existing node (amendment — they already exist)", async () => {
+    const calls: Array<{ method: string; url: string }> = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      calls.push({ method, url });
+      if (method === "GET" && url.includes("/schemas/registrations/"))
+        return new Response(JSON.stringify({ data: [{ id: "schema-oe", attributes: { name: "Open-Ended Registration" } }] }), { status: 200 });
+      if (method === "POST" && url.includes("/draft_registrations/"))
+        return new Response(JSON.stringify({ data: { id: "draft-1" } }), { status: 201 });
+      if (method === "PATCH" && url.includes("/draft_registrations/draft-1/"))
+        return new Response(JSON.stringify({ data: { id: "draft-1" } }), { status: 200 });
+      if (method === "POST" && url.includes("/registrations/"))
+        return new Response(JSON.stringify({ data: { id: "reg-2", links: { html: "https://osf.io/reg-2/" } } }), { status: 201 });
+      throw new Error(`unexpected OSF call: ${method} ${url}`);
+    });
+
+    await osfRegistry.pushRegistration("user-1", {
+      experimentVersionId: "v-2",
+      title: "Amendment",
+      snapshot: { blocks: [] },
+      templateFields: {},
+      existingNodeId: "node-1",
+      contributors: [{ fullName: "Ada L", email: "ada@lab.org" }],
+    });
+    expect(calls.some((c) => c.url.includes("/contributors/"))).toBe(false);
+    expect(calls.some((c) => c.method === "POST" && c.url.endsWith("/nodes/"))).toBe(false);
+  });
 });
 
 describe("osfRegistry.connectWithToken (PAT path)", () => {

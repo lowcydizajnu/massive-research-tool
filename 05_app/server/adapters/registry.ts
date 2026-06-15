@@ -43,6 +43,11 @@ export type RegistrationPayload = {
   description?: string;
   permalink?: string;
   tags?: string[];
+  /** Co-authors to add to the OSF project node as contributors (ADR-0005 am. 4).
+   *  Added only when a NEW node is created (amendments reuse the node, where they
+   *  already exist). Pushed as UNREGISTERED contributors (full_name + optional
+   *  email) since our users are not OSF accounts; best-effort per contributor. */
+  contributors?: { fullName: string; email: string | null }[];
 };
 
 export type PushResult = {

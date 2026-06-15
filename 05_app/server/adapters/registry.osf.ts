@@ -355,6 +355,33 @@ export const osfRegistry: RegistryAdapter = {
         },
       });
       nodeId = node.data.id!;
+
+      // 2b. Co-authors → OSF contributors on the NEW node (ADR-0005 am. 4).
+      //     Added only when a node is created (amendments reuse the node, where
+      //     they already exist). Pushed as UNREGISTERED contributors
+      //     (full_name + optional email) since our users aren't OSF accounts.
+      //     Shape verified against OSF NodeContributorsCreateSerializer:
+      //     type "contributors"; bibliographic; permission read|write|admin;
+      //     full_name/email for unregistered. send_email=false → no surprise
+      //     claim emails. Best-effort per contributor: a failure must NEVER
+      //     abort the registration (the registration is the critical artifact).
+      for (const c of payload.contributors ?? []) {
+        try {
+          await osfApi(token, "POST", `/nodes/${nodeId}/contributors/?send_email=false`, {
+            data: {
+              type: "contributors",
+              attributes: {
+                full_name: c.fullName,
+                bibliographic: true,
+                permission: "write",
+                ...(c.email ? { email: c.email } : {}),
+              },
+            },
+          });
+        } catch {
+          // Skip this contributor; continue with the registration.
+        }
+      }
     }
 
     // 3. Draft registration under that node, bound to the chosen schema.
