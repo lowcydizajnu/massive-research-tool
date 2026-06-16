@@ -120,7 +120,7 @@ export function TeamDestination({
         {tab === "Members" ? (
           <MembersView members={members} />
         ) : tab === "Invitations" ? (
-          <InvitationsView invitations={invitations} />
+          <InvitationsView invitations={invitations} canManage={canManage} />
         ) : (
           <RolesView />
         )}
@@ -342,34 +342,63 @@ function MemberRow({ m }: { m: TeamMember }) {
   );
 }
 
-function InvitationsView({ invitations }: { invitations: TeamInvitation[] }) {
+function InvitationsView({ invitations, canManage }: { invitations: TeamInvitation[]; canManage: boolean }) {
   if (invitations.length === 0) {
     return <Empty>No pending invitations.</Empty>;
   }
   return (
     <ul className="flex flex-col gap-1.5">
       {invitations.map((inv) => (
-        <li
-          key={inv.memberId}
-          className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-2"
-        >
-          <span className="flex min-w-0 flex-col">
-            <span className="truncate text-[length:var(--text-body)] text-[var(--color-text-primary)]">{inv.email}</span>
-            <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-              Invited{inv.invitedByName ? ` by ${inv.invitedByName}` : ""} · {inv.ageDays}d ago
-            </span>
-          </span>
-          <span className="flex shrink-0 items-center gap-2">
-            {inv.ageDays > 14 ? (
-              <span className="rounded-[var(--radius-sm)] bg-[var(--color-warning-subtle)] px-1.5 py-0.5 text-[length:var(--text-small)] font-medium text-[var(--color-warning-text-on-subtle)]">
-                Stale
-              </span>
-            ) : null}
-            {roleChip(inv.role)}
-          </span>
-        </li>
+        <InvitationRow key={inv.memberId} inv={inv} canManage={canManage} />
       ))}
     </ul>
+  );
+}
+
+function InvitationRow({ inv, canManage }: { inv: TeamInvitation; canManage: boolean }) {
+  const router = useRouter();
+  const resend = api.team.resendInvite.useMutation({ onSuccess: () => router.refresh() });
+  const revoke = api.team.revokeInvite.useMutation({ onSuccess: () => router.refresh() });
+  const busy = resend.isPending || revoke.isPending;
+
+  return (
+    <li className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-2">
+      <span className="flex min-w-0 flex-col">
+        <span className="truncate text-[length:var(--text-body)] text-[var(--color-text-primary)]">{inv.email}</span>
+        <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+          Invited{inv.invitedByName ? ` by ${inv.invitedByName}` : ""} · {inv.ageDays}d ago
+        </span>
+      </span>
+      <span className="flex shrink-0 items-center gap-2">
+        {inv.ageDays > 14 ? (
+          <span className="rounded-[var(--radius-sm)] bg-[var(--color-warning-subtle)] px-1.5 py-0.5 text-[length:var(--text-small)] font-medium text-[var(--color-warning-text-on-subtle)]">
+            Stale
+          </span>
+        ) : null}
+        {roleChip(inv.role)}
+        {canManage ? (
+          <>
+            <button
+              type="button"
+              onClick={() => resend.mutate({ memberId: inv.memberId })}
+              disabled={busy}
+              className="rounded-[var(--radius-sm)] px-2 py-0.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)] disabled:opacity-50"
+            >
+              {resend.isSuccess ? "Sent ✓" : resend.isPending ? "Sending…" : "Resend"}
+            </button>
+            <button
+              type="button"
+              onClick={() => revoke.mutate({ memberId: inv.memberId })}
+              disabled={busy}
+              aria-label={`Revoke invitation to ${inv.email}`}
+              className="rounded-[var(--radius-sm)] px-2 py-0.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-muted)] hover:bg-[var(--color-danger-subtle)] hover:text-[var(--color-danger-text-on-subtle)] disabled:opacity-50"
+            >
+              {revoke.isPending ? "Revoking…" : "Revoke"}
+            </button>
+          </>
+        ) : null}
+      </span>
+    </li>
   );
 }
 

@@ -93,8 +93,12 @@ export interface AuthAdapter {
     publicMetadata?: Record<string, unknown>;
   }): Promise<{ id: string }>;
 
-  /** Revoke a pending provider invitation (no-op-safe if already accepted/gone). */
-  revokeInvitation(invitationId: string): Promise<void>;
+  /**
+   * Revoke any pending provider invitation(s) for an email (no-op-safe if none /
+   * already accepted). Email-keyed so callers don't need to store the provider's
+   * invitation id. Used by revoke + resend (resend = revoke then re-create).
+   */
+  revokePendingInvitationByEmail(email: string): Promise<void>;
 }
 
 /**

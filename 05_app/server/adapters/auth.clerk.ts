@@ -145,12 +145,19 @@ export const clerkAuthAdapter: AuthAdapter = {
     return { id: inv.id };
   },
 
-  async revokeInvitation(invitationId: string): Promise<void> {
+  async revokePendingInvitationByEmail(email: string): Promise<void> {
     const client = await clerkClient();
     try {
-      await client.invitations.revokeInvitation(invitationId);
+      const lower = email.trim().toLowerCase();
+      const list = await client.invitations.getInvitationList({ status: "pending" });
+      const rows = Array.isArray(list) ? list : (list.data ?? []);
+      for (const inv of rows) {
+        if (inv.emailAddress?.toLowerCase() === lower) {
+          await client.invitations.revokeInvitation(inv.id);
+        }
+      }
     } catch {
-      // Already accepted / revoked / unknown — nothing to do.
+      // Already accepted / revoked / unknown — nothing to do (best-effort).
     }
   },
 };

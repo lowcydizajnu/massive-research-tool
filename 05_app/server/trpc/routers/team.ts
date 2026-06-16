@@ -236,4 +236,50 @@ export const teamRouter = router({
 
       return { sent, alreadyMember, alreadyInvited, invalid, failed };
     }),
+
+  /** Resend a pending invite — revoke the old Clerk invitation + send a fresh one; resets its age. Owner/admin. */
+  resendInvite: workspaceProcedure
+    .input(z.object({ memberId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      if (ctx.role !== "owner" && ctx.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Only owners and admins can manage invitations." });
+      }
+      const [row] = await db
+        .select({ email: member.invitedEmail, role: member.role, status: member.status })
+        .from(member)
+        .where(and(eq(member.id, input.memberId), eq(member.workspaceId, ctx.workspace.id)))
+        .limit(1);
+      if (!row || row.status !== "invited" || !row.email) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Invitation not found." });
+      }
+      const base = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, "");
+      await auth.revokePendingInvitationByEmail(row.email);
+      await auth.createInvitation({
+        email: row.email,
+        redirectUrl: base ? `${base}/signup` : undefined,
+        publicMetadata: { workspaceId: ctx.workspace.id, role: row.role },
+      });
+      await db.update(member).set({ createdAt: new Date() }).where(eq(member.id, input.memberId));
+      return { ok: true };
+    }),
+
+  /** Revoke a pending invite — delete the row + revoke the Clerk invitation. Owner/admin. */
+  revokeInvite: workspaceProcedure
+    .input(z.object({ memberId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      if (ctx.role !== "owner" && ctx.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Only owners and admins can manage invitations." });
+      }
+      const [row] = await db
+        .select({ email: member.invitedEmail, status: member.status })
+        .from(member)
+        .where(and(eq(member.id, input.memberId), eq(member.workspaceId, ctx.workspace.id)))
+        .limit(1);
+      if (!row || row.status !== "invited") {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Invitation not found." });
+      }
+      await db.delete(member).where(eq(member.id, input.memberId));
+      if (row.email) await auth.revokePendingInvitationByEmail(row.email);
+      return { ok: true };
+    }),
 });
