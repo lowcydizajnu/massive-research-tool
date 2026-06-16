@@ -78,6 +78,17 @@ For each vendor:
 | **Migration target** | Not a migration so much as a *plurality*: AsPredicted, ClinicalTrials.gov, PsyArXiv all plug into the same `RegistryAdapter` shape. Per-tenant config picks which registries are enabled. |
 | **Cost-ceiling trigger** | OSF is free for researchers — no cost trigger. Capability trigger: when a customer demands a registry we don't support. |
 
+## Prolific (recruitment provider — per ADR-0047)
+
+| | |
+| --- | --- |
+| **What we use it for** | Recruit participants on Prolific from our app (V1.15): create/publish/pause/close a study on the provider side, list submissions, approve/reject, send bonuses, receive webhooks. PAT-first (the researcher pastes a Personal Access Token; OAuth optional). |
+| **Behind an adapter** | `RecruitmentAdapter` (`05_app/server/adapters/recruitment.ts`, provider-agnostic) — all Prolific API calls confined to `recruitment.prolific.ts` (the only file importing Prolific's API shapes). Feature code calls `getRecruitmentAdapter(provider)`, never Prolific directly. Tokens encrypted (AES-256-GCM) in `recruitment_provider_connection`. |
+| **Deliberate exceptions** | (none yet — the adapter is the only Prolific importer. The webhook route `app/api/recruitment/[provider]/webhook/route.ts` (Stream P7) will verify signatures via `adapter.verifyWebhookSignature`, import-only at the route boundary like Inngest's `serve()`.) |
+| **PII contract** | The adapter NEVER returns participant PII (ADR-0014 amendment): `ProviderSubmission` carries only the opaque `externalPid` + status + timestamps. Even if Prolific's API returns a participant name, no call site can persist it. |
+| **Migration target** | A *plurality*, not a swap: CloudResearch / MTurk / others implement the same `RecruitmentAdapter`. A managed-panel "manual / external" connection type (paste-the-URL, mirroring today's V1.5 workflow) covers API-less Polish panels (Ariadna/TGM/etc.) if needed. |
+| **Cost-ceiling trigger** | Prolific charges the researcher directly (we never process money — ADR-0048); no cost to us. Capability trigger: a customer needs a provider we don't yet adapt. |
+
 ## AI providers (per ADR-0006)
 
 | | |

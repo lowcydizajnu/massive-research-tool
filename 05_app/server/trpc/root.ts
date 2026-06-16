@@ -8,6 +8,7 @@ import { proposalsRouter } from "@/server/trpc/routers/proposals";
 import { notificationsRouter } from "@/server/trpc/routers/notifications";
 import { previewTokensRouter } from "@/server/trpc/routers/preview-tokens";
 import { profileRouter } from "@/server/trpc/routers/profile";
+import { recruitmentRouter } from "@/server/trpc/routers/recruitment";
 import { studiesRouter } from "@/server/trpc/routers/studies";
 import { teamRouter } from "@/server/trpc/routers/team";
 import { uploadsRouter } from "@/server/trpc/routers/uploads";
@@ -17,6 +18,7 @@ import { router } from "@/server/trpc/trpc";
 export const appRouter = router({
   workspace: workspaceRouter,
   team: teamRouter,
+  recruitment: recruitmentRouter,
   studies: studiesRouter,
   dashboard: dashboardRouter,
   modules: modulesRouter,
