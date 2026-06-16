@@ -8,6 +8,7 @@ import { PreregisterButton } from "@/components/feature/preregister/preregister-
 import { RefreshOsfStatus } from "@/components/feature/preregister/refresh-osf-status";
 import { PushStatusPoller } from "@/components/feature/preregister/push-status-poller";
 import { RetryPushButton } from "@/components/feature/preregister/retry-push-button";
+import { canWriteRole, ReadOnlyBanner } from "@/components/feature/workspace/role-gate";
 import { registry } from "@/server/adapters/registry";
 import { getCurrentDbUser } from "@/server/auth/current-db-user";
 import { getServerApi } from "@/server/trpc/server";
@@ -126,7 +127,10 @@ export default async function PreregisterStagePage({
           ) : null}
         </div>
 
-        {/* Action zone (no preregistration yet) OR receipt zone */}
+        <ReadOnlyBanner role={study.viewerRole} />
+        {/* Action zone (no preregistration yet) OR receipt zone. The fieldset disables
+            the write buttons for viewers; OSF links stay clickable (fieldset ignores <a>). */}
+        <fieldset disabled={!canWriteRole(study.viewerRole)} className="contents">
         {pre === null ? (
           <section className="flex flex-col gap-3 border-t border-[var(--color-border-subtle)] pt-4">
             <p className="max-w-prose text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
@@ -207,6 +211,7 @@ export default async function PreregisterStagePage({
             </div>
           </section>
         )}
+        </fieldset>
       </div>
     </main>
   );

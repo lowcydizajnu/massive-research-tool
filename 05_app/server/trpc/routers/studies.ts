@@ -58,6 +58,7 @@ import { protocolText } from "@/server/modules/protocol-text";
 import { applyVisualContext, readTheme, requiresAcknowledgment, studyThemeSchema } from "@/lib/themes/themes";
 import { diffLines } from "@/lib/diff-lines";
 import { publicProcedure, router, workspaceProcedure, writeProcedure } from "@/server/trpc/trpc";
+import type { MemberRole } from "@/server/workspace/active";
 
 /**
  * Load a study's working tip (its current autosave version), scoped to the
@@ -498,6 +499,8 @@ export type StudyDetail = {
   groups: import("@/server/modules/blocks").StudyGroup[];
   /** Participant-facing theme (ADR-0024); Academic defaults when never set. */
   theme: import("@/lib/themes/themes").StudyTheme;
+  /** The caller's role in the owning workspace — drives client-side write gating (mirrors writeProcedure: viewers are read-only). */
+  viewerRole: MemberRole;
 };
 
 /** Whiteboard canvas viewport state (ADR-0020). Empty object = fit-to-screen. */
@@ -1339,6 +1342,7 @@ export const studiesRouter = router({
         archivedAt: row.experiment.archivedAt?.toISOString() ?? null,
         groups: readGroups(row.version?.definitionSnapshot),
         theme: readTheme(row.version?.definitionSnapshot),
+        viewerRole: ctx.role as MemberRole,
       };
     }),
 

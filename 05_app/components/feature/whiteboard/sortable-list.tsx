@@ -47,6 +47,7 @@ export function SortableList({
   className,
   children,
   nativeDrop,
+  disabled = false,
 }: {
   ids: string[];
   onReorder: (ids: string[], movedId: string) => void;
@@ -54,12 +55,27 @@ export function SortableList({
   className?: string;
   children: (id: string, handle: DragHandleProps, isDragging: boolean) => ReactNode;
   nativeDrop?: NativeDrop;
+  /** Read-only: render rows with inert handles, no drag, no native drop (T3.5 role gating). */
+  disabled?: boolean;
 }) {
   const [dropHover, setDropHover] = useState<string | null>(null);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
+
+  // Read-only: a plain list, each row handed an inert handle (no drag listeners).
+  // (After the hooks above — rules-of-hooks forbids an early return before them.)
+  if (disabled) {
+    const inert: DragHandleProps = { ref: () => {}, attributes: {}, listeners: undefined };
+    return (
+      <ul aria-label={ariaLabel} className={className}>
+        {ids.map((id) => (
+          <li key={id}>{children(id, inert, false)}</li>
+        ))}
+      </ul>
+    );
+  }
 
   const onDragEnd = (e: DragEndEvent) => {
     const { active, over } = e;

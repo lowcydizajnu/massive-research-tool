@@ -22,6 +22,8 @@ export type ActiveWorkspace = {
   name: string;
   slug: string;
   showDemoContent: boolean;
+  /** The caller's role here — drives client-side write gating (mirrors writeProcedure). */
+  role: MemberRole;
 };
 
 export type WorkspaceMember = { userId: string; displayName: string };
@@ -72,6 +74,7 @@ export const workspaceRouter = router({
     name: ctx.workspace.name,
     slug: ctx.workspace.slug,
     showDemoContent: ctx.workspace.showDemoContent,
+    role: ctx.role as MemberRole,
   })),
 
   /**

@@ -47,6 +47,7 @@ import { ReplicationConfigExtras } from "./replication-config-extras";
 import { BlockProvenance } from "./block-provenance";
 import { ConsentEditor } from "./consent-editor";
 import { BuildDriftBanner } from "./build-drift-banner";
+import { canWriteRole, READ_ONLY_TITLE, ReadOnlyBanner } from "@/components/feature/workspace/role-gate";
 
 /**
  * Builder mode — the interactive three-zone body (build-stage-builder-mode.md).
@@ -97,6 +98,10 @@ export function BuilderWorkspace({
   const utils = api.useUtils();
   const { data } = api.studies.get.useQuery({ id: initial.id }, { initialData: initial });
   const study = data ?? initial;
+  // Viewers are read-only (mirrors writeProcedure). Gates every write affordance
+  // here; the editor sub-components are wrapped in a disabled <fieldset>, and the
+  // drag/library handlers below early-return as a belt-and-braces net.
+  const canEdit = canWriteRole(study.viewerRole);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [panelTab, setPanelTab] = useState<"details" | "replications" | "versions" | "validation">("details");
@@ -235,6 +240,7 @@ export function BuilderWorkspace({
   });
   /** Persist a groupId override for one block + recompute the groups[] metadata. */
   const persistGroupChange = (changedId: string, newGroupId: string | null, newGroup?: { id: string; title: string }) => {
+    if (!canEdit) return;
     const blocks = study.blocks.map((b) =>
       toInstance(b, b.instanceId === changedId ? newGroupId : b.groupId),
     );
@@ -246,6 +252,7 @@ export function BuilderWorkspace({
     setGroupsMut.mutate({ studyId: study.id, blocks, groups });
   };
   const groupWithAbove = (i: number) => {
+    if (!canEdit) return;
     const above = study.blocks[i - 1];
     const me = study.blocks[i];
     if (!above || !me) return;
@@ -270,6 +277,7 @@ export function BuilderWorkspace({
   // member blocks at once. Does NOT touch the saved module template.
   const [confirmRemoveGroup, setConfirmRemoveGroup] = useState<string | null>(null);
   const removeGroup = (groupId: string) => {
+    if (!canEdit) return;
     const blocks = study.blocks.filter((b) => b.groupId !== groupId).map((b) => toInstance(b, b.groupId));
     const usedIds = new Set(blocks.map((b) => b.groupId).filter(Boolean) as string[]);
     const groups = study.groups.filter((g) => g.id !== groupId && usedIds.has(g.id));
@@ -315,6 +323,7 @@ export function BuilderWorkspace({
   // Commit a final block order (each block carries its final groupId) with the
   // broken-condition guard.
   const commitOrder = (ordered: StudyBlock[]) => {
+    if (!canEdit) return;
     const broken = newlyBrokenByReorder(study.blocks, ordered);
     const blocks = ordered.map((b) => toInstance(b, b.groupId));
     const usedIds = new Set(blocks.map((b) => b.groupId).filter(Boolean) as string[]);
@@ -376,6 +385,7 @@ export function BuilderWorkspace({
     return study.blocks.findIndex((x) => x.instanceId === rowId) + 1;
   };
   const handleLibraryDrop = (rowId: string, e: React.DragEvent) => {
+    if (!canEdit) return;
     const raw = e.dataTransfer.getData("application/x-mrt-block");
     setLibraryDragging(false);
     if (!raw) return;
@@ -392,6 +402,7 @@ export function BuilderWorkspace({
     blocks: { source: string; key: string; version: string }[];
     customModuleIds: string[];
   }) => {
+    if (!canEdit) return;
     for (const m of sel.blocks) {
       await addBlock.mutateAsync({ studyId: study.id, ...m });
     }
@@ -469,6 +480,7 @@ export function BuilderWorkspace({
     return members[0].showIfCondition.filter((s) => members.every((m) => m.showIfCondition.includes(s)));
   };
   const setGroupArm = (groupId: string, slug: string, on: boolean) => {
+    if (!canEdit) return;
     const blocks = study.blocks.map((b) => {
       const arms =
         b.groupId !== groupId
@@ -527,12 +539,12 @@ export function BuilderWorkspace({
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
         e.preventDefault();
-        setSaveOpen(true);
+        if (canEdit) setSaveOpen(true);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [canEdit]);
 
   return (
     <>
@@ -542,12 +554,15 @@ export function BuilderWorkspace({
       <main className="flex min-w-0 flex-1 flex-col gap-3">
         <StageTabs studyId={study.id} />
         <BuildDriftBanner studyId={study.id} />
+        <ReadOnlyBanner role={study.viewerRole} />
 
         <div className="flex flex-1 flex-col gap-5 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6">
           {/* Title row */}
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <EditableStudyTitle studyId={study.id} initialTitle={study.title} />
+              <fieldset disabled={!canEdit} className="contents">
+                <EditableStudyTitle studyId={study.id} initialTitle={study.title} />
+              </fieldset>
               <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
                 {/* Autosave tip is the unnumbered Draft (ADR-0012 amendment); v1+ are conscious
                     saves. Version label and stage can coincide ("Draft · draft") — show once. */}
@@ -563,8 +578,8 @@ export function BuilderWorkspace({
               <button
                 type="button"
                 onClick={undo}
-                disabled={!canUndo || setGroupsMut.isPending}
-                title="Undo last change"
+                disabled={!canEdit || !canUndo || setGroupsMut.isPending}
+                title={canEdit ? "Undo last change" : READ_ONLY_TITLE}
                 aria-label="Undo last change"
                 className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-1.5 text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)] disabled:opacity-40"
               >
@@ -573,8 +588,8 @@ export function BuilderWorkspace({
               <button
                 type="button"
                 onClick={redo}
-                disabled={!canRedo || setGroupsMut.isPending}
-                title="Redo"
+                disabled={!canEdit || !canRedo || setGroupsMut.isPending}
+                title={canEdit ? "Redo" : READ_ONLY_TITLE}
                 aria-label="Redo last undone change"
                 className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-1.5 text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)] disabled:opacity-40"
               >
@@ -590,7 +605,9 @@ export function BuilderWorkspace({
               <button
                 type="button"
                 onClick={() => setSaveOpen(true)}
-                className="rounded-[var(--radius-md)] bg-[var(--color-primary)] px-3 py-1.5 text-[length:var(--text-body-emphasis)] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80"
+                disabled={!canEdit}
+                title={canEdit ? undefined : READ_ONLY_TITLE}
+                className="rounded-[var(--radius-md)] bg-[var(--color-primary)] px-3 py-1.5 text-[length:var(--text-body-emphasis)] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80 disabled:opacity-40"
               >
                 Save
               </button>
@@ -604,7 +621,9 @@ export function BuilderWorkspace({
               <button
                 type="button"
                 onClick={() => setPickerOpen(true)}
-                className="flex items-center gap-1 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-2.5 py-1 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
+                disabled={!canEdit}
+                title={canEdit ? undefined : READ_ONLY_TITLE}
+                className="flex items-center gap-1 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-2.5 py-1 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)] disabled:opacity-40"
               >
                 <Plus className="size-3.5" aria-hidden />
                 Add block
@@ -651,7 +670,9 @@ export function BuilderWorkspace({
                 <button
                   type="button"
                   onClick={() => setPickerOpen(true)}
-                  className="rounded-[var(--radius-md)] bg-[var(--color-primary)] px-4 py-2 text-[length:var(--text-body-emphasis)] font-medium text-white hover:opacity-90"
+                  disabled={!canEdit}
+                  title={canEdit ? undefined : READ_ONLY_TITLE}
+                  className="rounded-[var(--radius-md)] bg-[var(--color-primary)] px-4 py-2 text-[length:var(--text-body-emphasis)] font-medium text-white hover:opacity-90 disabled:opacity-40"
                 >
                   Browse the block library
                 </button>
@@ -662,7 +683,8 @@ export function BuilderWorkspace({
                 onReorder={onListReorder}
                 ariaLabel="Study blocks and groups"
                 className="flex flex-col"
-                nativeDrop={{ active: libraryDragging, onDrop: handleLibraryDrop }}
+                disabled={!canEdit}
+                nativeDrop={{ active: libraryDragging && canEdit, onDrop: handleLibraryDrop }}
               >
                 {(id, handle) => {
                   // Group header row — its grip drags the whole group. Solid tint +
@@ -691,7 +713,9 @@ export function BuilderWorkspace({
                           {collapsed ? "▸" : "▾"}
                         </button>
                         <span className="text-[length:var(--text-small)] font-medium text-[var(--color-primary-text-on-subtle)]">⊞ Group screen</span>
-                        <GroupTitleInput value={group?.title ?? ""} onCommit={(t) => renameGroup(gid, t)} />
+                        <fieldset disabled={!canEdit} className="contents">
+                          <GroupTitleInput value={group?.title ?? ""} onCommit={(t) => renameGroup(gid, t)} />
+                        </fieldset>
                         {(conditionsQ.data ?? []).length > 0 ? (
                           <span className="flex flex-wrap items-center gap-2 text-[length:var(--text-small)] text-[var(--color-primary-text-on-subtle)]">
                             <span>Show if:</span>
@@ -702,6 +726,7 @@ export function BuilderWorkspace({
                                   <input
                                     type="checkbox"
                                     checked={on}
+                                    disabled={!canEdit}
                                     onChange={() => setGroupArm(gid, c.slug, !on)}
                                     className="size-3.5 accent-[var(--color-primary)]"
                                   />
@@ -752,12 +777,13 @@ export function BuilderWorkspace({
                               return (
                                 <button
                                   type="button"
+                                  disabled={!canEdit}
                                   onClick={() => {
                                     setSavingGroupId(gid);
                                     setModuleName(group?.title ?? "");
                                   }}
-                                  title="Save this group as a reusable module"
-                                  className={btnCls}
+                                  title={canEdit ? "Save this group as a reusable module" : READ_ONLY_TITLE}
+                                  className={cn(btnCls, "disabled:opacity-40")}
                                 >
                                   ＋ Save as module
                                 </button>
@@ -769,11 +795,12 @@ export function BuilderWorkspace({
                                 {changed ? (
                                   <button
                                     type="button"
+                                    disabled={!canEdit}
                                     onClick={() =>
                                       setConfirmUpdate({ moduleId: sourceModule.id, groupId: gid, name: sourceModule.name })
                                     }
-                                    title={`Update the "${sourceModule.name}" module everywhere it's used`}
-                                    className={btnCls}
+                                    title={canEdit ? `Update the "${sourceModule.name}" module everywhere it's used` : READ_ONLY_TITLE}
+                                    className={cn(btnCls, "disabled:opacity-40")}
                                   >
                                     ⤴ Update “{sourceModule.name}”
                                   </button>
@@ -784,11 +811,12 @@ export function BuilderWorkspace({
                                 )}
                                 <button
                                   type="button"
+                                  disabled={!canEdit}
                                   onClick={() => {
                                     setSavingGroupId(gid);
                                     setModuleName(group?.title ?? "");
                                   }}
-                                  className={btnCls}
+                                  className={cn(btnCls, "disabled:opacity-40")}
                                 >
                                   Save as new
                                 </button>
@@ -798,10 +826,11 @@ export function BuilderWorkspace({
                         )}
                         <button
                           type="button"
+                          disabled={!canEdit}
                           onClick={() => setConfirmRemoveGroup(gid)}
-                          title="Remove this group (and its blocks) from the study"
+                          title={canEdit ? "Remove this group (and its blocks) from the study" : READ_ONLY_TITLE}
                           aria-label="Remove group from study"
-                          className="ml-auto shrink-0 rounded-[var(--radius-sm)] p-1 text-[var(--color-primary-text-on-subtle)] hover:bg-[var(--color-primary-subtle)] hover:text-[var(--color-danger-text-on-subtle)]"
+                          className="ml-auto shrink-0 rounded-[var(--radius-sm)] p-1 text-[var(--color-primary-text-on-subtle)] hover:bg-[var(--color-primary-subtle)] hover:text-[var(--color-danger-text-on-subtle)] disabled:opacity-40"
                         >
                           <Trash2 className="size-4" aria-hidden />
                         </button>
@@ -882,18 +911,20 @@ export function BuilderWorkspace({
                         {grouped ? (
                           <button
                             type="button"
+                            disabled={!canEdit}
                             onClick={() => ungroup(b.instanceId)}
-                            title="Remove from group"
-                            className="rounded-[var(--radius-sm)] px-1.5 py-1 text-[length:var(--text-small)] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)]"
+                            title={canEdit ? "Remove from group" : READ_ONLY_TITLE}
+                            className="rounded-[var(--radius-sm)] px-1.5 py-1 text-[length:var(--text-small)] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)] disabled:opacity-40"
                           >
                             Ungroup
                           </button>
                         ) : i > 0 ? (
                           <button
                             type="button"
+                            disabled={!canEdit}
                             onClick={() => groupWithAbove(i)}
-                            title="Show on the same screen as the block above"
-                            className="rounded-[var(--radius-sm)] px-1.5 py-1 text-[length:var(--text-small)] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)]"
+                            title={canEdit ? "Show on the same screen as the block above" : READ_ONLY_TITLE}
+                            className="rounded-[var(--radius-sm)] px-1.5 py-1 text-[length:var(--text-small)] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)] disabled:opacity-40"
                           >
                             Group ↑
                           </button>
@@ -909,7 +940,9 @@ export function BuilderWorkspace({
               <button
                 type="button"
                 onClick={() => setPickerOpen(true)}
-                className="flex items-center gap-1 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-1.5 text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
+                disabled={!canEdit}
+                title={canEdit ? undefined : READ_ONLY_TITLE}
+                className="flex items-center gap-1 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-1.5 text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)] disabled:opacity-40"
               >
                 <Plus className="size-4" aria-hidden />
                 Add block
@@ -942,11 +975,13 @@ export function BuilderWorkspace({
         className={`flex shrink-0 flex-col gap-4 self-start rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-panel)] p-4 ${panelSide === "left" ? "order-first" : ""}`}
       >
         {consentSelected && !selected ? (
-          <ConsentEditor
-            studyId={study.id}
-            consent={study.consent}
-            onClose={() => setConsentSelected(false)}
-          />
+          <fieldset disabled={!canEdit} className="contents">
+            <ConsentEditor
+              studyId={study.id}
+              consent={study.consent}
+              onClose={() => setConsentSelected(false)}
+            />
+          </fieldset>
         ) : (
         <>
         <nav role="tablist" aria-label="Context" className="flex flex-wrap gap-1">
@@ -1049,7 +1084,7 @@ export function BuilderWorkspace({
         {selected && blockTab === "history" ? (
           <BlockHistoryPanel studyId={study.id} instanceId={selected.instanceId} />
         ) : selected ? (
-          <>
+          <fieldset disabled={!canEdit} className="contents">
             <BlockProvenance studyId={study.id} instanceId={selected.instanceId} />
             {divergenceBadges[selected.instanceId] ? (
               <ReplicationConfigExtras
@@ -1104,15 +1139,17 @@ export function BuilderWorkspace({
               <Trash2 className="size-3.5" aria-hidden />
               Delete block
             </button>
-          </>
+          </fieldset>
         ) : panelTab === "versions" ? (
-          <VersionsPanel
-            studyId={study.id}
-            onRestored={(message) => {
-              void invalidate();
-              setSavedMsg(message);
-            }}
-          />
+          <fieldset disabled={!canEdit} className="contents">
+            <VersionsPanel
+              studyId={study.id}
+              onRestored={(message) => {
+                void invalidate();
+                setSavedMsg(message);
+              }}
+            />
+          </fieldset>
         ) : panelTab === "replications" ? (
           <ReplicationsPanel studyId={study.id} />
         ) : panelTab === "validation" ? (
@@ -1154,7 +1191,9 @@ export function BuilderWorkspace({
               />
             ) : null}
 
-            <TagsSection studyId={study.id} tags={study.tags} />
+            <fieldset disabled={!canEdit} className="contents">
+              <TagsSection studyId={study.id} tags={study.tags} />
+            </fieldset>
 
             {/* Replication (ADR-0018, replications-tab.md): forkability is owner-only; anyone who can open the study can replicate it. */}
             <DetailRow label="Replication">
@@ -1166,7 +1205,9 @@ export function BuilderWorkspace({
               </div>
             </DetailRow>
 
-            <ConditionsSection studyId={study.id} />
+            <fieldset disabled={!canEdit} className="contents">
+              <ConditionsSection studyId={study.id} />
+            </fieldset>
           </div>
         )}
         </>
