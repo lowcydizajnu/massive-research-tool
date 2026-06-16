@@ -233,10 +233,53 @@ export const prolificAdapter: RecruitmentAdapter = {
     });
   },
 
-  verifyWebhookSignature({ rawBody, signature }) {
-    const secret = process.env.PROLIFIC_WEBHOOK_SECRET;
-    if (!secret) return false;
-    const expected = createHmac("sha256", secret).update(rawBody).digest("hex");
+  async createWebhookSecret({ accessToken, workspaceId }) {
+    const res = await call("/hooks/secrets/", {
+      accessToken,
+      method: "POST",
+      body: JSON.stringify({ workspace_id: workspaceId }),
+    });
+    const body = (await res.json()) as { secret?: string };
+    if (!body.secret) throw new Error("Prolific did not return a webhook secret.");
+    return { secret: body.secret };
+  },
+
+  async listWebhookEventTypes({ accessToken }) {
+    const res = await call("/hooks/event-types", { accessToken, method: "GET" });
+    const body = (await res.json()) as { results?: Array<{ event_type?: string; id?: string }> } | string[];
+    if (Array.isArray(body)) return body.filter((s): s is string => typeof s === "string");
+    return (body.results ?? []).map((r) => r.event_type ?? r.id ?? "").filter(Boolean);
+  },
+
+  async createWebhookSubscription({ accessToken, workspaceId, eventType, targetUrl }) {
+    const res = await call("/hooks/subscriptions/", {
+      accessToken,
+      method: "POST",
+      body: JSON.stringify({ workspace_id: workspaceId, event_type: eventType, target_url: targetUrl }),
+    });
+    const body = (await res.json()) as { id?: string };
+    // The confirmation token comes back in the X-Hook-Secret header.
+    const confirmationToken = res.headers.get("x-hook-secret") ?? res.headers.get("X-Hook-Secret") ?? "";
+    if (!body.id) throw new Error("Prolific did not return a subscription id.");
+    return { subscriptionId: body.id, confirmationToken };
+  },
+
+  async confirmWebhookSubscription({ accessToken, subscriptionId, confirmationToken }) {
+    await call(`/hooks/subscriptions/${subscriptionId}`, {
+      accessToken,
+      method: "POST",
+      body: JSON.stringify({ secret: confirmationToken }),
+    });
+  },
+
+  async deleteWebhookSubscription({ accessToken, subscriptionId }) {
+    await call(`/hooks/subscriptions/${subscriptionId}`, { accessToken, method: "DELETE" });
+  },
+
+  verifyWebhookSignature({ rawBody, timestamp, signature, secret }) {
+    if (!secret || !signature || !timestamp) return false;
+    // HMAC-SHA256 over (timestamp + rawBody) with the per-workspace secret, base64.
+    const expected = createHmac("sha256", secret).update(timestamp + rawBody).digest("base64");
     const a = Buffer.from(expected);
     const b = Buffer.from(signature);
     return a.length === b.length && timingSafeEqual(a, b);

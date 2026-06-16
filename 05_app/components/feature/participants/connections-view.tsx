@@ -128,6 +128,8 @@ function ProviderCard({
         </div>
       ) : null}
 
+      {connection && connection.status !== "error" ? <LiveUpdates canWrite={canWrite} /> : null}
+
       {!connection || connection.status === "error" ? (
         <fieldset disabled={!canWrite} className="flex flex-col gap-2 border-0 p-0">
           <label className="flex flex-col gap-1">
@@ -166,6 +168,79 @@ function ProviderCard({
             </p>
           ) : null}
         </fieldset>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * One-click webhook ("live updates") toggle (ADR-0050). When on, Prolific pushes
+ * us each event so counts/status update near-instantly; when off, our 10-minute
+ * polling sweep + on-load reconcile still keep state fresh. Viewers are read-only.
+ */
+function LiveUpdates({ canWrite }: { canWrite: boolean }) {
+  const utils = api.useUtils();
+  const status = api.recruitment.webhook.status.useQuery();
+  const [err, setErr] = useState<string | null>(null);
+  const refresh = () => void utils.recruitment.webhook.status.invalidate();
+  const enable = api.recruitment.webhook.enable.useMutation({
+    onSuccess: () => {
+      setErr(null);
+      refresh();
+    },
+    onError: (e) => setErr(e.message),
+  });
+  const disable = api.recruitment.webhook.disable.useMutation({ onSuccess: refresh });
+
+  if (status.isLoading) return null;
+  const connected = status.data?.connected ?? false;
+
+  return (
+    <div className="flex flex-col gap-1.5 border-t border-[var(--color-border-subtle)] pt-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="flex items-center gap-2 text-[length:var(--text-small)]">
+          <span className="font-medium text-[var(--color-text-primary)]">Live updates</span>
+          {connected ? (
+            <span className="rounded-[var(--radius-sm)] bg-[var(--color-success-subtle)] px-1.5 py-0.5 font-medium text-[var(--color-success-text-on-subtle)]">
+              On
+            </span>
+          ) : (
+            <span className="rounded-[var(--radius-sm)] bg-[var(--color-surface-subtle)] px-1.5 py-0.5 font-medium text-[var(--color-text-secondary)]">
+              Off
+            </span>
+          )}
+        </span>
+        {connected ? (
+          <button
+            type="button"
+            disabled={!canWrite || disable.isPending}
+            title={canWrite ? undefined : READ_ONLY_TITLE}
+            onClick={() => disable.mutate({ provider: "prolific" })}
+            className="rounded-[var(--radius-sm)] px-2 py-0.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-muted)] hover:bg-[var(--color-danger-subtle)] hover:text-[var(--color-danger-text-on-subtle)] disabled:opacity-40"
+          >
+            {disable.isPending ? "Turning off…" : "Turn off"}
+          </button>
+        ) : (
+          <PendingButton
+            onClick={() => enable.mutate({ provider: "prolific" })}
+            disabled={!canWrite}
+            title={canWrite ? undefined : READ_ONLY_TITLE}
+            pending={enable.isPending}
+            idleLabel="Enable live updates"
+            pendingLabel="Connecting…"
+            className="w-fit px-3 py-1"
+          />
+        )}
+      </div>
+      <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+        {connected
+          ? "Prolific notifies us the moment submissions or study status change — counts update without a refresh."
+          : "Off: counts still refresh on load and every ~10 minutes. Turn on to register a Prolific webhook for instant updates."}
+      </p>
+      {err ? (
+        <p role="alert" className="text-[length:var(--text-small)] text-[var(--color-danger-text-on-subtle)]">
+          {err}
+        </p>
       ) : null}
     </div>
   );

@@ -12,7 +12,13 @@ import {
 } from "@/server/adapters/recruitment";
 import { decryptSecret, encryptSecret } from "@/server/crypto/tokens";
 import { db } from "@/server/db/client";
-import { experiment, experimentVersion, recruitmentProviderConnection, recruitmentSession } from "@/server/db/schema";
+import {
+  experiment,
+  experimentVersion,
+  recruitmentProviderConnection,
+  recruitmentProviderWebhook,
+  recruitmentSession,
+} from "@/server/db/schema";
 import {
   RUNNABLE_KINDS,
   reconcileStudyStatus,
@@ -27,6 +33,9 @@ import { router, workspaceProcedure, writeProcedure } from "@/server/trpc/trpc";
 // the shared reconcile module (ADR-0050) so the webhook + polling job reuse them.
 // Re-export SubmissionCounts so existing UI imports keep resolving from here.
 export type { SubmissionCounts };
+
+/** Whether a workspace's recruitment-provider webhook ("live updates") is wired up (ADR-0050). */
+export type WebhookStatus = { connected: boolean; eventTypes: string[] };
 
 /** Live status + recruitment progress for one study's provider card (Stream P2). */
 export type StudyProgress = {
@@ -390,6 +399,101 @@ export const recruitmentRouter = router({
 
         const counts = await submissionCounts(input.studyId, provider.providerStudyId);
         return { state, placesTaken, totalPlaces, counts };
+      }),
+  }),
+
+  /**
+   * One-click webhook ("live updates") management (ADR-0050). Prolific hooks are
+   * API-created with a per-workspace signing secret; enable orchestrates
+   * create-secret → subscribe-our-URL → confirm, storing the secret encrypted.
+   */
+  webhook: router({
+    status: workspaceProcedure.query(async ({ ctx }): Promise<WebhookStatus> => {
+      const [row] = await db
+        .select({ confirmedAt: recruitmentProviderWebhook.confirmedAt, subscriptions: recruitmentProviderWebhook.subscriptions })
+        .from(recruitmentProviderWebhook)
+        .where(and(eq(recruitmentProviderWebhook.workspaceId, ctx.workspace.id), eq(recruitmentProviderWebhook.provider, "prolific")))
+        .limit(1);
+      if (!row) return { connected: false, eventTypes: [] };
+      const subs = (row.subscriptions as { eventType: string }[]) ?? [];
+      return { connected: true, eventTypes: subs.map((s) => s.eventType) };
+    }),
+
+    enable: writeProcedure
+      .input(z.object({ provider: z.enum(["prolific"]) }))
+      .mutation(async ({ ctx, input }): Promise<WebhookStatus> => {
+        const [existing] = await db
+          .select({ id: recruitmentProviderWebhook.id, subscriptions: recruitmentProviderWebhook.subscriptions })
+          .from(recruitmentProviderWebhook)
+          .where(and(eq(recruitmentProviderWebhook.workspaceId, ctx.workspace.id), eq(recruitmentProviderWebhook.provider, input.provider)))
+          .limit(1);
+        if (existing) {
+          const subs = (existing.subscriptions as { eventType: string }[]) ?? [];
+          return { connected: true, eventTypes: subs.map((s) => s.eventType) };
+        }
+
+        const base = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, "") ?? "";
+        if (!base.startsWith("https://")) {
+          throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Live updates need a public HTTPS site URL configured on the server." });
+        }
+        const token = await connectionToken(ctx.workspace.id, ctx.dbUser.id, input.provider);
+        const targetUrl = `${base}/api/recruitment/${input.provider}/webhook/${ctx.workspace.id}`;
+        const adapter = getRecruitmentAdapter(input.provider);
+        try {
+          const { secret } = await adapter.createWebhookSecret({ accessToken: token, workspaceId: ctx.workspace.id });
+          const all = await adapter.listWebhookEventTypes({ accessToken: token });
+          // Subscribe to study + submission status changes; any event just triggers an idempotent reconcile.
+          const wanted = all.filter((e) => e.includes("status") && (e.includes("study") || e.includes("submission")));
+          const eventTypes = wanted.length ? wanted : all;
+          const subs: { id: string; eventType: string }[] = [];
+          for (const eventType of eventTypes) {
+            const { subscriptionId, confirmationToken } = await adapter.createWebhookSubscription({
+              accessToken: token,
+              workspaceId: ctx.workspace.id,
+              eventType,
+              targetUrl,
+            });
+            if (confirmationToken) {
+              await adapter.confirmWebhookSubscription({ accessToken: token, subscriptionId, confirmationToken });
+            }
+            subs.push({ id: subscriptionId, eventType });
+          }
+          await db.insert(recruitmentProviderWebhook).values({
+            id: ulid(),
+            workspaceId: ctx.workspace.id,
+            provider: input.provider,
+            signingSecret: encryptSecret(secret),
+            subscriptions: subs,
+            createdByUserId: ctx.dbUser.id,
+            confirmedAt: new Date(),
+          });
+          return { connected: true, eventTypes: subs.map((s) => s.eventType) };
+        } catch (e) {
+          throw toTRPC(e);
+        }
+      }),
+
+    disable: writeProcedure
+      .input(z.object({ provider: z.enum(["prolific"]) }))
+      .mutation(async ({ ctx, input }): Promise<WebhookStatus> => {
+        const [row] = await db
+          .select({ id: recruitmentProviderWebhook.id, subscriptions: recruitmentProviderWebhook.subscriptions })
+          .from(recruitmentProviderWebhook)
+          .where(and(eq(recruitmentProviderWebhook.workspaceId, ctx.workspace.id), eq(recruitmentProviderWebhook.provider, input.provider)))
+          .limit(1);
+        if (!row) return { connected: false, eventTypes: [] };
+        // Best-effort provider-side teardown (a stale subscription is harmless — it just can't reach us).
+        try {
+          const token = await connectionToken(ctx.workspace.id, ctx.dbUser.id, input.provider);
+          const adapter = getRecruitmentAdapter(input.provider);
+          for (const s of (row.subscriptions as { id: string }[]) ?? []) {
+            await adapter.deleteWebhookSubscription({ accessToken: token, subscriptionId: s.id }).catch(() => undefined);
+          }
+        } catch {
+          // no connection / provider down — still remove our row so the UI reflects "off".
+        }
+        await db.delete(recruitmentProviderWebhook).where(eq(recruitmentProviderWebhook.id, row.id));
+        return { connected: false, eventTypes: [] };
       }),
   }),
 });
