@@ -1,6 +1,8 @@
-# Code tab handoff — V1.15 Participants destination
+# Code tab handoff — V1.15 Participants destination (updated 2026-06-15 round 2)
 
-> **V1.15 = Participants destination + Prolific integration.** The 5-sub-view destination per IA v0.3 (Connections / Open recruitment / Panels / Compensation / Quality) + first `RecruitmentAdapter` for Prolific. Closes the loop opened by V1.5's manual-URL-copy workflow. Estimated **~6 weeks Code-tab time** across 7 PR streams. **Originally planned as V1.14; reordered 2026-06-15 to ship V1.14 = Team first** (smaller scope; unblocks lab-collaboration workflows). Lands after V1.14 Team ships.
+> **V1.15 = Participants destination + Prolific integration.** The 5-sub-view destination per IA v0.3 (Connections / Open recruitment / Panels / Compensation / Quality) + first `RecruitmentAdapter` for Prolific + country/language picker in our app + Sona Systems "Coming in V1.17" placeholder. Closes the loop opened by V1.5's manual-URL-copy workflow. Estimated **~6 weeks Code-tab time** across 7 PR streams. **Originally planned as V1.14; reordered 2026-06-15 to ship V1.14 = Team first** (smaller scope; unblocks lab-collaboration workflows). Lands after V1.14 Team ships.
+>
+> **2026-06-15 round 2 updates:** Section P1b added (country + language picker in our app; "More filters →" deeplink to Prolific dashboard for everything else; owner-confirmed scope). Sona Systems placeholder card added to Section P2 Connections sub-view (visible but disabled; visual signal we plan to support Polish university subject pools in V1.17+). Open question #4 (eligibility filters) resolved.
 
 The Participants destination has been in IA v0.3 since 2026-05-28 + listed in the LeftRail since V1.7.0 but inert (no `href`). V1.5 shipped the participant runtime + `recruitment_session` table + manual URL copy workflow ("Hanna pastes the URL into Prolific by hand"); V1.6 shipped attention checks + demographics blocks; V1.7+ shipped the full review network. The piece that's been waiting since V1.5: real recruitment provider integrations + a researcher-facing destination to manage participants across studies.
 
@@ -160,6 +162,36 @@ Locks: adapter interface; vendor file isolation; PII boundary (adapter promises 
 
 ---
 
+## Section P1b — Country picker + basic eligibility filters in our UI (owner-confirmed 2026-06-15, ~2 days)
+
+Owner clarification 2026-06-15: **the researcher must be able to pick which country participants come from in OUR app** (not punt entirely to Prolific dashboard). Country is the most common filter + cheap to surface in our flow; more advanced filters (age range, profession, demographics, employment status) stay punted to the Prolific dashboard.
+
+**Where it lives in our UI:**
+
+In the existing **Run stage** (V1.5 ships this) when a Prolific connection is selected as the recruitment source, the Run-stage form gains:
+
+- **Country selector** — multi-select dropdown over ISO 3166-1 alpha-2 country codes. Defaults to "All Prolific-supported countries." Researcher picks 1 or more (`['PL']` for Polish-only, `['PL', 'CZ', 'SK']` for Central European, etc.). Searchable; flag icons; group by continent.
+- **Primary language selector** — multi-select over ISO 639-1 language codes. Defaults to "Any." Useful when the study is in Polish only and you want to exclude non-Polish-speaking panelists.
+- **"More eligibility filters →"** link — opens Prolific's eligibility editor in a new tab (deeplink to the Prolific dashboard's per-study eligibility page). For age range, profession, gender, employment status, etc. — Prolific has 100+ filters that change over time; we don't try to mirror them, but the link makes it one click to go set them.
+
+When the researcher clicks "Open recruitment" (existing V1.5 mutation), the eligibility object is sent to Prolific via the adapter's `createStudy({ ..., eligibility: { country: ['PL'], language: ['pl'] } })`. The adapter maps our shape to Prolific's `eligibility_requirements` API field.
+
+**Data:**
+
+- New field on `recruitment_session.metadata jsonb` (existing column): `eligibility: { country: string[], language: string[] }`. No schema change needed; metadata is already jsonb per V1.5.
+- The Prolific adapter's `createStudy` reads this and forwards to Prolific's API.
+
+**ISO country list source:**
+
+- Bundled in `lib/iso-countries.ts` (curated list of ~200 country codes + display names + flag emojis). No vendor; static JSON.
+- Filter to Prolific-supported countries when Prolific is the active provider (Prolific covers ~40 countries; we read this from a curated `prolific.supportedCountries` constant + refresh annually).
+
+**Estimated work: ~2 days** (country/language picker components + Run-stage integration + adapter mapping + tests).
+
+**Why this scope:** owner answer locked the question — country selection IS in our app; everything else stays on the provider side. Keeps the UI clean (10 fields not 100) while supporting the single most common filter researchers care about.
+
+---
+
 ## Section P2 — Connections sub-view (provider OAuth, ~3 days)
 
 The simplest sub-view. Mirrors `/settings/account/connections` (the OSF connect surface from V1.5).
@@ -168,20 +200,23 @@ The simplest sub-view. Mirrors `/settings/account/connections` (the OSF connect 
 
 **UI:**
 
-- One card per recruitment provider (V1.14.0: Prolific only; V1.14.1: + CloudResearch)
-- Per card: provider logo + connection status (Connected / Not connected / Error) + connect/disconnect button
-- For Prolific: dual path — "Connect with Prolific" (OAuth) + "Or paste a Personal Access Token" (per ADR-0005 PAT precedent)
+- One card per recruitment provider:
+  - **Prolific** (V1.15.0) — fully integrated; OAuth + PAT-fallback flow
+  - **CloudResearch** (deferred to V1.15.1 if owner picks; otherwise V1.16+)
+  - **Sona Systems** (owner-added 2026-06-15) — **"Coming in V1.17" placeholder card.** Renders with the Sona logo, brief description ("Polish university subject pools — credit-based recruitment for psychology students at UJ, UW, SWPS, AGH, etc."), disabled connect button, "Tell us if you want this prioritized" feedback link (mailto: or to-be-added feedback form). NOT functional — pure visual signal that we plan to support it. Useful for researchers at Polish universities to know we're aware of Sona + intending to support it.
+- For Prolific: dual path — "Connect with Prolific" (OAuth) + "Or paste a Personal Access Token" (per ADR-0005 PAT precedent). **Owner's V1.7.0 OSF setup verified Prolific is PAT-only** for third-party integrations; OAuth flow may be dropped during build if Prolific's API doesn't expose it.
 - Per-connection metadata: connected at, provider user identifier, last sync timestamp
 - Error state: if a connection's token is invalid/expired, show "Reconnect" with a clear error message
 
 **Data:**
 
 - New table: `recruitment_provider_connection (id, workspace_id, user_id, provider, access_token_encrypted, refresh_token_encrypted, expires_at, provider_user_id, status, created_at, updated_at)` — workspace-scoped per researcher; same token-encryption pattern as `registry_connection`.
+- `provider` enum: `prolific` for V1.15.0; extends to `cloudresearch` / `sona` as those land.
 - tRPC: `recruitment.connections.list()` / `connect()` / `disconnect()` / `reconnect()`
 
 **Route handlers:**
 
-- `app/api/recruitment/prolific/connect/route.ts` — OAuth initiation; sets CSRF cookie
+- `app/api/recruitment/prolific/connect/route.ts` — OAuth initiation; sets CSRF cookie (OR PAT-paste flow if OAuth unavailable)
 - `app/api/recruitment/prolific/callback/route.ts` — OAuth callback; exchanges code; encrypts + stores token
 
 ---
@@ -378,7 +413,7 @@ The thin destination wrapper everything else mounts inside.
 
 ---
 
-## Sequencing PRs (~6 weeks total = V1.14)
+## Sequencing PRs (~6.5 weeks total — V1.15)
 
 **Stream P1 — Foundation (~1 week):**
 - PR P1.1: `RecruitmentAdapter` interface + Prolific impl + ADR-0037 (~3 days)
@@ -437,7 +472,7 @@ All streams largely independent except Stream P1 (Connections) which gates the r
 1. **CloudResearch as a second provider in V1.14.0, or defer to V1.14.1?** Cost = ~1 week additional. CloudResearch is more US-focused vs Prolific's UK/global. (Recommendation: Prolific only in V1.14.0; CloudResearch is a copy-paste of the adapter pattern in V1.14.1.)
 2. **Quality-flag resolution: who can resolve?** Author only / any workspace write-member / configurable per workspace? (Recommendation: any write-member by default; configurable via Settings.)
 3. **Cross-workspace panel sharing?** Researchers in consortia want to share "verified-attentive participants." Privacy-sensitive. (Recommendation: defer; V1.14 ships workspace-scoped only; cross-workspace is a future ADR.)
-4. **Eligibility filters: build in our app or punt to provider?** Prolific has rich demographic filters in their own UI; replicating them is significant work. (Recommendation: punt to provider for V1.14; researchers configure eligibility in Prolific dashboard. Our app shows a summary only.)
+4. ✅ **Eligibility filters — RESOLVED 2026-06-15:** **country + language picker in our app** (most common filters; cheap to surface; researchers care about it); **all other filters punt to Prolific dashboard** via a "More eligibility filters →" deeplink. New Section P1b specs the country/language picker UI in the Run stage. Adds ~2 days.
 5. **Workspace budget alerts: just an in-app alert or also email?** (Recommendation: in-app + Activity event for V1.14; email digest when V1.7 deferral lands.)
 6. **Studies · Running tab vs Participants · Open recruitment overlap — both ship?** They answer different questions (recruitment health vs provider status) but might confuse researchers. (Recommendation: ship both; differentiate clearly in UI; tab labels lean into "Live data" vs "Provider sync.")
 7. **Auto-approval threshold: what flag-types should auto-approve by default?** (Recommendation: nothing auto-approves by default; researcher explicitly opts into auto-approval policies per workspace.)
@@ -462,8 +497,10 @@ All streams largely independent except Stream P1 (Connections) which gates the r
 - **CloudResearch + MTurk + Pavlovia** as providers (V1.14.1+).
 - **Cross-workspace panel sharing** (V1.15+; needs explicit per-participant consent infrastructure).
 - **Researcher payment-method management** (we never handle money).
-- **Demographic eligibility filters built in our app** (punt to provider).
+- **Demographic eligibility filters beyond country + language** — country + language ARE in our app per Section P1b (owner-confirmed 2026-06-15); all other Prolific filters (age range, profession, gender, employment status, ~100 others) punt to Prolific dashboard via the "More filters →" deeplink.
 - **Participant-side surfaces** — Prolific handles the participant's experience of finding + accepting studies; we only handle the experiment-run after the participant clicks our `/take` URL.
-- **AI-assisted quality detection** — V2.0 AI features could enhance the spam/AI-generated detection on open-ended responses. V1.14 ships rule-based detection only.
+- **AI-assisted quality detection** — V2.0 AI features could enhance the spam/AI-generated detection on open-ended responses. V1.15 ships rule-based detection only.
+- **Sona Systems real integration** — V1.15 ships a "Coming in V1.17" placeholder card only (visual signal in Connections sub-view). Real Sona adapter is V1.17+ if Polish university subject pools become an actual user request. The placeholder is intentionally aware-but-disabled — clicking the "Tell us if you want this prioritized" feedback link in the placeholder card is the user-research signal we'll use to decide whether to fast-track Sona.
+- **Polish-specific managed-service panels** (Ariadna / TGM Research / Intra Research / Badanie-Opinii / Maison & Partners) — these are managed-service models without public APIs; not RecruitmentAdapter candidates. If owner needs them, V1.16+ could add a generic "Manual / external panel" connection type (researcher pastes `/take` URL into the panel's brief; we track responses with manually-assigned `external_pid`). Mirrors today's manual workflow with a small UI improvement.
 
-When green: ping owner. Owner runs `npm run deploy:verify` after the V1.14 deploy + does a manual Prolific live test (create a tiny test study with N=2, recruit themselves + a colleague, walk through approval); signs the audit log; tags `v1.14.0`.
+When green: ping owner. Owner runs `npm run deploy:verify` after the V1.15 deploy + does a manual Prolific live test (create a tiny test study with N=2, recruit themselves + a colleague, walk through approval); signs the audit log; tags `v1.15.0`.
