@@ -85,9 +85,24 @@ describe("prolificAdapter.createStudy surfaces validation errors (no silent unde
     ).resolves.toEqual({ providerStudyId: "abc123", providerStudyUrl: expect.stringContaining("abc123") });
   });
 
-  it("uses the current `filters` field (not the deprecated eligibility_requirements)", async () => {
-    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => new Response(JSON.stringify({ id: "abc" }), { status: 201 }));
+  it("maps country/language names → Prolific ChoiceIDs via /filters/ (not ISO codes, not deprecated field)", async () => {
+    // First call → GET /filters/ (choice definitions); second → POST /studies/.
+    const fetchMock = vi.fn((url: string, _init?: RequestInit) => {
+      if (url.includes("/filters/")) {
+        return new Response(
+          JSON.stringify({
+            results: [
+              { filter_id: "current-country-of-residence", choices: [{ value: "0", label: "Poland" }, { value: "1", label: "Germany" }] },
+              { filter_id: "fluent-languages", choices: { "12": "Polish", "3": "English" } },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({ id: "abc" }), { status: 201 });
+    });
     vi.stubGlobal("fetch", fetchMock);
+
     await prolificAdapter.createStudy({
       accessToken: "t",
       title: "S",
@@ -97,12 +112,31 @@ describe("prolificAdapter.createStudy surfaces validation errors (no silent unde
       reward: { amount: 1, currency: "GBP" },
       eligibility: { country: ["PL"], language: ["pl"] },
     });
-    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit)!.body as string);
+
+    const studiesCall = fetchMock.mock.calls.find((c) => String(c[0]).includes("/studies/"))!;
+    const body = JSON.parse((studiesCall[1] as RequestInit).body as string);
     expect(body).not.toHaveProperty("eligibility_requirements");
+    // ISO "PL"/"pl" → Prolific ChoiceIDs "0"/"12" via the fetched name→ChoiceID maps.
     expect(body.filters).toEqual([
-      { filter_id: "current-country-of-residence", selected_values: ["PL"] },
-      { filter_id: "fluent-languages", selected_values: ["pl"] },
+      { filter_id: "current-country-of-residence", selected_values: ["0"] },
+      { filter_id: "fluent-languages", selected_values: ["12"] },
     ]);
+  });
+
+  it("sends no filters (and no extra fetch) when nothing is selected", async () => {
+    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => new Response(JSON.stringify({ id: "abc" }), { status: 201 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await prolificAdapter.createStudy({
+      accessToken: "t",
+      title: "S",
+      description: "",
+      recruitmentUrl: "https://x/take/s/start",
+      targetN: 2,
+      reward: { amount: 1, currency: "GBP" },
+    });
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+    expect(body.filters).toEqual([]);
+    expect(fetchMock.mock.calls.every((c) => !String(c[0]).includes("/filters/"))).toBe(true); // no /filters/ fetch
   });
 });
 
