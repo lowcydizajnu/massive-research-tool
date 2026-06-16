@@ -37,7 +37,7 @@ const DESTINATIONS: Destination[] = [
   { label: "Library", icon: Library, href: "/library" as Route },
   { label: "Frameworks", icon: Boxes, href: "/frameworks" as Route },
   { label: "Browse", icon: Compass, href: "/browse" as Route },
-  { label: "Participants", icon: Users },
+  { label: "Participants", icon: Users, href: "/participants" as Route },
   { label: "Activity", icon: Activity, href: "/activity" as Route },
   { label: "Team", icon: UsersRound, href: "/team" as Route },
   { label: "Settings", icon: Settings, href: "/settings/account" },

@@ -491,6 +491,48 @@ export const registryConnection = pgTable(
   (t) => [uniqueIndex("registry_connection_user_registry_unique").on(t.userId, t.registryId)],
 );
 
+// === Recruitment providers (V1.15, ADR-0047) ============================
+/** Recruitment providers we integrate with. `prolific` for V1.15.0; extends to cloudresearch/sona later. */
+export const recruitmentProvider = pgEnum("recruitment_provider", ["prolific"]);
+/** Connection health — `error` flips a connection to "Reconnect needed" when a provider call 401s. */
+export const recruitmentConnectionStatus = pgEnum("recruitment_connection_status", ["active", "error"]);
+
+/**
+ * A researcher's connection to a recruitment provider, scoped per-workspace
+ * (unlike OSF's per-researcher-global `registry_connection`). Tokens are
+ * encrypted at rest (AES-256-GCM via TOKEN_ENCRYPTION_KEY); never plaintext.
+ * Holds NO participant data (ADR-0014) — just the researcher's provider token.
+ */
+export const recruitmentProviderConnection = pgTable(
+  "recruitment_provider_connection",
+  {
+    id: text("id").primaryKey(), // ULID
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspace.id),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id),
+    provider: recruitmentProvider("provider").notNull(),
+    /** Encrypted at rest (AES-256-GCM); never plaintext in the DB. */
+    accessToken: text("access_token").notNull(),
+    refreshToken: text("refresh_token"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    /** Opaque provider user id (from validateToken). Not PII. */
+    providerUserId: text("provider_user_id"),
+    status: recruitmentConnectionStatus("status").notNull().default("active"),
+    lastError: text("last_error"),
+    lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("recruitment_conn_ws_user_provider_unique").on(t.workspaceId, t.userId, t.provider),
+  ],
+);
+export type RecruitmentProviderConnection = typeof recruitmentProviderConnection.$inferSelect;
+export type NewRecruitmentProviderConnection = typeof recruitmentProviderConnection.$inferInsert;
+
 export const registryPush = pgTable("registry_push", {
   id: text("id").primaryKey(), // ULID
   experimentVersionId: uuid("experiment_version_id")
