@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, isNull, max } from "drizzle-orm";
+import { and, count, desc, eq, isNull, max, ne } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
+import { ulid } from "ulid";
 import { z } from "zod";
 
 import { auth } from "@/server/adapters/auth";
@@ -10,6 +11,47 @@ import { router, workspaceProcedure } from "@/server/trpc/trpc";
 import type { MemberRole } from "@/server/workspace/active";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * Record a member-lifecycle audit event (T3 / ADR-0046 decision 4). These are
+ * workspace-audit events, not the followable/notifiable kind, so they write
+ * straight to `activity_event` (surfaced in the workspace recent-activity feed +
+ * the filterable audit) rather than going through `emit()`'s notification fanout.
+ */
+async function recordMemberEvent(opts: {
+  type: "member_role_changed" | "member_removed" | "ownership_transferred" | "co_owner_promoted" | "member_left";
+  workspaceId: string;
+  actorUserId: string;
+  memberId: string;
+  data?: Record<string, unknown>;
+}): Promise<void> {
+  await db.insert(activityEvent).values({
+    id: ulid(),
+    type: opts.type,
+    actorUserId: opts.actorUserId,
+    workspaceId: opts.workspaceId,
+    targetType: "member",
+    targetId: opts.memberId,
+    payload: opts.data ?? {},
+  });
+}
+
+/** Active (non-removed) owners of a workspace, optionally excluding one member row. */
+async function activeOwnerCount(workspaceId: string, excludeMemberId?: string): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(member)
+    .where(
+      and(
+        eq(member.workspaceId, workspaceId),
+        eq(member.status, "active"),
+        eq(member.role, "owner"),
+        isNull(member.removedAt),
+        excludeMemberId ? ne(member.id, excludeMemberId) : undefined,
+      ),
+    );
+  return row?.n ?? 0;
+}
 
 /** Outcome counts from a (possibly bulk) invite. */
 export type TeamInviteResult = {
@@ -106,6 +148,12 @@ export const teamRouter = router({
 
   /** The caller's role in the active workspace — gates the manage affordances. */
   myRole: workspaceProcedure.query(({ ctx }): MemberRole => ctx.role as MemberRole),
+
+  /** The caller's identity in the active workspace — role + userId, so the UI can mark "you" and gate self-actions. */
+  viewer: workspaceProcedure.query(({ ctx }): { role: MemberRole; userId: string } => ({
+    role: ctx.role as MemberRole,
+    userId: ctx.dbUser.id,
+  })),
 
   /** Pending invitations (status='invited') with age, newest first. */
   listInvitations: workspaceProcedure.query(async ({ ctx }): Promise<TeamInvitation[]> => {
@@ -282,4 +330,217 @@ export const teamRouter = router({
       if (row.email) await auth.revokePendingInvitationByEmail(row.email);
       return { ok: true };
     }),
+
+  /**
+   * Change an active member's role (T3 / ADR-0046). Owner/admin only; admins can
+   * only manage Editors/Viewers and never grant owner/admin. Demoting the last
+   * owner is blocked by the always-≥1-owner invariant. Emits `member_role_changed`.
+   * Promoting someone to owner is co-ownership (the actor keeps their own role) —
+   * use `transferOwnership` for the atomic hand-off.
+   */
+  changeRole: workspaceProcedure
+    .input(
+      z.object({
+        memberId: z.string().uuid(),
+        newRole: z.enum(["owner", "admin", "editor", "viewer"]),
+      }),
+    )
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      if (ctx.role !== "owner" && ctx.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Only owners and admins can change roles." });
+      }
+      const [target] = await db
+        .select({ id: member.id, userId: member.userId, role: member.role })
+        .from(member)
+        .where(
+          and(
+            eq(member.id, input.memberId),
+            eq(member.workspaceId, ctx.workspace.id),
+            eq(member.status, "active"),
+            isNull(member.removedAt),
+          ),
+        )
+        .limit(1);
+      if (!target) throw new TRPCError({ code: "NOT_FOUND", message: "Member not found." });
+
+      const from = target.role as MemberRole;
+      if (from === input.newRole) return { ok: true }; // no-op
+
+      // Admins can't touch owners/admins and can't grant owner/admin.
+      if (ctx.role === "admin") {
+        if (from === "owner" || from === "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Admins can only manage Editors and Viewers." });
+        }
+        if (input.newRole === "owner" || input.newRole === "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Admins can grant up to Editor." });
+        }
+      }
+
+      // Always-≥1-owner: don't demote the last remaining owner.
+      if (from === "owner" && input.newRole !== "owner" && (await activeOwnerCount(ctx.workspace.id, target.id)) === 0) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "A workspace must keep at least one owner. Transfer ownership first.",
+        });
+      }
+
+      await db.update(member).set({ role: input.newRole }).where(eq(member.id, target.id));
+      await recordMemberEvent({
+        type: input.newRole === "owner" ? "co_owner_promoted" : "member_role_changed",
+        workspaceId: ctx.workspace.id,
+        actorUserId: ctx.dbUser.id,
+        memberId: target.id,
+        data: { targetUserId: target.userId, fromRole: from, toRole: input.newRole },
+      });
+      return { ok: true };
+    }),
+
+  /**
+   * Soft-remove a member (T3 / ADR-0046) — sets `removed_at` + `removed_by`
+   * (tombstone; their past activity/comments stay attributed). Owner/admin only;
+   * admins can only remove Editors/Viewers. Can't remove the last owner, and you
+   * can't remove yourself (use `leaveWorkspace`). Emits `member_removed`.
+   */
+  removeMember: workspaceProcedure
+    .input(z.object({ memberId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      if (ctx.role !== "owner" && ctx.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Only owners and admins can remove members." });
+      }
+      const [target] = await db
+        .select({ id: member.id, userId: member.userId, role: member.role })
+        .from(member)
+        .where(
+          and(
+            eq(member.id, input.memberId),
+            eq(member.workspaceId, ctx.workspace.id),
+            eq(member.status, "active"),
+            isNull(member.removedAt),
+          ),
+        )
+        .limit(1);
+      if (!target) throw new TRPCError({ code: "NOT_FOUND", message: "Member not found." });
+
+      if (target.userId && target.userId === ctx.dbUser.id) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Use “Leave workspace” to remove yourself." });
+      }
+      const from = target.role as MemberRole;
+      if (ctx.role === "admin" && (from === "owner" || from === "admin")) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Admins can only remove Editors and Viewers." });
+      }
+      if (from === "owner" && (await activeOwnerCount(ctx.workspace.id, target.id)) === 0) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "A workspace must keep at least one owner. Transfer ownership first.",
+        });
+      }
+
+      await db
+        .update(member)
+        .set({ removedAt: new Date(), removedByUserId: ctx.dbUser.id })
+        .where(eq(member.id, target.id));
+      await recordMemberEvent({
+        type: "member_removed",
+        workspaceId: ctx.workspace.id,
+        actorUserId: ctx.dbUser.id,
+        memberId: target.id,
+        data: { targetUserId: target.userId, role: from },
+      });
+      return { ok: true };
+    }),
+
+  /**
+   * Atomically transfer ownership (T3 / ADR-0046): promote a member to owner and
+   * demote the acting owner to admin, in one transaction. Owner only. This is the
+   * hand-off path; `changeRole(newRole:'owner')` is additive co-ownership instead.
+   * Emits `ownership_transferred`.
+   */
+  transferOwnership: workspaceProcedure
+    .input(z.object({ toMemberId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      if (ctx.role !== "owner") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Only an owner can transfer ownership." });
+      }
+      const [target] = await db
+        .select({ id: member.id, userId: member.userId, role: member.role })
+        .from(member)
+        .where(
+          and(
+            eq(member.id, input.toMemberId),
+            eq(member.workspaceId, ctx.workspace.id),
+            eq(member.status, "active"),
+            isNull(member.removedAt),
+          ),
+        )
+        .limit(1);
+      if (!target) throw new TRPCError({ code: "NOT_FOUND", message: "Member not found." });
+      if (target.userId === ctx.dbUser.id) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "You are already an owner." });
+      }
+
+      // Locate the acting owner's own member row to demote it.
+      const [self] = await db
+        .select({ id: member.id })
+        .from(member)
+        .where(
+          and(
+            eq(member.workspaceId, ctx.workspace.id),
+            eq(member.userId, ctx.dbUser.id),
+            eq(member.status, "active"),
+            isNull(member.removedAt),
+          ),
+        )
+        .limit(1);
+
+      await db.transaction(async (tx) => {
+        await tx.update(member).set({ role: "owner" }).where(eq(member.id, target.id));
+        if (self) await tx.update(member).set({ role: "admin" }).where(eq(member.id, self.id));
+      });
+      await recordMemberEvent({
+        type: "ownership_transferred",
+        workspaceId: ctx.workspace.id,
+        actorUserId: ctx.dbUser.id,
+        memberId: target.id,
+        data: { toUserId: target.userId },
+      });
+      return { ok: true };
+    }),
+
+  /**
+   * Leave the workspace yourself (T3 / ADR-0046) — soft-removes your own member
+   * row. The last owner can't leave (transfer ownership first). Emits `member_left`.
+   */
+  leaveWorkspace: workspaceProcedure.mutation(async ({ ctx }): Promise<{ ok: true }> => {
+    const [self] = await db
+      .select({ id: member.id, role: member.role })
+      .from(member)
+      .where(
+        and(
+          eq(member.workspaceId, ctx.workspace.id),
+          eq(member.userId, ctx.dbUser.id),
+          eq(member.status, "active"),
+          isNull(member.removedAt),
+        ),
+      )
+      .limit(1);
+    if (!self) throw new TRPCError({ code: "NOT_FOUND", message: "You are not a member of this workspace." });
+    if ((self.role as MemberRole) === "owner" && (await activeOwnerCount(ctx.workspace.id, self.id)) === 0) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "You are the only owner. Transfer ownership before leaving.",
+      });
+    }
+    await db
+      .update(member)
+      .set({ removedAt: new Date(), removedByUserId: ctx.dbUser.id })
+      .where(eq(member.id, self.id));
+    await recordMemberEvent({
+      type: "member_left",
+      workspaceId: ctx.workspace.id,
+      actorUserId: ctx.dbUser.id,
+      memberId: self.id,
+      data: { role: self.role },
+    });
+    return { ok: true };
+  }),
 });

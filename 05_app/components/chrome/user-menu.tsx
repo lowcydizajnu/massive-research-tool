@@ -1,7 +1,8 @@
 "use client";
 
 import { useClerk } from "@clerk/nextjs";
-import { LogOut, Settings } from "lucide-react";
+import { LogOut, Settings, UsersRound } from "lucide-react";
+import type { Route } from "next";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
@@ -74,6 +75,11 @@ export function UserMenu({
               </div>
             ) : null}
           </div>
+
+          <Link href={"/me/memberships" as Route} role="menuitem" className={itemCls} onClick={() => setOpen(false)}>
+            <UsersRound className="size-4 text-[var(--color-text-muted)]" aria-hidden />
+            Your workspaces
+          </Link>
 
           <Link href="/settings/account" role="menuitem" className={itemCls} onClick={() => setOpen(false)}>
             <Settings className="size-4 text-[var(--color-text-muted)]" aria-hidden />

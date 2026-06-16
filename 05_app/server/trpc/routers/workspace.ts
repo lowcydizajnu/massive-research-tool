@@ -96,6 +96,7 @@ export const workspaceRouter = router({
         and(
           eq(member.userId, ctx.dbUser.id),
           eq(member.status, "active"),
+          isNull(member.removedAt), // soft-removed memberships drop out of the list (T3 / ADR-0046)
           isNull(workspace.archivedAt),
         ),
       );
@@ -139,6 +140,7 @@ export const workspaceRouter = router({
         and(
           eq(member.workspaceId, ctx.workspace.id),
           eq(member.status, "active"),
+          isNull(member.removedAt), // exclude soft-removed members from @-mention (T3 / ADR-0046)
           isNotNull(member.userId),
         ),
       );
