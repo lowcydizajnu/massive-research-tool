@@ -439,8 +439,8 @@
   "project": "Massive Research Tool",
   "tagline": "Multi-tenant SaaS for psychological experiments",
   "lastUpdated": "2026-06-15",
-  "currentFocus": "V1.14 Team — T2.1 invite flow SHIPPED (v1.14.0-a2, live 73a026f). Owner/admin '+ Invite member' → modal: paste one email or many (newline/comma), pick a role (admins capped at Editor), optional personal message → team.invite. AuthAdapter gains createInvitation/revokeInvitation (Clerk invitations.createInvitation with ignoreExisting; the only @clerk importer per ADR-0007); publicMetadata carries { workspaceId, role, personalMessage? }. team.invite (owner/admin gate; admin ≤ Editor) normalizes + dedupes within the batch and against active members + pending invites, sends via Clerk then writes a member(status:'invited') row, returning a summary (sent/alreadyMember/alreadyInvited/invalid/failed). finalize now auto-links pending invites by lowercased email → active on sign-up. team.myRole gates the affordance. +2 invite tests; 459 vitest green; tsc/lint/build clean; migration-free (0014 already live). The live Clerk magic-link round-trip is owner-verified (gated, like the hanna-* e2e). Next: T2.2 (resend/revoke/copy-link), then T3 (role mgmt + transfer/co-owner + leave + /me/memberships), then T4 (activity-filter + e2e).",
-  "currentFocusPrev": "V1.14 Team destination — gate + T1.1 SHIPPED (v1.14.0-a1, live e98ee60). Lit up the inert LeftRail Team entry. Gate: ADR-0046 + manage-team-members flow + 6 wireframes. T1.1: additive migration 0014 (member soft-delete cols + workspace.activity_filter_kinds) applied to prod via Neon API before deploy; teamRouter.list + listInvitations; /team route with Members / Invitations / Roles & permissions tabs.",
+  "currentFocus": "V1.14 Team — invitation ACCEPT fixed (v1.14.0-a3, live 689cd60). Owner tested: invites send fine (Clerk shows them pending), but accepting was broken — the invite link lands on /signup with a __clerk_ticket the flow never consumed, so the invitee fell through to sign-in ('Couldn't find your account') or a broken sign-up ('is invalid'). Fix: /signup now consumes the ticket (signUp.create({ strategy:'ticket', ticket }) — email pre-verified) → onboarding → finalizeOnboarding auto-links the pending member row; /signin bounces a stray __clerk_ticket to /signup; team.invite strips a trailing slash from NEXT_PUBLIC_SITE_URL. 459 vitest green; tsc/lint/build clean; migration-free. Owner to re-test the accept round-trip (invite → click link → land in the workspace).",
+  "currentFocusPrev": "V1.14 Team — T2.1 invite flow SHIPPED (v1.14.0-a2, live 73a026f). Owner/admin '+ Invite member' → modal (single/bulk emails, role ≤ Editor for admins, personal message) → team.invite (dedupe + summary); AuthAdapter createInvitation/revokeInvitation (Clerk, ADR-0007); finalize auto-links pending invites on sign-up. team.myRole gates the affordance.",
   "phases": [
     {
       "id": "foundation",
@@ -1213,6 +1213,10 @@
     }
   ],
   "recentActivity": [
+    {
+      "date": "2026-06-15",
+      "text": "fix(team): V1.14 invitation ACCEPT fixed (v1.14.0-a3, live 689cd60). Invites sent fine but accepting was broken — the invite link lands on /signup with a __clerk_ticket the flow never consumed (invitee saw 'Couldn't find your account' / 'is invalid'). /signup now consumes the ticket (signUp.create strategy:'ticket') → onboarding → finalize auto-links the pending member row; /signin bounces a stray ticket to /signup; team.invite strips a trailing slash from NEXT_PUBLIC_SITE_URL. 459 vitest green; tsc/lint/build clean; migration-free. Owner to re-test the accept round-trip."
+    },
     {
       "date": "2026-06-15",
       "text": "feat(team): V1.14 T2.1 invite flow SHIPPED (v1.14.0-a2, live 73a026f). Owner/admin '+ Invite member' → modal: single or bulk emails (newline/comma), role (admins ≤ Editor), optional personal message → team.invite. AuthAdapter gains createInvitation/revokeInvitation (Clerk, the only @clerk importer per ADR-0007); team.invite dedupes within batch + against members/pending, sends via Clerk then writes member(invited), returns a summary. finalize auto-links pending invites by email → active on sign-up. +2 tests; 459 vitest green; tsc/lint/build clean; migration-free. Live Clerk round-trip is owner-verified (gated). Next: T2.2 resend/revoke/copy-link, then T3 role mgmt."
