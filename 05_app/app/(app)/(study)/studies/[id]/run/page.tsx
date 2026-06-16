@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { StageTabs } from "@/components/chrome/stage-tabs";
+import { ProlificRecruitCard } from "@/components/feature/run/prolific-recruit-card";
 import { RunPanel } from "@/components/feature/run/run-panel";
 import { ReadOnlyBanner } from "@/components/feature/workspace/role-gate";
 import { canWriteRole } from "@/lib/workspace/roles";
@@ -63,6 +64,8 @@ export default async function RunStagePage({
           />
         </fieldset>
       </div>
+
+      {info.runnable ? <ProlificRecruitCard studyId={study.id} studyTitle={study.title} /> : null}
     </main>
   );
 }

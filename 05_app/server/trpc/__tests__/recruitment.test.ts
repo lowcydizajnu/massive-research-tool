@@ -32,7 +32,16 @@ import {
 import type { AuthUser } from "@/server/adapters/auth";
 import { decryptSecret } from "@/server/crypto/tokens";
 import { db } from "@/server/db/client";
-import { member, recruitmentProviderConnection, user, workspace } from "@/server/db/schema";
+import {
+  experiment,
+  experimentVersion,
+  member,
+  recruitmentProviderConnection,
+  recruitmentSession,
+  user,
+  workspace,
+} from "@/server/db/schema";
+import { ulid } from "ulid";
 import { appRouter } from "@/server/trpc/root";
 import { createCallerFactory } from "@/server/trpc/trpc";
 
@@ -76,7 +85,10 @@ beforeAll(() => {
 
 beforeEach(async () => {
   vi.clearAllMocks();
+  await db.delete(recruitmentSession);
   await db.delete(recruitmentProviderConnection);
+  await db.delete(experimentVersion);
+  await db.delete(experiment);
   await db.delete(member);
   await db.delete(workspace);
   await db.delete(user);
@@ -145,5 +157,85 @@ describe("recruitment.connections", () => {
     await expect(
       caller.recruitment.connections.connect({ provider: "prolific", accessToken: "x" }),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+});
+
+describe("recruitment.createProviderStudy (P1b bridge)", () => {
+  /** A study with a runnable (preregistered) version + an open recruitment session. */
+  async function seedRunnableStudy(ws: { id: string }, owner: { id: string }) {
+    const [exp] = await db
+      .insert(experiment)
+      .values({ tenantId: ws.id, ownerId: owner.id, title: "Study" })
+      .returning();
+    const [ver] = await db
+      .insert(experimentVersion)
+      .values({ experimentId: exp.id, versionNumber: 1, kind: "preregistered", name: "v1", definitionSnapshot: { blocks: [] }, moduleVersionLocks: {}, createdBy: owner.id })
+      .returning();
+    await db.insert(recruitmentSession).values({ id: ulid(), experimentVersionId: ver.id, status: "open" });
+    return exp.id as string;
+  }
+
+  it("creates + publishes a provider study, forwards eligibility, and stashes it on the session", async () => {
+    const { u, ws } = await seedWs("owner");
+    const studyId = await seedRunnableStudy(ws, u);
+    const createStudy = vi.fn().mockResolvedValue({ providerStudyId: "P1", providerStudyUrl: "https://prolific/P1" });
+    const publishStudy = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(getRecruitmentAdapter).mockReturnValue(fakeAdapter({ createStudy, publishStudy }));
+    const caller = createCaller({ authUser: authUser("u") });
+    await caller.recruitment.connections.connect({ provider: "prolific", accessToken: "PAT" });
+
+    const r = await caller.recruitment.createProviderStudy({
+      studyId,
+      provider: "prolific",
+      title: "T",
+      targetN: 50,
+      reward: { amount: 1.5, currency: "GBP" },
+      eligibility: { country: ["PL"], language: ["pl"] },
+    });
+    expect(r.providerStudyUrl).toBe("https://prolific/P1");
+    expect(createStudy).toHaveBeenCalledWith(expect.objectContaining({ eligibility: { country: ["PL"], language: ["pl"] } }));
+    expect(publishStudy).toHaveBeenCalledWith(expect.objectContaining({ providerStudyId: "P1" }));
+
+    const got = await caller.recruitment.getProviderStudy({ studyId });
+    expect(got).toMatchObject({ providerStudyId: "P1", status: "live", name: "prolific" });
+  });
+
+  it("requires an open recruitment session", async () => {
+    const { u, ws } = await seedWs("owner");
+    // Runnable version but NO open session.
+    const [exp] = await db.insert(experiment).values({ tenantId: ws.id, ownerId: u.id, title: "S" }).returning();
+    await db
+      .insert(experimentVersion)
+      .values({ experimentId: exp.id, versionNumber: 1, kind: "preregistered", name: "v1", definitionSnapshot: { blocks: [] }, moduleVersionLocks: {}, createdBy: u.id });
+    vi.mocked(getRecruitmentAdapter).mockReturnValue(fakeAdapter());
+    const caller = createCaller({ authUser: authUser("u") });
+    await caller.recruitment.connections.connect({ provider: "prolific", accessToken: "PAT" });
+    await expect(
+      caller.recruitment.createProviderStudy({
+        studyId: exp.id,
+        provider: "prolific",
+        title: "T",
+        targetN: 10,
+        reward: { amount: 1, currency: "GBP" },
+        eligibility: { country: [], language: [] },
+      }),
+    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+  });
+
+  it("requires a provider connection", async () => {
+    const { u, ws } = await seedWs("owner");
+    const studyId = await seedRunnableStudy(ws, u);
+    vi.mocked(getRecruitmentAdapter).mockReturnValue(fakeAdapter());
+    const caller = createCaller({ authUser: authUser("u") });
+    await expect(
+      caller.recruitment.createProviderStudy({
+        studyId,
+        provider: "prolific",
+        title: "T",
+        targetN: 10,
+        reward: { amount: 1, currency: "GBP" },
+        eligibility: { country: [], language: [] },
+      }),
+    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
   });
 });
