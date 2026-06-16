@@ -439,8 +439,8 @@
   "project": "Massive Research Tool",
   "tagline": "Multi-tenant SaaS for psychological experiments",
   "lastUpdated": "2026-06-16",
-  "currentFocus": "V1.15 Participants — Prolific filters fix SHIPPED (v1.15.0-a4, live 78b49c4). The a3 error-surfacing did its job: owner's retry returned the exact cause — Prolific 400 error_code 140003, 'eligibility_requirements ... is now deprecated. Please use the filters field instead.' Sending the deprecated field 400'd every create (even no-filter). Fix: createStudy sends `filters` (array of {filter_id, selected_values}) — empty when nothing selected, so a no-filter study creates + recruits anyone; country → current-country-of-residence, language → fluent-languages. (selected_values may need Prolific-internal value ids vs ISO codes — best-effort; surfaced 400 pinpoints it, but no-filter path unblocked.) +1 test (payload uses filters, never the deprecated field); 494 vitest green; migration-free. Owner to retry — a no-filter create should now give a real 'Live on Prolific' link. Next: confirm create round-trip, then Stream P2 (provider_submission + webhooks + polling + Open-recruitment).",
-  "currentFocusPrev": "V1.15 Participants — Prolific createStudy fix SHIPPED (v1.15.0-a3, live 547337e). Owner's a2 test hit .../studies/undefined. Cause: call() only threw on 401/403/5xx, so a Prolific 400 passed as fake success → no id parsed → publishStudy hit /studies/undefined/. Fix: call() throws on ANY non-2xx with the error body; createStudy validates the id; payload to current API (completion_codes[], estimated_completion_time, eligibility _cls); half-created session retryable. +3 tests; 493 vitest green.",
+  "currentFocus": "V1.15 Participants — Prolific ChoiceID filter mapping SHIPPED (v1.15.0-a5, live 11635b6). Owner confirmed no-filter create works (core round-trip live); country filter 400'd: error 140003 'current-country-of-residence is a ChoiceID choice filter, please specify a list of numeric string ChoiceIDs' — we sent ISO codes. Fix: buildFilters() fetches GET /filters/ at create time, builds label→ChoiceID maps for current-country-of-residence + fluent-languages, maps our selected country/language NAMES → Prolific ChoiceIDs (self-correcting, nothing hardcoded; handles array or object choices). No filters → no fetch, filters:[] (fast path); an unmappable name is dropped so one unknown country never 400s the create. +2 adapter tests; 495 vitest green; migration-free. Owner to retry with a country (e.g. Poland). Next (once confirmed): Stream P2 (provider_submission + webhook handler + Inngest polling + Open-recruitment sub-view).",
+  "currentFocusPrev": "V1.15 Participants — Prolific filters fix SHIPPED (v1.15.0-a4, live 78b49c4). eligibility_requirements deprecated (error 140003) → createStudy now sends `filters`; empty when nothing selected so a no-filter study recruits anyone (owner confirmed this works). +1 test; 494 vitest green.",
   "phases": [
     {
       "id": "foundation",
@@ -1213,6 +1213,10 @@
     }
   ],
   "recentActivity": [
+    {
+      "date": "2026-06-16",
+      "text": "fix(participants): map country/language → Prolific ChoiceIDs (v1.15.0-a5, live 11635b6). Owner: no-filter create works; country 400'd (140003 'ChoiceID choice filter ... numeric string ChoiceIDs') — we sent ISO codes. buildFilters() fetches GET /filters/, builds label→ChoiceID maps for current-country-of-residence + fluent-languages, maps our selected names → ChoiceIDs (self-correcting; array|object choices). No filters → no fetch, filters:[]. +2 tests; 495 vitest green; migration-free. Owner to retry with a country."
+    },
     {
       "date": "2026-06-16",
       "text": "fix(participants): Prolific createStudy uses `filters` (v1.15.0-a4, live 78b49c4). Owner's a3 retry surfaced the exact error: 140003 'eligibility_requirements ... deprecated. Please use the filters field instead.' — and sending it 400'd every create. createStudy now sends filters [{filter_id, selected_values}] (empty when none → no-filter study recruits anyone; country=current-country-of-residence, language=fluent-languages). selected_values value-id mapping best-effort. +1 test; 494 vitest green; migration-free. Owner to retry (no-filter should give a real Live-on-Prolific link)."
