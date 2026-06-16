@@ -1,6 +1,6 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 
 import type { ThemeChoice } from "@/components/theme-provider";
 import { auth } from "@/server/adapters/auth";
@@ -16,9 +16,10 @@ import { member, user, workspace } from "@/server/db/schema";
  * uses postgres-js, not neon-http), then persists the narrow metadata bag
  * through the adapter.
  *
- * Standalone-signup path only for V1 (creates a new workspace). The invite
- * path — flipping a pending `invited` member to active — is deferred per the
- * feature spec.
+ * Creates the signer's own workspace (standalone path) AND auto-links any
+ * pending `invited` member rows addressed to their email — flipping them to
+ * active so an invited researcher joins the inviting workspace(s) on sign-up
+ * (V1.14 / ADR-0046).
  *
  * See:
  *   - 02_product/user-flows/signup-and-onboard.md (Path B)
@@ -99,6 +100,20 @@ export async function finalizeOnboarding(
       role: "owner",
       status: "active",
     });
+
+    // Auto-link any pending invitations addressed to this email (V1.14 / ADR-0046):
+    // a researcher invited to other workspaces becomes an active member of each on
+    // sign-up. Matched case-insensitively on the invited email.
+    await tx
+      .update(member)
+      .set({ userId: dbUser.id, status: "active" })
+      .where(
+        and(
+          eq(member.status, "invited"),
+          isNull(member.removedAt),
+          sql`lower(${member.invitedEmail}) = ${current.email.toLowerCase()}`,
+        ),
+      );
 
     return { workspaceId: ws.id };
   });

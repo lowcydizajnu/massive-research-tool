@@ -17,7 +17,15 @@ vi.mock("@/server/db/client", async () => {
 
 vi.mock("@/server/adapters/jobs", () => ({ jobs: { enqueue: vi.fn() } }));
 
+// The team router calls auth.createInvitation (Clerk) — mock the adapter so tests
+// exercise the DB-side dedupe/summary without a live provider.
+vi.mock("@/server/adapters/auth", () => ({
+  auth: { createInvitation: vi.fn().mockResolvedValue({ id: "inv_test" }) },
+}));
+
 import { ulid } from "ulid";
+
+import { auth } from "@/server/adapters/auth";
 
 import type { AuthUser } from "@/server/adapters/auth";
 import { db } from "@/server/db/client";
@@ -129,5 +137,58 @@ describe("team.list / listInvitations", () => {
 
     // the invited row is not an active member (only the owner is)
     expect(await caller.team.list()).toHaveLength(1);
+  });
+});
+
+describe("team.invite", () => {
+  it("sends new invites, dedupes against members + pending + within the batch, flags invalid", async () => {
+    const owner = await seedUser("ext_owner");
+    const [ws] = await db.insert(workspace).values({ name: "Lab", slug: "lab", ownerId: owner.id }).returning();
+    await db.insert(member).values({ workspaceId: ws.id, userId: owner.id, role: "owner", status: "active" });
+    // an already-pending invite
+    await db.insert(member).values({
+      workspaceId: ws.id,
+      role: "viewer",
+      status: "invited",
+      invitedEmail: "pending@lab.edu",
+      invitedBy: owner.id,
+    });
+    const caller = createCaller({ authUser: authUser("ext_owner") });
+
+    const r = await caller.team.invite({
+      emails: ["NEW1@lab.edu", "new2@lab.edu", "new1@lab.edu", "pending@lab.edu", "ext_owner@example.com", "nope"],
+      role: "editor",
+    });
+    expect(r).toEqual({ sent: 2, alreadyMember: 1, alreadyInvited: 1, invalid: 1, failed: 0 });
+    expect(vi.mocked(auth.createInvitation)).toHaveBeenCalledTimes(2);
+
+    const invites = await caller.team.listInvitations();
+    expect(invites.map((i) => i.email).sort()).toEqual(["new1@lab.edu", "new2@lab.edu", "pending@lab.edu"]);
+
+    // re-inviting an existing one no-ops
+    const again = await caller.team.invite({ emails: ["new1@lab.edu"], role: "editor" });
+    expect(again).toEqual({ sent: 0, alreadyMember: 0, alreadyInvited: 1, invalid: 0, failed: 0 });
+  });
+
+  it("gates by role: viewers/editors can't invite; admins can't invite above Editor", async () => {
+    const owner = await seedUser("ext_owner");
+    const [ws] = await db.insert(workspace).values({ name: "Lab", slug: "lab", ownerId: owner.id }).returning();
+    await db.insert(member).values({ workspaceId: ws.id, userId: owner.id, role: "owner", status: "active" });
+    const adminU = await seedUser("ext_admin");
+    await db.insert(member).values({ workspaceId: ws.id, userId: adminU.id, role: "admin", status: "active" });
+    const viewerU = await seedUser("ext_viewer");
+    await db.insert(member).values({ workspaceId: ws.id, userId: viewerU.id, role: "viewer", status: "active" });
+
+    const viewer = createCaller({ authUser: authUser("ext_viewer") });
+    await expect(viewer.team.invite({ emails: ["x@lab.edu"], role: "viewer" })).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+
+    const admin = createCaller({ authUser: authUser("ext_admin") });
+    await expect(admin.team.invite({ emails: ["x@lab.edu"], role: "admin" })).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+    // admin inviting an Editor is allowed
+    await expect(admin.team.invite({ emails: ["x@lab.edu"], role: "editor" })).resolves.toMatchObject({ sent: 1 });
   });
 });

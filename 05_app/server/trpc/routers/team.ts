@@ -1,11 +1,24 @@
+import { TRPCError } from "@trpc/server";
 import { and, desc, eq, isNull, max } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { z } from "zod";
 
+import { auth } from "@/server/adapters/auth";
 import { db } from "@/server/db/client";
 import { activityEvent, member, user } from "@/server/db/schema";
 import { router, workspaceProcedure } from "@/server/trpc/trpc";
 import type { MemberRole } from "@/server/workspace/active";
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Outcome counts from a (possibly bulk) invite. */
+export type TeamInviteResult = {
+  sent: number;
+  alreadyMember: number;
+  alreadyInvited: number;
+  invalid: number;
+  failed: number;
+};
 
 /**
  * Team destination data layer (V1.14 / ADR-0046, team-members.md). Active
@@ -91,6 +104,9 @@ export const teamRouter = router({
       }));
     }),
 
+  /** The caller's role in the active workspace — gates the manage affordances. */
+  myRole: workspaceProcedure.query(({ ctx }): MemberRole => ctx.role as MemberRole),
+
   /** Pending invitations (status='invited') with age, newest first. */
   listInvitations: workspaceProcedure.query(async ({ ctx }): Promise<TeamInvitation[]> => {
     const inviter = alias(user, "inviter");
@@ -119,4 +135,105 @@ export const teamRouter = router({
       ageDays: Math.floor((now - r.invitedAt.getTime()) / 86_400_000),
     }));
   }),
+
+  /**
+   * Invite one or many emails to the workspace (T2.1 / ADR-0046). Owner/admin
+   * only; admins can invite up to Editor. Per email: skip if already an active
+   * member or a pending invite; else send a Clerk invitation (carrying
+   * workspaceId + role in publicMetadata for the sign-up auto-link) and create a
+   * `member(status:'invited')` row. Idempotent + best-effort per email — returns
+   * a summary so the bulk UI can report "5 sent / 1 already a member / …".
+   */
+  invite: workspaceProcedure
+    .input(
+      z.object({
+        emails: z.array(z.string()).min(1).max(200),
+        role: z.enum(["owner", "admin", "editor", "viewer"]),
+        personalMessage: z.string().max(1000).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }): Promise<TeamInviteResult> => {
+      if (ctx.role !== "owner" && ctx.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Only owners and admins can invite members." });
+      }
+      if (ctx.role === "admin" && (input.role === "owner" || input.role === "admin")) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Admins can invite up to Editor." });
+      }
+      const wsId = ctx.workspace.id;
+
+      // Normalize + dedupe the input; count malformed addresses.
+      const seen = new Set<string>();
+      const emails: string[] = [];
+      let invalid = 0;
+      for (const raw of input.emails) {
+        const e = raw.trim().toLowerCase();
+        if (!e) continue;
+        if (!EMAIL_RE.test(e)) {
+          invalid++;
+          continue;
+        }
+        if (!seen.has(e)) {
+          seen.add(e);
+          emails.push(e);
+        }
+      }
+
+      // Existing active members + pending invites in this workspace, to dedupe against.
+      const activeRows = await db
+        .select({ email: user.email })
+        .from(member)
+        .innerJoin(user, eq(member.userId, user.id))
+        .where(and(eq(member.workspaceId, wsId), eq(member.status, "active"), isNull(member.removedAt)));
+      const memberEmails = new Set(activeRows.map((r) => r.email.toLowerCase()));
+      const pendingRows = await db
+        .select({ email: member.invitedEmail })
+        .from(member)
+        .where(and(eq(member.workspaceId, wsId), eq(member.status, "invited"), isNull(member.removedAt)));
+      const pendingEmails = new Set(pendingRows.map((r) => (r.email ?? "").toLowerCase()));
+
+      const redirectUrl = process.env.NEXT_PUBLIC_SITE_URL
+        ? `${process.env.NEXT_PUBLIC_SITE_URL}/signup`
+        : undefined;
+
+      let sent = 0;
+      let alreadyMember = 0;
+      let alreadyInvited = 0;
+      let failed = 0;
+      for (const email of emails) {
+        if (memberEmails.has(email)) {
+          alreadyMember++;
+          continue;
+        }
+        if (pendingEmails.has(email)) {
+          alreadyInvited++;
+          continue;
+        }
+        try {
+          // Clerk first — only record the pending row if the email was accepted
+          // for delivery, so a failure leaves nothing to clean up.
+          await auth.createInvitation({
+            email,
+            redirectUrl,
+            publicMetadata: {
+              workspaceId: wsId,
+              role: input.role,
+              ...(input.personalMessage ? { personalMessage: input.personalMessage } : {}),
+            },
+          });
+          await db.insert(member).values({
+            workspaceId: wsId,
+            role: input.role,
+            status: "invited",
+            invitedEmail: email,
+            invitedBy: ctx.dbUser.id,
+          });
+          pendingEmails.add(email); // guard against a duplicate within this same batch
+          sent++;
+        } catch {
+          failed++;
+        }
+      }
+
+      return { sent, alreadyMember, alreadyInvited, invalid, failed };
+    }),
 });
