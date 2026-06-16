@@ -86,6 +86,35 @@ function SignupFlow() {
     }
   }, [isLoaded, signUp, isSignedIn, step]);
 
+  // Accept a Clerk workspace invitation. The invite email link lands here with a
+  // `__clerk_ticket` (the email is pre-verified by the ticket). Consume it via a
+  // ticket sign-up, then continue onboarding — finalizeOnboarding auto-links the
+  // pending `member` row to this user (V1.14 / ADR-0046). One-shot via a ref.
+  const ticketHandled = useRef(false);
+  useEffect(() => {
+    if (!isLoaded || !signUp || isSignedIn || ticketHandled.current) return;
+    const ticket = searchParams.get("__clerk_ticket");
+    if (!ticket) return;
+    ticketHandled.current = true;
+    void (async () => {
+      try {
+        const res = await signUp.create({ strategy: "ticket", ticket });
+        setEmail((prev) => prev || res.emailAddress || "");
+        const name = [res.firstName, res.lastName].filter(Boolean).join(" ").trim();
+        setDisplayName((prev) => prev || name);
+        if (res.status === "complete" && res.createdSessionId) {
+          await setActive({ session: res.createdSessionId });
+          // the session effect above advances to the profile step
+        } else {
+          // email is verified by the ticket; finish via signUp.update on Continue
+          setStep("profile");
+        }
+      } catch (err) {
+        setError(messageFrom(err, "This invitation link is invalid or has expired — ask for a new invite."));
+      }
+    })();
+  }, [isLoaded, signUp, isSignedIn, searchParams, setActive]);
+
   async function handleEmail(e: React.FormEvent) {
     e.preventDefault();
     if (!isLoaded || !signUp) return;

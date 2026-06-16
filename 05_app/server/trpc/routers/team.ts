@@ -191,9 +191,9 @@ export const teamRouter = router({
         .where(and(eq(member.workspaceId, wsId), eq(member.status, "invited"), isNull(member.removedAt)));
       const pendingEmails = new Set(pendingRows.map((r) => (r.email ?? "").toLowerCase()));
 
-      const redirectUrl = process.env.NEXT_PUBLIC_SITE_URL
-        ? `${process.env.NEXT_PUBLIC_SITE_URL}/signup`
-        : undefined;
+      // The invite link lands on /signup, which consumes the __clerk_ticket.
+      const base = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, "");
+      const redirectUrl = base ? `${base}/signup` : undefined;
 
       let sent = 0;
       let alreadyMember = 0;
