@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { ProfileForm } from "@/components/feature/settings/profile-form";
+import { ActivityFilterSettings } from "@/components/feature/settings/activity-filter-settings";
 import { DemoContentToggle } from "@/components/feature/settings/demo-content-toggle";
 import { PanelSideToggle } from "@/components/feature/settings/panel-side-toggle";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -97,6 +98,9 @@ export default async function AccountSettingsPage({
           </div>
           <div className="mt-2 border-t border-[var(--color-border-subtle)] pt-4">
             <DemoContentToggle />
+          </div>
+          <div className="mt-2 border-t border-[var(--color-border-subtle)] pt-4">
+            <ActivityFilterSettings />
           </div>
         </section>
       ) : null}
