@@ -1,5 +1,6 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
+import { LANGUAGES, PROLIFIC_COUNTRIES } from "@/lib/iso-countries";
 import {
   InvalidProviderTokenError,
   ProviderUnreachableError,
@@ -62,20 +63,69 @@ const PROLIFIC_TRANSITION: Record<"publish" | "pause" | "close", string> = {
   close: "STOP",
 };
 
+const COUNTRY_FILTER = "current-country-of-residence";
+const LANGUAGE_FILTER = "fluent-languages";
+const COUNTRY_NAME = new Map(PROLIFIC_COUNTRIES.map((c) => [c.code, c.name.toLowerCase()]));
+const LANGUAGE_NAME = new Map(LANGUAGES.map((l) => [l.code, l.name.toLowerCase()]));
+
+type ProlificFilter = {
+  id?: string;
+  filter_id?: string;
+  choices?: Array<{ value?: string; id?: string; label?: string }> | Record<string, string>;
+};
+
 /**
- * Map our eligibility shape to Prolific's `filters` (P1b). `eligibility_requirements`
- * is deprecated (error 140003) — current API uses `filters`: an array of
- * `{ filter_id, selected_values }`. Country/language only; everything else is set
- * on the Prolific dashboard. Empty when nothing's selected (so a no-filter study
- * sends `filters: []` and recruits anyone). NOTE: `selected_values` for country
- * may be Prolific-internal value ids rather than ISO codes — best-effort; the
- * surfaced 400 body (see `call`) pinpoints the exact format if Prolific rejects it.
+ * Prolific's `current-country-of-residence` / `fluent-languages` are ChoiceID
+ * filters: `selected_values` must be numeric-string ChoiceIDs, not ISO codes
+ * (error 140003). Fetch the filter definitions and build label→ChoiceID maps for
+ * the two filters we surface; we then match our country/language NAMES to
+ * Prolific's choice labels. Handles both choices shapes (array of {value,label}
+ * or object {ChoiceID: label}).
  */
-function toFilters(e?: Eligibility): unknown[] {
-  if (!e) return [];
+async function fetchChoiceMaps(accessToken: string): Promise<Map<string, Map<string, string>>> {
+  const res = await call("/filters/", { accessToken, method: "GET" });
+  const body = (await res.json()) as { results?: ProlificFilter[] } | ProlificFilter[];
+  const filters = Array.isArray(body) ? body : (body.results ?? []);
+  const out = new Map<string, Map<string, string>>();
+  for (const f of filters) {
+    const id = f.filter_id ?? f.id;
+    if (id !== COUNTRY_FILTER && id !== LANGUAGE_FILTER) continue;
+    const choiceMap = new Map<string, string>();
+    const raw = f.choices;
+    if (Array.isArray(raw)) {
+      for (const c of raw) {
+        const value = String(c.value ?? c.id ?? "");
+        const label = String(c.label ?? c.value ?? "").toLowerCase();
+        if (value && label) choiceMap.set(label, value);
+      }
+    } else if (raw && typeof raw === "object") {
+      for (const [cid, label] of Object.entries(raw)) choiceMap.set(String(label).toLowerCase(), String(cid));
+    }
+    out.set(id, choiceMap);
+  }
+  return out;
+}
+
+/**
+ * Build Prolific `filters` from our eligibility (P1b), mapping our country/
+ * language names → Prolific ChoiceIDs. Empty when nothing's selected (no extra
+ * fetch). A selected country/language that doesn't map is dropped (best-effort),
+ * so a single unknown name never 400s the whole create.
+ */
+async function buildFilters(accessToken: string, e?: Eligibility): Promise<unknown[]> {
+  if (!e || (!e.country?.length && !e.language?.length)) return [];
+  const maps = await fetchChoiceMaps(accessToken);
+  const mapCodes = (codes: string[], names: Map<string, string>, choices?: Map<string, string>) =>
+    codes.map((code) => choices?.get(names.get(code) ?? code.toLowerCase())).filter((v): v is string => !!v);
   const filters: unknown[] = [];
-  if (e.country?.length) filters.push({ filter_id: "current-country-of-residence", selected_values: e.country });
-  if (e.language?.length) filters.push({ filter_id: "fluent-languages", selected_values: e.language });
+  if (e.country?.length) {
+    const ids = mapCodes(e.country, COUNTRY_NAME, maps.get(COUNTRY_FILTER));
+    if (ids.length) filters.push({ filter_id: COUNTRY_FILTER, selected_values: ids });
+  }
+  if (e.language?.length) {
+    const ids = mapCodes(e.language, LANGUAGE_NAME, maps.get(LANGUAGE_FILTER));
+    if (ids.length) filters.push({ filter_id: LANGUAGE_FILTER, selected_values: ids });
+  }
   return filters;
 }
 
@@ -108,7 +158,7 @@ export const prolificAdapter: RecruitmentAdapter = {
         total_available_places: targetN,
         estimated_completion_time: 5, // minutes; Prolific requires a positive estimate. Refined in P2.
         reward: Math.round(reward.amount * 100), // smallest currency unit
-        filters: toFilters(eligibility), // current Prolific API (eligibility_requirements is deprecated)
+        filters: await buildFilters(accessToken, eligibility), // ChoiceID filters (eligibility_requirements is deprecated)
       }),
     });
     const study = (await res.json()) as { id?: string };
