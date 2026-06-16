@@ -342,6 +342,40 @@ export const recruitmentRouter = router({
       }
       return out;
     }),
+
+    /**
+     * Submission counts for a single study, reconciled live (best-effort) on
+     * read. Powers the inline progress row on the Run-stage Prolific card so a
+     * researcher sees recruitment progress where they manage it — not only on
+     * the Participants tab. Returns null when no provider study is attached.
+     */
+    forStudy: workspaceProcedure
+      .input(z.object({ studyId: z.string().uuid() }))
+      .query(async ({ ctx, input }): Promise<SubmissionCounts | null> => {
+        const session = await findOpenSession(input.studyId, ctx.workspace.id);
+        const provider = session?.metadata?.provider as ProviderStudyMeta | undefined;
+        if (!session || !provider?.providerStudyId) return null;
+
+        const [conn] = await db
+          .select({ token: recruitmentProviderConnection.accessToken })
+          .from(recruitmentProviderConnection)
+          .where(
+            and(
+              eq(recruitmentProviderConnection.workspaceId, ctx.workspace.id),
+              eq(recruitmentProviderConnection.userId, ctx.dbUser.id),
+              eq(recruitmentProviderConnection.provider, provider.name),
+            ),
+          )
+          .limit(1);
+        if (conn) {
+          try {
+            await reconcileSubmissions(decryptSecret(conn.token), ctx.workspace.id, input.studyId, session.id, provider);
+          } catch {
+            // provider unreachable / token bad — fall back to stored rows
+          }
+        }
+        return submissionCounts(input.studyId, provider.providerStudyId);
+      }),
   }),
 });
 

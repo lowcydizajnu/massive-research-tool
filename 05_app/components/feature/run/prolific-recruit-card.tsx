@@ -62,40 +62,76 @@ function LiveState({
   canWrite: boolean;
 }) {
   const utils = api.useUtils();
+  // Reconciles submissions live on read; refetch on focus + every 30s while live
+  // so progress moves without a manual reload (full live-push is the P2 webhook).
+  const counts = api.recruitment.openRecruitment.forStudy.useQuery(
+    { studyId },
+    { refetchOnWindowFocus: true, refetchInterval: status === "live" ? 30_000 : false },
+  );
   const stop = api.recruitment.stopProviderStudy.useMutation({
-    onSuccess: () => void utils.recruitment.getProviderStudy.invalidate({ studyId }),
+    onSuccess: () => {
+      void utils.recruitment.getProviderStudy.invalidate({ studyId });
+      void utils.recruitment.openRecruitment.forStudy.invalidate({ studyId });
+    },
   });
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--color-border-subtle)] pt-3">
-      <span className="flex items-center gap-2 text-[length:var(--text-small)]">
-        <span
-          className={
-            "rounded-[var(--radius-sm)] px-1.5 py-0.5 font-medium " +
-            (status === "live"
-              ? "bg-[var(--color-success-subtle)] text-[var(--color-success-text-on-subtle)]"
-              : "bg-[var(--color-surface-subtle)] text-[var(--color-text-secondary)]")
-          }
-        >
-          {status === "live" ? "Live on Prolific" : "Stopped"}
+    <div className="flex flex-col gap-3 border-t border-[var(--color-border-subtle)] pt-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="flex items-center gap-2 text-[length:var(--text-small)]">
+          <span
+            className={
+              "rounded-[var(--radius-sm)] px-1.5 py-0.5 font-medium " +
+              (status === "live"
+                ? "bg-[var(--color-success-subtle)] text-[var(--color-success-text-on-subtle)]"
+                : "bg-[var(--color-surface-subtle)] text-[var(--color-text-secondary)]")
+            }
+          >
+            {status === "live" ? "Live on Prolific" : "Stopped"}
+          </span>
+          <a href={url} target="_blank" rel="noreferrer" className="text-[var(--color-text-secondary)] underline hover:opacity-80">
+            Open on Prolific →
+          </a>
         </span>
-        <a href={url} target="_blank" rel="noreferrer" className="text-[var(--color-text-secondary)] underline hover:opacity-80">
-          Open on Prolific →
-        </a>
-      </span>
-      {status === "live" ? (
-        <button
-          type="button"
-          disabled={!canWrite || stop.isPending}
-          title={canWrite ? undefined : READ_ONLY_TITLE}
-          onClick={() => {
-            if (window.confirm("Stop this study on Prolific? No new participants will be recruited."))
-              stop.mutate({ studyId, provider: "prolific" });
-          }}
-          className="rounded-[var(--radius-sm)] px-2 py-0.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-muted)] hover:bg-[var(--color-danger-subtle)] hover:text-[var(--color-danger-text-on-subtle)] disabled:opacity-40"
-        >
-          {stop.isPending ? "Stopping…" : "Stop on Prolific"}
-        </button>
-      ) : null}
+        {status === "live" ? (
+          <button
+            type="button"
+            disabled={!canWrite || stop.isPending}
+            title={canWrite ? undefined : READ_ONLY_TITLE}
+            onClick={() => {
+              if (window.confirm("Stop this study on Prolific? No new participants will be recruited."))
+                stop.mutate({ studyId, provider: "prolific" });
+            }}
+            className="rounded-[var(--radius-sm)] px-2 py-0.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-muted)] hover:bg-[var(--color-danger-subtle)] hover:text-[var(--color-danger-text-on-subtle)] disabled:opacity-40"
+          >
+            {stop.isPending ? "Stopping…" : "Stop on Prolific"}
+          </button>
+        ) : null}
+      </div>
+
+      {counts.data && counts.data.total > 0 ? (
+        <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
+          <CountStat n={counts.data.started} label="Started" />
+          <CountStat n={counts.data.submitted} label="Awaiting review" />
+          <CountStat n={counts.data.approved} label="Approved" />
+          <CountStat n={counts.data.rejected} label="Rejected" />
+          <CountStat n={counts.data.timedOut} label="Timed out" />
+        </div>
+      ) : counts.isLoading ? (
+        <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">Loading submissions…</p>
+      ) : (
+        <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+          No submissions yet. Counts appear here as participants take the study.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function CountStat({ n, label }: { n: number; label: string }) {
+  return (
+    <div className="flex flex-col">
+      <span className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">{n}</span>
+      <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">{label}</span>
     </div>
   );
 }
