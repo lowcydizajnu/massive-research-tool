@@ -1,6 +1,8 @@
 "use client";
 
 import { Plus, X } from "lucide-react";
+import Link from "next/link";
+import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
@@ -387,9 +389,12 @@ function MemberRow({
           <Avatar url={m.avatarUrl} name={m.displayName} />
           <span className="flex min-w-0 flex-col">
             <span className="flex items-center gap-2">
-              <span className="truncate text-[length:var(--text-body)] font-medium text-[var(--color-text-primary)]">
+              <Link
+                href={`/team/${m.memberId}` as Route}
+                className="truncate text-[length:var(--text-body)] font-medium text-[var(--color-text-primary)] hover:text-[var(--color-primary)] hover:underline"
+              >
                 {m.displayName || m.email}
-              </span>
+              </Link>
               {isSelf ? (
                 <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">(you)</span>
               ) : null}

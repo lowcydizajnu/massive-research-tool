@@ -236,6 +236,45 @@ describe("team.revokeInvite / resendInvite", () => {
   });
 });
 
+describe("team.get / memberActivity (T4 member detail)", () => {
+  it("returns a member's profile + role + last-active + activity timeline", async () => {
+    const owner = await seedUser("ext_owner");
+    const [ws] = await db.insert(workspace).values({ name: "Lab", slug: "lab", ownerId: owner.id }).returning();
+    await db.insert(member).values({ workspaceId: ws.id, userId: owner.id, role: "owner", status: "active" });
+    const ed = await seedUser("ext_ed");
+    const [edMember] = await db
+      .insert(member)
+      .values({ workspaceId: ws.id, userId: ed.id, role: "editor", status: "active" })
+      .returning();
+    await db.insert(activityEvent).values({
+      id: ulid(),
+      type: "fork",
+      workspaceId: ws.id,
+      actorUserId: ed.id,
+      targetType: "study",
+      targetId: "s1",
+    });
+
+    const caller = createCaller({ authUser: authUser("ext_owner") });
+    const detail = await caller.team.get({ memberId: edMember.id });
+    expect(detail).toMatchObject({ userId: ed.id, role: "editor", email: "ext_ed@example.com" });
+    expect(detail.lastActiveAt).not.toBeNull();
+
+    const activity = await caller.team.memberActivity({ memberId: edMember.id });
+    expect(activity.map((a) => a.type)).toEqual(["fork"]);
+  });
+
+  it("get throws NOT_FOUND for an unknown member", async () => {
+    const owner = await seedUser("ext_owner");
+    const [ws] = await db.insert(workspace).values({ name: "Lab", slug: "lab", ownerId: owner.id }).returning();
+    await db.insert(member).values({ workspaceId: ws.id, userId: owner.id, role: "owner", status: "active" });
+    const caller = createCaller({ authUser: authUser("ext_owner") });
+    await expect(
+      caller.team.get({ memberId: "00000000-0000-0000-0000-000000000000" }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+});
+
 describe("team.changeRole / removeMember / transferOwnership / leaveWorkspace (T3)", () => {
   /** Seed a workspace with an owner + the requested extra members; returns ids by ext key. */
   async function seedWs(extras: { ext: string; role: "owner" | "admin" | "editor" | "viewer" }[]) {
