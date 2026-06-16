@@ -1,6 +1,7 @@
 "use client";
 
 import { useSignIn, useUser } from "@clerk/nextjs";
+import type { Route } from "next";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -25,6 +26,16 @@ export default function SigninPage() {
   useEffect(() => {
     if (userLoaded && isSignedIn) router.replace("/studies");
   }, [userLoaded, isSignedIn, router]);
+
+  // A Clerk invitation ticket belongs on /signup (it creates a new account).
+  // If the invite link lands here, bounce it over with the query intact (V1.14).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const search = window.location.search;
+    if (new URLSearchParams(search).get("__clerk_ticket")) {
+      router.replace(`/signup${search}` as Route);
+    }
+  }, [router]);
 
   // Hint when redirected here from a Google signup that conflicted with an
   // existing account (window.location avoids a useSearchParams Suspense wrap).
