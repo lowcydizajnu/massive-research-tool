@@ -140,6 +140,31 @@ describe("prolificAdapter.createStudy surfaces validation errors (no silent unde
   });
 });
 
+describe("prolificAdapter.getStudy maps the live status + recruitment progress", () => {
+  it("normalizes PAUSED + places into our state/placesTaken/totalPlaces", async () => {
+    stubFetch(() => new Response(JSON.stringify({ status: "PAUSED", places_taken: 50, total_available_places: 50 }), { status: 200 }));
+    await expect(prolificAdapter.getStudy({ accessToken: "t", providerStudyId: "s1" })).resolves.toEqual({
+      state: "paused",
+      placesTaken: 50,
+      totalPlaces: 50,
+    });
+  });
+
+  it("maps 'AWAITING REVIEW' (spaced) → awaiting_review and falls back to number_of_submissions", async () => {
+    stubFetch(() => new Response(JSON.stringify({ status: "AWAITING REVIEW", number_of_submissions: 12, total_available_places: 12 }), { status: 200 }));
+    await expect(prolificAdapter.getStudy({ accessToken: "t", providerStudyId: "s2" })).resolves.toEqual({
+      state: "awaiting_review",
+      placesTaken: 12,
+      totalPlaces: 12,
+    });
+  });
+
+  it("maps an unrecognized status to 'unknown'", async () => {
+    stubFetch(() => new Response(JSON.stringify({ status: "WHATEVER" }), { status: 200 }));
+    await expect(prolificAdapter.getStudy({ accessToken: "t", providerStudyId: "s3" })).resolves.toMatchObject({ state: "unknown" });
+  });
+});
+
 describe("prolificAdapter.verifyWebhookSignature", () => {
   it("returns false when no webhook secret is configured", () => {
     const prev = process.env.PROLIFIC_WEBHOOK_SECRET;

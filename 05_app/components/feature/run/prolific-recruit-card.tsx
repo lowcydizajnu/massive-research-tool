@@ -50,6 +50,16 @@ export function ProlificRecruitCard({ studyId, studyTitle }: { studyId: string; 
   );
 }
 
+/** Provider lifecycle state → badge label + token classes. */
+const STATE_BADGE: Record<string, { label: string; cls: string }> = {
+  active: { label: "Live on Prolific", cls: "bg-[var(--color-success-subtle)] text-[var(--color-success-text-on-subtle)]" },
+  paused: { label: "Paused on Prolific", cls: "bg-[var(--color-warning-subtle)] text-[var(--color-warning-text-on-subtle)]" },
+  awaiting_review: { label: "Recruited — awaiting review", cls: "bg-[var(--color-info-subtle)] text-[var(--color-info-text-on-subtle)]" },
+  completed: { label: "Completed on Prolific", cls: "bg-[var(--color-surface-subtle)] text-[var(--color-text-secondary)]" },
+  unpublished: { label: "Not yet live", cls: "bg-[var(--color-surface-subtle)] text-[var(--color-text-secondary)]" },
+  unknown: { label: "On Prolific", cls: "bg-[var(--color-surface-subtle)] text-[var(--color-text-secondary)]" },
+};
+
 function LiveState({
   studyId,
   url,
@@ -62,9 +72,10 @@ function LiveState({
   canWrite: boolean;
 }) {
   const utils = api.useUtils();
-  // Reconciles submissions live on read; refetch on focus + every 30s while live
-  // so progress moves without a manual reload (full live-push is the P2 webhook).
-  const counts = api.recruitment.openRecruitment.forStudy.useQuery(
+  // Reconciles the live provider status + submissions on read; refetch on focus
+  // + every 30s while live so it moves without a manual reload (full live-push
+  // is the P2 webhook). Falls back to the stored status when not yet loaded.
+  const progress = api.recruitment.openRecruitment.forStudy.useQuery(
     { studyId },
     { refetchOnWindowFocus: true, refetchInterval: status === "live" ? 30_000 : false },
   );
@@ -74,25 +85,30 @@ function LiveState({
       void utils.recruitment.openRecruitment.forStudy.invalidate({ studyId });
     },
   });
+
+  const state = progress.data?.state ?? (status === "live" ? "active" : "unknown");
+  const badge = STATE_BADGE[state] ?? STATE_BADGE.unknown;
+  const counts = progress.data?.counts;
+  const placesTaken = progress.data?.placesTaken ?? null;
+  const totalPlaces = progress.data?.totalPlaces ?? null;
+  // Stop is meaningful while the provider study is still recruiting.
+  const canStop = state === "active" || state === "paused" || (!progress.data && status === "live");
+
   return (
     <div className="flex flex-col gap-3 border-t border-[var(--color-border-subtle)] pt-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="flex items-center gap-2 text-[length:var(--text-small)]">
-          <span
-            className={
-              "rounded-[var(--radius-sm)] px-1.5 py-0.5 font-medium " +
-              (status === "live"
-                ? "bg-[var(--color-success-subtle)] text-[var(--color-success-text-on-subtle)]"
-                : "bg-[var(--color-surface-subtle)] text-[var(--color-text-secondary)]")
-            }
-          >
-            {status === "live" ? "Live on Prolific" : "Stopped"}
-          </span>
+          <span className={"rounded-[var(--radius-sm)] px-1.5 py-0.5 font-medium " + badge.cls}>{badge.label}</span>
+          {totalPlaces ? (
+            <span className="text-[var(--color-text-secondary)]">
+              {placesTaken ?? 0} / {totalPlaces} recruited
+            </span>
+          ) : null}
           <a href={url} target="_blank" rel="noreferrer" className="text-[var(--color-text-secondary)] underline hover:opacity-80">
             Open on Prolific →
           </a>
         </span>
-        {status === "live" ? (
+        {canStop ? (
           <button
             type="button"
             disabled={!canWrite || stop.isPending}
@@ -108,15 +124,15 @@ function LiveState({
         ) : null}
       </div>
 
-      {counts.data && counts.data.total > 0 ? (
+      {counts && counts.total > 0 ? (
         <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
-          <CountStat n={counts.data.started} label="Started" />
-          <CountStat n={counts.data.submitted} label="Awaiting review" />
-          <CountStat n={counts.data.approved} label="Approved" />
-          <CountStat n={counts.data.rejected} label="Rejected" />
-          <CountStat n={counts.data.timedOut} label="Timed out" />
+          <CountStat n={counts.started} label="Started" />
+          <CountStat n={counts.submitted} label="Awaiting review" />
+          <CountStat n={counts.approved} label="Approved" />
+          <CountStat n={counts.rejected} label="Rejected" />
+          <CountStat n={counts.timedOut} label="Timed out" />
         </div>
-      ) : counts.isLoading ? (
+      ) : progress.isLoading ? (
         <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">Loading submissions…</p>
       ) : (
         <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">

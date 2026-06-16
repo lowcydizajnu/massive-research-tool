@@ -64,6 +64,7 @@ function fakeAdapter(over: Partial<RecruitmentAdapter> = {}): RecruitmentAdapter
     publishStudy: vi.fn(),
     pauseStudy: vi.fn(),
     closeStudy: vi.fn(),
+    getStudy: vi.fn().mockResolvedValue({ state: "active", placesTaken: 0, totalPlaces: 0 }),
     listSubmissions: vi.fn(),
     approveSubmission: vi.fn(),
     rejectSubmission: vi.fn(),
@@ -311,11 +312,11 @@ describe("recruitment.openRecruitment.list (Stream P2)", () => {
   });
 
   it("forStudy returns null when the study has no provider study attached", async () => {
-    const { u } = await seedWs("owner");
+    await seedWs("owner");
     const caller = createCaller({ authUser: authUser("u") });
     // A random in-workspace study id with no open provider session → null.
-    const counts = await caller.recruitment.openRecruitment.forStudy({ studyId: "00000000-0000-4000-8000-000000000000" });
-    expect(counts).toBeNull();
+    const result = await caller.recruitment.openRecruitment.forStudy({ studyId: "00000000-0000-4000-8000-000000000000" });
+    expect(result).toBeNull();
   });
 
   it("forStudy aggregates this study's stored counts (powers the Run-card progress row)", async () => {
@@ -335,7 +336,30 @@ describe("recruitment.openRecruitment.list (Stream P2)", () => {
       });
     }
     const caller = createCaller({ authUser: authUser("u") });
-    const counts = await caller.recruitment.openRecruitment.forStudy({ studyId: experimentId });
-    expect(counts).toMatchObject({ approved: 1, submitted: 1, started: 1, total: 3 });
+    const result = await caller.recruitment.openRecruitment.forStudy({ studyId: experimentId });
+    // No connection → no live reconcile; stored status "live" → state "active".
+    expect(result).toMatchObject({ state: "active", placesTaken: null, totalPlaces: null });
+    expect(result?.counts).toMatchObject({ approved: 1, submitted: 1, started: 1, total: 3 });
+  });
+
+  it("forStudy reconciles the live provider status + progress and persists it (live→paused)", async () => {
+    const { u, ws } = await seedWs("owner");
+    const { experimentId, sessionId } = await seedProviderStudy(ws, u, "PF2");
+    vi.mocked(getRecruitmentAdapter).mockReturnValue(
+      fakeAdapter({
+        listSubmissions: vi.fn().mockResolvedValue([]),
+        getStudy: vi.fn().mockResolvedValue({ state: "paused", placesTaken: 50, totalPlaces: 50 }),
+      }),
+    );
+    const caller = createCaller({ authUser: authUser("u") });
+    await caller.recruitment.connections.connect({ provider: "prolific", accessToken: "PAT" });
+
+    const result = await caller.recruitment.openRecruitment.forStudy({ studyId: experimentId });
+    expect(result).toMatchObject({ state: "paused", placesTaken: 50, totalPlaces: 50 });
+
+    // The reconciled status is persisted back: live → stopped, state → paused.
+    const [row] = await db.select().from(recruitmentSession).where(eq(recruitmentSession.id, sessionId));
+    const provider = (row.metadata as { provider: { status: string; state: string } }).provider;
+    expect(provider).toMatchObject({ status: "stopped", state: "paused" });
   });
 });

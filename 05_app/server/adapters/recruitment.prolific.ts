@@ -5,6 +5,7 @@ import {
   InvalidProviderTokenError,
   ProviderUnreachableError,
   type Eligibility,
+  type ProviderStudyState,
   type ProviderSubmission,
   type RecruitmentAdapter,
 } from "./recruitment";
@@ -190,6 +191,21 @@ export const prolificAdapter: RecruitmentAdapter = {
     });
   },
 
+  async getStudy({ accessToken, providerStudyId }) {
+    const res = await call(`/studies/${providerStudyId}/`, { accessToken, method: "GET" });
+    const s = (await res.json()) as {
+      status?: string;
+      total_available_places?: number;
+      places_taken?: number;
+      number_of_submissions?: number;
+    };
+    return {
+      state: mapStudyState(s.status),
+      placesTaken: s.places_taken ?? s.number_of_submissions ?? 0,
+      totalPlaces: s.total_available_places ?? 0,
+    };
+  },
+
   async listSubmissions({ accessToken, providerStudyId }) {
     const res = await call(`/studies/${providerStudyId}/submissions/`, { accessToken, method: "GET" });
     const body = (await res.json()) as { results?: ProlificSubmission[] };
@@ -234,6 +250,25 @@ type ProlificSubmission = {
   started_at?: string;
   completed_at?: string;
 };
+
+/** Prolific study `status` string → our normalized lifecycle state. */
+function mapStudyState(status?: string): ProviderStudyState {
+  switch ((status ?? "").toUpperCase().replace(/\s+/g, "_")) {
+    case "UNPUBLISHED":
+    case "SCHEDULED":
+      return "unpublished";
+    case "ACTIVE":
+      return "active";
+    case "PAUSED":
+      return "paused";
+    case "AWAITING_REVIEW":
+      return "awaiting_review";
+    case "COMPLETED":
+      return "completed";
+    default:
+      return "unknown";
+  }
+}
 
 function mapSubmission(s: ProlificSubmission): ProviderSubmission {
   const status: ProviderSubmission["status"] =

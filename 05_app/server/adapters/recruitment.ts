@@ -35,6 +35,19 @@ export type Eligibility = {
   language?: string[];
 };
 
+/**
+ * Normalized lifecycle state of a study on the provider's side (P2). Lets us
+ * reflect the TRUE provider status (a study can be paused/completed on Prolific
+ * without us ever clicking Stop) rather than only our stored live/stopped flag.
+ */
+export type ProviderStudyState =
+  | "unpublished" // created but not yet recruiting
+  | "active" // recruiting now
+  | "paused" // temporarily not recruiting
+  | "awaiting_review" // fully recruited, submissions awaiting the researcher
+  | "completed" // done
+  | "unknown";
+
 export interface RecruitmentAdapter {
   /**
    * Validate a pasted Personal Access Token (PAT-first per ADR-0047) and return
@@ -59,6 +72,17 @@ export interface RecruitmentAdapter {
   publishStudy(opts: { accessToken: string; providerStudyId: string }): Promise<void>;
   pauseStudy(opts: { accessToken: string; providerStudyId: string }): Promise<void>;
   closeStudy(opts: { accessToken: string; providerStudyId: string }): Promise<void>;
+
+  /**
+   * The study's current lifecycle state + recruitment progress on the provider
+   * (P2). Used to reconcile our stored status with reality — a study can be
+   * paused or completed on the provider without us ever calling closeStudy.
+   */
+  getStudy(opts: { accessToken: string; providerStudyId: string }): Promise<{
+    state: ProviderStudyState;
+    placesTaken: number;
+    totalPlaces: number;
+  }>;
 
   // Submissions (Stream P2+).
   listSubmissions(opts: { accessToken: string; providerStudyId: string }): Promise<ProviderSubmission[]>;
