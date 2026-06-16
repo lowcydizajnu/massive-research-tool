@@ -1,4 +1,5 @@
-import { and, count, desc, eq, gte, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
+import { and, count, desc, eq, gte, inArray, isNotNull, isNull, notInArray, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/server/db/client";
@@ -24,6 +25,8 @@ export type ActiveWorkspace = {
   showDemoContent: boolean;
   /** The caller's role here — drives client-side write gating (mirrors writeProcedure). */
   role: MemberRole;
+  /** Activity-event kinds hidden from this workspace's feed (ADR-0046); empty = show all. */
+  activityFilterKinds: string[];
 };
 
 export type WorkspaceMember = { userId: string; displayName: string };
@@ -75,6 +78,7 @@ export const workspaceRouter = router({
     slug: ctx.workspace.slug,
     showDemoContent: ctx.workspace.showDemoContent,
     role: ctx.role as MemberRole,
+    activityFilterKinds: ctx.workspace.activityFilterKinds ?? [],
   })),
 
   /**
@@ -271,7 +275,15 @@ export const workspaceRouter = router({
           payload: activityEvent.payload,
         })
         .from(activityEvent)
-        .where(eq(activityEvent.workspaceId, ctx.workspace.id))
+        .where(
+          and(
+            eq(activityEvent.workspaceId, ctx.workspace.id),
+            // Owner/admin-configured kinds are hidden from the feed (ADR-0046).
+            ctx.workspace.activityFilterKinds?.length
+              ? notInArray(activityEvent.type, ctx.workspace.activityFilterKinds)
+              : undefined,
+          ),
+        )
         .orderBy(desc(activityEvent.createdAt))
         .limit(input.limit);
       return rows.map((r) => ({
@@ -330,6 +342,23 @@ export const workspaceRouter = router({
         .update(workspace)
         .set({ showDemoContent: input.show })
         .where(eq(workspace.id, ctx.workspace.id));
+      return { ok: true };
+    }),
+
+  /**
+   * Set which activity-event kinds are hidden from this workspace's Activity
+   * feed (ADR-0046 decision 4). Owner/admin only (a workspace setting). Stores
+   * the full hidden-kinds array; `recentActivity` filters them out at read time.
+   */
+  updateActivityFilter: workspaceProcedure
+    .input(z.object({ hiddenKinds: z.array(z.string()).max(50) }))
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      if (ctx.role !== "owner" && ctx.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Only owners and admins can change workspace settings." });
+      }
+      // Dedupe; the column is a plain string[] (any event type, present or future).
+      const hiddenKinds = [...new Set(input.hiddenKinds)];
+      await db.update(workspace).set({ activityFilterKinds: hiddenKinds }).where(eq(workspace.id, ctx.workspace.id));
       return { ok: true };
     }),
 });

@@ -53,10 +53,13 @@ export function WhiteboardCanvas({
   onRegroup,
   onConnectGroupArm,
   onDisconnectGroupArm,
+  editable = true,
 }: {
   study: StudyDetail;
   conditions: WhiteboardCondition[];
   selectedId?: string | null;
+  /** Read-only when false (viewers): no node drag, no wiring, no deletion — selection still works. */
+  editable?: boolean;
   onSelectBlock?: (instanceId: string | null) => void;
   onConnectCondition?: (blockId: string, slug: string) => void;
   onDisconnectCondition?: (blockId: string, slug: string) => void;
@@ -353,8 +356,10 @@ export function WhiteboardCanvas({
         onMoveEnd={onMoveEnd}
         onNodeClick={(_, node) => onSelectBlock?.(node.type === "block" ? node.id : null)}
         onPaneClick={() => onSelectBlock?.(null)}
-        nodesConnectable
-        nodesDraggable
+        nodesConnectable={editable}
+        nodesDraggable={editable}
+        edgesFocusable={editable}
+        deleteKeyCode={editable ? undefined : null}
         proOptions={{ hideAttribution: true }}
         minZoom={0.2}
         maxZoom={2}

@@ -129,7 +129,7 @@ export function TeamDestination({
         ) : tab === "Invitations" ? (
           <InvitationsView invitations={invitations} canManage={canManage} />
         ) : (
-          <RolesView />
+          <RolesView canManage={canManage} onManageMembers={() => setTab("Members")} />
         )}
       </div>
     </main>
@@ -553,7 +553,7 @@ const PERMISSIONS: { action: string; owner: boolean; admin: boolean | "limited";
   { action: "Delete workspace", owner: true, admin: false, editor: false, viewer: false },
 ];
 
-function RolesView() {
+function RolesView({ canManage, onManageMembers }: { canManage: boolean; onManageMembers: () => void }) {
   const cell = (v: boolean | "limited") =>
     v === "limited" ? (
       <span className="text-[var(--color-text-secondary)]" aria-label="allowed (limited)">
@@ -569,7 +569,21 @@ function RolesView() {
       </span>
     );
   return (
-    <div className="overflow-x-auto">
+    <div className="flex flex-col gap-3">
+      {canManage ? (
+        <p className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+          To change someone&rsquo;s role, open the{" "}
+          <button
+            type="button"
+            onClick={onManageMembers}
+            className="font-medium text-[var(--color-primary)] underline hover:opacity-80"
+          >
+            Members
+          </button>{" "}
+          tab and use the role dropdown next to their name.
+        </p>
+      ) : null}
+      <div className="overflow-x-auto">
       <table className="w-full border-collapse text-[length:var(--text-small)]">
         <thead>
           <tr className="border-b border-[var(--color-border-subtle)] text-left text-[var(--color-text-muted)]">
@@ -593,6 +607,7 @@ function RolesView() {
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

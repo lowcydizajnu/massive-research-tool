@@ -26,6 +26,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ConditionBuilder } from "./condition-builder";
 import { WhiteboardCanvas } from "./whiteboard-canvas";
 import { WhiteboardList } from "./whiteboard-list";
+import { canWriteRole, READ_ONLY_TITLE, ReadOnlyBanner } from "@/components/feature/workspace/role-gate";
 import { cn } from "@/lib/utils";
 
 /**
@@ -44,6 +45,8 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [view, setView] = useState<"canvas" | "list">("canvas");
+  // Viewers are read-only (mirrors writeProcedure) — same gate as the Builder.
+  const canEdit = canWriteRole(study.viewerRole);
 
   const invalidate = () => utils.studies.get.invalidate({ id: study.id });
   const addBlock = api.studies.addBlock.useMutation({
@@ -126,6 +129,7 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
   const disconnectGroupArm = (groupId: string, slug: string) =>
     persistGroupArm(groupId, (b) => b.showIfCondition.filter((s) => s !== slug));
   const requestReorder = (order: string[], movedId: string) => {
+    if (!canEdit) return; // viewers can view the list but not reorder
     const byId = new Map(study.blocks.map((b) => [b.instanceId, b]));
     const regrouped = regroupAfterMove(
       order.map((id) => ({ instanceId: id, groupId: byId.get(id)?.groupId ?? null })),
@@ -209,6 +213,7 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-3">
       <StageTabs studyId={study.id} active="Build" />
+      <ReadOnlyBanner role={study.viewerRole} />
       <div className="flex flex-1 gap-3">
         <section className="flex min-w-0 flex-1 flex-col gap-5 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6">
           <div className="flex items-start justify-between gap-3">
@@ -224,8 +229,8 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
               <button
                 type="button"
                 onClick={undo}
-                disabled={!canUndo || setGroupsMut.isPending}
-                title="Undo last change"
+                disabled={!canEdit || !canUndo || setGroupsMut.isPending}
+                title={canEdit ? "Undo last change" : READ_ONLY_TITLE}
                 aria-label="Undo last change"
                 className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-1.5 text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)] disabled:opacity-40"
               >
@@ -234,8 +239,8 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
               <button
                 type="button"
                 onClick={redo}
-                disabled={!canRedo || setGroupsMut.isPending}
-                title="Redo"
+                disabled={!canEdit || !canRedo || setGroupsMut.isPending}
+                title={canEdit ? "Redo" : READ_ONLY_TITLE}
                 aria-label="Redo last undone change"
                 className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-1.5 text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)] disabled:opacity-40"
               >
@@ -263,7 +268,9 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
                 <button
                   type="button"
                   onClick={() => setPickerOpen((v) => !v)}
-                  className="inline-flex items-center gap-1 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-1.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
+                  disabled={!canEdit}
+                  title={canEdit ? undefined : READ_ONLY_TITLE}
+                  className="inline-flex items-center gap-1 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-1.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)] disabled:opacity-40"
                 >
                   <Plus className="size-4" aria-hidden />
                   Add block
@@ -290,6 +297,7 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
             <>
               <WhiteboardCanvas
                 study={study}
+                editable={canEdit}
                 conditions={(conditions.data ?? []).map((c) => ({ slug: c.slug, name: c.name }))}
                 selectedId={selectedId}
                 onSelectBlock={setSelectedId}
@@ -322,7 +330,7 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
         {/* Right context panel — Configure the selected block (shared with Builder). */}
         <aside className="flex w-[250px] shrink-0 flex-col gap-4 self-start rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-panel)] p-4">
           {selected ? (
-            <>
+            <fieldset disabled={!canEdit} className="contents">
               <ConfigureForm
                 key={`${selected.instanceId}-${panelEpoch}`}
                 block={selected}
@@ -353,7 +361,7 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
                 instanceId={selected.instanceId}
                 current={selected.showIfCondition}
               />
-            </>
+            </fieldset>
           ) : (
             <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
               Select a block on the canvas to configure it, or “Add block” to drop a new one.
