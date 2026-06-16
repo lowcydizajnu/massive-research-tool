@@ -52,6 +52,7 @@ function fakeAdapter(over: Partial<RecruitmentAdapter> = {}): RecruitmentAdapter
     approveSubmission: vi.fn(),
     rejectSubmission: vi.fn(),
     sendBonus: vi.fn(),
+    listProviderWorkspaces: vi.fn().mockResolvedValue([{ id: "pws1", title: "WS" }]),
     createWebhookSecret: vi.fn().mockResolvedValue({ secret: "whsec" }),
     listWebhookEventTypes: vi.fn().mockResolvedValue(["study.status.change"]),
     createWebhookSubscription: vi.fn().mockResolvedValue({ subscriptionId: "sub1", confirmationToken: "tok" }),

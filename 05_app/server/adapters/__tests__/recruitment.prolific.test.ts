@@ -167,6 +167,16 @@ describe("prolificAdapter.getStudy maps the live status + recruitment progress",
   });
 });
 
+describe("prolificAdapter.listProviderWorkspaces", () => {
+  it("maps the provider's workspaces (GET /workspaces/ → results[].id)", async () => {
+    stubFetch(() => new Response(JSON.stringify({ results: [{ id: "ws-1", title: "Lab" }, { id: "ws-2", title: "Other" }] }), { status: 200 }));
+    await expect(prolificAdapter.listProviderWorkspaces({ accessToken: "t" })).resolves.toEqual([
+      { id: "ws-1", title: "Lab" },
+      { id: "ws-2", title: "Other" },
+    ]);
+  });
+});
+
 describe("prolificAdapter.verifyWebhookSignature (HMAC over timestamp+body, base64)", () => {
   const secret = "per-workspace-secret";
   const timestamp = "1718524800";

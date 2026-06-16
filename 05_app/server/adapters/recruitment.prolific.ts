@@ -233,6 +233,14 @@ export const prolificAdapter: RecruitmentAdapter = {
     });
   },
 
+  async listProviderWorkspaces({ accessToken }) {
+    const res = await call("/workspaces/", { accessToken, method: "GET" });
+    const body = (await res.json()) as { results?: Array<{ id?: string; title?: string }> };
+    return (body.results ?? [])
+      .filter((w): w is { id: string; title?: string } => typeof w.id === "string")
+      .map((w) => ({ id: w.id, title: w.title ?? "Workspace" }));
+  },
+
   async createWebhookSecret({ accessToken, workspaceId }) {
     const res = await call("/hooks/secrets/", {
       accessToken,
