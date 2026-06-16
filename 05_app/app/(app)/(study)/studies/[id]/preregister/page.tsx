@@ -8,7 +8,8 @@ import { PreregisterButton } from "@/components/feature/preregister/preregister-
 import { RefreshOsfStatus } from "@/components/feature/preregister/refresh-osf-status";
 import { PushStatusPoller } from "@/components/feature/preregister/push-status-poller";
 import { RetryPushButton } from "@/components/feature/preregister/retry-push-button";
-import { canWriteRole, ReadOnlyBanner } from "@/components/feature/workspace/role-gate";
+import { ReadOnlyBanner } from "@/components/feature/workspace/role-gate";
+import { canWriteRole } from "@/lib/workspace/roles";
 import { registry } from "@/server/adapters/registry";
 import { getCurrentDbUser } from "@/server/auth/current-db-user";
 import { getServerApi } from "@/server/trpc/server";
