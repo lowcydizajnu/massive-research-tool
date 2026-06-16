@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, count, desc, eq, inArray } from "drizzle-orm";
 import { ulid } from "ulid";
 import { z } from "zod";
 
@@ -11,7 +11,13 @@ import {
 } from "@/server/adapters/recruitment";
 import { decryptSecret, encryptSecret } from "@/server/crypto/tokens";
 import { db } from "@/server/db/client";
-import { experiment, experimentVersion, recruitmentProviderConnection, recruitmentSession } from "@/server/db/schema";
+import {
+  experiment,
+  experimentVersion,
+  providerSubmission,
+  recruitmentProviderConnection,
+  recruitmentSession,
+} from "@/server/db/schema";
 import { router, workspaceProcedure, writeProcedure } from "@/server/trpc/trpc";
 
 const RUNNABLE_KINDS: ("preregistered" | "published")[] = ["preregistered", "published"];
@@ -24,6 +30,26 @@ type ProviderStudyMeta = {
   status: "live" | "stopped";
   eligibility: { country: string[]; language: string[] };
   reward: { amount: number; currency: "USD" | "EUR" | "GBP" };
+};
+
+export type SubmissionCounts = {
+  started: number;
+  submitted: number;
+  approved: number;
+  rejected: number;
+  timedOut: number;
+  total: number;
+};
+
+/** One per-study card in the Open-recruitment sub-view (Stream P2). */
+export type OpenRecruitmentStudy = {
+  studyId: string;
+  title: string;
+  provider: RecruitmentProvider;
+  providerStatus: "live" | "stopped";
+  providerStudyUrl: string;
+  reward: { amount: number; currency: "USD" | "EUR" | "GBP" };
+  counts: SubmissionCounts;
 };
 
 /**
@@ -254,6 +280,69 @@ export const recruitmentRouter = router({
         .where(eq(recruitmentSession.id, session.id));
       return { ok: true };
     }),
+
+  /** Provider-side recruitment across the workspace's studies (Stream P2 / participants-destination.md). */
+  openRecruitment: router({
+    /**
+     * Per provider-connected study: reconcile live submissions (best-effort, via
+     * the caller's token) into `provider_submission`, then return aggregate
+     * counts + the provider study link. PII-safe: only opaque PIDs are stored.
+     */
+    list: workspaceProcedure.query(async ({ ctx }): Promise<OpenRecruitmentStudy[]> => {
+      const rows = await db
+        .select({
+          sessionId: recruitmentSession.id,
+          metadata: recruitmentSession.metadata,
+          experimentId: experiment.id,
+          title: experiment.title,
+        })
+        .from(recruitmentSession)
+        .innerJoin(experimentVersion, eq(recruitmentSession.experimentVersionId, experimentVersion.id))
+        .innerJoin(experiment, eq(experimentVersion.experimentId, experiment.id))
+        .where(eq(experiment.tenantId, ctx.workspace.id));
+
+      const withProvider = rows
+        .map((r) => ({ ...r, provider: (r.metadata as { provider?: ProviderStudyMeta })?.provider }))
+        .filter((r): r is typeof r & { provider: ProviderStudyMeta } => !!r.provider?.providerStudyId);
+      if (withProvider.length === 0) return [];
+
+      // Best-effort live reconcile using the caller's token (a teammate may have created the study).
+      const [conn] = await db
+        .select({ token: recruitmentProviderConnection.accessToken })
+        .from(recruitmentProviderConnection)
+        .where(
+          and(
+            eq(recruitmentProviderConnection.workspaceId, ctx.workspace.id),
+            eq(recruitmentProviderConnection.userId, ctx.dbUser.id),
+            eq(recruitmentProviderConnection.provider, "prolific"),
+          ),
+        )
+        .limit(1);
+      const token = conn ? decryptSecret(conn.token) : null;
+
+      const out: OpenRecruitmentStudy[] = [];
+      for (const r of withProvider) {
+        if (token) {
+          try {
+            await reconcileSubmissions(token, ctx.workspace.id, r.experimentId, r.sessionId, r.provider);
+          } catch {
+            // provider unreachable / token bad — fall back to stored rows
+          }
+        }
+        const counts = await submissionCounts(r.experimentId, r.provider.providerStudyId);
+        out.push({
+          studyId: r.experimentId,
+          title: r.title,
+          provider: r.provider.name,
+          providerStatus: r.provider.status,
+          providerStudyUrl: r.provider.providerStudyUrl,
+          reward: r.provider.reward,
+          counts,
+        });
+      }
+      return out;
+    }),
+  }),
 });
 
 /** The caller's decrypted provider token, or PRECONDITION_FAILED if not connected. */
@@ -296,6 +385,61 @@ async function findOpenSession(
     .orderBy(desc(experimentVersion.versionNumber))
     .limit(1);
   return row ? { id: row.id, metadata: (row.metadata as Record<string, unknown>) ?? {} } : null;
+}
+
+/** Idempotently upsert the provider's current submissions into provider_submission (Stream P2). */
+async function reconcileSubmissions(
+  token: string,
+  workspaceId: string,
+  experimentId: string,
+  sessionId: string,
+  provider: ProviderStudyMeta,
+): Promise<void> {
+  const subs = await getRecruitmentAdapter(provider.name).listSubmissions({
+    accessToken: token,
+    providerStudyId: provider.providerStudyId,
+  });
+  for (const s of subs) {
+    await db
+      .insert(providerSubmission)
+      .values({
+        id: ulid(),
+        workspaceId,
+        experimentId,
+        recruitmentSessionId: sessionId,
+        provider: provider.name,
+        providerStudyId: provider.providerStudyId,
+        submissionId: s.submissionId,
+        externalPid: s.externalPid, // opaque — no PII (ADR-0014)
+        status: s.status,
+        startedAt: s.startedAt,
+        completedAt: s.completedAt ?? null,
+      })
+      .onConflictDoUpdate({
+        target: [providerSubmission.provider, providerSubmission.submissionId],
+        set: { status: s.status, completedAt: s.completedAt ?? null, updatedAt: new Date() },
+      });
+  }
+}
+
+/** Aggregate submission counts for a provider study. */
+async function submissionCounts(experimentId: string, providerStudyId: string): Promise<SubmissionCounts> {
+  const rows = await db
+    .select({ status: providerSubmission.status, n: count() })
+    .from(providerSubmission)
+    .where(and(eq(providerSubmission.experimentId, experimentId), eq(providerSubmission.providerStudyId, providerStudyId)))
+    .groupBy(providerSubmission.status);
+  const by = new Map(rows.map((r) => [r.status, r.n]));
+  const get = (s: string) => by.get(s) ?? 0;
+  const total = rows.reduce((sum, r) => sum + r.n, 0);
+  return {
+    started: get("started"),
+    submitted: get("submitted"),
+    approved: get("approved"),
+    rejected: get("rejected"),
+    timedOut: get("timed-out"),
+    total,
+  };
 }
 
 /** Map adapter errors to tRPC codes (provider-unreachable → 500 retry-able; otherwise bad request). */
