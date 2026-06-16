@@ -39,7 +39,10 @@ This ADR decides how recruitment state stays fresh server-side. It builds on ADR
 
 Because background jobs and the webhook have no "current user", the reconcile helper selects a token by trying each active `recruitment_provider_connection` for the study's workspace until one succeeds (a Prolific PAT can only read studies its own account owns). The webhook route is public (signature is its auth) and lives at the route boundary, importing only `adapter.verifyWebhookSignature` + the job adapter — the same boundary-only exception pattern as Inngest's `serve()`.
 
-> **Open item (confirm at registration):** the exact signature header name + signing scheme Prolific uses is provider-specific and must be confirmed against Prolific's webhook docs when the owner registers the endpoint. If it differs from HMAC-SHA256-over-raw-body, only `verifyWebhookSignature` changes — the reconcile path is unaffected, and polling keeps state fresh in the meantime.
+> **Update 2026-06-16 — scheme confirmed + one-click registration.** Verified against Prolific's docs: hooks are **API-only** (no dashboard UI), with a **per-workspace** signing secret (`POST /hooks/secrets/`). Each event carries `X-Prolific-Request-Signature` + `X-Prolific-Request-Timestamp`; the signature is **base64( HMAC-SHA256(secret, timestamp + rawBody) )**. Consequences folded into the implementation:
+> - `verifyWebhookSignature({ rawBody, timestamp, signature, secret })` now matches that scheme (was HMAC-hex over body only).
+> - The secret is **per workspace**, so the webhook URL carries the workspace id — `/api/recruitment/<provider>/webhook/<workspaceId>` — letting the receiver load that workspace's stored secret *before* trusting the body. Stored encrypted in `recruitment_provider_webhook` (migration 0017).
+> - Because registration is API-only, researchers don't hand-run curl: a one-click **"Enable live updates"** in Participants · Connections orchestrates create-secret → subscribe-our-URL (study + submission status events) → confirm, via the caller's PAT (`recruitment.webhook.enable`). `disable` tears the subscriptions down.
 
 ## Consequences
 

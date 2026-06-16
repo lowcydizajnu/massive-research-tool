@@ -90,8 +90,32 @@ export interface RecruitmentAdapter {
   rejectSubmission(opts: { accessToken: string; submissionId: string; reason: string }): Promise<void>;
   sendBonus(opts: { accessToken: string; submissionId: string; amount: number; reason: string }): Promise<void>;
 
-  /** Verify a provider-pushed webhook's signature (Stream P7). */
-  verifyWebhookSignature(opts: { rawBody: string; signature: string }): boolean;
+  // Webhook subscription management (ADR-0050). Prolific "hooks" are API-created
+  // (no dashboard UI); the signing secret is per-workspace. Used by the one-click
+  // "Enable live updates" flow.
+  /** Create a per-workspace signing secret (POST /hooks/secrets/). Returned once. */
+  createWebhookSecret(opts: { accessToken: string; workspaceId: string }): Promise<{ secret: string }>;
+  /** Available event-type identifiers (GET /hooks/event-types), e.g. "study.status.change". */
+  listWebhookEventTypes(opts: { accessToken: string }): Promise<string[]>;
+  /** Subscribe one event type to a target URL. Returns the subscription id + the confirmation token. */
+  createWebhookSubscription(opts: {
+    accessToken: string;
+    workspaceId: string;
+    eventType: string;
+    targetUrl: string;
+  }): Promise<{ subscriptionId: string; confirmationToken: string }>;
+  /** Confirm a freshly-created subscription with the token from createWebhookSubscription. */
+  confirmWebhookSubscription(opts: { accessToken: string; subscriptionId: string; confirmationToken: string }): Promise<void>;
+  /** Tear down a subscription (DELETE /hooks/subscriptions/<id>). */
+  deleteWebhookSubscription(opts: { accessToken: string; subscriptionId: string }): Promise<void>;
+
+  /**
+   * Verify a provider-pushed webhook's signature (ADR-0050). Prolific signs
+   * HMAC-SHA256 over `timestamp + rawBody` with the per-workspace secret and
+   * sends it base64-encoded in `X-Prolific-Request-Signature` (+ the unix
+   * `X-Prolific-Request-Timestamp`).
+   */
+  verifyWebhookSignature(opts: { rawBody: string; timestamp: string; signature: string; secret: string }): boolean;
 }
 
 /** Thrown by an adapter when the provider is unreachable (vs an invalid token). Lets the UI offer Retry, not a token error. */

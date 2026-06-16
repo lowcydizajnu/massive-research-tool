@@ -534,6 +534,37 @@ export type RecruitmentProviderConnection = typeof recruitmentProviderConnection
 export type NewRecruitmentProviderConnection = typeof recruitmentProviderConnection.$inferInsert;
 
 /**
+ * Per-workspace webhook subscription with a recruitment provider (V1.15 / ADR-0050).
+ * Prolific "hooks" are API-created (no dashboard UI) and sign each event with a
+ * PER-WORKSPACE secret (from POST /hooks/secrets/). We store that signing secret
+ * encrypted and the provider subscription ids so we can verify incoming pings and
+ * tear them down on disable. The webhook target URL carries the workspace id, so
+ * the receiver can look up THIS secret before trusting the payload.
+ */
+export const recruitmentProviderWebhook = pgTable(
+  "recruitment_provider_webhook",
+  {
+    id: text("id").primaryKey(), // ULID
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspace.id),
+    provider: recruitmentProvider("provider").notNull(),
+    /** Provider signing secret (from /hooks/secrets/), encrypted at rest (AES-256-GCM). */
+    signingSecret: text("signing_secret").notNull(),
+    /** Provider subscription ids we created (one per subscribed event type). */
+    subscriptions: jsonb("subscriptions").notNull().default([]),
+    createdByUserId: uuid("created_by_user_id")
+      .notNull()
+      .references((): AnyPgColumn => user.id),
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("recruitment_webhook_ws_provider_unique").on(t.workspaceId, t.provider)],
+);
+export type RecruitmentProviderWebhook = typeof recruitmentProviderWebhook.$inferSelect;
+
+/**
  * One row per participant attempt on a provider's side (V1.15 Stream P2 /
  * ADR-0047). Fed by reconcile-on-read (listSubmissions) now; webhooks + a polling
  * job later. PII-safe (ADR-0014): identified ONLY by the opaque `externalPid` +

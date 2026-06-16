@@ -3,7 +3,7 @@
  * validated via a mocked adapter; stored encrypted; never returned. Over a real
  * migrated PGlite DB.
  */
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/server/db/client", async () => {
   const { PGlite } = await import("@electric-sql/pglite");
@@ -38,6 +38,7 @@ import {
   member,
   providerSubmission,
   recruitmentProviderConnection,
+  recruitmentProviderWebhook,
   recruitmentSession,
   user,
   workspace,
@@ -69,6 +70,11 @@ function fakeAdapter(over: Partial<RecruitmentAdapter> = {}): RecruitmentAdapter
     approveSubmission: vi.fn(),
     rejectSubmission: vi.fn(),
     sendBonus: vi.fn(),
+    createWebhookSecret: vi.fn().mockResolvedValue({ secret: "whsec" }),
+    listWebhookEventTypes: vi.fn().mockResolvedValue(["study.status.change", "submission.status.change"]),
+    createWebhookSubscription: vi.fn().mockResolvedValue({ subscriptionId: "sub1", confirmationToken: "tok" }),
+    confirmWebhookSubscription: vi.fn().mockResolvedValue(undefined),
+    deleteWebhookSubscription: vi.fn().mockResolvedValue(undefined),
     verifyWebhookSignature: vi.fn().mockReturnValue(true),
     ...over,
   };
@@ -88,6 +94,7 @@ beforeAll(() => {
 beforeEach(async () => {
   vi.clearAllMocks();
   await db.delete(providerSubmission);
+  await db.delete(recruitmentProviderWebhook);
   await db.delete(recruitmentSession);
   await db.delete(recruitmentProviderConnection);
   await db.delete(experimentVersion);
@@ -361,5 +368,88 @@ describe("recruitment.openRecruitment.list (Stream P2)", () => {
     const [row] = await db.select().from(recruitmentSession).where(eq(recruitmentSession.id, sessionId));
     const provider = (row.metadata as { provider: { status: string; state: string } }).provider;
     expect(provider).toMatchObject({ status: "stopped", state: "paused" });
+  });
+});
+
+describe("recruitment.webhook (ADR-0050 one-click connect)", () => {
+  const prevSiteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+  afterEach(() => {
+    if (prevSiteUrl === undefined) delete process.env.NEXT_PUBLIC_SITE_URL;
+    else process.env.NEXT_PUBLIC_SITE_URL = prevSiteUrl;
+  });
+
+  it("enable orchestrates secret + subscriptions + confirm, and stores the encrypted secret", async () => {
+    process.env.NEXT_PUBLIC_SITE_URL = "https://app.example.com";
+    await seedWs("owner");
+    const createWebhookSubscription = vi
+      .fn()
+      .mockResolvedValueOnce({ subscriptionId: "subA", confirmationToken: "tA" })
+      .mockResolvedValueOnce({ subscriptionId: "subB", confirmationToken: "tB" });
+    const confirmWebhookSubscription = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(getRecruitmentAdapter).mockReturnValue(
+      fakeAdapter({
+        createWebhookSecret: vi.fn().mockResolvedValue({ secret: "PROLIFIC-WH-SECRET" }),
+        listWebhookEventTypes: vi.fn().mockResolvedValue(["study.status.change", "submission.status.change", "study.published"]),
+        createWebhookSubscription,
+        confirmWebhookSubscription,
+      }),
+    );
+    const caller = createCaller({ authUser: authUser("u") });
+    await caller.recruitment.connections.connect({ provider: "prolific", accessToken: "PAT" });
+
+    const res = await caller.recruitment.webhook.enable({ provider: "prolific" });
+    expect(res.connected).toBe(true);
+    // Only the two "status" event types are subscribed (not study.published).
+    expect(res.eventTypes).toEqual(["study.status.change", "submission.status.change"]);
+    expect(confirmWebhookSubscription).toHaveBeenCalledTimes(2);
+    // Target URL carries the workspace id so the receiver can find this secret.
+    expect(createWebhookSubscription.mock.calls[0][0].targetUrl).toMatch(/\/api\/recruitment\/prolific\/webhook\/[0-9a-f-]+$/);
+
+    const [row] = await db.select().from(recruitmentProviderWebhook);
+    expect(row.signingSecret).not.toContain("PROLIFIC-WH-SECRET"); // stored encrypted
+    expect(decryptSecret(row.signingSecret)).toBe("PROLIFIC-WH-SECRET");
+
+    // status reflects it; enabling again is idempotent (no duplicate row).
+    expect((await caller.recruitment.webhook.status()).connected).toBe(true);
+    await caller.recruitment.webhook.enable({ provider: "prolific" });
+    expect(await db.select().from(recruitmentProviderWebhook)).toHaveLength(1);
+  });
+
+  it("enable refuses without a public https site URL", async () => {
+    process.env.NEXT_PUBLIC_SITE_URL = "http://localhost:3000";
+    await seedWs("owner");
+    vi.mocked(getRecruitmentAdapter).mockReturnValue(fakeAdapter());
+    const caller = createCaller({ authUser: authUser("u") });
+    await caller.recruitment.connections.connect({ provider: "prolific", accessToken: "PAT" });
+    await expect(caller.recruitment.webhook.enable({ provider: "prolific" })).rejects.toThrow(/HTTPS/i);
+  });
+
+  it("disable tears down provider subscriptions and removes our row", async () => {
+    process.env.NEXT_PUBLIC_SITE_URL = "https://app.example.com";
+    await seedWs("owner");
+    const deleteWebhookSubscription = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(getRecruitmentAdapter).mockReturnValue(
+      fakeAdapter({
+        createWebhookSecret: vi.fn().mockResolvedValue({ secret: "s" }),
+        listWebhookEventTypes: vi.fn().mockResolvedValue(["study.status.change"]),
+        deleteWebhookSubscription,
+      }),
+    );
+    const caller = createCaller({ authUser: authUser("u") });
+    await caller.recruitment.connections.connect({ provider: "prolific", accessToken: "PAT" });
+    await caller.recruitment.webhook.enable({ provider: "prolific" });
+
+    const res = await caller.recruitment.webhook.disable({ provider: "prolific" });
+    expect(res.connected).toBe(false);
+    expect(deleteWebhookSubscription).toHaveBeenCalledWith({ accessToken: "PAT", subscriptionId: "sub1" });
+    expect(await db.select().from(recruitmentProviderWebhook)).toHaveLength(0);
+  });
+
+  it("blocks a viewer from enabling (writeProcedure)", async () => {
+    process.env.NEXT_PUBLIC_SITE_URL = "https://app.example.com";
+    await seedWs("viewer");
+    vi.mocked(getRecruitmentAdapter).mockReturnValue(fakeAdapter());
+    const caller = createCaller({ authUser: authUser("u") });
+    await expect(caller.recruitment.webhook.enable({ provider: "prolific" })).rejects.toThrow();
   });
 });

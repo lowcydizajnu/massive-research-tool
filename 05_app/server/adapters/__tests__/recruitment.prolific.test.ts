@@ -1,3 +1,5 @@
+import { createHmac } from "node:crypto";
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { InvalidProviderTokenError, ProviderUnreachableError } from "@/server/adapters/recruitment";
@@ -165,11 +167,20 @@ describe("prolificAdapter.getStudy maps the live status + recruitment progress",
   });
 });
 
-describe("prolificAdapter.verifyWebhookSignature", () => {
-  it("returns false when no webhook secret is configured", () => {
-    const prev = process.env.PROLIFIC_WEBHOOK_SECRET;
-    delete process.env.PROLIFIC_WEBHOOK_SECRET;
-    expect(prolificAdapter.verifyWebhookSignature({ rawBody: "{}", signature: "abc" })).toBe(false);
-    if (prev !== undefined) process.env.PROLIFIC_WEBHOOK_SECRET = prev;
+describe("prolificAdapter.verifyWebhookSignature (HMAC over timestamp+body, base64)", () => {
+  const secret = "per-workspace-secret";
+  const timestamp = "1718524800";
+  const rawBody = JSON.stringify({ event_type: "study.status.change", study_id: "s1" });
+  // Prolific's scheme: base64( HMAC-SHA256(secret, timestamp + rawBody) ).
+  const goodSig = createHmac("sha256", secret).update(timestamp + rawBody).digest("base64");
+
+  it("accepts a correctly-signed payload", () => {
+    expect(prolificAdapter.verifyWebhookSignature({ rawBody, timestamp, signature: goodSig, secret })).toBe(true);
+  });
+
+  it("rejects a wrong signature, a wrong timestamp, and a missing secret", () => {
+    expect(prolificAdapter.verifyWebhookSignature({ rawBody, timestamp, signature: "deadbeef", secret })).toBe(false);
+    expect(prolificAdapter.verifyWebhookSignature({ rawBody, timestamp: "0", signature: goodSig, secret })).toBe(false);
+    expect(prolificAdapter.verifyWebhookSignature({ rawBody, timestamp, signature: goodSig, secret: "" })).toBe(false);
   });
 });
