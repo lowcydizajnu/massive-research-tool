@@ -7,6 +7,7 @@ import {
   InvalidProviderTokenError,
   ProviderUnreachableError,
   getRecruitmentAdapter,
+  type ProviderStudyState,
   type RecruitmentProvider,
 } from "@/server/adapters/recruitment";
 import { decryptSecret, encryptSecret } from "@/server/crypto/tokens";
@@ -27,9 +28,20 @@ type ProviderStudyMeta = {
   name: RecruitmentProvider;
   providerStudyId: string;
   providerStudyUrl: string;
+  /** Our coarse flag (drives the Stop affordance). `state` (P2) carries the true provider lifecycle. */
   status: "live" | "stopped";
+  /** Provider's true lifecycle state, reconciled on read (P2). Absent on rows created before P2. */
+  state?: ProviderStudyState;
   eligibility: { country: string[]; language: string[] };
   reward: { amount: number; currency: "USD" | "EUR" | "GBP" };
+};
+
+/** Live status + recruitment progress for one study's provider card (Stream P2). */
+export type StudyProgress = {
+  state: ProviderStudyState;
+  placesTaken: number | null;
+  totalPlaces: number | null;
+  counts: SubmissionCounts;
 };
 
 export type SubmissionCounts = {
@@ -344,14 +356,17 @@ export const recruitmentRouter = router({
     }),
 
     /**
-     * Submission counts for a single study, reconciled live (best-effort) on
-     * read. Powers the inline progress row on the Run-stage Prolific card so a
-     * researcher sees recruitment progress where they manage it — not only on
-     * the Participants tab. Returns null when no provider study is attached.
+     * Live status + submission counts for a single study, reconciled (best-
+     * effort) on read. Powers the inline progress row on the Run-stage Prolific
+     * card so a researcher sees the TRUE provider status + recruitment progress
+     * where they manage it — not only on the Participants tab. Also persists the
+     * reconciled status back onto the session metadata so the badge stays honest
+     * (a study can be paused/completed on the provider without us calling Stop).
+     * Returns null when no provider study is attached.
      */
     forStudy: workspaceProcedure
       .input(z.object({ studyId: z.string().uuid() }))
-      .query(async ({ ctx, input }): Promise<SubmissionCounts | null> => {
+      .query(async ({ ctx, input }): Promise<StudyProgress | null> => {
         const session = await findOpenSession(input.studyId, ctx.workspace.id);
         const provider = session?.metadata?.provider as ProviderStudyMeta | undefined;
         if (!session || !provider?.providerStudyId) return null;
@@ -367,14 +382,40 @@ export const recruitmentRouter = router({
             ),
           )
           .limit(1);
+
+        // Fallbacks for when we can't reach the provider (no connection / down).
+        let state: ProviderStudyState = provider.state ?? (provider.status === "live" ? "active" : "unknown");
+        let placesTaken: number | null = null;
+        let totalPlaces: number | null = null;
+
         if (conn) {
+          const token = decryptSecret(conn.token);
+          const adapter = getRecruitmentAdapter(provider.name);
           try {
-            await reconcileSubmissions(decryptSecret(conn.token), ctx.workspace.id, input.studyId, session.id, provider);
+            await reconcileSubmissions(token, ctx.workspace.id, input.studyId, session.id, provider);
           } catch {
             // provider unreachable / token bad — fall back to stored rows
           }
+          try {
+            const live = await adapter.getStudy({ accessToken: token, providerStudyId: provider.providerStudyId });
+            state = live.state;
+            placesTaken = live.placesTaken;
+            totalPlaces = live.totalPlaces;
+            // Persist the reconciled status so getProviderStudy / the badge stay honest.
+            const liveStatus = live.state === "active" ? "live" : "stopped";
+            if (provider.state !== live.state || provider.status !== liveStatus) {
+              await db
+                .update(recruitmentSession)
+                .set({ metadata: { ...(session.metadata ?? {}), provider: { ...provider, status: liveStatus, state: live.state } } })
+                .where(eq(recruitmentSession.id, session.id));
+            }
+          } catch {
+            // study fetch failed — keep the stored-status fallback
+          }
         }
-        return submissionCounts(input.studyId, provider.providerStudyId);
+
+        const counts = await submissionCounts(input.studyId, provider.providerStudyId);
+        return { state, placesTaken, totalPlaces, counts };
       }),
   }),
 });
