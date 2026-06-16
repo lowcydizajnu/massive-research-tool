@@ -439,8 +439,8 @@
   "project": "Massive Research Tool",
   "tagline": "Multi-tenant SaaS for psychological experiments",
   "lastUpdated": "2026-06-16",
-  "currentFocus": "Viewers can comment SHIPPED (v1.14.0-a8, live 88eb35a). Owner direction: commenting is collaboration, not study editing — viewers should join threads. comments.create/resolve/update/delete → workspaceProcedure (was writeProcedure); update+delete keep their author-only checks so opening them is safe, create+resolve are any-member now. Re-enabled the comments-panel composer + resolve/delete for viewers (reverted the a6 read-only gating there); fixed the stale 'any workspace writer' docstring. +1 test (a viewer can post a comment); 473 vitest green; tsc/lint/build clean; migration-free. Refines the T3.5 model: viewers are read-only for study/workspace EDITING but full participants in DISCUSSION (comments + Following + own profile + Preview). Next: owner continues the Viewer smoke-test; then T4 (activity-filter prefs + roles cross-links + tombstone display + gated e2e).",
-  "currentFocusPrev": "HOTFIX — Run/Preregister 500 + preview-for-viewers + study error boundary SHIPPED (v1.14.0-a7, live ebde5d1). a6 regression: run/preregister (server components) called canWriteRole() imported from role-gate.tsx ('use client') — a client-reference proxy server-side → 500 for all roles; tsc/build missed it (force-dynamic). Moved pure helpers to lib/workspace/roles.ts (role-gate re-exports); server pages import from there. studies.startPreview → workspaceProcedure (viewers can preview). New (study)/error.tsx friendly boundary. 472 vitest green.",
+  "currentFocus": "Live auto-refresh (no manual reload) SHIPPED (v1.14.0-a9, live 17f71c7). Owner: 'I need to refresh the page to see updates.' Chose polling over a realtime vendor — extends the existing running-board pattern, no new infra/vendor/ADR. New lib/use-visible-interval.ts (shared hook; returns the interval ms or false while the tab is hidden via Page Visibility, so background tabs stay cheap) + LIVE_POLL_MS=20s. New components/feature/live-refresh.tsx — a drop-in client poller that calls router.refresh() for server-rendered pages (preserves client state like dashboard edit mode). Wired: Activity (Yours + Follows), the left-rail unread badge, comments (composer panel + share markers), and both dashboards (/home, /dashboard) via LiveRefresh; running board imports the shared hook. All also refetchOnWindowFocus. 473 vitest green; tsc/lint/build clean; migration-free. Why not realtime push: instant WebSocket/SSE needs a paid vendor (Vercel can't hold sockets) + ADR + adapter; 20s polling meets the need at zero infra. Next: T4 (activity-filter prefs + roles cross-links + tombstone display + gated e2e).",
+  "currentFocusPrev": "Viewers can comment SHIPPED (v1.14.0-a8, live 88eb35a). comments.create/resolve/update/delete → workspaceProcedure (update+delete keep author-only checks). Re-enabled the composer for viewers. +1 test; 473 vitest green. Refines T3.5: viewers are read-only for EDITING but full participants in DISCUSSION (comments + Following + own profile + Preview).",
   "phases": [
     {
       "id": "foundation",
@@ -1213,6 +1213,14 @@
     }
   ],
   "recentActivity": [
+    {
+      "date": "2026-06-16",
+      "text": "feat(live): auto-refresh live surfaces without a manual reload (v1.14.0-a9, live 17f71c7). Owner: 'I need to refresh to see updates.' Chose polling over a realtime vendor (no new infra/ADR). Shared lib/use-visible-interval.ts (pauses while tab hidden) + LIVE_POLL_MS=20s; new LiveRefresh poller (router.refresh()) for server-rendered pages. Wired: Activity (Yours+Follows), unread badge, comments (panel + share markers), both dashboards. All refetchOnWindowFocus. 473 vitest green."
+    },
+    {
+      "date": "2026-06-16",
+      "text": "feat(comments): let viewers comment (v1.14.0-a8, live 88eb35a). comments.create/resolve/update/delete → workspaceProcedure (update+delete keep author-only checks); composer re-enabled for viewers. Refines T3.5: viewers are read-only for EDITING but full participants in DISCUSSION (comments + Following + Preview + own profile). +1 test; 473 vitest green."
+    },
     {
       "date": "2026-06-16",
       "text": "fix(rbac): hotfix Run/Preregister 500 + preview-for-viewers + study error boundary (v1.14.0-a7, live ebde5d1). a6 shipped a regression: run/preregister (server components) called canWriteRole() imported from role-gate.tsx ('use client') — a client-reference proxy server-side → throws → 500 for all roles; tsc/build missed it (force-dynamic pages). Moved pure helpers to lib/workspace/roles.ts (role-gate re-exports); server pages import from there. studies.startPreview → workspaceProcedure (viewers can preview). New (study)/error.tsx friendly boundary. 472 vitest green. Lesson saved to memory."
