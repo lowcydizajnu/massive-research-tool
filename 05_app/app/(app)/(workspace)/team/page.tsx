@@ -13,11 +13,22 @@ export const dynamic = "force-dynamic";
 export default async function TeamPage() {
   const api = await getServerApi();
   const active = await api.workspace.active();
-  const [members, invitations] = await Promise.all([api.team.list(), api.team.listInvitations()]);
+  const [members, invitations, role] = await Promise.all([
+    api.team.list(),
+    api.team.listInvitations(),
+    api.team.myRole(),
+  ]);
+  const canManage = role === "owner" || role === "admin";
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-4">
-      <TeamDestination workspaceName={active.name} members={members} invitations={invitations} />
+      <TeamDestination
+        workspaceName={active.name}
+        members={members}
+        invitations={invitations}
+        canManage={canManage}
+        viewerRole={role}
+      />
     </main>
   );
 }

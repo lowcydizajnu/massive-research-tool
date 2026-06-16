@@ -123,4 +123,34 @@ export const clerkAuthAdapter: AuthAdapter = {
     // Clerk shallow-merges publicMetadata, so a partial patch is safe.
     await client.users.updateUserMetadata(userId, { publicMetadata: patch });
   },
+
+  async createInvitation({
+    email,
+    redirectUrl,
+    publicMetadata,
+  }: {
+    email: string;
+    redirectUrl?: string;
+    publicMetadata?: Record<string, unknown>;
+  }): Promise<{ id: string }> {
+    const client = await clerkClient();
+    // ignoreExisting: re-inviting an email Clerk already has a pending invite for
+    // is a no-op, not an error — our DB-side dedupe is the source of truth.
+    const inv = await client.invitations.createInvitation({
+      emailAddress: email,
+      ignoreExisting: true,
+      ...(redirectUrl ? { redirectUrl } : {}),
+      ...(publicMetadata ? { publicMetadata } : {}),
+    });
+    return { id: inv.id };
+  },
+
+  async revokeInvitation(invitationId: string): Promise<void> {
+    const client = await clerkClient();
+    try {
+      await client.invitations.revokeInvitation(invitationId);
+    } catch {
+      // Already accepted / revoked / unknown — nothing to do.
+    }
+  },
 };

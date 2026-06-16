@@ -80,6 +80,21 @@ export interface AuthAdapter {
     userId: AuthUserId,
     patch: Partial<AuthUserMetadata>,
   ): Promise<void>;
+
+  /**
+   * Send a workspace-invitation email (magic-link sign-up). `publicMetadata` is
+   * carried onto the invited user so the post-sign-up hook can link them to the
+   * pending member row. Returns the provider invitation id. Throws on a provider
+   * error (callers batch + summarize per email). (Clerk: invitations.create.)
+   */
+  createInvitation(input: {
+    email: string;
+    redirectUrl?: string;
+    publicMetadata?: Record<string, unknown>;
+  }): Promise<{ id: string }>;
+
+  /** Revoke a pending provider invitation (no-op-safe if already accepted/gone). */
+  revokeInvitation(invitationId: string): Promise<void>;
 }
 
 /**

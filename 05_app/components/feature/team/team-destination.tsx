@@ -1,8 +1,13 @@
 "use client";
 
+import { Plus, X } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
+import { PendingButton } from "@/components/ui/pending-button";
+import { api } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
+import type { MemberRole } from "@/server/workspace/active";
 import type { TeamInvitation, TeamMember } from "@/server/trpc/routers/team";
 
 /**
@@ -37,23 +42,50 @@ export function TeamDestination({
   workspaceName,
   members,
   invitations,
+  canManage = false,
+  viewerRole = "viewer",
 }: {
   workspaceName: string;
   members: TeamMember[];
   invitations: TeamInvitation[];
+  canManage?: boolean;
+  viewerRole?: MemberRole;
 }) {
   const [tab, setTab] = useState<Tab>("Members");
+  const [inviteOpen, setInviteOpen] = useState(false);
 
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-5 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6">
-      <div className="min-w-0">
-        <h1 className="font-serif text-[length:var(--text-display)] font-medium text-[var(--color-text-primary)]">
-          Team
-        </h1>
-        <p className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
-          People in {workspaceName} and what they can do.
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="font-serif text-[length:var(--text-display)] font-medium text-[var(--color-text-primary)]">
+            Team
+          </h1>
+          <p className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+            People in {workspaceName} and what they can do.
+          </p>
+        </div>
+        {canManage ? (
+          <button
+            type="button"
+            onClick={() => setInviteOpen(true)}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-[var(--radius-md)] bg-[var(--color-primary)] px-3 py-1.5 text-[length:var(--text-small)] font-medium text-white hover:opacity-90"
+          >
+            <Plus className="size-3.5" aria-hidden />
+            Invite member
+          </button>
+        ) : null}
       </div>
+      {inviteOpen ? (
+        <InviteModal
+          viewerRole={viewerRole}
+          onClose={() => setInviteOpen(false)}
+          onDone={() => {
+            setInviteOpen(false);
+            setTab("Invitations");
+          }}
+        />
+      ) : null}
 
       <nav
         role="tablist"
@@ -94,6 +126,144 @@ export function TeamDestination({
         )}
       </div>
     </main>
+  );
+}
+
+function InviteModal({
+  viewerRole,
+  onClose,
+  onDone,
+}: {
+  viewerRole: MemberRole;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const router = useRouter();
+  const [emails, setEmails] = useState("");
+  const [role, setRole] = useState<MemberRole>("editor");
+  const [message, setMessage] = useState("");
+  const [summary, setSummary] = useState<string | null>(null);
+
+  // Owner can grant any role; admin can invite up to Editor.
+  const roleOptions: MemberRole[] =
+    viewerRole === "owner" ? ["viewer", "editor", "admin", "owner"] : ["viewer", "editor"];
+
+  const invite = api.team.invite.useMutation({
+    onSuccess: (r) => {
+      router.refresh();
+      const clean = r.sent > 0 && !r.alreadyMember && !r.alreadyInvited && !r.invalid && !r.failed;
+      if (clean) {
+        onDone();
+        return;
+      }
+      const parts = [`${r.sent} sent`];
+      if (r.alreadyMember) parts.push(`${r.alreadyMember} already a member`);
+      if (r.alreadyInvited) parts.push(`${r.alreadyInvited} already invited`);
+      if (r.invalid) parts.push(`${r.invalid} invalid`);
+      if (r.failed) parts.push(`${r.failed} failed`);
+      setSummary(parts.join(" · "));
+    },
+  });
+
+  const parsed = emails
+    .split(/[\n,]+/)
+    .map((e) => e.trim())
+    .filter(Boolean);
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Invite members"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="flex w-full max-w-md flex-col gap-3 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-5 shadow-[var(--shadow-md)]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <h2 className="font-serif text-[17px] font-medium text-[var(--color-text-primary)]">Invite members</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="rounded-[var(--radius-sm)] p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)]"
+          >
+            <X className="size-4" aria-hidden />
+          </button>
+        </div>
+
+        <label className="flex flex-col gap-1 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+          Emails — one per line (or comma-separated) for bulk
+          <textarea
+            value={emails}
+            onChange={(e) => setEmails(e.target.value)}
+            rows={3}
+            placeholder="name@lab.edu"
+            aria-label="Invite emails"
+            className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-3 py-2 text-[length:var(--text-small)] text-[var(--color-text-primary)]"
+          />
+        </label>
+
+        <label className="flex items-center justify-between gap-2 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+          Role
+          <select
+            value={role}
+            onChange={(e) => setRole(e.target.value as MemberRole)}
+            className="rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-1 text-[var(--color-text-primary)]"
+          >
+            {roleOptions.map((r) => (
+              <option key={r} value={r}>
+                {ROLE_LABEL[r] ?? r}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="flex flex-col gap-1 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+          Personal message (optional)
+          <textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            rows={2}
+            maxLength={1000}
+            className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-3 py-2 text-[length:var(--text-small)] text-[var(--color-text-primary)]"
+          />
+        </label>
+
+        {summary ? (
+          <p
+            aria-live="polite"
+            className="rounded-[var(--radius-md)] bg-[var(--color-surface-subtle)] px-3 py-2 text-[length:var(--text-small)] text-[var(--color-text-secondary)]"
+          >
+            {summary}
+          </p>
+        ) : null}
+        {invite.error ? (
+          <p role="alert" className="text-[length:var(--text-small)] text-[var(--color-danger)]">
+            Couldn’t send invitations — {invite.error.message}
+          </p>
+        ) : null}
+
+        <div className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-[var(--radius-md)] px-3 py-1.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)]"
+          >
+            {summary ? "Done" : "Cancel"}
+          </button>
+          <PendingButton
+            onClick={() => invite.mutate({ emails: parsed, role, personalMessage: message.trim() || undefined })}
+            pending={invite.isPending}
+            disabled={parsed.length === 0}
+            idleLabel={parsed.length > 1 ? `Send ${parsed.length} invitations` : "Send invitation"}
+            pendingLabel="Sending…"
+          />
+        </div>
+      </div>
+    </div>
   );
 }
 
