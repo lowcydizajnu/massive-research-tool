@@ -2,10 +2,11 @@
 
 import type { Route } from "next";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { PendingButton } from "@/components/ui/pending-button";
 import { api } from "@/lib/trpc/react";
+import { useVisibleInterval } from "@/lib/use-visible-interval";
 import { cn } from "@/lib/utils";
 import type { RunningStatus, RunningStudyRow } from "@/server/trpc/routers/studies";
 
@@ -40,18 +41,6 @@ const STATUS_BADGE: Record<RunningStatus, { label: string; cls: string }> = {
     cls: "bg-[var(--color-info-subtle)] text-[var(--color-info-text-on-subtle)]",
   },
 };
-
-/** Poll interval that goes dormant while the tab is hidden (Page Visibility). */
-function useVisibleInterval(ms: number): number | false {
-  const [visible, setVisible] = useState(true);
-  useEffect(() => {
-    const onChange = () => setVisible(document.visibilityState === "visible");
-    onChange();
-    document.addEventListener("visibilitychange", onChange);
-    return () => document.removeEventListener("visibilitychange", onChange);
-  }, []);
-  return visible ? ms : false;
-}
 
 export function RunningBoard() {
   const refetchInterval = useVisibleInterval(POLL_MS);

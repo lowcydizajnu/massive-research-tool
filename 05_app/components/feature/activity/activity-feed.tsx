@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { FollowButton } from "@/components/feature/follow/follow-button";
 import { api } from "@/lib/trpc/react";
+import { LIVE_POLL_MS, useVisibleInterval } from "@/lib/use-visible-interval";
 import { cn } from "@/lib/utils";
 import type { FollowListItem, FollowsFeedItem } from "@/server/trpc/routers/follows";
 import type { NotificationDTO } from "@/server/trpc/routers/notifications";
@@ -69,7 +70,10 @@ export function ActivityFeed() {
 
 function YoursStream() {
   const utils = api.useUtils();
-  const { data, isLoading, isError } = api.notifications.list.useQuery();
+  const { data, isLoading, isError } = api.notifications.list.useQuery(undefined, {
+    refetchInterval: useVisibleInterval(LIVE_POLL_MS),
+    refetchOnWindowFocus: true,
+  });
   const markAllRead = api.notifications.markAllRead.useMutation({
     onSuccess: () => void utils.notifications.unreadCount.invalidate(),
   });
@@ -182,7 +186,10 @@ function FollowingRow({ item }: { item: FollowListItem }) {
 }
 
 function FollowsFeed({ hasFollows }: { hasFollows: boolean }) {
-  const { data, isLoading, isError } = api.follows.feed.useQuery();
+  const { data, isLoading, isError } = api.follows.feed.useQuery(undefined, {
+    refetchInterval: useVisibleInterval(LIVE_POLL_MS),
+    refetchOnWindowFocus: true,
+  });
 
   if (isLoading) {
     return <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">Loading…</p>;
