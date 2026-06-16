@@ -25,7 +25,7 @@ export default defineConfig({
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
-      testIgnore: ["**/hanna-*.spec.ts", "**/a11y-*.spec.ts"],
+      testIgnore: ["**/hanna-*.spec.ts", "**/a11y-*.spec.ts", "**/team-*.spec.ts"],
     },
     // Opt-in authenticated suite — needs a reachable Clerk + a test user.
     // Run with `npm run test:e2e:auth` (sets RUN_AUTH_E2E + Clerk creds).
@@ -33,7 +33,7 @@ export default defineConfig({
     {
       name: "auth",
       use: { ...devices["Desktop Chrome"] },
-      testMatch: ["**/hanna-*.spec.ts", "**/a11y-*.spec.ts"],
+      testMatch: ["**/hanna-*.spec.ts", "**/a11y-*.spec.ts", "**/team-*.spec.ts"],
     },
   ],
   webServer: {

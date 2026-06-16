@@ -6,7 +6,7 @@ import { z } from "zod";
 
 import { auth } from "@/server/adapters/auth";
 import { db } from "@/server/db/client";
-import { activityEvent, member, user } from "@/server/db/schema";
+import { activityEvent, comment, experiment, member, user } from "@/server/db/schema";
 import { router, workspaceProcedure } from "@/server/trpc/trpc";
 import type { MemberRole } from "@/server/workspace/active";
 
@@ -86,6 +86,26 @@ export type TeamMember = {
   removedAt: string | null;
 };
 
+/** One member's full profile for the member-detail page (T4 / team-member-detail.md). */
+export type TeamMemberDetail = {
+  memberId: string;
+  userId: string;
+  displayName: string;
+  email: string;
+  avatarUrl: string | null;
+  fullName: string | null;
+  affiliation: string | null;
+  orcid: string | null;
+  researchAreas: string[];
+  bio: string | null;
+  role: MemberRole;
+  joinedAt: string;
+  lastActiveAt: string | null;
+  removedAt: string | null;
+  studiesAuthored: number;
+  commentsPosted: number;
+};
+
 export type TeamInvitation = {
   memberId: string;
   email: string;
@@ -154,6 +174,90 @@ export const teamRouter = router({
     role: ctx.role as MemberRole,
     userId: ctx.dbUser.id,
   })),
+
+  /** One member's profile + role + contributions, for the member-detail page (T4 / team-member-detail.md). Any member may view. */
+  get: workspaceProcedure
+    .input(z.object({ memberId: z.string().uuid() }))
+    .query(async ({ ctx, input }): Promise<TeamMemberDetail> => {
+      const wsId = ctx.workspace.id;
+      const [row] = await db
+        .select({
+          memberId: member.id,
+          userId: member.userId,
+          role: member.role,
+          joinedAt: member.createdAt,
+          removedAt: member.removedAt,
+          displayName: user.displayName,
+          email: user.email,
+          avatarUrl: user.avatarUrl,
+          fullName: user.fullName,
+          affiliation: user.affiliation,
+          orcid: user.orcid,
+          researchAreas: user.researchAreas,
+          bio: user.bio,
+        })
+        .from(member)
+        .innerJoin(user, eq(member.userId, user.id))
+        .where(and(eq(member.id, input.memberId), eq(member.workspaceId, wsId)))
+        .limit(1);
+      if (!row || !row.userId) throw new TRPCError({ code: "NOT_FOUND", message: "Member not found." });
+
+      const [last] = await db
+        .select({ at: max(activityEvent.createdAt) })
+        .from(activityEvent)
+        .where(and(eq(activityEvent.workspaceId, wsId), eq(activityEvent.actorUserId, row.userId)));
+      const [studies] = await db
+        .select({ c: count() })
+        .from(experiment)
+        .where(and(eq(experiment.tenantId, wsId), eq(experiment.ownerId, row.userId), isNull(experiment.archivedAt)));
+      const [comments] = await db
+        .select({ c: count() })
+        .from(comment)
+        .where(and(eq(comment.workspaceId, wsId), eq(comment.authorUserId, row.userId)));
+
+      return {
+        memberId: row.memberId,
+        userId: row.userId,
+        displayName: row.displayName ?? "",
+        email: row.email,
+        avatarUrl: row.avatarUrl,
+        fullName: row.fullName,
+        affiliation: row.affiliation,
+        orcid: row.orcid,
+        researchAreas: row.researchAreas ?? [],
+        bio: row.bio,
+        role: row.role as MemberRole,
+        joinedAt: row.joinedAt.toISOString(),
+        lastActiveAt: last?.at ? last.at.toISOString() : null,
+        removedAt: row.removedAt ? row.removedAt.toISOString() : null,
+        studiesAuthored: studies?.c ?? 0,
+        commentsPosted: comments?.c ?? 0,
+      };
+    }),
+
+  /** A member's recent activity in this workspace — the member-detail timeline (T4). Any member may view. */
+  memberActivity: workspaceProcedure
+    .input(z.object({ memberId: z.string().uuid(), limit: z.number().int().min(1).max(50).default(20) }))
+    .query(async ({ ctx, input }): Promise<{ id: string; type: string; createdAt: string; studyTitle: string | null }[]> => {
+      const [m] = await db
+        .select({ userId: member.userId })
+        .from(member)
+        .where(and(eq(member.id, input.memberId), eq(member.workspaceId, ctx.workspace.id)))
+        .limit(1);
+      if (!m?.userId) return [];
+      const rows = await db
+        .select({ id: activityEvent.id, type: activityEvent.type, createdAt: activityEvent.createdAt, payload: activityEvent.payload })
+        .from(activityEvent)
+        .where(and(eq(activityEvent.workspaceId, ctx.workspace.id), eq(activityEvent.actorUserId, m.userId)))
+        .orderBy(desc(activityEvent.createdAt))
+        .limit(input.limit);
+      return rows.map((r) => ({
+        id: r.id,
+        type: r.type,
+        createdAt: r.createdAt.toISOString(),
+        studyTitle: (r.payload as { studyTitle?: string } | null)?.studyTitle ?? null,
+      }));
+    }),
 
   /** Pending invitations (status='invited') with age, newest first. */
   listInvitations: workspaceProcedure.query(async ({ ctx }): Promise<TeamInvitation[]> => {
