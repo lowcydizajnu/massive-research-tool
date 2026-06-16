@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
 import {
   InvalidProviderTokenError,
@@ -47,6 +47,12 @@ async function call(
   }
   if (res.status === 401 || res.status === 403) throw new InvalidProviderTokenError();
   if (res.status >= 500) throw new ProviderUnreachableError();
+  // Any other non-2xx (400/404/422 — validation errors) must SURFACE, not pass
+  // through as a fake success. Include Prolific's error body so the cause is visible.
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Prolific ${res.status}: ${body.slice(0, 500) || res.statusText}`);
+  }
   return res;
 }
 
@@ -56,22 +62,29 @@ const PROLIFIC_TRANSITION: Record<"publish" | "pause" | "close", string> = {
   close: "STOP",
 };
 
-/** Map our eligibility shape to Prolific's `eligibility_requirements` (P1b). Country/language only; everything else is set on the Prolific dashboard. */
+/**
+ * Map our eligibility shape to Prolific's `eligibility_requirements` (P1b).
+ * Country/language only; everything else is set on the Prolific dashboard.
+ * Prolific uses the `_cls` discriminator (not `type`). NOTE: the country/language
+ * requirement's `query.id` + the per-option `index` values are Prolific-internal
+ * and may need adjusting against the live API — kept best-effort; the surfaced
+ * 400 body (see `call`) tells us the exact shape if Prolific rejects it.
+ */
 function toEligibilityRequirements(e?: Eligibility): unknown[] {
   if (!e) return [];
   const reqs: unknown[] = [];
   if (e.country?.length) {
     reqs.push({
-      type: "SelectAnswer",
-      query: { id: "54ac6ea9fdf99b2204feb893", question: "In what country do you currently reside?" },
-      attributes: e.country.map((iso) => ({ value: iso, index: -1 })),
+      _cls: "web.eligibility.models.SelectAnswerEligibilityRequirement",
+      query: { id: "54ac6ea9fdf99b2204feb893" },
+      attributes: e.country.map((iso) => ({ name: iso, value: true })),
     });
   }
   if (e.language?.length) {
     reqs.push({
-      type: "SelectAnswer",
-      query: { id: "languages", question: "Fluent languages" },
-      attributes: e.language.map((iso) => ({ value: iso, index: -1 })),
+      _cls: "web.eligibility.models.MultiSelectAnswerEligibilityRequirement",
+      query: { id: "languages" },
+      attributes: e.language.map((iso) => ({ name: iso, value: true })),
     });
   }
   return reqs;
@@ -92,21 +105,27 @@ export const prolificAdapter: RecruitmentAdapter = {
   },
 
   async createStudy({ accessToken, title, description, recruitmentUrl, targetN, reward, eligibility }) {
+    const completionCode = `MRT${randomBytes(4).toString("hex").toUpperCase()}`;
     const res = await call("/studies/", {
       accessToken,
       method: "POST",
       body: JSON.stringify({
         name: title,
-        description,
+        description: description || title,
         external_study_url: `${recruitmentUrl}?PROLIFIC_PID={{%PROLIFIC_PID%}}&SESSION_ID={{%SESSION_ID%}}`,
         prolific_id_option: "url_parameters",
-        completion_code: "MRTDONE", // placeholder; refined in P2 with a verified completion redirect
+        // Current Prolific API: completion_codes (array), not the legacy single completion_code.
+        completion_codes: [{ code: completionCode, code_type: "COMPLETED", actions: [{ action: "MANUALLY_REVIEW" }] }],
         total_available_places: targetN,
-        reward: Math.round(reward.amount * 100), // Prolific takes the smallest currency unit
+        estimated_completion_time: 5, // minutes; Prolific requires a positive estimate. Refined in P2.
+        reward: Math.round(reward.amount * 100), // smallest currency unit
         eligibility_requirements: toEligibilityRequirements(eligibility),
       }),
     });
-    const study = (await res.json()) as { id: string };
+    const study = (await res.json()) as { id?: string };
+    if (!study?.id) {
+      throw new Error(`Prolific create returned no study id — response: ${JSON.stringify(study).slice(0, 400)}`);
+    }
     return { providerStudyId: study.id, providerStudyUrl: `https://app.prolific.com/researcher/studies/${study.id}` };
   },
 

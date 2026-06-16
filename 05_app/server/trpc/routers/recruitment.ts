@@ -192,7 +192,10 @@ export const recruitmentRouter = router({
           message: "Open recruitment on this study before recruiting on Prolific.",
         });
       }
-      if ((session.metadata?.provider as ProviderStudyMeta | undefined)?.status === "live") {
+      const existing = session.metadata?.provider as ProviderStudyMeta | undefined;
+      // Block only when there's a REAL live provider study (a stored id). A
+      // half-created row (no id, from an earlier failed attempt) is retryable.
+      if (existing?.status === "live" && existing.providerStudyId) {
         throw new TRPCError({ code: "CONFLICT", message: "This study is already live on the provider." });
       }
 

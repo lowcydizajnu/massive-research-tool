@@ -41,7 +41,7 @@ export function ProlificRecruitCard({ studyId, studyTitle }: { studyId: string; 
           </Link>{" "}
           to recruit automatically.
         </p>
-      ) : providerStudy.data ? (
+      ) : providerStudy.data?.providerStudyId ? (
         <LiveState studyId={studyId} url={providerStudy.data.providerStudyUrl} status={providerStudy.data.status} canWrite={canWrite} />
       ) : (
         <CreateForm studyId={studyId} studyTitle={studyTitle} canWrite={canWrite} />
