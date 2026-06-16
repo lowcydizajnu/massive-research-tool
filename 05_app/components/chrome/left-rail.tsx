@@ -17,6 +17,7 @@ import type { Route } from "next";
 import { usePathname } from "next/navigation";
 
 import { api } from "@/lib/trpc/react";
+import { LIVE_POLL_MS, useVisibleInterval } from "@/lib/use-visible-interval";
 import { cn } from "@/lib/utils";
 
 /**
@@ -44,8 +45,10 @@ const DESTINATIONS: Destination[] = [
 
 export function LeftRail() {
   const pathname = usePathname();
-  // The Activity rail item carries the unread badge (IA v0.3 — no bell).
+  // The Activity rail item carries the unread badge (IA v0.3 — no bell). Polls
+  // while the tab is visible so the badge updates without a page refresh.
   const { data: unread } = api.notifications.unreadCount.useQuery(undefined, {
+    refetchInterval: useVisibleInterval(LIVE_POLL_MS),
     refetchOnWindowFocus: true,
   });
 

@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { api } from "@/lib/trpc/react";
+import { LIVE_POLL_MS, useVisibleInterval } from "@/lib/use-visible-interval";
 import { cn } from "@/lib/utils";
 import type { StudyDetail } from "@/server/trpc/routers/studies";
 
@@ -22,7 +23,10 @@ export function ShareWorkspace({
   currentUserId: string;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const { data: allComments } = api.comments.list.useQuery({ experimentId: study.id });
+  const { data: allComments } = api.comments.list.useQuery(
+    { experimentId: study.id },
+    { refetchInterval: useVisibleInterval(LIVE_POLL_MS), refetchOnWindowFocus: true },
+  );
 
   const countFor = (targetId: string) =>
     (allComments ?? []).filter((c) => c.targetId === targetId && c.status !== "resolved").length;

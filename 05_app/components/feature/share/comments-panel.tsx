@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 
 import { PendingButton } from "@/components/ui/pending-button";
 import { renderCommentMarkdown } from "@/lib/comment-markdown";
+import { LIVE_POLL_MS, useVisibleInterval } from "@/lib/use-visible-interval";
 import { api } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
 
@@ -28,11 +29,10 @@ export function CommentsPanel({
   currentUserId: string;
 }) {
   const utils = api.useUtils();
-  const { data: comments } = api.comments.list.useQuery({
-    experimentId: studyId,
-    targetType,
-    targetId,
-  });
+  const { data: comments } = api.comments.list.useQuery(
+    { experimentId: studyId, targetType, targetId },
+    { refetchInterval: useVisibleInterval(LIVE_POLL_MS), refetchOnWindowFocus: true },
+  );
   const { data: members } = api.workspace.members.useQuery();
   const invalidate = () => void utils.comments.list.invalidate({ experimentId: studyId, targetType, targetId });
 

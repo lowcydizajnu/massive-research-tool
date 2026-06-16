@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { DashboardGrid } from "@/components/feature/dashboard/dashboard-grid";
+import { LiveRefresh } from "@/components/feature/live-refresh";
 import {
   ActiveRecruitmentWidget,
   RecentActivityWidget,
@@ -93,6 +94,7 @@ export default async function WorkspaceDashboardPage() {
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-4">
+      <LiveRefresh />
       <DashboardGrid
         kind="workspace"
         workspaceId={active.id}
