@@ -20,7 +20,10 @@ vi.mock("@/server/adapters/jobs", () => ({ jobs: { enqueue: vi.fn() } }));
 // The team router calls auth.createInvitation (Clerk) — mock the adapter so tests
 // exercise the DB-side dedupe/summary without a live provider.
 vi.mock("@/server/adapters/auth", () => ({
-  auth: { createInvitation: vi.fn().mockResolvedValue({ id: "inv_test" }) },
+  auth: {
+    createInvitation: vi.fn().mockResolvedValue({ id: "inv_test" }),
+    revokePendingInvitationByEmail: vi.fn().mockResolvedValue(undefined),
+  },
 }));
 
 import { ulid } from "ulid";
@@ -190,5 +193,45 @@ describe("team.invite", () => {
     });
     // admin inviting an Editor is allowed
     await expect(admin.team.invite({ emails: ["x@lab.edu"], role: "editor" })).resolves.toMatchObject({ sent: 1 });
+  });
+});
+
+describe("team.revokeInvite / resendInvite", () => {
+  async function seedWsWithInvite() {
+    const owner = await seedUser("ext_owner");
+    const [ws] = await db.insert(workspace).values({ name: "Lab", slug: "lab", ownerId: owner.id }).returning();
+    await db.insert(member).values({ workspaceId: ws.id, userId: owner.id, role: "owner", status: "active" });
+    const [inv] = await db
+      .insert(member)
+      .values({ workspaceId: ws.id, role: "editor", status: "invited", invitedEmail: "p@lab.edu", invitedBy: owner.id })
+      .returning();
+    return { ws, inviteId: inv.id };
+  }
+
+  it("revokeInvite deletes the pending row + revokes the Clerk invitation", async () => {
+    const { inviteId } = await seedWsWithInvite();
+    const caller = createCaller({ authUser: authUser("ext_owner") });
+    await expect(caller.team.revokeInvite({ memberId: inviteId })).resolves.toEqual({ ok: true });
+    expect(vi.mocked(auth.revokePendingInvitationByEmail)).toHaveBeenCalledWith("p@lab.edu");
+    expect(await caller.team.listInvitations()).toHaveLength(0);
+  });
+
+  it("resendInvite revokes then re-sends + resets age; keeps the row", async () => {
+    const { inviteId } = await seedWsWithInvite();
+    const caller = createCaller({ authUser: authUser("ext_owner") });
+    await expect(caller.team.resendInvite({ memberId: inviteId })).resolves.toEqual({ ok: true });
+    expect(vi.mocked(auth.revokePendingInvitationByEmail)).toHaveBeenCalledWith("p@lab.edu");
+    expect(vi.mocked(auth.createInvitation)).toHaveBeenCalled();
+    const invites = await caller.team.listInvitations();
+    expect(invites).toHaveLength(1);
+    expect(invites[0].ageDays).toBe(0);
+  });
+
+  it("a viewer can't revoke", async () => {
+    const { ws, inviteId } = await seedWsWithInvite();
+    const v = await seedUser("ext_viewer");
+    await db.insert(member).values({ workspaceId: ws.id, userId: v.id, role: "viewer", status: "active" });
+    const viewer = createCaller({ authUser: authUser("ext_viewer") });
+    await expect(viewer.team.revokeInvite({ memberId: inviteId })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });
