@@ -44,12 +44,14 @@ export function TeamDestination({
   invitations,
   canManage = false,
   viewerRole = "viewer",
+  viewerUserId,
 }: {
   workspaceName: string;
   members: TeamMember[];
   invitations: TeamInvitation[];
   canManage?: boolean;
   viewerRole?: MemberRole;
+  viewerUserId: string;
 }) {
   const [tab, setTab] = useState<Tab>("Members");
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -118,7 +120,12 @@ export function TeamDestination({
 
       <div role="tabpanel" aria-label={tab}>
         {tab === "Members" ? (
-          <MembersView members={members} />
+          <MembersView
+            members={members}
+            canManage={canManage}
+            viewerRole={viewerRole}
+            viewerUserId={viewerUserId}
+          />
         ) : tab === "Invitations" ? (
           <InvitationsView invitations={invitations} canManage={canManage} />
         ) : (
@@ -267,7 +274,17 @@ function InviteModal({
   );
 }
 
-function MembersView({ members }: { members: TeamMember[] }) {
+function MembersView({
+  members,
+  canManage,
+  viewerRole,
+  viewerUserId,
+}: {
+  members: TeamMember[];
+  canManage: boolean;
+  viewerRole: MemberRole;
+  viewerUserId: string;
+}) {
   const [q, setQ] = useState("");
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -301,7 +318,13 @@ function MembersView({ members }: { members: TeamMember[] }) {
       ) : (
         <ul className="flex flex-col gap-1.5">
           {filtered.map((m) => (
-            <MemberRow key={m.memberId} m={m} />
+            <MemberRow
+              key={m.memberId}
+              m={m}
+              canManage={canManage}
+              viewerRole={viewerRole}
+              isSelf={m.userId === viewerUserId}
+            />
           ))}
         </ul>
       )}
@@ -309,35 +332,147 @@ function MembersView({ members }: { members: TeamMember[] }) {
   );
 }
 
-function MemberRow({ m }: { m: TeamMember }) {
+/** Roles a viewer of `viewerRole` may assign to a target currently at `targetRole`. */
+function assignableRoles(viewerRole: MemberRole, targetRole: MemberRole): MemberRole[] {
+  if (viewerRole === "owner") return ["viewer", "editor", "admin", "owner"];
+  // Admins manage Editors/Viewers only, and can't grant owner/admin.
+  if (viewerRole === "admin" && targetRole !== "owner" && targetRole !== "admin") return ["viewer", "editor"];
+  return [];
+}
+
+function MemberRow({
+  m,
+  canManage,
+  viewerRole,
+  isSelf,
+}: {
+  m: TeamMember;
+  canManage: boolean;
+  viewerRole: MemberRole;
+  isSelf: boolean;
+}) {
+  const router = useRouter();
   const inactive = !m.lastActiveAt || Date.now() - new Date(m.lastActiveAt).getTime() > 30 * 86_400_000;
+  const [err, setErr] = useState<string | null>(null);
+  const onErr = (e: { message?: string }) => setErr(e?.message ?? "Something went wrong.");
+  const onOk = () => {
+    setErr(null);
+    router.refresh();
+  };
+
+  const changeRole = api.team.changeRole.useMutation({ onSuccess: onOk, onError: onErr });
+  const removeMember = api.team.removeMember.useMutation({ onSuccess: onOk, onError: onErr });
+  const transfer = api.team.transferOwnership.useMutation({ onSuccess: onOk, onError: onErr });
+  const leave = api.team.leaveWorkspace.useMutation({ onSuccess: onOk, onError: onErr });
+  const busy = changeRole.isPending || removeMember.isPending || transfer.isPending || leave.isPending;
+
+  const options = assignableRoles(viewerRole, m.role);
+  // The role <select> is shown for other members the viewer may re-role; self + ungovernable targets fall back to a chip.
+  const canSelectRole = canManage && !isSelf && !m.removedAt && options.length > 0;
+  const canRemove =
+    canManage && !isSelf && !m.removedAt && (viewerRole === "owner" || (m.role !== "owner" && m.role !== "admin"));
+  const canTransfer = viewerRole === "owner" && !isSelf && !m.removedAt && m.role !== "owner";
+
+  const handleRole = (next: MemberRole) => {
+    if (next === m.role) return;
+    if (next === "owner" && !window.confirm(`Make ${m.displayName || m.email} a co-owner? They'll have full control.`))
+      return;
+    changeRole.mutate({ memberId: m.memberId, newRole: next });
+  };
+
   return (
-    <li className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-2">
-      <span className="flex min-w-0 items-center gap-3">
-        <Avatar url={m.avatarUrl} name={m.displayName} />
-        <span className="flex min-w-0 flex-col">
-          <span className="flex items-center gap-2">
-            <span className="truncate text-[length:var(--text-body)] font-medium text-[var(--color-text-primary)]">
-              {m.displayName || m.email}
-            </span>
-            {m.removedAt ? (
-              <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-                (left {shortDate(m.removedAt)})
+    <li className="flex flex-col gap-1 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-2">
+      <div className="flex items-center justify-between gap-3">
+        <span className="flex min-w-0 items-center gap-3">
+          <Avatar url={m.avatarUrl} name={m.displayName} />
+          <span className="flex min-w-0 flex-col">
+            <span className="flex items-center gap-2">
+              <span className="truncate text-[length:var(--text-body)] font-medium text-[var(--color-text-primary)]">
+                {m.displayName || m.email}
               </span>
-            ) : null}
-          </span>
-          <span className="truncate text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-            {m.email}
-            {m.affiliation ? ` · ${m.affiliation}` : ""}
+              {isSelf ? (
+                <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">(you)</span>
+              ) : null}
+              {m.removedAt ? (
+                <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                  (left {shortDate(m.removedAt)})
+                </span>
+              ) : null}
+            </span>
+            <span className="truncate text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+              {m.email}
+              {m.affiliation ? ` · ${m.affiliation}` : ""}
+            </span>
           </span>
         </span>
-      </span>
-      <span className="flex shrink-0 items-center gap-3">
-        <span className="hidden text-[length:var(--text-small)] text-[var(--color-text-muted)] sm:inline">
-          {inactive ? "Inactive" : "Active"} · {m.lastActiveAt ? relativeTime(m.lastActiveAt) : "no activity"}
+        <span className="flex shrink-0 items-center gap-2">
+          <span className="hidden text-[length:var(--text-small)] text-[var(--color-text-muted)] sm:inline">
+            {inactive ? "Inactive" : "Active"} · {m.lastActiveAt ? relativeTime(m.lastActiveAt) : "no activity"}
+          </span>
+          {canSelectRole ? (
+            <select
+              value={m.role}
+              disabled={busy}
+              onChange={(e) => handleRole(e.target.value as MemberRole)}
+              aria-label={`Role for ${m.displayName || m.email}`}
+              className="rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-1.5 py-0.5 text-[length:var(--text-small)] text-[var(--color-text-primary)] disabled:opacity-50"
+            >
+              {options.map((r) => (
+                <option key={r} value={r}>
+                  {ROLE_LABEL[r]}
+                </option>
+              ))}
+            </select>
+          ) : (
+            roleChip(m.role)
+          )}
+          {canTransfer ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                if (window.confirm(`Transfer ownership to ${m.displayName || m.email}? You'll become an Admin.`))
+                  transfer.mutate({ toMemberId: m.memberId });
+              }}
+              className="rounded-[var(--radius-sm)] px-2 py-0.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)] disabled:opacity-50"
+            >
+              {transfer.isPending ? "Transferring…" : "Transfer"}
+            </button>
+          ) : null}
+          {canRemove ? (
+            <button
+              type="button"
+              disabled={busy}
+              aria-label={`Remove ${m.displayName || m.email}`}
+              onClick={() => {
+                if (window.confirm(`Remove ${m.displayName || m.email} from the workspace?`))
+                  removeMember.mutate({ memberId: m.memberId });
+              }}
+              className="rounded-[var(--radius-sm)] px-2 py-0.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-muted)] hover:bg-[var(--color-danger-subtle)] hover:text-[var(--color-danger-text-on-subtle)] disabled:opacity-50"
+            >
+              {removeMember.isPending ? "Removing…" : "Remove"}
+            </button>
+          ) : null}
+          {isSelf && !m.removedAt ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                if (window.confirm("Leave this workspace? You'll lose access until you're invited again."))
+                  leave.mutate();
+              }}
+              className="rounded-[var(--radius-sm)] px-2 py-0.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-muted)] hover:bg-[var(--color-danger-subtle)] hover:text-[var(--color-danger-text-on-subtle)] disabled:opacity-50"
+            >
+              {leave.isPending ? "Leaving…" : "Leave"}
+            </button>
+          ) : null}
         </span>
-        {roleChip(m.role)}
-      </span>
+      </div>
+      {err ? (
+        <p role="alert" className="text-[length:var(--text-small)] text-[var(--color-danger-text-on-subtle)]">
+          {err}
+        </p>
+      ) : null}
     </li>
   );
 }

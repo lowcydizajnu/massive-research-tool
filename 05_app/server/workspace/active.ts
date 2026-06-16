@@ -34,6 +34,7 @@ export async function resolveActiveWorkspace(
       and(
         eq(member.userId, dbUserId),
         eq(member.status, "active"),
+        isNull(member.removedAt), // soft-removed members lose access (T3 / ADR-0046)
         isNull(workspace.archivedAt),
       ),
     )

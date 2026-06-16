@@ -235,3 +235,131 @@ describe("team.revokeInvite / resendInvite", () => {
     await expect(viewer.team.revokeInvite({ memberId: inviteId })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });
+
+describe("team.changeRole / removeMember / transferOwnership / leaveWorkspace (T3)", () => {
+  /** Seed a workspace with an owner + the requested extra members; returns ids by ext key. */
+  async function seedWs(extras: { ext: string; role: "owner" | "admin" | "editor" | "viewer" }[]) {
+    const owner = await seedUser("ext_owner");
+    const [ws] = await db.insert(workspace).values({ name: "Lab", slug: "lab", ownerId: owner.id }).returning();
+    await db.insert(member).values({ workspaceId: ws.id, userId: owner.id, role: "owner", status: "active" });
+    const ids: Record<string, { userId: string; memberId: string }> = {};
+    for (const e of extras) {
+      const u = await seedUser(e.ext);
+      const [m] = await db
+        .insert(member)
+        .values({ workspaceId: ws.id, userId: u.id, role: e.role, status: "active" })
+        .returning();
+      ids[e.ext] = { userId: u.id, memberId: m.id };
+    }
+    return { ws, owner, ids };
+  }
+
+  it("owner changes a role + records a member_role_changed audit event", async () => {
+    const { ids } = await seedWs([{ ext: "ext_ed", role: "editor" }]);
+    const owner = createCaller({ authUser: authUser("ext_owner") });
+    await expect(owner.team.changeRole({ memberId: ids.ext_ed.memberId, newRole: "admin" })).resolves.toEqual({
+      ok: true,
+    });
+    const members = await owner.team.list();
+    expect(members.find((m) => m.memberId === ids.ext_ed.memberId)?.role).toBe("admin");
+    const events = await db.select().from(activityEvent);
+    expect(events.some((e) => e.type === "member_role_changed" && e.targetId === ids.ext_ed.memberId)).toBe(true);
+  });
+
+  it("admins can re-role Editors/Viewers but can't touch owners/admins or grant admin/owner", async () => {
+    const { ids } = await seedWs([
+      { ext: "ext_admin", role: "admin" },
+      { ext: "ext_ed", role: "editor" },
+    ]);
+    const admin = createCaller({ authUser: authUser("ext_admin") });
+    // allowed: editor -> viewer
+    await expect(admin.team.changeRole({ memberId: ids.ext_ed.memberId, newRole: "viewer" })).resolves.toEqual({
+      ok: true,
+    });
+    // forbidden: granting admin
+    await expect(admin.team.changeRole({ memberId: ids.ext_ed.memberId, newRole: "admin" })).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+  });
+
+  it("never demotes the last owner, but allows it once a co-owner exists", async () => {
+    const { ids } = await seedWs([{ ext: "ext_two", role: "editor" }]);
+    const owner = createCaller({ authUser: authUser("ext_owner") });
+    const selfMember = (await owner.team.list()).find((m) => m.role === "owner")!;
+    // sole owner can't be demoted
+    await expect(owner.team.changeRole({ memberId: selfMember.memberId, newRole: "admin" })).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+    // promote a co-owner, then the original owner may step down
+    await owner.team.changeRole({ memberId: ids.ext_two.memberId, newRole: "owner" });
+    await expect(owner.team.changeRole({ memberId: selfMember.memberId, newRole: "admin" })).resolves.toEqual({
+      ok: true,
+    });
+  });
+
+  it("removeMember soft-deletes (drops from list + revokes access) and records member_removed", async () => {
+    const { ws, ids } = await seedWs([{ ext: "ext_ed", role: "editor" }]);
+    const owner = createCaller({ authUser: authUser("ext_owner") });
+    await expect(owner.team.removeMember({ memberId: ids.ext_ed.memberId })).resolves.toEqual({ ok: true });
+    expect((await owner.team.list()).some((m) => m.memberId === ids.ext_ed.memberId)).toBe(false);
+    // the removed user can no longer resolve the workspace as active
+    const removedCaller = createCaller({ authUser: authUser("ext_ed") });
+    await expect(removedCaller.team.list()).rejects.toBeTruthy(); // no active workspace → workspaceProcedure throws
+    const events = await db.select().from(activityEvent);
+    expect(events.some((e) => e.type === "member_removed" && e.workspaceId === ws.id)).toBe(true);
+  });
+
+  it("you can't remove yourself, the last owner, and admins can't remove admins/owners", async () => {
+    const { ids } = await seedWs([
+      { ext: "ext_admin", role: "admin" },
+      { ext: "ext_admin2", role: "admin" },
+    ]);
+    const owner = createCaller({ authUser: authUser("ext_owner") });
+    const selfMember = (await owner.team.list()).find((m) => m.role === "owner")!;
+    await expect(owner.team.removeMember({ memberId: selfMember.memberId })).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+    });
+    const admin = createCaller({ authUser: authUser("ext_admin") });
+    await expect(admin.team.removeMember({ memberId: ids.ext_admin2.memberId })).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+  });
+
+  it("transferOwnership promotes the target to owner and demotes the actor to admin", async () => {
+    const { ids } = await seedWs([{ ext: "ext_ed", role: "editor" }]);
+    const owner = createCaller({ authUser: authUser("ext_owner") });
+    await expect(owner.team.transferOwnership({ toMemberId: ids.ext_ed.memberId })).resolves.toEqual({ ok: true });
+    const members = await owner.team.list();
+    expect(members.find((m) => m.memberId === ids.ext_ed.memberId)?.role).toBe("owner");
+    expect(members.find((m) => m.role === "admin")?.userId).toBeTruthy(); // the old owner is now admin
+    const events = await db.select().from(activityEvent);
+    expect(events.some((e) => e.type === "ownership_transferred")).toBe(true);
+  });
+
+  it("leaveWorkspace soft-removes you; the sole owner can't leave", async () => {
+    const { ids } = await seedWs([{ ext: "ext_ed", role: "editor" }]);
+    const ownerCaller = createCaller({ authUser: authUser("ext_owner") });
+    await expect(ownerCaller.team.leaveWorkspace()).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    const edCaller = createCaller({ authUser: authUser("ext_ed") });
+    await expect(edCaller.team.leaveWorkspace()).resolves.toEqual({ ok: true });
+    // gone from the owner's member list
+    expect((await ownerCaller.team.list()).some((m) => m.memberId === ids.ext_ed.memberId)).toBe(false);
+    const events = await db.select().from(activityEvent);
+    expect(events.some((e) => e.type === "member_left")).toBe(true);
+  });
+
+  it("a viewer can't change roles or remove members", async () => {
+    const { ids } = await seedWs([
+      { ext: "ext_viewer", role: "viewer" },
+      { ext: "ext_ed", role: "editor" },
+    ]);
+    const viewer = createCaller({ authUser: authUser("ext_viewer") });
+    await expect(viewer.team.changeRole({ memberId: ids.ext_ed.memberId, newRole: "viewer" })).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+    await expect(viewer.team.removeMember({ memberId: ids.ext_ed.memberId })).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+  });
+});

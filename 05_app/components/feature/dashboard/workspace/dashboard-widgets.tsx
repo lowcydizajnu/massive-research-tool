@@ -149,6 +149,11 @@ const ACTIVITY_LABEL: Record<string, string> = {
   fork_created: "Replicated",
   comment_added: "New comment",
   mention: "Mention",
+  member_role_changed: "Role changed",
+  member_removed: "Member removed",
+  member_left: "Member left",
+  ownership_transferred: "Ownership transferred",
+  co_owner_promoted: "Co-owner added",
 };
 
 function activityLabel(type: string): string {

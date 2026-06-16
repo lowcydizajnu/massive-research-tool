@@ -13,12 +13,12 @@ export const dynamic = "force-dynamic";
 export default async function TeamPage() {
   const api = await getServerApi();
   const active = await api.workspace.active();
-  const [members, invitations, role] = await Promise.all([
+  const [members, invitations, viewer] = await Promise.all([
     api.team.list(),
     api.team.listInvitations(),
-    api.team.myRole(),
+    api.team.viewer(),
   ]);
-  const canManage = role === "owner" || role === "admin";
+  const canManage = viewer.role === "owner" || viewer.role === "admin";
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-4">
@@ -27,7 +27,8 @@ export default async function TeamPage() {
         members={members}
         invitations={invitations}
         canManage={canManage}
-        viewerRole={role}
+        viewerRole={viewer.role}
+        viewerUserId={viewer.userId}
       />
     </main>
   );
