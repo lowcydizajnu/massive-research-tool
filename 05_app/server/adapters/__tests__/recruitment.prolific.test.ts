@@ -177,6 +177,20 @@ describe("prolificAdapter.listProviderWorkspaces", () => {
   });
 });
 
+describe("prolificAdapter.createWebhookSecret", () => {
+  it("reads the signing secret from the `value` field (POST /hooks/secrets/)", async () => {
+    stubFetch(() => new Response(JSON.stringify({ id: "sec1", value: "THE-SIGNING-SECRET", workspace_id: "ws-1" }), { status: 201 }));
+    await expect(prolificAdapter.createWebhookSecret({ accessToken: "t", workspaceId: "ws-1" })).resolves.toEqual({
+      secret: "THE-SIGNING-SECRET",
+    });
+  });
+
+  it("throws when no secret value comes back", async () => {
+    stubFetch(() => new Response(JSON.stringify({ id: "sec1" }), { status: 201 }));
+    await expect(prolificAdapter.createWebhookSecret({ accessToken: "t", workspaceId: "ws-1" })).rejects.toThrow(/did not return a webhook secret/);
+  });
+});
+
 describe("prolificAdapter.verifyWebhookSignature (HMAC over timestamp+body, base64)", () => {
   const secret = "per-workspace-secret";
   const timestamp = "1718524800";
