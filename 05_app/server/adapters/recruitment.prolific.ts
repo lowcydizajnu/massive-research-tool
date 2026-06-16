@@ -63,31 +63,20 @@ const PROLIFIC_TRANSITION: Record<"publish" | "pause" | "close", string> = {
 };
 
 /**
- * Map our eligibility shape to Prolific's `eligibility_requirements` (P1b).
- * Country/language only; everything else is set on the Prolific dashboard.
- * Prolific uses the `_cls` discriminator (not `type`). NOTE: the country/language
- * requirement's `query.id` + the per-option `index` values are Prolific-internal
- * and may need adjusting against the live API — kept best-effort; the surfaced
- * 400 body (see `call`) tells us the exact shape if Prolific rejects it.
+ * Map our eligibility shape to Prolific's `filters` (P1b). `eligibility_requirements`
+ * is deprecated (error 140003) — current API uses `filters`: an array of
+ * `{ filter_id, selected_values }`. Country/language only; everything else is set
+ * on the Prolific dashboard. Empty when nothing's selected (so a no-filter study
+ * sends `filters: []` and recruits anyone). NOTE: `selected_values` for country
+ * may be Prolific-internal value ids rather than ISO codes — best-effort; the
+ * surfaced 400 body (see `call`) pinpoints the exact format if Prolific rejects it.
  */
-function toEligibilityRequirements(e?: Eligibility): unknown[] {
+function toFilters(e?: Eligibility): unknown[] {
   if (!e) return [];
-  const reqs: unknown[] = [];
-  if (e.country?.length) {
-    reqs.push({
-      _cls: "web.eligibility.models.SelectAnswerEligibilityRequirement",
-      query: { id: "54ac6ea9fdf99b2204feb893" },
-      attributes: e.country.map((iso) => ({ name: iso, value: true })),
-    });
-  }
-  if (e.language?.length) {
-    reqs.push({
-      _cls: "web.eligibility.models.MultiSelectAnswerEligibilityRequirement",
-      query: { id: "languages" },
-      attributes: e.language.map((iso) => ({ name: iso, value: true })),
-    });
-  }
-  return reqs;
+  const filters: unknown[] = [];
+  if (e.country?.length) filters.push({ filter_id: "current-country-of-residence", selected_values: e.country });
+  if (e.language?.length) filters.push({ filter_id: "fluent-languages", selected_values: e.language });
+  return filters;
 }
 
 export const prolificAdapter: RecruitmentAdapter = {
@@ -119,7 +108,7 @@ export const prolificAdapter: RecruitmentAdapter = {
         total_available_places: targetN,
         estimated_completion_time: 5, // minutes; Prolific requires a positive estimate. Refined in P2.
         reward: Math.round(reward.amount * 100), // smallest currency unit
-        eligibility_requirements: toEligibilityRequirements(eligibility),
+        filters: toFilters(eligibility), // current Prolific API (eligibility_requirements is deprecated)
       }),
     });
     const study = (await res.json()) as { id?: string };
