@@ -184,6 +184,17 @@ V1.5 shipped the `condition` table but no authoring path (the runtime auto-creat
 
 No schema change; this is purely the authoring + snapshot semantics layered on the existing tables.
 
+## Amendment 2026-06-16 (V1.15) — Participants destination PII boundary
+
+V1.15 adds the Participants destination + real recruitment-provider integrations (Prolific first; [ADR-0047](0047-recruitment-adapter.md)). This formalizes how that destination honors the PII boundary set here.
+
+- **The destination renders aggregate + per-PID-with-opaque-ID data only.** `external_pid` (the provider's opaque participant id — Prolific PID, etc.) stays the sole identifier, exactly as for `response`. Per-PID we may show: completed?, attention-check result, completion time, condition assigned, approval/payment status. We never store or display real names, emails, IP addresses, or user agents.
+- **Provider-side PII stays on the provider.** Even where a provider API would return a participant's display name or profile, the `RecruitmentAdapter` contract (ADR-0047) structurally excludes it (`ProviderSubmission` has no name/email/IP field), so no call site can persist it. A researcher needing per-person PII contacts the provider directly via its dashboard; our destination does not surface it.
+- **Demographics stay keyed to `response.id`, never to a person.** The V1.6 `demographics` block collects age/gender/country as response data keyed to the server-minted `response.id` ULID — not to a PID. The Panels sub-view shows demographics in **aggregate ranges only**, never per-person, and never joins demographics to a PID at a re-identifying grain.
+- **New V1.15 tables inherit this.** `recruitment_provider_connection` stores encrypted provider tokens (not participant data); `provider_submission` / `payout_record` / `quality_flag` reference participants only by `external_pid` + our own `response.id`; `panel_member` stores `external_pid` + source study/response ids. None hold provider-side PII.
+
+Why it's load-bearing: MRT's value proposition is that researchers can state "we hold no participant PII" in IRB protocols, and that cross-workspace collaborators / journal reviewers / ethics boards can rely on it. The Participants destination must not regress it — breaking it would be a methodological regression and would pull us into GDPR-DSAR obligations for every participant. No schema change to the original tables; this records the boundary the V1.15 tables and the adapter contract are built to.
+
 ## Revisit triggers
 
 - Branching logic (V1.6) requires extending the block config schema with `nextBlock` rules and a per-path response model. Likely a new ADR (call it 0015 candidate) rather than reopening this one.
