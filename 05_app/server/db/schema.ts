@@ -134,6 +134,12 @@ export const workspace = pgTable("workspace", {
   archivedAt: timestamp("archived_at", { withTimezone: true }),
   /** Show seeded demo content (is_demo studies) in this workspace's lists (ADR-0023). */
   showDemoContent: boolean("show_demo_content").notNull().default(false),
+  /**
+   * Member-management activity-event kinds hidden from this workspace's Activity
+   * feed (V1.14 / ADR-0046). Empty = all kinds shown; non-empty = the listed
+   * kinds are filtered out at query time. Owners/admins edit via Settings.
+   */
+  activityFilterKinds: jsonb("activity_filter_kinds").$type<string[]>().notNull().default([]),
 });
 
 export const member = pgTable(
@@ -150,6 +156,10 @@ export const member = pgTable(
     invitedBy: uuid("invited_by").references((): AnyPgColumn => user.id),
     invitedEmail: text("invited_email"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    /** Soft-delete (V1.14 / ADR-0046): set to remove from active views while
+     * preserving attribution on old activity/comments (tombstone display). */
+    removedAt: timestamp("removed_at", { withTimezone: true }),
+    removedByUserId: uuid("removed_by_user_id").references((): AnyPgColumn => user.id),
   },
   (t) => [
     // A user is a member of a workspace at most once. Invited rows have a null
