@@ -36,6 +36,7 @@ import {
   experiment,
   experimentVersion,
   member,
+  providerSubmission,
   recruitmentProviderConnection,
   recruitmentSession,
   user,
@@ -85,6 +86,7 @@ beforeAll(() => {
 
 beforeEach(async () => {
   vi.clearAllMocks();
+  await db.delete(providerSubmission);
   await db.delete(recruitmentSession);
   await db.delete(recruitmentProviderConnection);
   await db.delete(experimentVersion);
@@ -237,5 +239,74 @@ describe("recruitment.createProviderStudy (P1b bridge)", () => {
         eligibility: { country: [], language: [] },
       }),
     ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+  });
+});
+
+describe("recruitment.openRecruitment.list (Stream P2)", () => {
+  /** Runnable study + open session carrying a provider study in metadata. */
+  async function seedProviderStudy(ws: { id: string }, owner: { id: string }, providerStudyId = "P1") {
+    const [exp] = await db.insert(experiment).values({ tenantId: ws.id, ownerId: owner.id, title: "Study" }).returning();
+    const [ver] = await db
+      .insert(experimentVersion)
+      .values({ experimentId: exp.id, versionNumber: 1, kind: "preregistered", name: "v1", definitionSnapshot: { blocks: [] }, moduleVersionLocks: {}, createdBy: owner.id })
+      .returning();
+    const sessionId = ulid();
+    await db.insert(recruitmentSession).values({
+      id: sessionId,
+      experimentVersionId: ver.id,
+      status: "open",
+      metadata: {
+        provider: {
+          name: "prolific",
+          providerStudyId,
+          providerStudyUrl: `https://app.prolific.com/researcher/studies/${providerStudyId}`,
+          status: "live",
+          eligibility: { country: [], language: [] },
+          reward: { amount: 1.5, currency: "GBP" },
+        },
+      },
+    });
+    return { experimentId: exp.id as string, sessionId, providerStudyId };
+  }
+
+  it("aggregates stored submission counts per study (no connection → no live reconcile)", async () => {
+    const { u, ws } = await seedWs("owner");
+    const { experimentId, sessionId, providerStudyId } = await seedProviderStudy(ws, u);
+    for (const [submissionId, status] of [["s1", "approved"], ["s2", "approved"], ["s3", "submitted"]] as const) {
+      await db.insert(providerSubmission).values({
+        id: ulid(),
+        workspaceId: ws.id,
+        experimentId,
+        recruitmentSessionId: sessionId,
+        provider: "prolific",
+        providerStudyId,
+        submissionId,
+        externalPid: `pid-${submissionId}`,
+        status,
+      });
+    }
+    const caller = createCaller({ authUser: authUser("u") });
+    const list = await caller.recruitment.openRecruitment.list();
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ studyId: experimentId, provider: "prolific", providerStatus: "live" });
+    expect(list[0].counts).toMatchObject({ approved: 2, submitted: 1, total: 3 });
+  });
+
+  it("reconciles live submissions via the adapter when the caller is connected (idempotent upsert)", async () => {
+    const { u, ws } = await seedWs("owner");
+    const { experimentId } = await seedProviderStudy(ws, u, "P9");
+    const listSubmissions = vi.fn().mockResolvedValue([
+      { submissionId: "x1", externalPid: "pid1", status: "approved", startedAt: new Date(), completedAt: new Date() },
+      { submissionId: "x2", externalPid: "pid2", status: "started", startedAt: new Date() },
+    ]);
+    vi.mocked(getRecruitmentAdapter).mockReturnValue(fakeAdapter({ listSubmissions }));
+    const caller = createCaller({ authUser: authUser("u") });
+    await caller.recruitment.connections.connect({ provider: "prolific", accessToken: "PAT" });
+
+    const first = await caller.recruitment.openRecruitment.list();
+    expect(first[0].counts).toMatchObject({ approved: 1, started: 1, total: 2 });
+    // Idempotent — running again doesn't duplicate rows.
+    await caller.recruitment.openRecruitment.list();
+    expect(await db.select().from(providerSubmission).where(eq(providerSubmission.experimentId, experimentId))).toHaveLength(2);
   });
 });

@@ -533,6 +533,50 @@ export const recruitmentProviderConnection = pgTable(
 export type RecruitmentProviderConnection = typeof recruitmentProviderConnection.$inferSelect;
 export type NewRecruitmentProviderConnection = typeof recruitmentProviderConnection.$inferInsert;
 
+/**
+ * One row per participant attempt on a provider's side (V1.15 Stream P2 /
+ * ADR-0047). Fed by reconcile-on-read (listSubmissions) now; webhooks + a polling
+ * job later. PII-safe (ADR-0014): identified ONLY by the opaque `externalPid` +
+ * our own `recruitmentSessionId` — never names/emails/IPs. `submissionId` is the
+ * provider's id; UNIQUE(provider, submissionId) makes upserts idempotent.
+ */
+export const providerSubmission = pgTable(
+  "provider_submission",
+  {
+    id: text("id").primaryKey(), // ULID
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspace.id),
+    experimentId: uuid("experiment_id")
+      .notNull()
+      .references((): AnyPgColumn => experiment.id),
+    recruitmentSessionId: text("recruitment_session_id").references(() => recruitmentSession.id),
+    provider: recruitmentProvider("provider").notNull(),
+    providerStudyId: text("provider_study_id").notNull(),
+    submissionId: text("submission_id").notNull(),
+    /** Opaque provider participant id — the ONLY identifier (ADR-0014). */
+    externalPid: text("external_pid").notNull(),
+    status: text("status").notNull(), // started | submitted | approved | rejected | timed-out
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    decidedByUserId: uuid("decided_by_user_id").references((): AnyPgColumn => user.id),
+    rewardAmountCents: integer("reward_amount_cents"),
+    currency: text("currency"),
+    rawPayload: jsonb("raw_payload").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("provider_submission_provider_submission_unique").on(t.provider, t.submissionId),
+    index("idx_provider_submission_experiment").on(t.experimentId, t.status),
+    index("idx_provider_submission_workspace").on(t.workspaceId, t.status),
+    index("idx_provider_submission_pid").on(t.externalPid),
+  ],
+);
+export type ProviderSubmission = typeof providerSubmission.$inferSelect;
+export type NewProviderSubmission = typeof providerSubmission.$inferInsert;
+
 export const registryPush = pgTable("registry_push", {
   id: text("id").primaryKey(), // ULID
   experimentVersionId: uuid("experiment_version_id")
