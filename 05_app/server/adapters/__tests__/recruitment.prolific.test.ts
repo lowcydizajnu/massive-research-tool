@@ -42,6 +42,50 @@ describe("prolificAdapter.validateToken", () => {
   });
 });
 
+describe("prolificAdapter.createStudy surfaces validation errors (no silent undefined)", () => {
+  it("throws with the Prolific error body on a 400 (not a fake success)", async () => {
+    stubFetch(() => new Response(JSON.stringify({ error: "completion_codes is required" }), { status: 400 }));
+    await expect(
+      prolificAdapter.createStudy({
+        accessToken: "t",
+        title: "S",
+        description: "",
+        recruitmentUrl: "https://x/take/s/start",
+        targetN: 2,
+        reward: { amount: 1, currency: "GBP" },
+      }),
+    ).rejects.toThrow(/Prolific 400.*completion_codes/);
+  });
+
+  it("throws when the create response has no study id", async () => {
+    stubFetch(() => new Response(JSON.stringify({ name: "S" }), { status: 201 }));
+    await expect(
+      prolificAdapter.createStudy({
+        accessToken: "t",
+        title: "S",
+        description: "",
+        recruitmentUrl: "https://x/take/s/start",
+        targetN: 2,
+        reward: { amount: 1, currency: "GBP" },
+      }),
+    ).rejects.toThrow(/no study id/);
+  });
+
+  it("returns the id + url on success", async () => {
+    stubFetch(() => new Response(JSON.stringify({ id: "abc123" }), { status: 201 }));
+    await expect(
+      prolificAdapter.createStudy({
+        accessToken: "t",
+        title: "S",
+        description: "",
+        recruitmentUrl: "https://x/take/s/start",
+        targetN: 2,
+        reward: { amount: 1, currency: "GBP" },
+      }),
+    ).resolves.toEqual({ providerStudyId: "abc123", providerStudyUrl: expect.stringContaining("abc123") });
+  });
+});
+
 describe("prolificAdapter.verifyWebhookSignature", () => {
   it("returns false when no webhook secret is configured", () => {
     const prev = process.env.PROLIFIC_WEBHOOK_SECRET;
