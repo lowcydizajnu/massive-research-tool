@@ -439,8 +439,8 @@
   "project": "Massive Research Tool",
   "tagline": "Multi-tenant SaaS for psychological experiments",
   "lastUpdated": "2026-06-15",
-  "currentFocus": "V1.13.0 dashboard polish — configurable header KPIs + clearer width toggle (v1.13.0-a14, live 4295739). Owner asks after a13: (1) the Workspace header's KPI tiles are now toggleable + count-configurable — the header's settings gear (ADR-0045) sets how many stats show: Off (just the workspace name) / 3 / 4 / 5. Added two KPIs to reach five — Responses (all time) + Members — alongside Studies / Running / Responses this week (dashboardStats gains responsesTotal + members, two cheap counts; migration-free); tiles auto-fit the full-width header. (2) the width control no longer flips between the confusing Normal/Full — it's a single 'Full width' toggle (highlighted when on). 455 vitest green; tsc/lint/build clean; migration-free.",
-  "currentFocusPrev": "V1.13.0 dashboard masonry + consistent pagination (v1.13.0-a13, live 5246374) — switched the row-gapped grid to CSS multi-column masonry (no vertical gaps; width = Normal/Full toggle since column-masonry has no 2-of-3 span); PaginatedList footer always renders so every list widget reads the same.",
+  "currentFocus": "V1.14 Team destination — gate + T1.1 SHIPPED (v1.14.0-a1, live e98ee60). Lit up the inert LeftRail Team entry. Gate: ADR-0046 (5 owner decisions — Clerk-invite + auto-link, soft-delete + tombstones, multiple owners + always-≥1-owner, filterable audit events, /me/memberships) + manage-team-members user-flow + 6 wireframes. T1.1: additive migration 0014 (member.removed_at + member.removed_by_user_id soft-delete; workspace.activity_filter_kinds) applied to mrt-production via the Neon API (never printed; TOKEN_ENCRYPTION_KEY untouched) before the code deploy; teamRouter.list (active members + role + last-active from activity_event; soft-deleted filtered, includeRemoved for audit) + teamRouter.listInvitations (pending invites + inviter + age); /team route with a 3-tab sub-nav — Members (search + role chips + Active/Inactive), Invitations (read; stale>14d flag), Roles & permissions (static matrix). Invite + role-management mutations are T2/T3. +2 team tests; 457 vitest green; tsc/lint/build clean; validator 153. Next: T2 invite flow (team.invite single+bulk via Clerk Backend API), then T3 role mgmt + /me/memberships, then T4 activity-filter + e2e.",
+  "currentFocusPrev": "V1.13.0 dashboard polish — configurable header KPIs + clearer width toggle (v1.13.0-a14, live 4295739). Workspace header KPI tiles toggleable + count-configurable (Off/3/4/5; added Responses-all-time + Members); width control is now a single 'Full width' toggle. Closed out V1.13.0 dashboards (a1→a14).",
   "phases": [
     {
       "id": "foundation",
@@ -1213,6 +1213,10 @@
     }
   ],
   "recentActivity": [
+    {
+      "date": "2026-06-15",
+      "text": "feat(team): V1.14 Team destination — gate + T1.1 SHIPPED (v1.14.0-a1, live e98ee60). Lit up the inert LeftRail Team entry. Gate: ADR-0046 (5 owner decisions) + manage-team-members flow + 6 wireframes. T1.1: additive migration 0014 (member soft-delete cols + workspace.activity_filter_kinds) applied to prod via Neon API before deploy; teamRouter.list (active members + role + last-active; soft-deleted filtered) + listInvitations; /team route with Members / Invitations / Roles & permissions tabs. Invite + role mgmt are T2/T3. +2 tests; 457 vitest green; tsc/lint/build clean; validator 153."
+    },
     {
       "date": "2026-06-15",
       "text": "feat(dashboard): configurable header KPIs + clearer width label (v1.13.0-a14, live 4295739). (1) Workspace header KPI tiles are now toggleable + count-configurable via the header's settings gear: Off (just the name) / 3 / 4 / 5. Added Responses (all time) + Members to reach five KPIs; dashboardStats gains responsesTotal + members (two cheap counts, migration-free); tiles auto-fit. (2) Width control is now a single 'Full width' toggle (highlighted when on) instead of the confusing Normal/Full text-swap. 455 vitest green; tsc/lint/build clean; migration-free."
