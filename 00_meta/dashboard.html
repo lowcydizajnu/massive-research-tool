@@ -439,7 +439,7 @@
   "project": "Massive Research Tool",
   "tagline": "Multi-tenant SaaS for psychological experiments",
   "lastUpdated": "2026-06-16",
-  "currentFocus": "V1.15 — Enable-live-updates fix: use the Prolific workspace id, not ours (v1.15.0-a9, pending deploy). Owner clicked Enable live updates and got Prolific 400 140003 'Workspace <our-uuid> is invalid' — we passed our internal workspace UUID as Prolific's workspace_id. The hooks API is scoped to a Prolific workspace id from GET /workspaces/. Fix: added adapter.listProviderWorkspaces(); webhook.enable resolves the researcher's Prolific workspace and passes that id to create-secret + subscribe (the webhook URL still carries OUR workspace id for secret lookup). +1 adapter test; enable test asserts the provider workspace id. 519 vitest green; tsc + lint + build clean; migration-free. Awaiting owner go to push (no migration); then retry Enable live updates.",
+  "currentFocus": "V1.15 — Enable-live-updates: read the Prolific secret from `value` (v1.15.0-a10, live 03bdb60). After the a9 workspace-id fix, Prolific returned the signing secret but our adapter read body.secret and threw 'Prolific did not return a webhook secret'. POST /hooks/secrets/ responds {id, value, workspace_id} — the secret is in `value`. createWebhookSecret now reads value. 521 vitest green; tsc + lint + build clean; migration-free. Owner to retry Enable live updates.",
   "currentFocusPrev": "V1.15 Participants — Prolific filters fix SHIPPED (v1.15.0-a4, live 78b49c4). eligibility_requirements deprecated (error 140003) → createStudy now sends `filters`; empty when nothing selected so a no-filter study recruits anyone (owner confirmed this works). +1 test; 494 vitest green.",
   "phases": [
     {
@@ -1213,6 +1213,10 @@
     }
   ],
   "recentActivity": [
+    {
+      "date": "2026-06-16",
+      "text": "fix(recruitment): read Prolific webhook secret from `value` (v1.15.0-a10, live 03bdb60). POST /hooks/secrets/ returns {id, value, workspace_id}; we read body.secret and threw 'did not return a webhook secret'. createWebhookSecret now reads value. +2 adapter tests; 521 vitest green; tsc + lint + build clean; migration-free."
+    },
     {
       "date": "2026-06-16",
       "text": "fix(recruitment): Enable-live-updates used our workspace id, not Prolific's (v1.15.0-a9). Owner hit Prolific 400 140003 'Workspace <our-uuid> is invalid' — the hooks API wants a Prolific workspace id (GET /workspaces/), not our internal UUID. Added adapter.listProviderWorkspaces(); webhook.enable resolves the researcher's Prolific workspace and uses that id for create-secret + subscribe; the webhook URL keeps our workspace id (secret lookup). +1 adapter test; enable test asserts the provider workspace id. 519 vitest green; tsc + lint + build clean; migration-free."
