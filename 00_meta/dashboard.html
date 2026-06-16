@@ -438,9 +438,9 @@
 {
   "project": "Massive Research Tool",
   "tagline": "Multi-tenant SaaS for psychological experiments",
-  "lastUpdated": "2026-06-15",
-  "currentFocus": "V1.14 Team — T2.2 resend + revoke invitations SHIPPED (v1.14.0-a4, live dff8448). The Invitations tab gains per-row owner/admin actions: Resend (revoke the old Clerk invitation + send a fresh one, resetting the row's age → 'Sent ✓') and Revoke (delete the member row + revoke the Clerk invitation; the row vanishes). No migration — the adapter's revoke is keyed by email (revokePendingInvitationByEmail lists pending Clerk invitations + revokes the match), so we don't store the provider invitation id. +3 tests; 462 vitest green; tsc/lint/build clean. Copy-link deferred — Clerk doesn't expose a reusable accept URL via the API; needs the invitation URL stored (a column). Next: T3 (role management — change role / transfer / co-owner / remove (soft-delete) / leave, always-≥1-owner + member_* activity events + /me/memberships), then T4 (activity-filter prefs + roles cross-links + e2e).",
-  "currentFocusPrev": "V1.14 Team — invitation ACCEPT fixed (v1.14.0-a3, live 689cd60). The invite link lands on /signup with a __clerk_ticket the flow never consumed (invitee saw 'Couldn't find your account' / 'is invalid'); /signup now consumes the ticket → onboarding → finalize auto-links the pending member row; /signin bounces a stray ticket to /signup.",
+  "lastUpdated": "2026-06-16",
+  "currentFocus": "V1.14 Team — T3 role management SHIPPED (v1.14.0-a5, live 9c66067). The Members tab gains live owner/admin controls: a per-member role select (admins capped at Editor/Viewer; owners can grant any role — picking Owner adds a co-owner), Transfer (atomic: target → owner, you → admin), Remove (soft-delete tombstone), and a self-row Leave. Server: team.changeRole / removeMember / transferOwnership / leaveWorkspace (+ team.viewer so the UI marks 'you'), all gated and all guarding the always-≥1-owner invariant on every demote/remove/leave path. Soft-remove now actually revokes access — resolveActiveWorkspace + workspace.list + workspace.members filter removed_at, so a removed member loses the workspace and drops out of @-mention (the 0014 columns existed but nothing gated on them — latent hole closed). member_* events (role_changed / removed / left / ownership_transferred / co_owner_promoted) write to the audit feed (+ labels in the recent-activity widget). New /me/memberships (personal mode): cross-workspace membership list + role per workspace, Open switches workspace, linked from the account menu ('Your workspaces'). +7 tests; 470 vitest green; tsc/lint/build clean; migration-free (0014 already live). Next: T4 (activity-filter prefs in Settings·Workspace + recentActivity honoring activity_filter_kinds; roles-tab cross-links; tombstone display in old activity/comments; gated e2e).",
+  "currentFocusPrev": "V1.14 Team — T2.2 resend + revoke invitations SHIPPED (v1.14.0-a4, live dff8448). The Invitations tab gains per-row owner/admin actions: Resend (revoke the old Clerk invitation + send a fresh one, resetting the row's age) and Revoke (delete the member row + revoke the Clerk invitation). No migration — the adapter's revoke is keyed by email (revokePendingInvitationByEmail). +3 tests; 462 vitest green. Copy-link deferred (needs the invitation URL stored in a column).",
   "phases": [
     {
       "id": "foundation",
@@ -1213,6 +1213,10 @@
     }
   ],
   "recentActivity": [
+    {
+      "date": "2026-06-16",
+      "text": "feat(team): V1.14 T3 role management + /me/memberships (v1.14.0-a5, live 9c66067). Members tab gains role select + Transfer + Remove (soft-delete) + self Leave; server team.changeRole/removeMember/transferOwnership/leaveWorkspace + team.viewer, all gated, all guarding always-≥1-owner. Soft-remove now revokes access (resolveActiveWorkspace + workspace.list + workspace.members filter removed_at — latent hole closed) + drops removed members from @-mention. member_* audit events + labels. New personal /me/memberships (cross-workspace list, Open switches), linked from the account menu. +7 tests; 470 vitest green; tsc/lint/build clean; migration-free. Next: T4 (activity-filter prefs + roles cross-links + tombstone display + e2e)."
+    },
     {
       "date": "2026-06-15",
       "text": "feat(team): V1.14 T2.2 resend + revoke invitations (v1.14.0-a4, live dff8448). Invitations tab gains per-row owner/admin Resend (revoke old Clerk invite + re-send, reset age) and Revoke (delete row + revoke Clerk invite). No migration — revoke is keyed by email (revokePendingInvitationByEmail). +3 tests; 462 vitest green; tsc/lint/build clean. Copy-link deferred (needs the invitation URL stored). Next: T3 role management + /me/memberships."
