@@ -2,7 +2,8 @@ import { notFound } from "next/navigation";
 
 import { StageTabs } from "@/components/chrome/stage-tabs";
 import { RunPanel } from "@/components/feature/run/run-panel";
-import { canWriteRole, ReadOnlyBanner } from "@/components/feature/workspace/role-gate";
+import { ReadOnlyBanner } from "@/components/feature/workspace/role-gate";
+import { canWriteRole } from "@/lib/workspace/roles";
 import { getServerApi } from "@/server/trpc/server";
 import type { RunInfo, StudyDetail } from "@/server/trpc/routers/studies";
 

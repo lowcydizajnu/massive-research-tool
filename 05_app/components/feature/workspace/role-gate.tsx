@@ -4,29 +4,20 @@ import { Eye } from "lucide-react";
 
 import { api } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
+import { canWriteRole, READ_ONLY_TITLE } from "@/lib/workspace/roles";
 import type { MemberRole } from "@/server/workspace/active";
 
-/**
- * Client-side write gating (V1.14 T3.5). The server is the source of truth —
- * every mutation is a `writeProcedure`, which rejects `viewer` members. This
- * mirrors that one rule into the UI so write affordances render disabled (not
- * active-then-403) and the user understands why. `canWrite` is the whole gate:
- * everyone above viewer (editor/admin/owner) can write, matching the server.
- */
-export function canWriteRole(role: MemberRole | undefined): boolean {
-  // Optimistic while the role is still loading — avoids flashing controls
-  // disabled for editors; a viewer sees them enable→disable for a beat at most.
-  return role ? role !== "viewer" : true;
-}
+// Re-export the pure helpers so existing client imports from this module keep
+// working. Server components must import them from "@/lib/workspace/roles"
+// directly — a function exported from a "use client" module is a client
+// reference and throws if called during server render.
+export { canWriteRole, READ_ONLY_TITLE };
 
 /** Reads the caller's role in the active workspace (cached via the chrome's active() query). */
 export function useWorkspaceRole(): { role: MemberRole | undefined; canWrite: boolean } {
   const { data } = api.workspace.active.useQuery(undefined, { staleTime: 60_000 });
   return { role: data?.role, canWrite: canWriteRole(data?.role) };
 }
-
-/** Tooltip / title for a control disabled because the viewer is read-only. */
-export const READ_ONLY_TITLE = "You have view-only access — ask an owner or admin for Editor access to make changes.";
 
 const ROLE_LABEL: Record<MemberRole, string> = {
   owner: "Owner",

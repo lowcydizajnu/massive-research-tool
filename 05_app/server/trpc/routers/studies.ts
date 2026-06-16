@@ -2316,8 +2316,11 @@ export const studiesRouter = router({
    * (one screen at a time, validation, branching). Preview responses are excluded
    * from results (getResults defaults to mode "run"); a draft preview never flips
    * the study's stage (furthestStage reads version kind, not recruitment).
+   *
+   * `workspaceProcedure` (not write): viewers can preview a study they can see —
+   * it's just the participant view, and preview responses never reach results.
    */
-  startPreview: writeProcedure
+  startPreview: workspaceProcedure
     .input(z.object({ studyId: z.string().uuid() }))
     .mutation(async ({ ctx, input }): Promise<{ responseId: string }> => {
       const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
