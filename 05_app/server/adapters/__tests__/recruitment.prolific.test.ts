@@ -84,6 +84,26 @@ describe("prolificAdapter.createStudy surfaces validation errors (no silent unde
       }),
     ).resolves.toEqual({ providerStudyId: "abc123", providerStudyUrl: expect.stringContaining("abc123") });
   });
+
+  it("uses the current `filters` field (not the deprecated eligibility_requirements)", async () => {
+    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => new Response(JSON.stringify({ id: "abc" }), { status: 201 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await prolificAdapter.createStudy({
+      accessToken: "t",
+      title: "S",
+      description: "",
+      recruitmentUrl: "https://x/take/s/start",
+      targetN: 2,
+      reward: { amount: 1, currency: "GBP" },
+      eligibility: { country: ["PL"], language: ["pl"] },
+    });
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit)!.body as string);
+    expect(body).not.toHaveProperty("eligibility_requirements");
+    expect(body.filters).toEqual([
+      { filter_id: "current-country-of-residence", selected_values: ["PL"] },
+      { filter_id: "fluent-languages", selected_values: ["pl"] },
+    ]);
+  });
 });
 
 describe("prolificAdapter.verifyWebhookSignature", () => {
