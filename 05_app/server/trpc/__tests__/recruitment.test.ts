@@ -309,4 +309,33 @@ describe("recruitment.openRecruitment.list (Stream P2)", () => {
     await caller.recruitment.openRecruitment.list();
     expect(await db.select().from(providerSubmission).where(eq(providerSubmission.experimentId, experimentId))).toHaveLength(2);
   });
+
+  it("forStudy returns null when the study has no provider study attached", async () => {
+    const { u } = await seedWs("owner");
+    const caller = createCaller({ authUser: authUser("u") });
+    // A random in-workspace study id with no open provider session → null.
+    const counts = await caller.recruitment.openRecruitment.forStudy({ studyId: "00000000-0000-4000-8000-000000000000" });
+    expect(counts).toBeNull();
+  });
+
+  it("forStudy aggregates this study's stored counts (powers the Run-card progress row)", async () => {
+    const { u, ws } = await seedWs("owner");
+    const { experimentId, sessionId, providerStudyId } = await seedProviderStudy(ws, u, "PF1");
+    for (const [submissionId, status] of [["a", "approved"], ["b", "submitted"], ["c", "started"]] as const) {
+      await db.insert(providerSubmission).values({
+        id: ulid(),
+        workspaceId: ws.id,
+        experimentId,
+        recruitmentSessionId: sessionId,
+        provider: "prolific",
+        providerStudyId,
+        submissionId,
+        externalPid: `pid-${submissionId}`,
+        status,
+      });
+    }
+    const caller = createCaller({ authUser: authUser("u") });
+    const counts = await caller.recruitment.openRecruitment.forStudy({ studyId: experimentId });
+    expect(counts).toMatchObject({ approved: 1, submitted: 1, started: 1, total: 3 });
+  });
 });
