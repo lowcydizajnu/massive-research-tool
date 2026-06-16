@@ -70,6 +70,7 @@ function fakeAdapter(over: Partial<RecruitmentAdapter> = {}): RecruitmentAdapter
     approveSubmission: vi.fn(),
     rejectSubmission: vi.fn(),
     sendBonus: vi.fn(),
+    listProviderWorkspaces: vi.fn().mockResolvedValue([{ id: "pws1", title: "WS" }]),
     createWebhookSecret: vi.fn().mockResolvedValue({ secret: "whsec" }),
     listWebhookEventTypes: vi.fn().mockResolvedValue(["study.status.change", "submission.status.change"]),
     createWebhookSubscription: vi.fn().mockResolvedValue({ subscriptionId: "sub1", confirmationToken: "tok" }),
@@ -386,9 +387,11 @@ describe("recruitment.webhook (ADR-0050 one-click connect)", () => {
       .mockResolvedValueOnce({ subscriptionId: "subA", confirmationToken: "tA" })
       .mockResolvedValueOnce({ subscriptionId: "subB", confirmationToken: "tB" });
     const confirmWebhookSubscription = vi.fn().mockResolvedValue(undefined);
+    const createWebhookSecret = vi.fn().mockResolvedValue({ secret: "PROLIFIC-WH-SECRET" });
     vi.mocked(getRecruitmentAdapter).mockReturnValue(
       fakeAdapter({
-        createWebhookSecret: vi.fn().mockResolvedValue({ secret: "PROLIFIC-WH-SECRET" }),
+        listProviderWorkspaces: vi.fn().mockResolvedValue([{ id: "PROLIFIC-WS-1", title: "Lab" }]),
+        createWebhookSecret,
         listWebhookEventTypes: vi.fn().mockResolvedValue(["study.status.change", "submission.status.change", "study.published"]),
         createWebhookSubscription,
         confirmWebhookSubscription,
@@ -402,7 +405,10 @@ describe("recruitment.webhook (ADR-0050 one-click connect)", () => {
     // Only the two "status" event types are subscribed (not study.published).
     expect(res.eventTypes).toEqual(["study.status.change", "submission.status.change"]);
     expect(confirmWebhookSubscription).toHaveBeenCalledTimes(2);
-    // Target URL carries the workspace id so the receiver can find this secret.
+    // Secret + subscription use the PROVIDER workspace id (not our internal UUID).
+    expect(createWebhookSecret).toHaveBeenCalledWith({ accessToken: "PAT", workspaceId: "PROLIFIC-WS-1" });
+    expect(createWebhookSubscription.mock.calls[0][0].workspaceId).toBe("PROLIFIC-WS-1");
+    // ...while the target URL carries OUR workspace id so the receiver finds this secret.
     expect(createWebhookSubscription.mock.calls[0][0].targetUrl).toMatch(/\/api\/recruitment\/prolific\/webhook\/[0-9a-f-]+$/);
 
     const [row] = await db.select().from(recruitmentProviderWebhook);

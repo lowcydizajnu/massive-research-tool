@@ -437,10 +437,18 @@ export const recruitmentRouter = router({
           throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Live updates need a public HTTPS site URL configured on the server." });
         }
         const token = await connectionToken(ctx.workspace.id, ctx.dbUser.id, input.provider);
+        // The webhook URL carries OUR workspace id (so the receiver finds this
+        // secret); but the provider's hooks API is scoped to the PROVIDER's own
+        // workspace id, which we must resolve from the provider.
         const targetUrl = `${base}/api/recruitment/${input.provider}/webhook/${ctx.workspace.id}`;
         const adapter = getRecruitmentAdapter(input.provider);
         try {
-          const { secret } = await adapter.createWebhookSecret({ accessToken: token, workspaceId: ctx.workspace.id });
+          const providerWorkspaces = await adapter.listProviderWorkspaces({ accessToken: token });
+          const providerWorkspaceId = providerWorkspaces[0]?.id;
+          if (!providerWorkspaceId) {
+            throw new TRPCError({ code: "PRECONDITION_FAILED", message: `No ${input.provider} workspace found for this account.` });
+          }
+          const { secret } = await adapter.createWebhookSecret({ accessToken: token, workspaceId: providerWorkspaceId });
           const all = await adapter.listWebhookEventTypes({ accessToken: token });
           // Subscribe to study + submission status changes; any event just triggers an idempotent reconcile.
           const wanted = all.filter((e) => e.includes("status") && (e.includes("study") || e.includes("submission")));
@@ -449,7 +457,7 @@ export const recruitmentRouter = router({
           for (const eventType of eventTypes) {
             const { subscriptionId, confirmationToken } = await adapter.createWebhookSubscription({
               accessToken: token,
-              workspaceId: ctx.workspace.id,
+              workspaceId: providerWorkspaceId,
               eventType,
               targetUrl,
             });

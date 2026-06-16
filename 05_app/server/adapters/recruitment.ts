@@ -93,7 +93,13 @@ export interface RecruitmentAdapter {
   // Webhook subscription management (ADR-0050). Prolific "hooks" are API-created
   // (no dashboard UI); the signing secret is per-workspace. Used by the one-click
   // "Enable live updates" flow.
-  /** Create a per-workspace signing secret (POST /hooks/secrets/). Returned once. */
+  /**
+   * The researcher's workspaces on the PROVIDER side (GET /workspaces/). Hooks
+   * are scoped to a provider workspace id (NOT our internal workspace id), so we
+   * resolve one here before creating a secret/subscription.
+   */
+  listProviderWorkspaces(opts: { accessToken: string }): Promise<{ id: string; title: string }[]>;
+  /** Create a per-workspace signing secret (POST /hooks/secrets/). `workspaceId` is the PROVIDER workspace id. Returned once. */
   createWebhookSecret(opts: { accessToken: string; workspaceId: string }): Promise<{ secret: string }>;
   /** Available event-type identifiers (GET /hooks/event-types), e.g. "study.status.change". */
   listWebhookEventTypes(opts: { accessToken: string }): Promise<string[]>;
