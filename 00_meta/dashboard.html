@@ -439,8 +439,8 @@
   "project": "Massive Research Tool",
   "tagline": "Multi-tenant SaaS for psychological experiments",
   "lastUpdated": "2026-06-15",
-  "currentFocus": "V1.14 Team — invitation ACCEPT fixed (v1.14.0-a3, live 689cd60). Owner tested: invites send fine (Clerk shows them pending), but accepting was broken — the invite link lands on /signup with a __clerk_ticket the flow never consumed, so the invitee fell through to sign-in ('Couldn't find your account') or a broken sign-up ('is invalid'). Fix: /signup now consumes the ticket (signUp.create({ strategy:'ticket', ticket }) — email pre-verified) → onboarding → finalizeOnboarding auto-links the pending member row; /signin bounces a stray __clerk_ticket to /signup; team.invite strips a trailing slash from NEXT_PUBLIC_SITE_URL. 459 vitest green; tsc/lint/build clean; migration-free. Owner to re-test the accept round-trip (invite → click link → land in the workspace).",
-  "currentFocusPrev": "V1.14 Team — T2.1 invite flow SHIPPED (v1.14.0-a2, live 73a026f). Owner/admin '+ Invite member' → modal (single/bulk emails, role ≤ Editor for admins, personal message) → team.invite (dedupe + summary); AuthAdapter createInvitation/revokeInvitation (Clerk, ADR-0007); finalize auto-links pending invites on sign-up. team.myRole gates the affordance.",
+  "currentFocus": "V1.14 Team — T2.2 resend + revoke invitations SHIPPED (v1.14.0-a4, live dff8448). The Invitations tab gains per-row owner/admin actions: Resend (revoke the old Clerk invitation + send a fresh one, resetting the row's age → 'Sent ✓') and Revoke (delete the member row + revoke the Clerk invitation; the row vanishes). No migration — the adapter's revoke is keyed by email (revokePendingInvitationByEmail lists pending Clerk invitations + revokes the match), so we don't store the provider invitation id. +3 tests; 462 vitest green; tsc/lint/build clean. Copy-link deferred — Clerk doesn't expose a reusable accept URL via the API; needs the invitation URL stored (a column). Next: T3 (role management — change role / transfer / co-owner / remove (soft-delete) / leave, always-≥1-owner + member_* activity events + /me/memberships), then T4 (activity-filter prefs + roles cross-links + e2e).",
+  "currentFocusPrev": "V1.14 Team — invitation ACCEPT fixed (v1.14.0-a3, live 689cd60). The invite link lands on /signup with a __clerk_ticket the flow never consumed (invitee saw 'Couldn't find your account' / 'is invalid'); /signup now consumes the ticket → onboarding → finalize auto-links the pending member row; /signin bounces a stray ticket to /signup.",
   "phases": [
     {
       "id": "foundation",
@@ -1213,6 +1213,10 @@
     }
   ],
   "recentActivity": [
+    {
+      "date": "2026-06-15",
+      "text": "feat(team): V1.14 T2.2 resend + revoke invitations (v1.14.0-a4, live dff8448). Invitations tab gains per-row owner/admin Resend (revoke old Clerk invite + re-send, reset age) and Revoke (delete row + revoke Clerk invite). No migration — revoke is keyed by email (revokePendingInvitationByEmail). +3 tests; 462 vitest green; tsc/lint/build clean. Copy-link deferred (needs the invitation URL stored). Next: T3 role management + /me/memberships."
+    },
     {
       "date": "2026-06-15",
       "text": "fix(team): V1.14 invitation ACCEPT fixed (v1.14.0-a3, live 689cd60). Invites sent fine but accepting was broken — the invite link lands on /signup with a __clerk_ticket the flow never consumed (invitee saw 'Couldn't find your account' / 'is invalid'). /signup now consumes the ticket (signUp.create strategy:'ticket') → onboarding → finalize auto-links the pending member row; /signin bounces a stray ticket to /signup; team.invite strips a trailing slash from NEXT_PUBLIC_SITE_URL. 459 vitest green; tsc/lint/build clean; migration-free. Owner to re-test the accept round-trip."
