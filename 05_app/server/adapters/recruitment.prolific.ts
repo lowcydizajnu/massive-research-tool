@@ -247,9 +247,11 @@ export const prolificAdapter: RecruitmentAdapter = {
       method: "POST",
       body: JSON.stringify({ workspace_id: workspaceId }),
     });
-    const body = (await res.json()) as { secret?: string };
-    if (!body.secret) throw new Error("Prolific did not return a webhook secret.");
-    return { secret: body.secret };
+    // Prolific returns { id, value, workspace_id } — the signing secret is `value`.
+    const body = (await res.json()) as { value?: string; secret?: string };
+    const secret = body.value ?? body.secret;
+    if (!secret) throw new Error("Prolific did not return a webhook secret.");
+    return { secret };
   },
 
   async listWebhookEventTypes({ accessToken }) {
