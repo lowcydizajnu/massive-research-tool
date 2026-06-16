@@ -4,6 +4,7 @@ import { Breadcrumb } from "@/components/chrome/breadcrumb";
 import { UserMenu } from "@/components/chrome/user-menu";
 import { WorkspaceSwitcher } from "@/components/chrome/workspace-switcher";
 import { NewStudyButton } from "@/components/feature/new-study/new-study-button";
+import { WorkspaceRoleBadge } from "@/components/feature/workspace/role-gate";
 
 /**
  * Top bar — floating cap with workspace-global chrome (studies-destination
@@ -28,6 +29,8 @@ export function TopBar({
       <Breadcrumb />
 
       <div className="flex-1" />
+
+      <WorkspaceRoleBadge />
 
       <AutosaveIndicator />
 

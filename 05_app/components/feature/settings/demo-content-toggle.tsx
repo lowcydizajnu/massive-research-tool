@@ -1,5 +1,6 @@
 "use client";
 
+import { canWriteRole, READ_ONLY_TITLE } from "@/components/feature/workspace/role-gate";
 import { api } from "@/lib/trpc/react";
 
 /**
@@ -16,15 +17,16 @@ export function DemoContentToggle() {
     },
   });
   const checked = active.data?.showDemoContent ?? false;
+  const canWrite = canWriteRole(active.data?.role);
 
   return (
-    <label className="flex items-start gap-3">
+    <label className="flex items-start gap-3" title={canWrite ? undefined : READ_ONLY_TITLE}>
       <input
         type="checkbox"
         checked={checked}
-        disabled={active.isLoading || setShow.isPending}
+        disabled={active.isLoading || setShow.isPending || !canWrite}
         onChange={(e) => setShow.mutate({ show: e.target.checked })}
-        className="mt-0.5 size-4 accent-[var(--color-primary)]"
+        className="mt-0.5 size-4 accent-[var(--color-primary)] disabled:opacity-40"
       />
       <span className="flex flex-col">
         <span className="text-[length:var(--text-body)] text-[var(--color-text-primary)]">

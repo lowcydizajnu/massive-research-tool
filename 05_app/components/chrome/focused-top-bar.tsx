@@ -6,6 +6,7 @@ import { CommandPalette } from "@/components/chrome/command-palette";
 import { FocusedBreadcrumb } from "@/components/chrome/focused-breadcrumb";
 import { StudyActionsMenu } from "@/components/chrome/study-actions-menu";
 import { StudyStateBadge } from "@/components/chrome/study-state-badge";
+import { WorkspaceRoleBadge } from "@/components/feature/workspace/role-gate";
 
 /**
  * Focused-study-mode top bar (IA v0.4, focused-study-mode.md): a flat flush
@@ -32,6 +33,8 @@ export function FocusedTopBar({
       <div className="flex-1" />
 
       <StudyStateBadge studyId={studyId} />
+
+      <WorkspaceRoleBadge />
 
       <AutosaveIndicator />
 

@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 
 import { StageTabs } from "@/components/chrome/stage-tabs";
 import { RunPanel } from "@/components/feature/run/run-panel";
+import { canWriteRole, ReadOnlyBanner } from "@/components/feature/workspace/role-gate";
 import { getServerApi } from "@/server/trpc/server";
 import type { RunInfo, StudyDetail } from "@/server/trpc/routers/studies";
 
@@ -51,12 +52,15 @@ export default async function RunStagePage({
           </p>
         </div>
 
-        <RunPanel
-          studyId={study.id}
-          info={info}
-          recruitmentUrl={recruitmentUrl}
-          previewUrl={previewUrl}
-        />
+        <ReadOnlyBanner role={study.viewerRole} />
+        <fieldset disabled={!canWriteRole(study.viewerRole)} className="contents">
+          <RunPanel
+            studyId={study.id}
+            info={info}
+            recruitmentUrl={recruitmentUrl}
+            previewUrl={previewUrl}
+          />
+        </fieldset>
       </div>
     </main>
   );
