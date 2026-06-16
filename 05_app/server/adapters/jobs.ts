@@ -28,6 +28,13 @@ export type JobCatalog = {
     sourceEventId: string;
     recipientUserIds: string[];
   };
+  // V1.15 (ADR-0050): reconcile one recruitment-provider study after a verified
+  // webhook ping. The webhook is advisory — the job re-fetches through the
+  // adapter (idempotent), so duplicate/late pings are harmless.
+  "recruitment.reconcile-study": {
+    provider: import("@/server/adapters/recruitment").RecruitmentProvider;
+    providerStudyId: string;
+  };
 };
 
 export type JobName = keyof JobCatalog;

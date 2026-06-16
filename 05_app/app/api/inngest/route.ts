@@ -4,6 +4,7 @@ import { inngest } from "@/server/adapters/jobs.inngest";
 import type { JobCatalog } from "@/server/adapters/jobs";
 import { runRegistryPush } from "@/server/jobs/registry-push";
 import { runEmailDigest, runNotificationFanout } from "@/server/jobs/notification-fanout";
+import { runPollProviderStatus, runReconcileStudy } from "@/server/jobs/recruitment";
 
 /**
  * Inngest serve endpoint. Deliberate lock-in exception (ADR-0007,
@@ -40,7 +41,33 @@ const emailDigest = inngest.createFunction(
   },
 );
 
+// V1.15 (ADR-0050): recruitment reconciliation. The reconcile-study fn fires on
+// a verified webhook ping; the poll fn is a 10-minute safety-net that sweeps
+// every still-recruiting provider study (catches missed/unsigned webhooks). Both
+// delegate to the idempotent shared reconcile, so retries + overlaps are safe.
+const recruitmentReconcileStudy = inngest.createFunction(
+  { id: "recruitment-reconcile-study", retries: 3 },
+  { event: "recruitment.reconcile-study" },
+  async ({ event }) => {
+    return runReconcileStudy(event.data as JobCatalog["recruitment.reconcile-study"]);
+  },
+);
+
+const recruitmentPollProviderStatus = inngest.createFunction(
+  { id: "recruitment-poll-provider-status", retries: 1 },
+  { cron: "*/10 * * * *" },
+  async () => {
+    return runPollProviderStatus();
+  },
+);
+
 export const { GET, POST, PUT } = serve({
   client: inngest,
-  functions: [registryPush, notificationFanout, emailDigest],
+  functions: [
+    registryPush,
+    notificationFanout,
+    emailDigest,
+    recruitmentReconcileStudy,
+    recruitmentPollProviderStatus,
+  ],
 });

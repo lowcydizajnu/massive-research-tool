@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { and, count, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { ulid } from "ulid";
 import { z } from "zod";
 
@@ -12,29 +12,21 @@ import {
 } from "@/server/adapters/recruitment";
 import { decryptSecret, encryptSecret } from "@/server/crypto/tokens";
 import { db } from "@/server/db/client";
+import { experiment, experimentVersion, recruitmentProviderConnection, recruitmentSession } from "@/server/db/schema";
 import {
-  experiment,
-  experimentVersion,
-  providerSubmission,
-  recruitmentProviderConnection,
-  recruitmentSession,
-} from "@/server/db/schema";
+  RUNNABLE_KINDS,
+  reconcileStudyStatus,
+  reconcileSubmissions,
+  submissionCounts,
+  type ProviderStudyMeta,
+  type SubmissionCounts,
+} from "@/server/recruitment/reconcile";
 import { router, workspaceProcedure, writeProcedure } from "@/server/trpc/trpc";
 
-const RUNNABLE_KINDS: ("preregistered" | "published")[] = ["preregistered", "published"];
-
-/** What we stash on recruitment_session.metadata.provider once a provider study is created (P1b). */
-type ProviderStudyMeta = {
-  name: RecruitmentProvider;
-  providerStudyId: string;
-  providerStudyUrl: string;
-  /** Our coarse flag (drives the Stop affordance). `state` (P2) carries the true provider lifecycle. */
-  status: "live" | "stopped";
-  /** Provider's true lifecycle state, reconciled on read (P2). Absent on rows created before P2. */
-  state?: ProviderStudyState;
-  eligibility: { country: string[]; language: string[] };
-  reward: { amount: number; currency: "USD" | "EUR" | "GBP" };
-};
+// Reconcile helpers + the ProviderStudyMeta / SubmissionCounts shapes now live in
+// the shared reconcile module (ADR-0050) so the webhook + polling job reuse them.
+// Re-export SubmissionCounts so existing UI imports keep resolving from here.
+export type { SubmissionCounts };
 
 /** Live status + recruitment progress for one study's provider card (Stream P2). */
 export type StudyProgress = {
@@ -42,15 +34,6 @@ export type StudyProgress = {
   placesTaken: number | null;
   totalPlaces: number | null;
   counts: SubmissionCounts;
-};
-
-export type SubmissionCounts = {
-  started: number;
-  submitted: number;
-  approved: number;
-  rejected: number;
-  timedOut: number;
-  total: number;
 };
 
 /** One per-study card in the Open-recruitment sub-view (Stream P2). */
@@ -390,25 +373,16 @@ export const recruitmentRouter = router({
 
         if (conn) {
           const token = decryptSecret(conn.token);
-          const adapter = getRecruitmentAdapter(provider.name);
           try {
             await reconcileSubmissions(token, ctx.workspace.id, input.studyId, session.id, provider);
           } catch {
             // provider unreachable / token bad — fall back to stored rows
           }
           try {
-            const live = await adapter.getStudy({ accessToken: token, providerStudyId: provider.providerStudyId });
+            const live = await reconcileStudyStatus(token, session.id, session.metadata ?? {}, provider);
             state = live.state;
             placesTaken = live.placesTaken;
             totalPlaces = live.totalPlaces;
-            // Persist the reconciled status so getProviderStudy / the badge stay honest.
-            const liveStatus = live.state === "active" ? "live" : "stopped";
-            if (provider.state !== live.state || provider.status !== liveStatus) {
-              await db
-                .update(recruitmentSession)
-                .set({ metadata: { ...(session.metadata ?? {}), provider: { ...provider, status: liveStatus, state: live.state } } })
-                .where(eq(recruitmentSession.id, session.id));
-            }
           } catch {
             // study fetch failed — keep the stored-status fallback
           }
@@ -460,61 +434,6 @@ async function findOpenSession(
     .orderBy(desc(experimentVersion.versionNumber))
     .limit(1);
   return row ? { id: row.id, metadata: (row.metadata as Record<string, unknown>) ?? {} } : null;
-}
-
-/** Idempotently upsert the provider's current submissions into provider_submission (Stream P2). */
-async function reconcileSubmissions(
-  token: string,
-  workspaceId: string,
-  experimentId: string,
-  sessionId: string,
-  provider: ProviderStudyMeta,
-): Promise<void> {
-  const subs = await getRecruitmentAdapter(provider.name).listSubmissions({
-    accessToken: token,
-    providerStudyId: provider.providerStudyId,
-  });
-  for (const s of subs) {
-    await db
-      .insert(providerSubmission)
-      .values({
-        id: ulid(),
-        workspaceId,
-        experimentId,
-        recruitmentSessionId: sessionId,
-        provider: provider.name,
-        providerStudyId: provider.providerStudyId,
-        submissionId: s.submissionId,
-        externalPid: s.externalPid, // opaque — no PII (ADR-0014)
-        status: s.status,
-        startedAt: s.startedAt,
-        completedAt: s.completedAt ?? null,
-      })
-      .onConflictDoUpdate({
-        target: [providerSubmission.provider, providerSubmission.submissionId],
-        set: { status: s.status, completedAt: s.completedAt ?? null, updatedAt: new Date() },
-      });
-  }
-}
-
-/** Aggregate submission counts for a provider study. */
-async function submissionCounts(experimentId: string, providerStudyId: string): Promise<SubmissionCounts> {
-  const rows = await db
-    .select({ status: providerSubmission.status, n: count() })
-    .from(providerSubmission)
-    .where(and(eq(providerSubmission.experimentId, experimentId), eq(providerSubmission.providerStudyId, providerStudyId)))
-    .groupBy(providerSubmission.status);
-  const by = new Map(rows.map((r) => [r.status, r.n]));
-  const get = (s: string) => by.get(s) ?? 0;
-  const total = rows.reduce((sum, r) => sum + r.n, 0);
-  return {
-    started: get("started"),
-    submitted: get("submitted"),
-    approved: get("approved"),
-    rejected: get("rejected"),
-    timedOut: get("timed-out"),
-    total,
-  };
 }
 
 /** Map adapter errors to tRPC codes (provider-unreachable → 500 retry-able; otherwise bad request). */
