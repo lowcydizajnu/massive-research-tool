@@ -3,7 +3,6 @@
 import { useRef, useState } from "react";
 
 import { PendingButton } from "@/components/ui/pending-button";
-import { ReadOnlyBanner, useWorkspaceRole } from "@/components/feature/workspace/role-gate";
 import { renderCommentMarkdown } from "@/lib/comment-markdown";
 import { api } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
@@ -29,7 +28,6 @@ export function CommentsPanel({
   currentUserId: string;
 }) {
   const utils = api.useUtils();
-  const { role, canWrite } = useWorkspaceRole();
   const { data: comments } = api.comments.list.useQuery({
     experimentId: studyId,
     targetType,
@@ -114,18 +112,16 @@ export function CommentsPanel({
               <div className="flex gap-3 text-[length:var(--text-small)]">
                 <button
                   type="button"
-                  disabled={!canWrite}
                   onClick={() => resolve.mutate({ commentId: c.id, resolved: c.status !== "resolved" })}
-                  className="text-[var(--color-text-secondary)] hover:underline disabled:opacity-40 disabled:no-underline"
+                  className="text-[var(--color-text-secondary)] hover:underline"
                 >
                   {c.status === "resolved" ? "Reopen" : "Resolve"}
                 </button>
                 {c.authorUserId === currentUserId ? (
                   <button
                     type="button"
-                    disabled={!canWrite}
                     onClick={() => del.mutate({ commentId: c.id })}
-                    className="text-[var(--color-danger-text-on-subtle)] hover:underline disabled:opacity-40 disabled:no-underline"
+                    className="text-[var(--color-danger-text-on-subtle)] hover:underline"
                   >
                     Delete
                   </button>
@@ -140,14 +136,13 @@ export function CommentsPanel({
         </p>
       )}
 
-      {/* Composer — viewers are read-only (mirrors writeProcedure). */}
-      <ReadOnlyBanner role={role} />
-      <fieldset disabled={!canWrite} className="relative flex flex-col gap-2 border-0 p-0">
+      {/* Composer — open to all members, viewers included (collaboration). */}
+      <div className="relative flex flex-col gap-2">
         <textarea
           ref={taRef}
           value={body}
           onChange={(e) => onBodyChange(e.target.value)}
-          placeholder={canWrite ? "Comment… use @ to mention a teammate" : "View-only access — you can't comment."}
+          placeholder="Comment… use @ to mention a teammate"
           aria-label="Add a comment"
           rows={3}
           className="w-full rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-3 py-2 text-[length:var(--text-body)] text-[var(--color-text-primary)]"
@@ -175,7 +170,7 @@ export function CommentsPanel({
           pendingLabel="Posting…"
           className="w-fit px-4 py-1.5"
         />
-      </fieldset>
+      </div>
     </div>
   );
 }

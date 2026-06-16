@@ -115,6 +115,28 @@ describe("comments.create", () => {
     expect(events.map((e) => e.type)).toEqual(["comment_on_your_study"]);
     expect(ws.id).toBeTruthy();
   });
+
+  it("lets a viewer comment (collaboration is open to all members, not just writers)", async () => {
+    const { workspace: ws } = await seedOwner("hanna", "Lab");
+    const [viewerU] = await db
+      .insert(user)
+      .values({ externalId: "val", email: "val@e.com", displayName: "val" })
+      .returning();
+    await db.insert(member).values({ workspaceId: ws.id, userId: viewerU.id, role: "viewer", status: "active" });
+    const owner = createCaller({ authUser: authUser("hanna") });
+    const { id: studyId } = await owner.studies.create({ kind: "blank", title: "S" });
+
+    const viewer = createCaller({ authUser: authUser("val") });
+    const { id } = await viewer.comments.create({
+      experimentId: studyId,
+      targetType: "study",
+      targetId: studyId,
+      bodyMd: "A viewer's note",
+      mentionedUserIds: [],
+    });
+    const [c] = await db.select().from(comment).where(eq(comment.id, id));
+    expect(c.authorUserId).toBe(viewerU.id);
+  });
 });
 
 describe("comments.list / resolve / update / delete", () => {

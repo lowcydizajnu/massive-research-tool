@@ -6,7 +6,7 @@ import { z } from "zod";
 import { db } from "@/server/db/client";
 import { comment, experiment, member, mention, user } from "@/server/db/schema";
 import { emit } from "@/server/events/emit";
-import { router, workspaceProcedure, writeProcedure } from "@/server/trpc/trpc";
+import { router, workspaceProcedure } from "@/server/trpc/trpc";
 
 /**
  * Comments on a study or a specific block instance (ADR-0015). Flat threads per
@@ -110,7 +110,7 @@ export const commentsRouter = router({
     }),
 
   /** Post a comment + resolve @mentions + emit the comment / mention events. */
-  create: writeProcedure
+  create: workspaceProcedure
     .input(
       z.object({
         experimentId: z.string().uuid(),
@@ -177,8 +177,8 @@ export const commentsRouter = router({
       return { id };
     }),
 
-  /** Mark resolved (or reopen) — any workspace writer; notifies the comment author. */
-  resolve: writeProcedure
+  /** Mark resolved (or reopen) — any workspace member (comments are collaboration); notifies the comment author. */
+  resolve: workspaceProcedure
     .input(z.object({ commentId: z.string(), resolved: z.boolean().default(true) }))
     .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
       const [c] = await db
@@ -212,7 +212,7 @@ export const commentsRouter = router({
     }),
 
   /** Edit a comment's body — author only. Marks `edited_at`. */
-  update: writeProcedure
+  update: workspaceProcedure
     .input(z.object({ commentId: z.string(), bodyMd: z.string().trim().min(1).max(5000) }))
     .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
       const [c] = await db
@@ -232,7 +232,7 @@ export const commentsRouter = router({
     }),
 
   /** Delete a comment — author only (mentions cascade). */
-  delete: writeProcedure
+  delete: workspaceProcedure
     .input(z.object({ commentId: z.string() }))
     .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
       const [c] = await db
