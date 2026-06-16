@@ -1,6 +1,8 @@
-# Code tab handoff — V1.14 Team destination
+# Code tab handoff — V1.14 Team destination (updated 2026-06-15 round 2 — owner answers locked)
 
-> **V1.14 = Team destination — workspace member management.** The Team item in the LeftRail has been inert since IA v0.3; this lights it up. Smaller than V1.15 Participants — most of the data model already exists (`member` + `user` tables, roles, invited-status). Mostly UI + a small handful of new tRPC procedures. Estimated **~1.5-2 weeks Code-tab time** across 4 PR streams.
+> **V1.14 = Team destination — workspace member management.** The Team item in the LeftRail has been inert since IA v0.3; this lights it up. Smaller than V1.15 Participants — most of the data model already exists (`member` + `user` tables, roles, invited-status). Mostly UI + a small handful of new tRPC procedures + 1 additive migration for soft-delete columns + activity-filter prefs. Estimated **~2 weeks Code-tab time** across 4 PR streams (~1.5-2 weeks original + ~1 day for T5b activity-filter prefs + ~half day for `/me/memberships`).
+>
+> **All 5 open questions resolved 2026-06-15** (owner agreed to all recommendations): soft-delete with tombstone display; per-invite personal message + defer workspace template editor to V1.14.1+; multiple owners allowed (UI supports transfer + co-owner-promote); Personal-mode `/me/memberships` route; audit events in Activity feed + filterable via Settings · Workspace activity-filter prefs.
 
 V1.14 unblocks lab-collaboration workflows: lab PIs invite postdocs, postdocs invite RAs, RAs do data collection, everyone's roles + access are explicit. Today the only way to add a workspace member is via direct DB insert — no real flow.
 
@@ -188,20 +190,22 @@ The sensitive operations. Each needs careful gating + confirmations.
 
 ### Remove member
 
-- Owner can remove anyone except themselves (must transfer ownership first)
+- Owner can remove anyone except themselves (must transfer ownership first if sole owner)
 - Admin can remove Editor/Viewer (not Owner or Admin)
 - Confirmation modal: "Remove {Name} from {Workspace}? They'll lose access to all studies in this workspace. Their authored studies stay (ownership transfers to the workspace owner)."
-- Server-side: `team.removeMember({ memberId })` — soft-delete? Or hard delete the member row? Per project precedent (archived not deleted): soft-delete via `member.removed_at` + `member.removed_by_user_id` + maintain referential integrity for old activity events.
-- Activity event: `member_removed`
+- **Server-side: `team.removeMember({ memberId })` does SOFT-delete** (owner-confirmed 2026-06-15). Schema adds `member.removed_at timestamptz NULL` + `member.removed_by_user_id uuid NULL`. Setting these flags removes the member from active views; preserves referential integrity for old activity events + comments + mentions. `team.list()` filters out removed by default; `team.list({ includeRemoved: true })` surfaces them for audit trails.
+- **Tombstone display:** old comments + activity entries continue to show the removed member's name with a small "(left {date})" suffix so historical attribution stays readable.
+- **Hard-delete reserved for GDPR right-to-erasure requests** handled out-of-band (rare; owner-level decision).
+- Activity event: `member_removed` — emits per ADR-0015 patterns.
 
-### Transfer ownership
+### Transfer ownership + promote to co-owner
 
-- Owner-only action
-- "Transfer ownership" picker → select an Admin (only Admins can become Owner)
-- Two-step confirmation: "You'll become an Admin; {Name} will become the Owner. Continue?"
-- Atomic transaction: old owner → admin; new owner → owner
-- Activity event: `ownership_transferred`
-- Workspace can have multiple owners? Per current schema and ADR-0007 / authz design: yes, multiple owners allowed. So this is more "promote to owner" than "transfer." Spec: ownership transfer can either add a new owner or replace; researcher picks via the modal.
+**Multiple owners allowed** (owner-confirmed 2026-06-15) — schema doesn't restrict; common in two-PI labs. UI supports both flows:
+
+- **Transfer ownership (replaces):** Owner-only action. "Transfer ownership" picker → select an Admin (or another existing Owner who's leaving). Two-step confirmation: "You'll become an Admin; {Name} will become the Owner. Continue?" Atomic transaction: old owner → admin; new owner → owner.
+- **Promote to co-owner (adds):** Owner-only action. "Make co-owner" picker → select an Admin. Two-step confirmation: "{Name} will become a co-owner with full workspace permissions. Continue?" Atomic transaction: new owner row added; existing owners unchanged. The always-≥1-owner invariant naturally holds.
+- Same `team.changeRole({ memberId, newRole: 'owner' })` endpoint handles both; the UI just frames the action differently per researcher intent.
+- Activity event: `ownership_transferred` (replace flow) OR `co_owner_promoted` (add flow). Both emit per ADR-0015.
 
 ### Self-leave (member leaving workspace)
 
@@ -212,13 +216,39 @@ The sensitive operations. Each needs careful gating + confirmations.
 - Server-side: same as remove but actor = self
 - Activity event: `member_left`
 
-### Settings → My memberships (cross-workspace surface)
+### Personal-mode `/me/memberships` (cross-workspace surface — owner-confirmed 2026-06-15)
 
-In Personal mode at `/me/memberships` (or under Settings): list of all workspaces the user belongs to + role + leave button per row. Useful as a single point to manage all workspace memberships.
+New route at `app/(app)/(personal)/me/memberships/page.tsx` (Personal mode chrome per ADR-0033 IA v0.5). Lists every workspace the user belongs to + role + joined date + last activity + per-row actions:
+
+- **Switch to** (changes the active workspace cookie + navigates to that workspace's /dashboard)
+- **Leave** (calls `team.leaveWorkspace`; owner-as-sole-owner blocked with helpful message)
+- **View workspace settings** (deeplink if user is admin/owner there)
+
+Plus a small **"Workspaces"** link from Settings · Account that deeplinks to `/me/memberships` (findability — researchers won't always discover Personal-mode routes via the workspace switcher).
+
+Data: existing `meRouter.workspaces()` from V1.13.0 Stream A already returns the right shape — just point a new page at it. ~half day on top of the other Section T4 work.
 
 ### Wireframe gate
 
 `03_design/wireframes/team-role-management.md` + dialogs.
+
+---
+
+## Section T5b — Activity-filter preferences (owner-confirmed 2026-06-15; ~1 day)
+
+Member-management events (member_added / role_changed / removed / ownership_transferred / co_owner_promoted / member_left) surface in the workspace Activity feed by default per ADR-0015. Some workspaces will find this noisy; the V1.14 build adds a per-workspace **activity filter** to hide them.
+
+**Settings · Workspace → Activity filter preferences** (owners + admins):
+
+- Checkbox list of event kinds to surface in the workspace Activity feed
+- Default: all on except `member_added` (slightly noisy on big teams)
+- Saved per-workspace, applied at query time in the workspace Activity feed + V1.13.0 dashboards' workspace-activity widget
+
+**Data:** new field on `workspace` table — `activity_filter_kinds jsonb NOT NULL DEFAULT '[]'::jsonb` (empty = all on; non-empty = explicit list of hidden kinds). Additive migration.
+
+**tRPC:** extend the existing `workspace.recentActivity` to honor the filter; new `workspace.updateActivityFilter({ hiddenKinds })` admin-only mutation.
+
+Modest scope; rounds out the audit-trail-but-not-noisy story.
 
 ---
 
@@ -258,7 +288,14 @@ No data layer; static page derived from the role registry.
 
 Mostly small; the data model already exists.
 
-- **ADR-0046 (or whatever's next) — Team destination + invite semantics.** Covers: invite-by-email flow via Clerk Backend API; idempotency rules; soft-delete vs hard-delete for `member`; always-≥1-owner invariant; activity events for audit trail; the "publicMetadata.workspaceId-on-invite-then-auto-link-on-signup" pattern.
+- **ADR-0046 (or whatever's next) — Team destination + invite semantics.** Locks the owner-confirmed decisions from 2026-06-15:
+  - Invite-by-email flow via Clerk Backend API `clerkClient.invitations.create()` with `publicMetadata: { workspaceId, role }`
+  - Idempotency: re-inviting an existing email no-ops; pending invitations dedupe on (workspaceId, lowercased email)
+  - **Soft-delete via `member.removed_at` + `member.removed_by_user_id`** (additive nullable columns); `team.list()` filters out by default; tombstone display preserves historical attribution; hard-delete reserved for GDPR right-to-erasure
+  - **Always-≥1-owner invariant** enforced server-side on changeRole + removeMember + leaveWorkspace + transferOwnership; rejects with friendly message
+  - **Multiple owners allowed**; `team.changeRole({ newRole: 'owner' })` supports both transfer (replace) and promote-to-co-owner (add) flows; UI frames per-intent
+  - Activity events: `member_added` / `member_role_changed` / `member_removed` / `ownership_transferred` / `co_owner_promoted` / `member_left` per ADR-0015 patterns; filterable in workspace Activity feed via the new per-workspace `activity_filter_preferences` (Section T5b)
+  - The "publicMetadata.workspaceId-on-invite-then-auto-link-on-signup" pattern with lowercased-email matching
 
 That's the only new ADR. The existing role + status enums + procedures cover everything else.
 
@@ -277,35 +314,38 @@ That's the only new ADR. The existing role + status enums + procedures cover eve
 
 ---
 
-## Sequencing PRs (~1.5-2 weeks total)
+## Sequencing PRs (~2 weeks total)
 
 **Stream T1 — Foundation (~4 days):**
-- PR T1.1: `team.list()` + `team.listInvitations()` + `/team` route + members tab UI + ADR-0046 (~3 days)
+- PR T1.1: Drizzle migration (additive: `member.removed_at` + `member.removed_by_user_id` + `workspace.activity_filter_kinds`) + `team.list()` (filters soft-deleted by default; supports `includeRemoved`) + `team.listInvitations()` + `/team` route + members tab UI + ADR-0046 (~3 days)
 - PR T1.2: Per-member detail view + `team.get()` + `team.memberActivity()` + activity timeline (~1 day)
 
 **Stream T2 — Invite flow (~3 days):**
 - PR T2.1: `team.invite()` single + bulk + Clerk Backend API integration + Invitations tab UI (~2 days)
-- PR T2.2: Resend / revoke / copy-link affordances + email customization (~1 day)
+- PR T2.2: Resend / revoke / copy-link affordances + per-invite personal-message field (~1 day)
 
-**Stream T3 — Role management (~2 days):**
-- PR T3.1: `team.changeRole()` + `team.removeMember()` + role-change UI dialog + always-≥1-owner invariant tests (~1 day)
-- PR T3.2: `team.transferOwnership()` + `team.leaveWorkspace()` + dialogs + cross-workspace memberships in Personal mode (~1 day)
+**Stream T3 — Role management (~2.5 days):**
+- PR T3.1: `team.changeRole()` (supports transfer-replace OR promote-to-co-owner) + `team.removeMember()` (soft-delete with tombstone) + role-change UI dialog + always-≥1-owner invariant tests (~1.5 days)
+- PR T3.2: `team.transferOwnership()` + `team.promoteToCoOwner()` (or unified `changeRole({newRole: 'owner'})`) + `team.leaveWorkspace()` + dialogs + Personal-mode `/me/memberships` page reusing `meRouter.workspaces()` from V1.13.0 (~1 day)
 
-**Stream T4 — Polish + close-out (~1 day):**
-- PR T4.1: Roles & permissions reference tab + Member's profile cross-link to Settings · Account (~1 day)
-- PR T4.2: e2e (Hanna invites Maya → Maya signs up via magic link → lands in workspace as Editor → Hanna promotes to Admin → Maya signs in + sees Settings access) (~half day)
+**Stream T4 — Polish + activity filter + close-out (~2.5 days):**
+- PR T4.1: T5b activity-filter prefs in Settings · Workspace + `workspace.updateActivityFilter()` + extend `workspace.recentActivity` to honor filter + tombstone-display in old activity rows / comments (~1 day)
+- PR T4.2: Roles & permissions reference tab + Member's profile cross-link to Settings · Account + small "Workspaces" link from Settings → `/me/memberships` (~1 day)
+- PR T4.3: e2e (Hanna invites Maya → Maya signs up via magic link → lands in workspace as Editor → Hanna promotes to Admin → Hanna removes Maya → tombstone appears in old comments → Hanna re-invites Maya → Maya rejoins) (~half day)
 
-All four streams largely independent except T2 requires T1 (members list to surface invitations).
+All four streams largely independent except T2 requires T1 (members list to surface invitations). T4's tombstone-display piece touches comment + activity components — minor cross-cutting work, allow buffer.
 
 ---
 
-## Open questions for owner
+## Open questions — fully resolved 2026-06-15 (owner agreed to all 5 recommendations)
 
-1. **Soft-delete vs hard-delete for removed members?** Soft-delete preserves activity-event references (so "Maya commented in 2026-03" still shows her name in old comments). Hard-delete is simpler but breaks historical attribution. (Recommendation: soft-delete with `removed_at` + tombstone display.)
-2. **Email customization for invitations — required or nice-to-have?** Clerk has default email templates; we can override per-invite with the personal-message field, OR build a workspace-level template editor later. (Recommendation: per-invite personal message in V1.14; workspace-level template editor in V1.14.1+ if requested.)
-3. **Multiple owners allowed?** Schema doesn't currently restrict it. Some teams have 2 PIs; some prefer single-owner. (Recommendation: allow multiple owners; UI emphasizes "transfer" but supports "promote to co-owner" too.)
-4. **"My memberships" cross-workspace surface — Settings · Memberships OR new Personal-mode route?** Both work; Personal-mode is consistent with V1.13.0's /home/me/notifications routing. (Recommendation: Personal-mode `/me/memberships` route + a small link from Settings.)
-5. **Audit trail visibility** — should role changes + removes show up in workspace Activity feed? Useful for transparency but adds noise. (Recommendation: yes, surface in Activity; admins/owners can filter them out via per-workspace activity-filter preference.)
+1. ✅ **Soft-delete for removed members.** Schema adds `member.removed_at timestamptz` + `member.removed_by_user_id uuid` (additive nullable columns; migration); `team.list()` filters out removed by default with optional `includeRemoved: true` flag for the audit-trail view; UI renders removed members as tombstoned chips ("Maya Okonkwo (left 2026-04-12)") in old activity rows + comments so historical attribution survives. Hard-delete reserved for genuine GDPR right-to-erasure requests handled out-of-band.
+2. ✅ **Per-invite personal message in V1.14.** Invite modal already specs the optional personal-message field; default invitation email template is Clerk's. **Workspace-level email template editor explicitly deferred to V1.14.1+** (added to the "What's NOT in V1.14" list below).
+3. ✅ **Multiple owners allowed.** Schema doesn't restrict; UI in Section T4 supports both "transfer ownership" (replaces) AND "promote to co-owner" (adds). Always-≥1-owner invariant remains. Two-PI labs handled cleanly.
+4. ✅ **Personal-mode `/me/memberships` route.** Consistent with V1.13.0's Personal-mode routing (`/home`, `/me`, `/notifications`). Adds a small "Workspaces" link from Settings · Account too for findability.
+5. ✅ **Audit-trail events in Activity feed + filterable.** Member-management events (`member_added` / `member_role_changed` / `member_removed` / `ownership_transferred` / `member_left`) emit via the V1.7 `activity_event` table per ADR-0015 patterns. Visible in workspace Activity feed by default. Owners/admins can filter them out via a new per-workspace activity-filter preference in Settings · Workspace.
+
+All locked into the body sections + ADR-0046 scope.
 
 ---
 
@@ -323,6 +363,7 @@ All four streams largely independent except T2 requires T1 (members list to surf
 
 ## What's NOT in V1.14 (still deferred)
 
+- **Workspace-level email template editor** (owner-confirmed deferral 2026-06-15) — researchers customize the invitation email body per-workspace. V1.14 ships per-invite "personal message" field only; workspace-level templates land V1.14.1+ if requested.
 - **Cross-workspace user search** (find researchers across workspaces) — V1.15+; needs a privacy review.
 - **Workspace deletion flow** — V1.14.1 or later; needs care around data preservation + member notifications.
 - **Workspace creation flow improvements** — `+ New workspace` exists today; this V1.14 doesn't add to it.
@@ -330,5 +371,6 @@ All four streams largely independent except T2 requires T1 (members list to surf
 - **Per-study role overrides** — a member's role per study (researcher might be Editor on Study A but Viewer on Study B). Currently roles are workspace-wide. Deferred to V1.16+ if requested.
 - **Team-level activity dashboard** — a "what's our team done this week" surface. Could overlap with V1.13.0's workspace dashboard "team-activity" widget; if researchers want more, build in V1.14.1.
 - **Invitee preview** — letting someone preview a workspace before accepting (peek at studies). Deferred; security-sensitive.
+- **Hard-delete of removed members** — V1.14 ships soft-delete only (owner-confirmed). Hard-delete reserved for GDPR right-to-erasure handled out-of-band; if/when GDPR requests become routine, build a dedicated owner-only "purge member" flow in a later release.
 
 When green: ping owner. Owner runs a quick smoke test (invite a colleague's email, walk through the magic-link flow, accept, verify role applied); signs the audit log; tags `v1.14.0`.
