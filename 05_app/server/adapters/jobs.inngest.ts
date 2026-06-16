@@ -39,6 +39,11 @@ export const inngestJobs: BackgroundJobAdapter = {
         await runEmailDigest(data as JobCatalog["email.digest"]).catch(() => undefined);
         return;
       }
+      if (name === "recruitment.reconcile-study") {
+        const { runReconcileStudy } = await import("@/server/jobs/recruitment");
+        await runReconcileStudy(data as JobCatalog["recruitment.reconcile-study"]).catch(() => undefined);
+        return;
+      }
       throw err;
     }
   },
