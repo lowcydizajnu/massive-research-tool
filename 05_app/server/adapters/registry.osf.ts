@@ -21,11 +21,9 @@ import type {
  * osf.io/settings/applications) confirms. The connect flow is inert until
  * OSF_CLIENT_ID / OSF_CLIENT_SECRET are set.
  *
- * The OAuth + connection methods are implemented here. The registration *push*
- * methods (pushRegistration/pushAmendment/withdraw) are intentionally
- * NOT_IMPLEMENTED — the push fires from the Preregister stage (step 3), where
- * the OSF registrations API + the JSON/PDF/template payload is built against
- * verified OSF docs rather than guessed here.
+ * OAuth + connection, push/amend, status sync, and withdraw are all implemented
+ * here against the verified OSF v2 API. Withdrawal (ADR-0005 am. 3) PATCHes the
+ * registration with `pending_withdrawal` + `withdrawal_justification`.
  */
 const OSF_KEY = "osf";
 
@@ -89,10 +87,6 @@ async function ensureOsfRegistry(): Promise<string> {
     .limit(1);
   return row[0]!.id;
 }
-
-const NOT_IMPLEMENTED =
-  "OSF withdrawal needs live verification against a sacrificial registration (owner-run; ADR-0005 am. 3) — " +
-  "built against verified OSF API, not stubbed here.";
 
 /** OSF JSON:API media type (required Content-Type/Accept for v2 writes). */
 const JSON_API = "application/vnd.api+json";
@@ -460,7 +454,45 @@ export const osfRegistry: RegistryAdapter = {
     };
   },
 
-  async withdraw(): Promise<void> {
-    throw new Error(NOT_IMPLEMENTED);
+  /**
+   * Withdraw (retract) a pushed registration (ADR-0005 am. 3). Verified against
+   * the OSF API source: a registration is retracted by PATCHing the registration
+   * detail with `pending_withdrawal: true` + `withdrawal_justification` — this
+   * triggers OSF's `retract_registration`, which opens a withdrawal pending the
+   * approval of the registration's active contributors (a withdrawn registration
+   * keeps a public tombstone: title, contributors, justification). There is no
+   * direct "withdraw" endpoint and the /requests/ collection is read-only.
+   */
+  async withdraw(userId, doi, reason): Promise<void> {
+    const registrationId = osfIdFromDoi(doi);
+    if (!registrationId) throw new Error(`Could not derive an OSF registration id from "${doi}".`);
+    const token = await osfAccessToken(userId);
+    const cfg = osfConfig();
+    const res = await fetch(`${cfg.apiBase}/registrations/${registrationId}/`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": JSON_API, Accept: JSON_API },
+      body: JSON.stringify({
+        data: {
+          type: "registrations",
+          id: registrationId,
+          attributes: { pending_withdrawal: true, withdrawal_justification: reason },
+        },
+      }),
+    });
+    if (res.status === 401) {
+      throw new OsfNotConnectedError(
+        "OSF rejected the stored token (it may have been revoked or regenerated) — reconnect in Settings · Connections.",
+      );
+    }
+    if (!res.ok) {
+      throw new Error(`OSF withdrawal failed: ${res.status} ${(await res.text()).slice(0, 500)}`);
+    }
   },
 };
+
+/** Derive the OSF registration GUID from a DOI like "10.17605/OSF.IO/RXZQA" (or a bare guid). */
+export function osfIdFromDoi(doi: string): string | null {
+  const m = doi.match(/OSF\.IO\/(\w+)/i);
+  if (m) return m[1].toLowerCase();
+  return /^\w+$/.test(doi.trim()) ? doi.trim().toLowerCase() : null;
+}

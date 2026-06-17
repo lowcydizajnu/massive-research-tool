@@ -29,7 +29,7 @@ vi.mock("@/server/crypto/tokens", () => ({
   decryptSecret: (s: string) => s.replace(/^enc:/, ""),
 }));
 
-import { osfRegistry } from "@/server/adapters/registry.osf";
+import { osfRegistry, osfIdFromDoi } from "@/server/adapters/registry.osf";
 
 /**
  * OSF adapter — the pure, verifiable surface (the OAuth authorize-URL builder).
@@ -61,11 +61,6 @@ describe("osfRegistry.getAuthorizeUrl", () => {
     expect(url.searchParams.get("state")).toBe("abc");
   });
 
-  it("withdraw stays deferred (needs owner-run live verification); amendments now push", async () => {
-    // pushAmendment delegates to the real flow since ADR-0005 am. 3 — it no
-    // longer throws (covered by the pushRegistration flow test below).
-    await expect(osfRegistry.withdraw("u1", "doi", "reason")).rejects.toThrow(/verification/i);
-  });
 });
 
 describe("osfRegistry.pushRegistration (verified OSF flow)", () => {
@@ -256,5 +251,54 @@ describe("osfRegistry.connectWithToken (PAT path)", () => {
     const [url, init] = fetchSpy.mock.calls[0]!;
     expect(url).toBe("https://api.osf.io/v2/users/me/");
     expect((init?.headers as Record<string, string>).Authorization).toBe("Bearer bad-token");
+  });
+});
+
+describe("osfIdFromDoi", () => {
+  it("extracts the lowercased OSF guid from a full DOI", () => {
+    expect(osfIdFromDoi("10.17605/OSF.IO/RXZQA")).toBe("rxzqa");
+  });
+  it("accepts a bare guid and rejects junk", () => {
+    expect(osfIdFromDoi("RXZQA")).toBe("rxzqa");
+    expect(osfIdFromDoi("not a doi")).toBeNull();
+  });
+});
+
+describe("osfRegistry.withdraw (ADR-0005 am. 3)", () => {
+  const prev = { ...process.env };
+  beforeEach(() => {
+    process.env.OSF_API_BASE = "https://api.osf.io/v2";
+  });
+  afterEach(() => {
+    process.env = { ...prev };
+    vi.restoreAllMocks();
+  });
+
+  it("PATCHes the registration with pending_withdrawal + justification (JSON:API)", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 200 }));
+    await osfRegistry.withdraw("u1", "10.17605/OSF.IO/RXZQA", "Sacrificial test withdrawal");
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchSpy.mock.calls[0]!;
+    expect(url).toBe("https://api.osf.io/v2/registrations/rxzqa/");
+    expect(init?.method).toBe("PATCH");
+    const headers = init?.headers as Record<string, string>;
+    expect(headers.Authorization).toBe("Bearer osf-access-token");
+    expect(headers["Content-Type"]).toBe("application/vnd.api+json");
+    expect(JSON.parse(init?.body as string)).toEqual({
+      data: {
+        type: "registrations",
+        id: "rxzqa",
+        attributes: { pending_withdrawal: true, withdrawal_justification: "Sacrificial test withdrawal" },
+      },
+    });
+  });
+
+  it("maps a 401 to OsfNotConnectedError and surfaces other failures", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("nope", { status: 401 }));
+    await expect(osfRegistry.withdraw("u1", "10.17605/OSF.IO/RXZQA", "x")).rejects.toThrow(/reconnect in Settings/);
+    vi.restoreAllMocks();
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("bad request detail", { status: 400 }));
+    await expect(osfRegistry.withdraw("u1", "10.17605/OSF.IO/RXZQA", "x")).rejects.toThrow(/OSF withdrawal failed: 400/);
   });
 });
