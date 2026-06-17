@@ -23,6 +23,7 @@ import { db } from "@/server/db/client";
 import {
   experiment,
   experimentVersion,
+  payoutRecord,
   providerSubmission,
   recruitmentProviderConnection,
   recruitmentSession,
@@ -68,8 +69,9 @@ export async function reconcileSubmissions(
     accessToken: token,
     providerStudyId: provider.providerStudyId,
   });
+  const rewardCents = Math.round(provider.reward.amount * 100);
   for (const s of subs) {
-    await db
+    const [row] = await db
       .insert(providerSubmission)
       .values({
         id: ulid(),
@@ -83,11 +85,39 @@ export async function reconcileSubmissions(
         status: s.status,
         startedAt: s.startedAt,
         completedAt: s.completedAt ?? null,
+        rewardAmountCents: rewardCents,
+        currency: provider.reward.currency,
       })
       .onConflictDoUpdate({
         target: [providerSubmission.provider, providerSubmission.submissionId],
-        set: { status: s.status, completedAt: s.completedAt ?? null, updatedAt: new Date() },
-      });
+        set: {
+          status: s.status,
+          completedAt: s.completedAt ?? null,
+          rewardAmountCents: rewardCents,
+          currency: provider.reward.currency,
+          updatedAt: new Date(),
+        },
+      })
+      .returning({ id: providerSubmission.id });
+
+    // Mirror the reward as a spend event when approved (ADR-0048). Append-only +
+    // idempotent (partial unique on submission where kind='reward') — re-reconciles
+    // never double-count. decidedByUserId stays null: the approval happened on the provider.
+    if (s.status === "approved" && row) {
+      await db
+        .insert(payoutRecord)
+        .values({
+          id: ulid(),
+          workspaceId,
+          experimentId,
+          providerSubmissionId: row.id,
+          kind: "reward",
+          amountCents: rewardCents,
+          currency: provider.reward.currency,
+          decidedAt: s.completedAt ?? new Date(),
+        })
+        .onConflictDoNothing();
+    }
   }
 }
 

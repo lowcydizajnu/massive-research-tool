@@ -31,6 +31,7 @@ import {
   experiment,
   experimentVersion,
   member,
+  payoutRecord,
   providerSubmission,
   recruitmentProviderConnection,
   recruitmentSession,
@@ -116,6 +117,7 @@ beforeAll(() => {
 
 beforeEach(async () => {
   vi.clearAllMocks();
+  await db.delete(payoutRecord);
   await db.delete(providerSubmission);
   await db.delete(recruitmentSession);
   await db.delete(recruitmentProviderConnection);
@@ -155,6 +157,28 @@ describe("reconcileByProviderStudyId (webhook entry)", () => {
     const [row] = await db.select().from(recruitmentSession).where(eq(recruitmentSession.id, sessionId));
     const provider = (row.metadata as { provider: { status: string; state: string } }).provider;
     expect(provider).toMatchObject({ status: "stopped", state: "completed" }); // completed → not "live"
+  });
+
+  it("records an idempotent reward payout for approved submissions (ADR-0048)", async () => {
+    const { u, ws } = await seedWsWithConnection();
+    const { experimentId } = await seedProviderStudy(ws, u, "PP1", "active"); // reward 1.5 GBP
+    vi.mocked(getRecruitmentAdapter).mockReturnValue(
+      fakeAdapter({
+        listSubmissions: vi.fn().mockResolvedValue([
+          { submissionId: "s1", externalPid: "pid1", status: "approved", startedAt: new Date(), completedAt: new Date() },
+          { submissionId: "s2", externalPid: "pid2", status: "started", startedAt: new Date() }, // not approved → no payout
+        ]),
+      }),
+    );
+    await reconcileByProviderStudyId("prolific", "PP1");
+    let payouts = await db.select().from(payoutRecord).where(eq(payoutRecord.experimentId, experimentId));
+    expect(payouts).toHaveLength(1);
+    expect(payouts[0]).toMatchObject({ kind: "reward", amountCents: 150, currency: "GBP", decidedByUserId: null });
+
+    // Re-reconcile: idempotent (partial unique on submission where kind='reward').
+    await reconcileByProviderStudyId("prolific", "PP1");
+    payouts = await db.select().from(payoutRecord).where(eq(payoutRecord.experimentId, experimentId));
+    expect(payouts).toHaveLength(1);
   });
 
   it("skips a token that can't see the study (InvalidProviderTokenError) and falls through", async () => {

@@ -656,6 +656,58 @@ export const panelMember = pgTable(
 );
 export type PanelMember = typeof panelMember.$inferSelect;
 
+export const payoutKind = pgEnum("payout_kind", ["reward", "bonus"]);
+
+/**
+ * Append-only mirror of participant-spend events (V1.15 Stream P4 / ADR-0048).
+ * We NEVER process money — this records what the provider charged the researcher
+ * (a reward when a submission is approved; a bonus when one is sent) for unified
+ * spend visibility. No financial PII. `decidedByUserId` is null when the approval
+ * happened on the provider (reconciled), set when a workspace user decided it.
+ */
+export const payoutRecord = pgTable(
+  "payout_record",
+  {
+    id: text("id").primaryKey(), // ULID
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspace.id),
+    experimentId: uuid("experiment_id")
+      .notNull()
+      .references((): AnyPgColumn => experiment.id),
+    providerSubmissionId: text("provider_submission_id").references((): AnyPgColumn => providerSubmission.id),
+    kind: payoutKind("kind").notNull(),
+    amountCents: integer("amount_cents").notNull(),
+    currency: text("currency").notNull(),
+    decidedByUserId: uuid("decided_by_user_id").references((): AnyPgColumn => user.id),
+    decidedAt: timestamp("decided_at", { withTimezone: true }).notNull().defaultNow(),
+    rawPayload: jsonb("raw_payload").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    // At most one REWARD payout per submission (idempotent reconcile); bonuses can repeat.
+    uniqueIndex("payout_record_submission_reward_unique")
+      .on(t.providerSubmissionId)
+      .where(sql`${t.kind} = 'reward'`),
+    index("idx_payout_workspace").on(t.workspaceId),
+    index("idx_payout_experiment").on(t.experimentId),
+  ],
+);
+export type PayoutRecord = typeof payoutRecord.$inferSelect;
+
+/** Optional owner-set monthly participant-spend budget (advisory alerts only; ADR-0048). One per workspace. */
+export const workspacePayoutBudget = pgTable("workspace_payout_budget", {
+  workspaceId: uuid("workspace_id")
+    .primaryKey()
+    .references(() => workspace.id),
+  monthlyLimitCents: integer("monthly_limit_cents").notNull(),
+  currency: text("currency").notNull(),
+  alertThresholdPct: integer("alert_threshold_pct").notNull().default(100),
+  updatedByUserId: uuid("updated_by_user_id").references((): AnyPgColumn => user.id),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type WorkspacePayoutBudget = typeof workspacePayoutBudget.$inferSelect;
+
 export const registryPush = pgTable("registry_push", {
   id: text("id").primaryKey(), // ULID
   experimentVersionId: uuid("experiment_version_id")
