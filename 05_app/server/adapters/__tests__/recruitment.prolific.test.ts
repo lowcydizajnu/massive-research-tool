@@ -125,6 +125,27 @@ describe("prolificAdapter.createStudy surfaces validation errors (no silent unde
     ]);
   });
 
+  it("maps panels to custom_allowlist / custom_blocklist with raw PIDs (no /filters/ fetch)", async () => {
+    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => new Response(JSON.stringify({ id: "abc" }), { status: 201 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await prolificAdapter.createStudy({
+      accessToken: "t",
+      title: "S",
+      description: "",
+      recruitmentUrl: "https://x/take/s/start",
+      targetN: 2,
+      reward: { amount: 1, currency: "GBP" },
+      eligibility: { includePids: ["pid-1", "pid-2"], excludePids: ["pid-9"] },
+    });
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+    expect(body.filters).toEqual([
+      { filter_id: "custom_allowlist", selected_values: ["pid-1", "pid-2"] },
+      { filter_id: "custom_blocklist", selected_values: ["pid-9"] },
+    ]);
+    // No ChoiceID mapping needed → no /filters/ fetch.
+    expect(fetchMock.mock.calls.every((c) => !String(c[0]).includes("/filters/"))).toBe(true);
+  });
+
   it("sends no filters (and no extra fetch) when nothing is selected", async () => {
     const fetchMock = vi.fn((_url: string, _init?: RequestInit) => new Response(JSON.stringify({ id: "abc" }), { status: 201 }));
     vi.stubGlobal("fetch", fetchMock);

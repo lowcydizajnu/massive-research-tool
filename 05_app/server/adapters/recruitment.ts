@@ -33,6 +33,10 @@ export type Eligibility = {
   country?: string[];
   /** ISO 639-1 language codes (P1b). */
   language?: string[];
+  /** Opaque participant ids that are the ONLY ones eligible — a panel "include" (ADR-0051). */
+  includePids?: string[];
+  /** Opaque participant ids to make ineligible — a panel "exclude" (ADR-0051). */
+  excludePids?: string[];
 };
 
 /**

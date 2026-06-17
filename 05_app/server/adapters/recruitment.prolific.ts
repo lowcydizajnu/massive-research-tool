@@ -114,19 +114,30 @@ async function fetchChoiceMaps(accessToken: string): Promise<Map<string, Map<str
  * so a single unknown name never 400s the whole create.
  */
 async function buildFilters(accessToken: string, e?: Eligibility): Promise<unknown[]> {
-  if (!e || (!e.country?.length && !e.language?.length)) return [];
-  const maps = await fetchChoiceMaps(accessToken);
-  const mapCodes = (codes: string[], names: Map<string, string>, choices?: Map<string, string>) =>
-    codes.map((code) => choices?.get(names.get(code) ?? code.toLowerCase())).filter((v): v is string => !!v);
+  if (!e) return [];
   const filters: unknown[] = [];
-  if (e.country?.length) {
-    const ids = mapCodes(e.country, COUNTRY_NAME, maps.get(COUNTRY_FILTER));
-    if (ids.length) filters.push({ filter_id: COUNTRY_FILTER, selected_values: ids });
+
+  // Country/language are ChoiceID filters → only fetch the choice maps if used.
+  if (e.country?.length || e.language?.length) {
+    const maps = await fetchChoiceMaps(accessToken);
+    const mapCodes = (codes: string[], names: Map<string, string>, choices?: Map<string, string>) =>
+      codes.map((code) => choices?.get(names.get(code) ?? code.toLowerCase())).filter((v): v is string => !!v);
+    if (e.country?.length) {
+      const ids = mapCodes(e.country, COUNTRY_NAME, maps.get(COUNTRY_FILTER));
+      if (ids.length) filters.push({ filter_id: COUNTRY_FILTER, selected_values: ids });
+    }
+    if (e.language?.length) {
+      const ids = mapCodes(e.language, LANGUAGE_NAME, maps.get(LANGUAGE_FILTER));
+      if (ids.length) filters.push({ filter_id: LANGUAGE_FILTER, selected_values: ids });
+    }
   }
-  if (e.language?.length) {
-    const ids = mapCodes(e.language, LANGUAGE_NAME, maps.get(LANGUAGE_FILTER));
-    if (ids.length) filters.push({ filter_id: LANGUAGE_FILTER, selected_values: ids });
-  }
+
+  // Panels → custom allowlist/blocklist (ADR-0051). These take participant ids
+  // DIRECTLY in selected_values — no ChoiceID mapping. allowlist = only these
+  // are eligible; blocklist = these are excluded.
+  if (e.includePids?.length) filters.push({ filter_id: "custom_allowlist", selected_values: e.includePids });
+  if (e.excludePids?.length) filters.push({ filter_id: "custom_blocklist", selected_values: e.excludePids });
+
   return filters;
 }
 

@@ -161,7 +161,10 @@ function CreateForm({ studyId, studyTitle, canWrite }: { studyId: string; studyT
   const [countries, setCountries] = useState<string[]>([]);
   const [languages, setLanguages] = useState<string[]>([]);
   const [countryFilter, setCountryFilter] = useState("");
+  const [includePanelId, setIncludePanelId] = useState("");
+  const [excludePanelId, setExcludePanelId] = useState("");
   const [err, setErr] = useState<string | null>(null);
+  const panels = api.panels.list.useQuery().data ?? [];
 
   const create = api.recruitment.createProviderStudy.useMutation({
     onSuccess: () => {
@@ -263,6 +266,42 @@ function CreateForm({ studyId, studyTitle, canWrite }: { studyId: string; studyT
         </a>
       </div>
 
+      {/* Panels (ADR-0051): recruit only a panel, and/or exclude one. */}
+      {panels.length > 0 ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="flex flex-col gap-1">
+            <span className="text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)]">Recruit only from panel</span>
+            <select
+              value={includePanelId}
+              onChange={(e) => setIncludePanelId(e.target.value)}
+              className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-1.5 text-[length:var(--text-small)] text-[var(--color-text-primary)]"
+            >
+              <option value="">Anyone eligible</option>
+              {panels.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} ({p.memberCount})
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)]">Exclude panel</span>
+            <select
+              value={excludePanelId}
+              onChange={(e) => setExcludePanelId(e.target.value)}
+              className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-1.5 text-[length:var(--text-small)] text-[var(--color-text-primary)]"
+            >
+              <option value="">Exclude none</option>
+              {panels.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} ({p.memberCount})
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      ) : null}
+
       <div className="flex items-center gap-3">
         <PendingButton
           onClick={() =>
@@ -274,6 +313,8 @@ function CreateForm({ studyId, studyTitle, canWrite }: { studyId: string; studyT
               targetN,
               reward: { amount, currency },
               eligibility: { country: countries, language: languages },
+              includePanelId: includePanelId || undefined,
+              excludePanelId: excludePanelId || undefined,
             })
           }
           disabled={!title.trim()}
