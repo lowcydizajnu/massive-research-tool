@@ -41,7 +41,7 @@ export default async function RunStagePage({
     <main className="flex min-w-0 flex-1 flex-col gap-3">
       <StageTabs studyId={study.id} active="Run" />
 
-      <div className="flex flex-1 flex-col gap-5 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6">
+      <div className="flex flex-col gap-5 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6">
         <div className="min-w-0">
           <h1
             title={study.title}
