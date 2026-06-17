@@ -3,8 +3,9 @@ import { getServerApi } from "@/server/trpc/server";
 import type { QualityFlagRow } from "@/server/trpc/routers/quality";
 
 /**
- * Participants · Quality (V1.15 P5 / participants-quality.md, ADR-0049). Cross-study
- * queue of flagged submissions; audit-only resolution (no provider money call in V1).
+ * Participants · Quality (V1.15 P5 / participants-quality.md, ADR-0049 + ADR-0052).
+ * Cross-study queue of flagged submissions with an inline answer preview; resolving
+ * approve/reject triggers the provider money operation (Prolific charges) when linked.
  */
 export const dynamic = "force-dynamic";
 
