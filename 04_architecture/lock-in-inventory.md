@@ -87,7 +87,8 @@ For each vendor:
 | **Deliberate exceptions** | The webhook route `app/api/recruitment/[provider]/webhook/[workspaceId]/route.ts` (ADR-0050) — verifies signatures via `adapter.verifyWebhookSignature` (per-workspace secret keyed off the URL) and enqueues a reconcile; import-only at the route boundary like Inngest's `serve()`, no business logic. Removal trigger = recruitment-vendor migration. (The adapter remains the only file importing Prolific's API shapes.) |
 | **PII contract** | The adapter NEVER returns participant PII (ADR-0014 amendment): `ProviderSubmission` carries only the opaque `externalPid` + status + timestamps. Even if Prolific's API returns a participant name, no call site can persist it. |
 | **Migration target** | A *plurality*, not a swap: CloudResearch / MTurk / others implement the same `RecruitmentAdapter`. A managed-panel "manual / external" connection type (paste-the-URL, mirroring today's V1.5 workflow) covers API-less Polish panels (Ariadna/TGM/etc.) if needed. |
-| **Cost-ceiling trigger** | Prolific charges the researcher directly (we never process money — ADR-0048); no cost to us. Capability trigger: a customer needs a provider we don't yet adapt. |
+| **Money actions** | approve / reject / send-bonus are exposed in-app (ADR-0052) behind a confirmation modal, but only ever *trigger* the provider's operation via `adapter.approveSubmission` / `rejectSubmission` / `sendBonus` under the researcher's connected token — we hold no card/bank rails. Each writes an append-only `payout_record` (ADR-0048) for spend visibility. Removal trigger = recruitment-vendor migration (same as the adapter). |
+| **Cost-ceiling trigger** | Prolific charges the researcher directly (we never process money — ADR-0048/0052); no cost to us. Capability trigger: a customer needs a provider we don't yet adapt. |
 
 ## AI providers (per ADR-0006)
 

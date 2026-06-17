@@ -16,18 +16,33 @@ vi.mock("@/server/db/client", async () => {
   return { db, schema };
 });
 
+// Provider money operations (ADR-0052): mock the adapter so approve/reject/bonus
+// never hit Prolific. Real classes (errors) stay; only the three calls are spied.
+const adapterSpies = vi.hoisted(() => ({
+  approveSubmission: vi.fn(async () => {}),
+  rejectSubmission: vi.fn(async () => {}),
+  sendBonus: vi.fn(async () => {}),
+}));
+vi.mock("@/server/adapters/recruitment", async () => {
+  const actual = await vi.importActual<typeof import("@/server/adapters/recruitment")>("@/server/adapters/recruitment");
+  return { ...actual, getRecruitmentAdapter: () => adapterSpies };
+});
+
 import { eq } from "drizzle-orm";
 import { ulid } from "ulid";
 
 import type { AuthUser } from "@/server/adapters/auth";
+import { encryptSecret } from "@/server/crypto/tokens";
 import { db } from "@/server/db/client";
 import {
   condition,
   experiment,
   experimentVersion,
   member,
+  payoutRecord,
   providerSubmission,
   qualityFlag,
+  recruitmentProviderConnection,
   recruitmentSession,
   response,
   responseItem,
@@ -83,6 +98,28 @@ async function seedResponse(
   return id;
 }
 
+async function seedSubmission(
+  ws: { id: string },
+  g: { experimentId: string; sessionId: string },
+  pid: string,
+  opts: { rewardCents?: number; currency?: string } = {},
+) {
+  const id = ulid();
+  await db.insert(providerSubmission).values({
+    id, workspaceId: ws.id, experimentId: g.experimentId, recruitmentSessionId: g.sessionId,
+    provider: "prolific", providerStudyId: "P1", submissionId: `sub_${pid}`, externalPid: pid, status: "submitted",
+    rewardAmountCents: opts.rewardCents ?? 150, currency: opts.currency ?? "GBP",
+  });
+  return id;
+}
+
+async function seedConnection(ws: { id: string }, u: { id: string }) {
+  await db.insert(recruitmentProviderConnection).values({
+    id: ulid(), workspaceId: ws.id, userId: u.id, provider: "prolific",
+    accessToken: encryptSecret("prolific-token"), status: "active",
+  });
+}
+
 async function addItem(responseId: string, value: string | number, n: number) {
   await db.insert(responseItem).values({
     id: ulid(),
@@ -103,8 +140,10 @@ beforeAll(() => {
 beforeEach(async () => {
   vi.clearAllMocks();
   await db.delete(qualityFlag);
+  await db.delete(payoutRecord);
   await db.delete(responseItem);
   await db.delete(response);
+  await db.delete(recruitmentProviderConnection);
   await db.delete(providerSubmission);
   await db.delete(recruitmentSession);
   await db.delete(condition);
@@ -194,5 +233,100 @@ describe("quality.resolve + flag", () => {
     await seedWs("v", "lab2", "viewer");
     const viewer = createCaller({ authUser: authUser("v") });
     await expect(viewer.recruitment.quality.resolve({ flagId: id, resolution: "dismissed" })).rejects.toThrow();
+  });
+});
+
+describe("quality money actions (ADR-0052)", () => {
+  async function seedLinkedFlag(opts: { rewardCents?: number } = {}) {
+    const { u, ws } = await seedWs("u", "lab");
+    const g = await seedStudyGraph(ws, u);
+    const subId = await seedSubmission(ws, g, "pidA", opts);
+    const fid = ulid();
+    await db.insert(qualityFlag).values({
+      id: fid, workspaceId: ws.id, experimentId: g.experimentId, providerSubmissionId: subId,
+      externalPid: "pidA", flagKind: "manual", severity: "medium", autoDetected: false,
+    });
+    return { u, ws, g, subId, fid };
+  }
+
+  it("approve calls the provider, writes a reward payout, and stamps the submission", async () => {
+    const { ws, subId, fid } = await seedLinkedFlag({ rewardCents: 250 });
+    await seedConnection(ws, (await db.select().from(user).limit(1))[0]);
+    const caller = createCaller({ authUser: authUser("u") });
+
+    const r = await caller.recruitment.quality.resolve({ flagId: fid, resolution: "approved" });
+    expect(r.appliedOnProvider).toBe(true);
+    expect(adapterSpies.approveSubmission).toHaveBeenCalledOnce();
+
+    const payouts = await db.select().from(payoutRecord).where(eq(payoutRecord.providerSubmissionId, subId));
+    expect(payouts).toHaveLength(1);
+    expect(payouts[0]).toMatchObject({ kind: "reward", amountCents: 250, currency: "GBP" });
+    const [sub] = await db.select().from(providerSubmission).where(eq(providerSubmission.id, subId));
+    expect(sub.status).toBe("approved");
+    expect(sub.decidedByUserId).not.toBeNull();
+  });
+
+  it("reject requires a reason and calls the provider with it", async () => {
+    const { ws, subId, fid } = await seedLinkedFlag();
+    await seedConnection(ws, (await db.select().from(user).limit(1))[0]);
+    const caller = createCaller({ authUser: authUser("u") });
+
+    await expect(caller.recruitment.quality.resolve({ flagId: fid, resolution: "rejected" })).rejects.toThrow(/reason/i);
+    expect(adapterSpies.rejectSubmission).not.toHaveBeenCalled();
+
+    await caller.recruitment.quality.resolve({ flagId: fid, resolution: "rejected", note: "failed attention check" });
+    expect(adapterSpies.rejectSubmission).toHaveBeenCalledWith(expect.objectContaining({ reason: "failed attention check" }));
+    const [sub] = await db.select().from(providerSubmission).where(eq(providerSubmission.id, subId));
+    expect(sub.status).toBe("rejected");
+    expect(await db.select().from(payoutRecord)).toHaveLength(0);
+  });
+
+  it("approve without a connection records the decision audit-only (no provider call)", async () => {
+    const { fid } = await seedLinkedFlag();
+    const caller = createCaller({ authUser: authUser("u") });
+    const r = await caller.recruitment.quality.resolve({ flagId: fid, resolution: "approved" });
+    expect(r.appliedOnProvider).toBe(false);
+    expect(adapterSpies.approveSubmission).not.toHaveBeenCalled();
+    expect(await db.select().from(payoutRecord)).toHaveLength(0);
+    expect(await caller.recruitment.quality.list({ resolved: true })).toHaveLength(1);
+  });
+
+  it("bonus calls the provider and writes a bonus payout in major units", async () => {
+    const { ws, subId, fid } = await seedLinkedFlag();
+    await seedConnection(ws, (await db.select().from(user).limit(1))[0]);
+    const caller = createCaller({ authUser: authUser("u") });
+
+    await caller.recruitment.quality.bonus({ flagId: fid, amountMajor: 1.5, reason: "thorough answers" });
+    expect(adapterSpies.sendBonus).toHaveBeenCalledWith(expect.objectContaining({ amount: 1.5, reason: "thorough answers" }));
+    const payouts = await db.select().from(payoutRecord).where(eq(payoutRecord.providerSubmissionId, subId));
+    expect(payouts).toHaveLength(1);
+    expect(payouts[0]).toMatchObject({ kind: "bonus", amountCents: 150 });
+  });
+
+  it("bonus on a flag with no linked submission is PRECONDITION_FAILED", async () => {
+    const { u, ws } = await seedWs("u", "lab");
+    const g = await seedStudyGraph(ws, u);
+    const fid = ulid();
+    await db.insert(qualityFlag).values({ id: fid, workspaceId: ws.id, experimentId: g.experimentId, flagKind: "manual", severity: "medium", autoDetected: false });
+    const caller = createCaller({ authUser: authUser("u") });
+    await expect(caller.recruitment.quality.bonus({ flagId: fid, amountMajor: 1, reason: "x" })).rejects.toThrow();
+    expect(adapterSpies.sendBonus).not.toHaveBeenCalled();
+  });
+
+  it("responsePreview returns the participant's answers + duration", async () => {
+    const { u, ws } = await seedWs("u", "lab");
+    const g = await seedStudyGraph(ws, u);
+    const rid = await seedResponse(g, "pidA", 42);
+    await addItem(rid, "strongly agree", 1);
+    await addItem(rid, 7, 2);
+    const fid = ulid();
+    await db.insert(qualityFlag).values({ id: fid, workspaceId: ws.id, experimentId: g.experimentId, responseId: rid, externalPid: "pidA", flagKind: "fast_completion", severity: "high", autoDetected: true });
+    const caller = createCaller({ authUser: authUser("u") });
+
+    const preview = await caller.recruitment.quality.responsePreview({ flagId: fid });
+    expect(preview.responseId).toBe(rid);
+    expect(preview.durationSec).toBe(42);
+    expect(preview.items).toHaveLength(2);
+    expect(preview.items[0].answer).toMatchObject({ value: "strongly agree" });
   });
 });
