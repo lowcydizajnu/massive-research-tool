@@ -438,8 +438,8 @@
 {
   "project": "Massive Research Tool",
   "tagline": "Multi-tenant SaaS for psychological experiments",
-  "lastUpdated": "2026-06-16",
-  "currentFocus": "V1.15 — Enable-live-updates: read the Prolific secret from `value` (v1.15.0-a10, live 03bdb60). After the a9 workspace-id fix, Prolific returned the signing secret but our adapter read body.secret and threw 'Prolific did not return a webhook secret'. POST /hooks/secrets/ responds {id, value, workspace_id} — the secret is in `value`. createWebhookSecret now reads value. 521 vitest green; tsc + lint + build clean; migration-free. Owner to retry Enable live updates.",
+  "lastUpdated": "2026-06-17",
+  "currentFocus": "OSF withdrawal implemented + verified live (ADR-0005 am. 3). Verified against the OSF API source: a registration is retracted by PATCH /v2/registrations/{id}/ with pending_withdrawal: true + withdrawal_justification (no direct withdraw endpoint; /requests/ read-only). registry.osf.ts withdraw() now makes that PATCH; osfIdFromDoi() derives the guid from the DOI. Verified live against sacrificial registration 10.17605/OSF.IO/RXZQA: HTTP 200, pending_withdrawal false→true, justification recorded — OSF now awaits the sole admin's approval to finalize the tombstone. +5 adapter tests; typecheck + lint + build clean; migration-free. Commit dfd7647 (unpushed).",
   "currentFocusPrev": "V1.15 Participants — Prolific filters fix SHIPPED (v1.15.0-a4, live 78b49c4). eligibility_requirements deprecated (error 140003) → createStudy now sends `filters`; empty when nothing selected so a no-filter study recruits anyone (owner confirmed this works). +1 test; 494 vitest green.",
   "phases": [
     {
@@ -1213,6 +1213,10 @@
     }
   ],
   "recentActivity": [
+    {
+      "date": "2026-06-17",
+      "text": "feat(osf): registration withdrawal implemented + verified live (ADR-0005 am. 3). Withdrawal is PATCH /v2/registrations/{id}/ with pending_withdrawal + withdrawal_justification (no direct endpoint; /requests/ read-only). withdraw() makes that PATCH; osfIdFromDoi() parses the guid. Verified live against sacrificial 10.17605/OSF.IO/RXZQA: HTTP 200, pending_withdrawal false→true, justification recorded (awaiting contributor approval to finalize). +5 adapter tests; scripts/verify-osf-withdraw.ts; typecheck + lint + build clean; migration-free."
+    },
     {
       "date": "2026-06-16",
       "text": "fix(recruitment): read Prolific webhook secret from `value` (v1.15.0-a10, live 03bdb60). POST /hooks/secrets/ returns {id, value, workspace_id}; we read body.secret and threw 'did not return a webhook secret'. createWebhookSecret now reads value. +2 adapter tests; 521 vitest green; tsc + lint + build clean; migration-free."
