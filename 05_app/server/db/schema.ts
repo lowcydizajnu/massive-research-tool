@@ -611,6 +611,51 @@ export const providerSubmission = pgTable(
 export type ProviderSubmission = typeof providerSubmission.$inferSelect;
 export type NewProviderSubmission = typeof providerSubmission.$inferInsert;
 
+/**
+ * A researcher-curated cohort of past participants (V1.15 Stream P3 / ADR-0051).
+ * Workspace-scoped; used to re-recruit or exclude participants in a new study.
+ * PII-blind (ADR-0014): membership is keyed ONLY by the opaque `external_pid`.
+ */
+export const panel = pgTable(
+  "panel",
+  {
+    id: text("id").primaryKey(), // ULID
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspace.id),
+    name: text("name").notNull(),
+    description: text("description"),
+    createdByUserId: uuid("created_by_user_id")
+      .notNull()
+      .references((): AnyPgColumn => user.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("idx_panel_workspace").on(t.workspaceId)],
+);
+export type Panel = typeof panel.$inferSelect;
+
+/**
+ * One opaque participant id in a panel (ADR-0051). NEVER PII — only the
+ * provider's `external_pid` + first-source provenance. UNIQUE(panel, pid) makes
+ * "add from a study" idempotent. Cascade-deletes with its panel.
+ */
+export const panelMember = pgTable(
+  "panel_member",
+  {
+    id: text("id").primaryKey(), // ULID
+    panelId: text("panel_id")
+      .notNull()
+      .references(() => panel.id, { onDelete: "cascade" }),
+    externalPid: text("external_pid").notNull(),
+    /** The study this PID was first added from (provenance hint, not an audit trail). */
+    sourceExperimentId: uuid("source_experiment_id").references((): AnyPgColumn => experiment.id),
+    addedAt: timestamp("added_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("panel_member_panel_pid_unique").on(t.panelId, t.externalPid)],
+);
+export type PanelMember = typeof panelMember.$inferSelect;
+
 export const registryPush = pgTable("registry_push", {
   id: text("id").primaryKey(), // ULID
   experimentVersionId: uuid("experiment_version_id")
