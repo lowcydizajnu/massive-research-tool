@@ -63,5 +63,5 @@ The Participants destination shell (shared `ParticipantsSubNav` pill: Connection
 ## Open questions
 
 - **Cross-study membership provenance** — keep only the *first* source study per PID, or record every study a PID came from? Leaning: first-source for V1 (provenance is a hint, not an audit trail).
-- **Provider exclusion mechanism** — Prolific's current allowlist/participant-group API must be verified live before wiring "use panel as exclude/include" into study creation (the handoff's `eligibility_requirements` note predates the move to `filters`). Deferred to the ADR-0051 follow-up.
+- **Provider exclusion mechanism — RESOLVED (2026-06-17).** Wired: the Run-stage "Recruit on Prolific" card has **Recruit only from panel** / **Exclude panel** pickers; `createProviderStudy` resolves the panel → `external_pid`s → Prolific `custom_allowlist` / `custom_blocklist` filters (ADR-0051). Live end-to-end confirmation awaits a real study publish (credits).
 - **Auto-panels** — should "everyone who passed attention checks in study X" be a saved smart-filter rather than a static snapshot? Deferred; V1 panels are static membership.

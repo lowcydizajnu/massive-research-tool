@@ -15,6 +15,8 @@ import { db } from "@/server/db/client";
 import {
   experiment,
   experimentVersion,
+  panel,
+  panelMember,
   recruitmentProviderConnection,
   recruitmentProviderWebhook,
   recruitmentSession,
@@ -211,6 +213,9 @@ export const recruitmentRouter = router({
         eligibility: z
           .object({ country: z.array(z.string()).max(60).default([]), language: z.array(z.string()).max(20).default([]) })
           .default({ country: [], language: [] }),
+        /** Panels (ADR-0051): recruit ONLY this panel's participants, and/or EXCLUDE this panel's. */
+        includePanelId: z.string().optional(),
+        excludePanelId: z.string().optional(),
       }),
     )
     .mutation(async ({ ctx, input }): Promise<{ providerStudyUrl: string }> => {
@@ -229,6 +234,11 @@ export const recruitmentRouter = router({
         throw new TRPCError({ code: "CONFLICT", message: "This study is already live on the provider." });
       }
 
+      // Resolve panel cohorts → opaque participant ids (workspace-scoped) for the
+      // provider's custom allow/block-list filters (ADR-0051).
+      const includePids = input.includePanelId ? await panelPids(input.includePanelId, ctx.workspace.id) : [];
+      const excludePids = input.excludePanelId ? await panelPids(input.excludePanelId, ctx.workspace.id) : [];
+
       const base = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, "") ?? "";
       const adapter = getRecruitmentAdapter(input.provider);
       let created: { providerStudyId: string; providerStudyUrl: string };
@@ -240,7 +250,11 @@ export const recruitmentRouter = router({
           recruitmentUrl: `${base}/take/${input.studyId}/start`,
           targetN: input.targetN,
           reward: input.reward,
-          eligibility: input.eligibility,
+          eligibility: {
+            ...input.eligibility,
+            ...(includePids.length ? { includePids } : {}),
+            ...(excludePids.length ? { excludePids } : {}),
+          },
         });
         await adapter.publishStudy({ accessToken: token, providerStudyId: created.providerStudyId });
       } catch (e) {
@@ -523,6 +537,16 @@ async function connectionToken(workspaceId: string, userId: string, provider: Re
     throw new TRPCError({ code: "PRECONDITION_FAILED", message: `Connect ${provider} in Participants · Connections first.` });
   }
   return decryptSecret(row.token);
+}
+
+/** A panel's member PIDs, scoped to the workspace (empty if the panel isn't in it). ADR-0051. */
+async function panelPids(panelId: string, workspaceId: string): Promise<string[]> {
+  const rows = await db
+    .select({ pid: panelMember.externalPid })
+    .from(panelMember)
+    .innerJoin(panel, eq(panelMember.panelId, panel.id))
+    .where(and(eq(panelMember.panelId, panelId), eq(panel.workspaceId, workspaceId)));
+  return rows.map((r) => r.pid);
 }
 
 /** The latest runnable version's OPEN recruitment session for a study in this workspace, or null. */

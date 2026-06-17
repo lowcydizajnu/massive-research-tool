@@ -36,6 +36,8 @@ import {
   experiment,
   experimentVersion,
   member,
+  panel,
+  panelMember,
   providerSubmission,
   recruitmentProviderConnection,
   recruitmentProviderWebhook,
@@ -94,6 +96,8 @@ beforeAll(() => {
 
 beforeEach(async () => {
   vi.clearAllMocks();
+  await db.delete(panelMember);
+  await db.delete(panel);
   await db.delete(providerSubmission);
   await db.delete(recruitmentProviderWebhook);
   await db.delete(recruitmentSession);
@@ -209,6 +213,33 @@ describe("recruitment.createProviderStudy (P1b bridge)", () => {
 
     const got = await caller.recruitment.getProviderStudy({ studyId });
     expect(got).toMatchObject({ providerStudyId: "P1", status: "live", name: "prolific" });
+  });
+
+  it("resolves include/exclude panels to their PIDs in the forwarded eligibility (ADR-0051)", async () => {
+    const { u, ws } = await seedWs("owner");
+    const studyId = await seedRunnableStudy(ws, u);
+    // A panel in this workspace with two members.
+    const panelId = ulid();
+    await db.insert(panel).values({ id: panelId, workspaceId: ws.id, name: "Exclude", createdByUserId: u.id });
+    for (const pid of ["pid-x", "pid-y"]) {
+      await db.insert(panelMember).values({ id: ulid(), panelId, externalPid: pid });
+    }
+    const createStudy = vi.fn().mockResolvedValue({ providerStudyId: "P2", providerStudyUrl: "https://prolific/P2" });
+    vi.mocked(getRecruitmentAdapter).mockReturnValue(fakeAdapter({ createStudy }));
+    const caller = createCaller({ authUser: authUser("u") });
+    await caller.recruitment.connections.connect({ provider: "prolific", accessToken: "PAT" });
+
+    await caller.recruitment.createProviderStudy({
+      studyId,
+      provider: "prolific",
+      title: "T",
+      targetN: 10,
+      reward: { amount: 1, currency: "GBP" },
+      excludePanelId: panelId,
+    });
+    const elig = createStudy.mock.calls[0][0].eligibility;
+    expect(elig.excludePids.sort()).toEqual(["pid-x", "pid-y"]);
+    expect(elig.includePids).toBeUndefined();
   });
 
   it("requires an open recruitment session", async () => {

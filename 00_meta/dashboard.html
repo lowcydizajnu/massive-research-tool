@@ -439,7 +439,7 @@
   "project": "Massive Research Tool",
   "tagline": "Multi-tenant SaaS for psychological experiments",
   "lastUpdated": "2026-06-17",
-  "currentFocus": "V1.15 Stream P3 (Panels) — our-side feature built (v1.15.0-a14, pending deploy). Participant panels = workspace-scoped cohorts of past participants keyed only by opaque external_pid (ADR-0051; PII-blind), to re-recruit or exclude in a new study. Gate: participants-panels.md wireframe + ADR-0051 (static-snapshot membership). Build: panel + panel_member tables (additive migration 0019); panels tRPC router (list/get/eligibleStudies/create/delete/removeMember/addMembersFromStudy — bulk-add a study's provider_submission PIDs by status, idempotent); real Participants · Panels UI (create + cards + inline member table + add-from-study + remove/delete), write-gated. 534 vitest green (+7); tsc + lint + build + validator (159) clean. Deferred (ADR-0051): Prolific include/exclude wiring (needs the allowlist/participant-group API verified live). ⚠️ migration 0019 NOT yet on prod — run before deploy.",
+  "currentFocus": "V1.15 P3 Panels — provider exclude/include wired, closing the stream (v1.15.0-a15, pending deploy). Verified Prolific's real mechanism: include/exclude is the filters array via custom_allowlist (only these eligible) / custom_blocklist (excluded), taking participant ids directly — no participant-group object, no migration. createStudy eligibility gained includePids/excludePids; createProviderStudy takes an optional include/exclude panel id → resolves to that panel's external_pids (workspace-scoped) → those filters; Run-stage card got Recruit-only-from-panel / Exclude-panel pickers. ADR-0051 + wireframe updated. +2 tests; 536 vitest green; tsc + lint + build + validator (159) clean; migration-free. (custom_blocklist id is the documented counterpart; a wrong id surfaces as a Prolific 400; full live test needs a real study publish.)",
   "currentFocusPrev": "V1.15 Participants — Prolific filters fix SHIPPED (v1.15.0-a4, live 78b49c4). eligibility_requirements deprecated (error 140003) → createStudy now sends `filters`; empty when nothing selected so a no-filter study recruits anyone (owner confirmed this works). +1 test; 494 vitest green.",
   "phases": [
     {
@@ -1213,6 +1213,10 @@
     }
   ],
   "recentActivity": [
+    {
+      "date": "2026-06-17",
+      "text": "feat: V1.15 P3 Panels provider wiring — custom allow/block-list (v1.15.0-a15). Prolific include/exclude = filters custom_allowlist/custom_blocklist with raw participant ids (no group object, no migration). createStudy eligibility +includePids/excludePids; createProviderStudy resolves an include/exclude panel id → its external_pids → those filters; Run-card pickers. ADR-0051 + wireframe deferral resolved. +2 tests; 536 vitest green; tsc + lint + build + validator (159) clean; migration-free."
+    },
     {
       "date": "2026-06-17",
       "text": "feat: V1.15 P3 Panels — our-side feature (v1.15.0-a14). Workspace-scoped participant cohorts by opaque external_pid (ADR-0051; PII-blind). Gate: participants-panels.md + ADR-0051. panel + panel_member tables (migration 0019, additive); panels tRPC router (CRUD + addMembersFromStudy: bulk-add a study's provider_submission PIDs by status, idempotent); Participants · Panels UI (create + cards + inline members + add-from-study + remove/delete), write-gated. +7 tests; 534 vitest green; tsc + lint + build + validator (159) clean. Deferred: Prolific include/exclude wiring. ⚠️ migration 0019 not yet on prod."
