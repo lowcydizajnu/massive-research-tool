@@ -16,16 +16,12 @@ export function RefreshOsfStatus({ studyId }: { studyId: string }) {
   const [note, setNote] = useState<string | null>(null);
   const refresh = api.studies.refreshRegistration.useMutation({
     onSuccess: (status) => {
-      if (status.doi) {
-        setNote(`Approved — DOI ${status.doi}`);
-        router.refresh();
-      } else if (status.withdrawn) {
-        setNote("This registration was withdrawn on OSF.");
-      } else if (status.pendingApproval) {
-        setNote("Still awaiting your approval on OSF.");
-      } else {
-        setNote("No DOI yet — OSF mints it shortly after approval.");
-      }
+      if (status.withdrawn) setNote("This registration was withdrawn on OSF.");
+      else if (status.doi) setNote(`Approved — DOI ${status.doi}`);
+      else if (status.pendingApproval) setNote("Still awaiting your approval on OSF.");
+      else setNote("No DOI yet — OSF mints it shortly after approval.");
+      // Re-render the server receipt so a finalized withdrawal / new DOI shows.
+      router.refresh();
     },
     onError: (e) => setNote(e.message),
   });

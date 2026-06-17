@@ -439,7 +439,7 @@
   "project": "Massive Research Tool",
   "tagline": "Multi-tenant SaaS for psychological experiments",
   "lastUpdated": "2026-06-17",
-  "currentFocus": "OSF withdrawal — UI shipped end-to-end (ADR-0005 am. 3). Preregister stage now has a collapsed danger 'Withdraw registration…' affordance (only when pushStatus=pushed) → warning + required justification + Request withdrawal; backed by studies.withdrawRegistration mutation calling the verified osfRegistry.withdraw() (PATCH pending_withdrawal + justification). Success → live-region note that OSF awaits contributor approval to finalize the tombstone. Write-gated. preregister-stage.md updated. +2 router tests; 526 vitest green; tsc + lint + build + validator (157) clean; migration-free. withdraw() was verified live against sacrificial RXZQA earlier today. Pending owner go to push.",
+  "currentFocus": "OSF withdrawal — reflect the withdrawn state in-app (v1.15.0-a13, pending deploy). Owner withdrew + approved on OSF but the app still showed DOI + Withdraw link; we never read/stored OSF's withdrawn flag. Added experiment_version.registration_withdrawn (additive migration 0018); refreshRegistration syncs it from getRegistrationStatus; getPreregistration returns withdrawn. Preregister page shows a Withdrawn-on-OSF banner and hides Withdraw + Amend once withdrawn; Check OSF status shows whenever pushed & not-withdrawn and re-renders the receipt on sync. +1 router test; 527 vitest green; tsc + lint + build + validator clean. ⚠️ migration 0018 NOT yet applied to prod — run before deploy.",
   "currentFocusPrev": "V1.15 Participants — Prolific filters fix SHIPPED (v1.15.0-a4, live 78b49c4). eligibility_requirements deprecated (error 140003) → createStudy now sends `filters`; empty when nothing selected so a no-filter study recruits anyone (owner confirmed this works). +1 test; 494 vitest green.",
   "phases": [
     {
@@ -1213,6 +1213,10 @@
     }
   ],
   "recentActivity": [
+    {
+      "date": "2026-06-17",
+      "text": "fix(osf): reflect withdrawn state in-app (v1.15.0-a13). Owner withdrew+approved but app still showed DOI + Withdraw link. Added experiment_version.registration_withdrawn (migration 0018, additive); refreshRegistration syncs it; getPreregistration returns withdrawn. Preregister page shows a Withdrawn-on-OSF banner + hides Withdraw/Amend once withdrawn; Check OSF status shows while pushed & not-withdrawn. +1 test; 527 vitest green; tsc + lint + build + validator clean. Migration 0018 not yet on prod."
+    },
     {
       "date": "2026-06-17",
       "text": "feat(osf): Withdraw-registration UI on the Preregister stage (ADR-0005 am. 3). Collapsed danger affordance (only when pushStatus=pushed) → warning + required justification + Request-withdrawal; new studies.withdrawRegistration mutation → verified osfRegistry.withdraw() (PATCH pending_withdrawal + justification). Success shows OSF-awaits-approval note. Write-gated. preregister-stage.md updated. +2 router tests; 526 vitest green; tsc + lint + build + validator (157) clean; migration-free."

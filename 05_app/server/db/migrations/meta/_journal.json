@@ -127,6 +127,13 @@
       "when": 1781623932566,
       "tag": "0017_luxuriant_bucky",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1781727248919,
+      "tag": "0018_solid_namorita",
+      "breakpoints": true
     }
   ]
 }

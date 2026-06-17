@@ -1,0 +1,1 @@
+ALTER TABLE "experiment_version" ADD COLUMN "registration_withdrawn" boolean DEFAULT false NOT NULL;

@@ -627,6 +627,8 @@ export type PreregistrationStatus = {
    *  stated change + the version it supersedes. Null for an original. */
   changeSummary: string | null;
   amends: number | null;
+  /** ADR-0005 am. 3: true once the registration is withdrawn/retracted on OSF. */
+  withdrawn: boolean;
 };
 
 /** Run-stage state: whether the study is runnable (has a preregistered OR
@@ -1585,12 +1587,15 @@ export const studiesRouter = router({
       if (!regId) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Couldn't read the registration id." });
 
       const status = await registryAdapter.getRegistrationStatus(ctx.dbUser.id, regId);
-      if (status.doi && status.doi !== ver.doi) {
-        await db
-          .update(experimentVersion)
-          .set({ externalRegistrationDoi: status.doi })
-          .where(eq(experimentVersion.id, ver.id));
-      }
+      // Sync the DOI and the withdrawn flag (ADR-0005 am. 3) so the Preregister
+      // page reflects a finalized withdrawal (not just a pending request).
+      await db
+        .update(experimentVersion)
+        .set({
+          ...(status.doi && status.doi !== ver.doi ? { externalRegistrationDoi: status.doi } : {}),
+          registrationWithdrawn: status.withdrawn,
+        })
+        .where(eq(experimentVersion.id, ver.id));
       return status;
     }),
 
@@ -3153,6 +3158,7 @@ export const studiesRouter = router({
           lastError: experimentVersion.registryPushLastError,
           changeSummary: experimentVersion.changeSummary,
           supersedesVersionId: experimentVersion.supersedesVersionId,
+          withdrawn: experimentVersion.registrationWithdrawn,
         })
         .from(experimentVersion)
         .where(
@@ -3183,6 +3189,7 @@ export const studiesRouter = router({
         lastError: pre.lastError,
         changeSummary: pre.changeSummary,
         amends,
+        withdrawn: pre.withdrawn,
       };
     }),
 
