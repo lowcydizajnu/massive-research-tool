@@ -439,7 +439,7 @@
   "project": "Massive Research Tool",
   "tagline": "Multi-tenant SaaS for psychological experiments",
   "lastUpdated": "2026-06-17",
-  "currentFocus": "V1.15 Stream P4 (Compensation) — spend-tracking dashboard built (v1.15.0-a16, pending deploy). P4 is tracking only (ADR-0048): we never process money; Prolific charges the researcher. Gate: participants-compensation.md + ADR-0048 (append-only payout_record mirrored from reconcile; per-currency, never blended; advisory budgets). Build: payout_record + workspace_payout_budget tables (additive migration 0020); reconcileSubmissions mirrors a reward payout when a submission is approved (idempotent) + stamps reward/currency on provider_submission; recruitment.compensation router (summary/byStudy/byMonth/recentPayouts/getBudget/setBudget owner-admin-only); real Participants · Compensation UI (per-currency KPI strip, by-study, 6-month bars, recent payouts, owner budget form + over-budget banner). 542 vitest green (+6); tsc + lint + build + validator (161) clean. Out of P4 scope: approve/reject/bonus money actions. ⚠️ migration 0020 NOT yet on prod — run before deploy.",
+  "currentFocus": "V1.15 Stream P5 (Quality) — flag-review queue built (v1.15.0-a17, pending deploy). Quality flags are our heuristic over response data (ADR-0049; provider has no quality signal). Gate: participants-quality.md + ADR-0049 (append-only quality_flag; detection rules; write-member resolve; audit trail; money boundary). Build: quality_flag table (additive migration 0021); detectFlags (fast <40% of study median w/ ≥5 sample, straight-lining ≥3 identical scale answers, duplicate-PID; idempotent); recruitment.quality router (list open/resolved, rescan, resolve audit-only, manual flag); Participants · Quality UI (Needs-review/Resolved tabs, severity badges, re-scan, resolve). 547 vitest green (+5); tsc + lint + build + validator (163) clean. Deferred (ADR-0049): resolve→provider pay, auto-approval policy, slow/spam/attention rules, background detection job. ⚠️ migration 0021 NOT yet on prod — run before deploy.",
   "currentFocusPrev": "V1.15 Participants — Prolific filters fix SHIPPED (v1.15.0-a4, live 78b49c4). eligibility_requirements deprecated (error 140003) → createStudy now sends `filters`; empty when nothing selected so a no-filter study recruits anyone (owner confirmed this works). +1 test; 494 vitest green.",
   "phases": [
     {
@@ -1213,6 +1213,10 @@
     }
   ],
   "recentActivity": [
+    {
+      "date": "2026-06-17",
+      "text": "feat: V1.15 P5 Quality — flag-review queue (v1.15.0-a17). Heuristic detection over response data (ADR-0049). Gate: participants-quality.md + ADR-0049. quality_flag table (migration 0021, additive); detectFlags (fast<40% median ≥5-sample, straight-lining, duplicate-PID; idempotent); recruitment.quality router (list/rescan/resolve audit-only/manual); Participants · Quality UI (tabs, severity, re-scan, resolve). +5 tests; 547 vitest green; tsc + lint + build + validator (163) clean. Deferred: resolve→pay, auto-approval, more rules, bg job. ⚠️ migration 0021 not yet on prod."
+    },
     {
       "date": "2026-06-17",
       "text": "feat: V1.15 P4 Compensation — spend-tracking dashboard (v1.15.0-a16). Tracking only (no money ops; ADR-0048). Gate: participants-compensation.md + ADR-0048. payout_record + workspace_payout_budget tables (migration 0020, additive); reconcileSubmissions mirrors a reward payout on approval (idempotent); recruitment.compensation router (summary/byStudy/byMonth/recentPayouts/getBudget/setBudget owner-admin); Participants · Compensation UI (KPI strip, by-study, 6-month bars, recent payouts, owner budget form + over-budget banner). +6 tests; 542 vitest green; tsc + lint + build + validator (161) clean. ⚠️ migration 0020 not yet on prod."

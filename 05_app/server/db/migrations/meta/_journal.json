@@ -148,6 +148,13 @@
       "when": 1781731136030,
       "tag": "0020_soft_avengers",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1781732236478,
+      "tag": "0021_thick_spacker_dave",
+      "breakpoints": true
     }
   ]
 }

@@ -708,6 +708,62 @@ export const workspacePayoutBudget = pgTable("workspace_payout_budget", {
 });
 export type WorkspacePayoutBudget = typeof workspacePayoutBudget.$inferSelect;
 
+export const qualityFlagKind = pgEnum("quality_flag_kind", [
+  "fast_completion",
+  "straight_lining",
+  "duplicate_pid",
+  "manual",
+  // shape-ready, rules land later (ADR-0049): attention-check, slow, spam-text.
+  "slow_completion",
+  "attention_check",
+  "spam_text",
+]);
+export const qualitySeverity = pgEnum("quality_severity", ["low", "medium", "high"]);
+export const qualityResolution = pgEnum("quality_resolution", ["approved", "rejected", "dismissed"]);
+
+/**
+ * One flag on a participant submission worth review before approval (V1.15 P5 /
+ * ADR-0049). Append-only: detection inserts idempotently; resolution is a state
+ * transition (never deleted — audit trail). PII-safe: only the opaque external_pid
+ * + our own response/submission ids. Detection is OUR heuristic over response data;
+ * the provider exposes no quality signal.
+ */
+export const qualityFlag = pgTable(
+  "quality_flag",
+  {
+    id: text("id").primaryKey(), // ULID
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspace.id),
+    experimentId: uuid("experiment_id")
+      .notNull()
+      .references((): AnyPgColumn => experiment.id),
+    responseId: text("response_id").references((): AnyPgColumn => response.id),
+    providerSubmissionId: text("provider_submission_id").references((): AnyPgColumn => providerSubmission.id),
+    externalPid: text("external_pid"),
+    flagKind: qualityFlagKind("flag_kind").notNull(),
+    severity: qualitySeverity("severity").notNull(),
+    autoDetected: boolean("auto_detected").notNull().default(true),
+    detail: text("detail"),
+    detectedAt: timestamp("detected_at", { withTimezone: true }).notNull().defaultNow(),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    resolvedByUserId: uuid("resolved_by_user_id").references((): AnyPgColumn => user.id),
+    resolution: qualityResolution("resolution"),
+    resolutionNote: text("resolution_note"),
+    rawPayload: jsonb("raw_payload").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    // Idempotent auto-detection: one auto flag per (response, kind). Manual flags (auto=false) can repeat.
+    uniqueIndex("quality_flag_response_kind_unique")
+      .on(t.responseId, t.flagKind)
+      .where(sql`${t.autoDetected} = true`),
+    index("idx_quality_workspace_resolved").on(t.workspaceId, t.resolvedAt),
+    index("idx_quality_experiment").on(t.experimentId),
+  ],
+);
+export type QualityFlag = typeof qualityFlag.$inferSelect;
+
 export const registryPush = pgTable("registry_push", {
   id: text("id").primaryKey(), // ULID
   experimentVersionId: uuid("experiment_version_id")
