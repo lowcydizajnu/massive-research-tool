@@ -45,6 +45,7 @@ The Build-stage shell, reused (faithful to `build-stage-builder-mode.md`): the f
 - **Preregister button** — calls `studies.preregister({ studyId })` (tRPC mutation via the HTTP client). System response: a `preregistered` version is created; the receipt zone replaces the action zone and shows the `pending` (connected) or `no_credentials` (disconnected) banner. Error path: inline alert, no version created.
 - **OSF link** — opens the registration on osf.io in a new tab (`rel="noreferrer"`).
 - **Connect link / Settings link** — navigates to `/settings/account` (Connections tab).
+- **Withdraw registration** (ADR-0005 am. 3) — shown in the receipt zone **only when `pushStatus === "pushed"`** (the registration is actually on OSF). Collapsed by default as a quiet danger-tone "Withdraw registration…" link; expands to a warning + a **required** justification textarea + a danger **Request withdrawal** button (+ Cancel). Calls `studies.withdrawRegistration({ studyId, reason })`, which PATCHes OSF with `pending_withdrawal` + `withdrawal_justification`. System response on success: the affordance is replaced by a warning live region — "Withdrawal requested on OSF. Approve it on OSF to finalize" — because OSF finalizes the public tombstone only after the registration's contributors approve (two-step by OSF's design). Irreversible; that's why it's collapsed, justification-gated, and consequence-labelled. Write-gated (absent/disabled for viewers).
 
 ## Edge cases
 

@@ -25,6 +25,7 @@ import { ulid } from "ulid";
 
 import type { AuthUser } from "@/server/adapters/auth";
 import { jobs } from "@/server/adapters/jobs";
+import { registry as osfRegistryAdapter } from "@/server/adapters/registry";
 import { db } from "@/server/db/client";
 import {
   activityEvent,
@@ -2405,5 +2406,45 @@ describe("workspace.topTags + recentForks (deferred dashboard widgets, N5)", () 
     const caller = createCaller({ authUser: authUser("ext_a") });
     const forks = await caller.workspace.recentForks({ limit: 10 });
     expect(forks.map((f) => f.studyTitle)).toEqual(["Forked One"]);
+  });
+});
+
+describe("studies.withdrawRegistration (ADR-0005 am. 3)", () => {
+  /** Create a study, preregister it, and stamp the version as pushed-to-OSF. */
+  async function seedPushedStudy(ext: string, ws: string) {
+    const { user: u } = await seedUserWithWorkspace(ext, ws);
+    const caller = createCaller({ authUser: authUser(ext) });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    await caller.studies.preregister({ studyId: id });
+    await db
+      .update(experimentVersion)
+      .set({
+        registryPushStatus: "pushed",
+        externalRegistrationUrl: "https://osf.io/rxzqa/",
+        externalRegistrationDoi: "10.17605/OSF.IO/RXZQA",
+      })
+      .where(eq(experimentVersion.kind, "preregistered"));
+    return { u, id, caller };
+  }
+
+  it("calls the adapter withdraw with the registration DOI + reason for the pushed version", async () => {
+    const { u, id, caller } = await seedPushedStudy("ext_a", "Alpha");
+    const spy = vi.spyOn(osfRegistryAdapter, "withdraw").mockResolvedValue(undefined);
+
+    const res = await caller.studies.withdrawRegistration({ studyId: id, reason: "Sacrificial test" });
+    expect(res).toEqual({ ok: true });
+    expect(spy).toHaveBeenCalledWith(u.id, "10.17605/OSF.IO/RXZQA", "Sacrificial test");
+    spy.mockRestore();
+  });
+
+  it("throws NOT_FOUND when the study has no pushed registration", async () => {
+    const { user: u } = await seedUserWithWorkspace("ext_b", "Beta");
+    void u;
+    const caller = createCaller({ authUser: authUser("ext_b") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "Unpushed" });
+    const spy = vi.spyOn(osfRegistryAdapter, "withdraw").mockResolvedValue(undefined);
+    await expect(caller.studies.withdrawRegistration({ studyId: id, reason: "x" })).rejects.toThrow(/No pushed registration/);
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
   });
 });

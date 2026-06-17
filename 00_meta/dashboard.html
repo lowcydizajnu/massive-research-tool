@@ -439,7 +439,7 @@
   "project": "Massive Research Tool",
   "tagline": "Multi-tenant SaaS for psychological experiments",
   "lastUpdated": "2026-06-17",
-  "currentFocus": "OSF withdrawal implemented + verified live (ADR-0005 am. 3). Verified against the OSF API source: a registration is retracted by PATCH /v2/registrations/{id}/ with pending_withdrawal: true + withdrawal_justification (no direct withdraw endpoint; /requests/ read-only). registry.osf.ts withdraw() now makes that PATCH; osfIdFromDoi() derives the guid from the DOI. Verified live against sacrificial registration 10.17605/OSF.IO/RXZQA: HTTP 200, pending_withdrawal false→true, justification recorded — OSF now awaits the sole admin's approval to finalize the tombstone. +5 adapter tests; typecheck + lint + build clean; migration-free. Commit dfd7647 (unpushed).",
+  "currentFocus": "OSF withdrawal — UI shipped end-to-end (ADR-0005 am. 3). Preregister stage now has a collapsed danger 'Withdraw registration…' affordance (only when pushStatus=pushed) → warning + required justification + Request withdrawal; backed by studies.withdrawRegistration mutation calling the verified osfRegistry.withdraw() (PATCH pending_withdrawal + justification). Success → live-region note that OSF awaits contributor approval to finalize the tombstone. Write-gated. preregister-stage.md updated. +2 router tests; 526 vitest green; tsc + lint + build + validator (157) clean; migration-free. withdraw() was verified live against sacrificial RXZQA earlier today. Pending owner go to push.",
   "currentFocusPrev": "V1.15 Participants — Prolific filters fix SHIPPED (v1.15.0-a4, live 78b49c4). eligibility_requirements deprecated (error 140003) → createStudy now sends `filters`; empty when nothing selected so a no-filter study recruits anyone (owner confirmed this works). +1 test; 494 vitest green.",
   "phases": [
     {
@@ -1213,6 +1213,10 @@
     }
   ],
   "recentActivity": [
+    {
+      "date": "2026-06-17",
+      "text": "feat(osf): Withdraw-registration UI on the Preregister stage (ADR-0005 am. 3). Collapsed danger affordance (only when pushStatus=pushed) → warning + required justification + Request-withdrawal; new studies.withdrawRegistration mutation → verified osfRegistry.withdraw() (PATCH pending_withdrawal + justification). Success shows OSF-awaits-approval note. Write-gated. preregister-stage.md updated. +2 router tests; 526 vitest green; tsc + lint + build + validator (157) clean; migration-free."
+    },
     {
       "date": "2026-06-17",
       "text": "feat(osf): registration withdrawal implemented + verified live (ADR-0005 am. 3). Withdrawal is PATCH /v2/registrations/{id}/ with pending_withdrawal + withdrawal_justification (no direct endpoint; /requests/ read-only). withdraw() makes that PATCH; osfIdFromDoi() parses the guid. Verified live against sacrificial 10.17605/OSF.IO/RXZQA: HTTP 200, pending_withdrawal false→true, justification recorded (awaiting contributor approval to finalize). +5 adapter tests; scripts/verify-osf-withdraw.ts; typecheck + lint + build clean; migration-free."

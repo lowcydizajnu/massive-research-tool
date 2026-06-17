@@ -8,6 +8,7 @@ import { PreregisterButton } from "@/components/feature/preregister/preregister-
 import { RefreshOsfStatus } from "@/components/feature/preregister/refresh-osf-status";
 import { PushStatusPoller } from "@/components/feature/preregister/push-status-poller";
 import { RetryPushButton } from "@/components/feature/preregister/retry-push-button";
+import { WithdrawRegistration } from "@/components/feature/preregister/withdraw-registration";
 import { ReadOnlyBanner } from "@/components/feature/workspace/role-gate";
 import { canWriteRole } from "@/lib/workspace/roles";
 import { registry } from "@/server/adapters/registry";
@@ -210,6 +211,10 @@ export default async function PreregisterStagePage({
                 <AmendButton studyId={study.id} />
               </PreflightChecklist>
             </div>
+
+            {/* Withdraw (retract) the pushed registration on OSF (ADR-0005 am. 3).
+                Only once it's actually on OSF; irreversible, so it confirms first. */}
+            {pre.pushStatus === "pushed" ? <WithdrawRegistration studyId={study.id} /> : null}
           </section>
         )}
         </fieldset>

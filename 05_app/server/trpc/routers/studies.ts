@@ -1594,6 +1594,34 @@ export const studiesRouter = router({
       return status;
     }),
 
+  /** Withdraw (retract) the pushed registration on OSF (ADR-0005 am. 3). PATCHes
+   *  the registration with pending_withdrawal + the researcher's justification;
+   *  OSF then awaits the contributors' approval to finalize the public tombstone.
+   *  Irreversible — the UI confirms first. */
+  withdrawRegistration: writeProcedure
+    .input(z.object({ studyId: z.string().uuid(), reason: z.string().trim().min(1).max(2000) }))
+    .mutation(async ({ ctx, input }) => {
+      const [ver] = await db
+        .select({ url: experimentVersion.externalRegistrationUrl, doi: experimentVersion.externalRegistrationDoi })
+        .from(experimentVersion)
+        .innerJoin(experiment, eq(experimentVersion.experimentId, experiment.id))
+        .where(
+          and(
+            eq(experimentVersion.experimentId, input.studyId),
+            eq(experiment.tenantId, ctx.workspace.id),
+            isNotNull(experimentVersion.externalRegistrationUrl),
+          ),
+        )
+        .orderBy(desc(experimentVersion.createdAt))
+        .limit(1);
+      if (!ver?.url) throw new TRPCError({ code: "NOT_FOUND", message: "No pushed registration to withdraw." });
+      const regId = ver.url.match(/osf\.io\/([a-z0-9]+)/i)?.[1];
+      if (!regId) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Couldn't read the registration id." });
+      // The adapter accepts a DOI or a bare guid; prefer the DOI when minted.
+      await registryAdapter.withdraw(ctx.dbUser.id, ver.doi ?? regId, input.reason);
+      return { ok: true as const };
+    }),
+
   /** Methodological pre-flight checks over the working tip (ADR-0034). Pure
    *  read — the gate is advisory; preregister/publish never enforce. */
   preflight: workspaceProcedure
