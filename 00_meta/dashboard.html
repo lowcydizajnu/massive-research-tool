@@ -439,7 +439,7 @@
   "project": "Massive Research Tool",
   "tagline": "Multi-tenant SaaS for psychological experiments",
   "lastUpdated": "2026-06-17",
-  "currentFocus": "OSF withdrawal — reflect the withdrawn state in-app (v1.15.0-a13, pending deploy). Owner withdrew + approved on OSF but the app still showed DOI + Withdraw link; we never read/stored OSF's withdrawn flag. Added experiment_version.registration_withdrawn (additive migration 0018); refreshRegistration syncs it from getRegistrationStatus; getPreregistration returns withdrawn. Preregister page shows a Withdrawn-on-OSF banner and hides Withdraw + Amend once withdrawn; Check OSF status shows whenever pushed & not-withdrawn and re-renders the receipt on sync. +1 router test; 527 vitest green; tsc + lint + build + validator clean. ⚠️ migration 0018 NOT yet applied to prod — run before deploy.",
+  "currentFocus": "V1.15 Stream P3 (Panels) — our-side feature built (v1.15.0-a14, pending deploy). Participant panels = workspace-scoped cohorts of past participants keyed only by opaque external_pid (ADR-0051; PII-blind), to re-recruit or exclude in a new study. Gate: participants-panels.md wireframe + ADR-0051 (static-snapshot membership). Build: panel + panel_member tables (additive migration 0019); panels tRPC router (list/get/eligibleStudies/create/delete/removeMember/addMembersFromStudy — bulk-add a study's provider_submission PIDs by status, idempotent); real Participants · Panels UI (create + cards + inline member table + add-from-study + remove/delete), write-gated. 534 vitest green (+7); tsc + lint + build + validator (159) clean. Deferred (ADR-0051): Prolific include/exclude wiring (needs the allowlist/participant-group API verified live). ⚠️ migration 0019 NOT yet on prod — run before deploy.",
   "currentFocusPrev": "V1.15 Participants — Prolific filters fix SHIPPED (v1.15.0-a4, live 78b49c4). eligibility_requirements deprecated (error 140003) → createStudy now sends `filters`; empty when nothing selected so a no-filter study recruits anyone (owner confirmed this works). +1 test; 494 vitest green.",
   "phases": [
     {
@@ -1213,6 +1213,10 @@
     }
   ],
   "recentActivity": [
+    {
+      "date": "2026-06-17",
+      "text": "feat: V1.15 P3 Panels — our-side feature (v1.15.0-a14). Workspace-scoped participant cohorts by opaque external_pid (ADR-0051; PII-blind). Gate: participants-panels.md + ADR-0051. panel + panel_member tables (migration 0019, additive); panels tRPC router (CRUD + addMembersFromStudy: bulk-add a study's provider_submission PIDs by status, idempotent); Participants · Panels UI (create + cards + inline members + add-from-study + remove/delete), write-gated. +7 tests; 534 vitest green; tsc + lint + build + validator (159) clean. Deferred: Prolific include/exclude wiring. ⚠️ migration 0019 not yet on prod."
+    },
     {
       "date": "2026-06-17",
       "text": "fix(osf): reflect withdrawn state in-app (v1.15.0-a13). Owner withdrew+approved but app still showed DOI + Withdraw link. Added experiment_version.registration_withdrawn (migration 0018, additive); refreshRegistration syncs it; getPreregistration returns withdrawn. Preregister page shows a Withdrawn-on-OSF banner + hides Withdraw/Amend once withdrawn; Check OSF status shows while pushed & not-withdrawn. +1 test; 527 vitest green; tsc + lint + build + validator clean. Migration 0018 not yet on prod."

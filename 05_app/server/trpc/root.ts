@@ -4,6 +4,7 @@ import { followsRouter } from "@/server/trpc/routers/follows";
 import { frameworksRouter } from "@/server/trpc/routers/frameworks";
 import { meRouter } from "@/server/trpc/routers/me";
 import { modulesRouter } from "@/server/trpc/routers/modules";
+import { panelsRouter } from "@/server/trpc/routers/panels";
 import { proposalsRouter } from "@/server/trpc/routers/proposals";
 import { notificationsRouter } from "@/server/trpc/routers/notifications";
 import { previewTokensRouter } from "@/server/trpc/routers/preview-tokens";
@@ -19,6 +20,7 @@ export const appRouter = router({
   workspace: workspaceRouter,
   team: teamRouter,
   recruitment: recruitmentRouter,
+  panels: panelsRouter,
   studies: studiesRouter,
   dashboard: dashboardRouter,
   modules: modulesRouter,
