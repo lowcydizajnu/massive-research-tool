@@ -38,6 +38,7 @@ import {
   member,
   panel,
   panelMember,
+  payoutRecord,
   providerSubmission,
   recruitmentProviderConnection,
   recruitmentProviderWebhook,
@@ -98,6 +99,7 @@ beforeEach(async () => {
   vi.clearAllMocks();
   await db.delete(panelMember);
   await db.delete(panel);
+  await db.delete(payoutRecord);
   await db.delete(providerSubmission);
   await db.delete(recruitmentProviderWebhook);
   await db.delete(recruitmentSession);

@@ -439,7 +439,7 @@
   "project": "Massive Research Tool",
   "tagline": "Multi-tenant SaaS for psychological experiments",
   "lastUpdated": "2026-06-17",
-  "currentFocus": "V1.15 P3 Panels — provider exclude/include wired, closing the stream (v1.15.0-a15, pending deploy). Verified Prolific's real mechanism: include/exclude is the filters array via custom_allowlist (only these eligible) / custom_blocklist (excluded), taking participant ids directly — no participant-group object, no migration. createStudy eligibility gained includePids/excludePids; createProviderStudy takes an optional include/exclude panel id → resolves to that panel's external_pids (workspace-scoped) → those filters; Run-stage card got Recruit-only-from-panel / Exclude-panel pickers. ADR-0051 + wireframe updated. +2 tests; 536 vitest green; tsc + lint + build + validator (159) clean; migration-free. (custom_blocklist id is the documented counterpart; a wrong id surfaces as a Prolific 400; full live test needs a real study publish.)",
+  "currentFocus": "V1.15 Stream P4 (Compensation) — spend-tracking dashboard built (v1.15.0-a16, pending deploy). P4 is tracking only (ADR-0048): we never process money; Prolific charges the researcher. Gate: participants-compensation.md + ADR-0048 (append-only payout_record mirrored from reconcile; per-currency, never blended; advisory budgets). Build: payout_record + workspace_payout_budget tables (additive migration 0020); reconcileSubmissions mirrors a reward payout when a submission is approved (idempotent) + stamps reward/currency on provider_submission; recruitment.compensation router (summary/byStudy/byMonth/recentPayouts/getBudget/setBudget owner-admin-only); real Participants · Compensation UI (per-currency KPI strip, by-study, 6-month bars, recent payouts, owner budget form + over-budget banner). 542 vitest green (+6); tsc + lint + build + validator (161) clean. Out of P4 scope: approve/reject/bonus money actions. ⚠️ migration 0020 NOT yet on prod — run before deploy.",
   "currentFocusPrev": "V1.15 Participants — Prolific filters fix SHIPPED (v1.15.0-a4, live 78b49c4). eligibility_requirements deprecated (error 140003) → createStudy now sends `filters`; empty when nothing selected so a no-filter study recruits anyone (owner confirmed this works). +1 test; 494 vitest green.",
   "phases": [
     {
@@ -1213,6 +1213,10 @@
     }
   ],
   "recentActivity": [
+    {
+      "date": "2026-06-17",
+      "text": "feat: V1.15 P4 Compensation — spend-tracking dashboard (v1.15.0-a16). Tracking only (no money ops; ADR-0048). Gate: participants-compensation.md + ADR-0048. payout_record + workspace_payout_budget tables (migration 0020, additive); reconcileSubmissions mirrors a reward payout on approval (idempotent); recruitment.compensation router (summary/byStudy/byMonth/recentPayouts/getBudget/setBudget owner-admin); Participants · Compensation UI (KPI strip, by-study, 6-month bars, recent payouts, owner budget form + over-budget banner). +6 tests; 542 vitest green; tsc + lint + build + validator (161) clean. ⚠️ migration 0020 not yet on prod."
+    },
     {
       "date": "2026-06-17",
       "text": "feat: V1.15 P3 Panels provider wiring — custom allow/block-list (v1.15.0-a15). Prolific include/exclude = filters custom_allowlist/custom_blocklist with raw participant ids (no group object, no migration). createStudy eligibility +includePids/excludePids; createProviderStudy resolves an include/exclude panel id → its external_pids → those filters; Run-card pickers. ADR-0051 + wireframe deferral resolved. +2 tests; 536 vitest green; tsc + lint + build + validator (159) clean; migration-free."
