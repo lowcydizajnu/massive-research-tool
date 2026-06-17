@@ -30,6 +30,7 @@ import {
   type SubmissionCounts,
 } from "@/server/recruitment/reconcile";
 import { compensationRouter } from "@/server/trpc/routers/compensation";
+import { qualityRouter } from "@/server/trpc/routers/quality";
 import { router, workspaceProcedure, writeProcedure } from "@/server/trpc/trpc";
 
 // Reconcile helpers + the ProviderStudyMeta / SubmissionCounts shapes now live in
@@ -79,6 +80,8 @@ const providerInput = z.object({ provider: z.enum(["prolific"]) });
 export const recruitmentRouter = router({
   /** Participant-spend tracking (V1.15 P4 / ADR-0048). */
   compensation: compensationRouter,
+  /** Quality-flag review queue (V1.15 P5 / ADR-0049). */
+  quality: qualityRouter,
   connections: router({
     /** The caller's recruitment-provider connections in this workspace (status only — never the token). */
     list: workspaceProcedure.query(async ({ ctx }): Promise<RecruitmentConnectionDTO[]> => {
