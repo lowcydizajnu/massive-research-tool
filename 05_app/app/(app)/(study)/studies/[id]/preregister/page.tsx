@@ -148,17 +148,27 @@ export default async function PreregisterStagePage({
             <div className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">
               {pre.name}
             </div>
-            {(() => {
-              const b = banner(pre);
-              return (
-                <div
-                  role={b.role}
-                  className={"rounded-[var(--radius-md)] px-3 py-2 text-[length:var(--text-small)] " + b.className}
-                >
-                  {b.message}
-                </div>
-              );
-            })()}
+            {pre.withdrawn ? (
+              <div
+                role="status"
+                className="rounded-[var(--radius-md)] bg-[var(--color-surface-subtle)] px-3 py-2 text-[length:var(--text-small)] text-[var(--color-text-secondary)]"
+              >
+                Withdrawn on OSF — the registration shows a public withdrawal tombstone (title, contributors,
+                justification). Its DOI still resolves.
+              </div>
+            ) : (
+              (() => {
+                const b = banner(pre);
+                return (
+                  <div
+                    role={b.role}
+                    className={"rounded-[var(--radius-md)] px-3 py-2 text-[length:var(--text-small)] " + b.className}
+                  >
+                    {b.message}
+                  </div>
+                );
+              })()
+            )}
             {pre.pushStatus === "pending" ? <PushStatusPoller studyId={study.id} /> : null}
             {pre.url ? (
               <a
@@ -170,7 +180,9 @@ export default async function PreregisterStagePage({
                 View on OSF →
               </a>
             ) : null}
-            {pre.pushStatus === "pushed" && !pre.doi ? (
+            {/* Available while live on OSF (not just before the DOI) so the
+                researcher can also pull a finalized withdrawal back in. */}
+            {pre.pushStatus === "pushed" && !pre.withdrawn ? (
               <RefreshOsfStatus studyId={study.id} />
             ) : null}
             {pre.pushStatus === "pushed" ? (
@@ -205,16 +217,22 @@ export default async function PreregisterStagePage({
             ) : null}
 
             {/* File a new amendment — freezes the current draft as a superseding
-                preregistered version (ADR-0004). Same pre-flight gate as preregister. */}
-            <div className="border-t border-[var(--color-border-subtle)] pt-3">
-              <PreflightChecklist studyId={study.id} mode="preregister">
-                <AmendButton studyId={study.id} />
-              </PreflightChecklist>
-            </div>
+                preregistered version (ADR-0004). Same pre-flight gate as preregister.
+                Hidden once withdrawn — there's nothing live to amend. */}
+            {!pre.withdrawn ? (
+              <div className="border-t border-[var(--color-border-subtle)] pt-3">
+                <PreflightChecklist studyId={study.id} mode="preregister">
+                  <AmendButton studyId={study.id} />
+                </PreflightChecklist>
+              </div>
+            ) : null}
 
             {/* Withdraw (retract) the pushed registration on OSF (ADR-0005 am. 3).
-                Only once it's actually on OSF; irreversible, so it confirms first. */}
-            {pre.pushStatus === "pushed" ? <WithdrawRegistration studyId={study.id} /> : null}
+                Only once it's actually on OSF and not already withdrawn; irreversible,
+                so it confirms first. */}
+            {pre.pushStatus === "pushed" && !pre.withdrawn ? (
+              <WithdrawRegistration studyId={study.id} />
+            ) : null}
           </section>
         )}
         </fieldset>

@@ -2447,4 +2447,17 @@ describe("studies.withdrawRegistration (ADR-0005 am. 3)", () => {
     expect(spy).not.toHaveBeenCalled();
     spy.mockRestore();
   });
+
+  it("refreshRegistration syncs the withdrawn flag so getPreregistration reflects it", async () => {
+    const { id, caller } = await seedPushedStudy("ext_c", "Gamma");
+    expect((await caller.studies.getPreregistration({ studyId: id }))!.withdrawn).toBe(false);
+
+    const spy = vi
+      .spyOn(osfRegistryAdapter, "getRegistrationStatus")
+      .mockResolvedValue({ doi: "10.17605/OSF.IO/RXZQA", pendingApproval: false, withdrawn: true, public: true });
+    const status = await caller.studies.refreshRegistration({ studyId: id });
+    expect(status.withdrawn).toBe(true);
+    expect((await caller.studies.getPreregistration({ studyId: id }))!.withdrawn).toBe(true);
+    spy.mockRestore();
+  });
 });

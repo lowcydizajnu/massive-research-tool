@@ -355,6 +355,9 @@ export const experimentVersion = pgTable(
     registryPushAttempts: integer("registry_push_attempts").notNull().default(0),
     registryPushLastError: text("registry_push_last_error"),
     externalRegistrationDoi: text("external_registration_doi"),
+    /** True once the registration is withdrawn/retracted on the registry (ADR-0005 am. 3),
+     *  synced from getRegistrationStatus by refreshRegistration. */
+    registrationWithdrawn: boolean("registration_withdrawn").notNull().default(false),
   },
   (t) => [
     uniqueIndex("experiment_version_number_unique").on(
