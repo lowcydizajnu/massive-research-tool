@@ -59,6 +59,7 @@ describe("first migration — forward apply", () => {
       "follow",
       "dashboard_layout",
       "workspace_dashboard_default",
+      "study_record",
     ]) {
       expect(tables).toContain(t);
     }
