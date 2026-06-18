@@ -78,6 +78,13 @@ export interface RecruitmentAdapter {
   closeStudy(opts: { accessToken: string; providerStudyId: string }): Promise<void>;
 
   /**
+   * The researcher-facing URL for a provider study, derived purely from its id.
+   * Pure/sync so callers can build it for studies whose stored metadata predates
+   * us persisting the URL (early V1.15 rows only have `providerStudyId`).
+   */
+  studyUrl(providerStudyId: string): string;
+
+  /**
    * The study's current lifecycle state + recruitment progress on the provider
    * (P2). Used to reconcile our stored status with reality — a study can be
    * paused or completed on the provider without us ever calling closeStudy.

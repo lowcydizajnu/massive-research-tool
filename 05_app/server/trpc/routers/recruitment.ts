@@ -54,7 +54,10 @@ export type OpenRecruitmentStudy = {
   studyId: string;
   title: string;
   provider: RecruitmentProvider;
-  providerStatus: "live" | "stopped";
+  /** True provider lifecycle state, reconciled live on load — same source as the Run card. */
+  state: ProviderStudyState;
+  placesTaken: number | null;
+  totalPlaces: number | null;
   providerStudyUrl: string;
   reward: { amount: number; currency: "USD" | "EUR" | "GBP" };
   counts: SubmissionCounts;
@@ -198,7 +201,10 @@ export const recruitmentRouter = router({
     .input(z.object({ studyId: z.string().uuid() }))
     .query(async ({ ctx, input }): Promise<ProviderStudyMeta | null> => {
       const session = await findOpenSession(input.studyId, ctx.workspace.id);
-      return (session?.metadata?.provider as ProviderStudyMeta | undefined) ?? null;
+      const provider = (session?.metadata?.provider as ProviderStudyMeta | undefined) ?? null;
+      if (!provider?.providerStudyId) return provider;
+      // Always derive the link from the id (early rows have no stored URL).
+      return { ...provider, providerStudyUrl: getRecruitmentAdapter(provider.name).studyUrl(provider.providerStudyId) };
     }),
 
   /**
@@ -346,11 +352,25 @@ export const recruitmentRouter = router({
 
       const out: OpenRecruitmentStudy[] = [];
       for (const r of withProvider) {
+        // Reconcile the true lifecycle state (not just our stored live/stopped) so
+        // this card matches the Run-stage card — a study can be paused/completed on
+        // the provider without us ever calling Stop.
+        let state: ProviderStudyState = r.provider.state ?? (r.provider.status === "live" ? "active" : "unknown");
+        let placesTaken: number | null = null;
+        let totalPlaces: number | null = null;
         if (token) {
           try {
             await reconcileSubmissions(token, ctx.workspace.id, r.experimentId, r.sessionId, r.provider);
           } catch {
             // provider unreachable / token bad — fall back to stored rows
+          }
+          try {
+            const live = await reconcileStudyStatus(token, r.sessionId, (r.metadata ?? {}) as Record<string, unknown>, r.provider);
+            state = live.state;
+            placesTaken = live.placesTaken;
+            totalPlaces = live.totalPlaces;
+          } catch {
+            // study fetch failed — keep the stored-status fallback
           }
         }
         const counts = await submissionCounts(r.experimentId, r.provider.providerStudyId);
@@ -358,8 +378,11 @@ export const recruitmentRouter = router({
           studyId: r.experimentId,
           title: r.title,
           provider: r.provider.name,
-          providerStatus: r.provider.status,
-          providerStudyUrl: r.provider.providerStudyUrl,
+          state,
+          placesTaken,
+          totalPlaces,
+          // Derive from the id so studies whose metadata predates the stored URL still link correctly.
+          providerStudyUrl: getRecruitmentAdapter(r.provider.name).studyUrl(r.provider.providerStudyId),
           reward: r.provider.reward,
           counts,
         });

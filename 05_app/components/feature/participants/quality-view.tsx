@@ -29,6 +29,24 @@ const SEVERITY_TONE: Record<string, string> = {
 };
 const shortPid = (pid: string | null) => (!pid ? "—" : pid.length > 12 ? `${pid.slice(0, 6)}…${pid.slice(-4)}` : pid);
 
+/**
+ * Render a stored answer payload as readable text. Block answers are jsonb in a
+ * handful of shapes ({selected:[…]}, {value}, {text}, scalars, arrays) — show the
+ * human value, not raw JSON. Falls back to JSON for anything unrecognized.
+ */
+function formatAnswer(answer: unknown): string {
+  if (answer == null) return "—";
+  if (typeof answer === "string" || typeof answer === "number" || typeof answer === "boolean") return String(answer);
+  if (Array.isArray(answer)) return answer.map(formatAnswer).join(", ");
+  if (typeof answer === "object") {
+    const o = answer as Record<string, unknown>;
+    for (const key of ["selected", "value", "text", "label", "choice"]) {
+      if (o[key] != null) return formatAnswer(o[key]);
+    }
+  }
+  return JSON.stringify(answer);
+}
+
 export function QualityView({ initialOpen, initialResolved }: { initialOpen: QualityFlagRow[]; initialResolved: QualityFlagRow[] }) {
   const { role, canWrite } = useWorkspaceRole();
   const utils = api.useUtils();
@@ -193,12 +211,7 @@ function FlagRow({ flag, canWrite, resolved, onDone }: { flag: QualityFlagRow; c
                 {preview.data.items.map((it, i) => (
                   <li key={i} className="flex gap-2 text-[length:var(--text-small)]">
                     <span className="shrink-0 text-[var(--color-text-muted)]">{it.moduleKey}</span>
-                    <span className="truncate text-[var(--color-text-primary)]">
-                      {(() => {
-                        const v = (it.answer as { value?: unknown } | null)?.value ?? it.answer;
-                        return typeof v === "string" || typeof v === "number" ? String(v) : JSON.stringify(v);
-                      })()}
-                    </span>
+                    <span className="truncate text-[var(--color-text-primary)]">{formatAnswer(it.answer)}</span>
                   </li>
                 ))}
               </ul>

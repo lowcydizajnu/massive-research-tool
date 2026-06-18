@@ -69,6 +69,7 @@ function fakeAdapter(over: Partial<RecruitmentAdapter> = {}): RecruitmentAdapter
     pauseStudy: vi.fn(),
     closeStudy: vi.fn(),
     getStudy: vi.fn().mockResolvedValue({ state: "active", placesTaken: 0, totalPlaces: 0 }),
+    studyUrl: (id: string) => `https://app.prolific.com/researcher/studies/${id}`,
     listSubmissions: vi.fn(),
     approveSubmission: vi.fn(),
     rejectSubmission: vi.fn(),
@@ -330,7 +331,10 @@ describe("recruitment.openRecruitment.list (Stream P2)", () => {
     const caller = createCaller({ authUser: authUser("u") });
     const list = await caller.recruitment.openRecruitment.list();
     expect(list).toHaveLength(1);
-    expect(list[0]).toMatchObject({ studyId: experimentId, provider: "prolific", providerStatus: "live" });
+    // No connection → falls back from stored status "live" to the "active" lifecycle state.
+    expect(list[0]).toMatchObject({ studyId: experimentId, provider: "prolific", state: "active" });
+    // URL is derived from the id (works even when metadata predates the stored URL).
+    expect(list[0].providerStudyUrl).toBe(`https://app.prolific.com/researcher/studies/${providerStudyId}`);
     expect(list[0].counts).toMatchObject({ approved: 2, submitted: 1, total: 3 });
   });
 

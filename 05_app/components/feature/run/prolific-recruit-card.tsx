@@ -8,6 +8,7 @@ import { PendingButton } from "@/components/ui/pending-button";
 import { canWriteRole, READ_ONLY_TITLE, useWorkspaceRole } from "@/components/feature/workspace/role-gate";
 import { api } from "@/lib/trpc/react";
 import { LANGUAGES, PROLIFIC_COUNTRIES, countryName } from "@/lib/iso-countries";
+import { PROVIDER_STATE_BADGE } from "@/lib/recruitment-status";
 
 /**
  * Run-stage Prolific recruitment (V1.15 P1b). When the study is runnable and the
@@ -50,16 +51,6 @@ export function ProlificRecruitCard({ studyId, studyTitle }: { studyId: string; 
   );
 }
 
-/** Provider lifecycle state → badge label + token classes. */
-const STATE_BADGE: Record<string, { label: string; cls: string }> = {
-  active: { label: "Live on Prolific", cls: "bg-[var(--color-success-subtle)] text-[var(--color-success-text-on-subtle)]" },
-  paused: { label: "Paused on Prolific", cls: "bg-[var(--color-warning-subtle)] text-[var(--color-warning-text-on-subtle)]" },
-  awaiting_review: { label: "Recruited — awaiting review", cls: "bg-[var(--color-info-subtle)] text-[var(--color-info-text-on-subtle)]" },
-  completed: { label: "Completed on Prolific", cls: "bg-[var(--color-surface-subtle)] text-[var(--color-text-secondary)]" },
-  unpublished: { label: "Not yet live", cls: "bg-[var(--color-surface-subtle)] text-[var(--color-text-secondary)]" },
-  unknown: { label: "On Prolific", cls: "bg-[var(--color-surface-subtle)] text-[var(--color-text-secondary)]" },
-};
-
 function LiveState({
   studyId,
   url,
@@ -87,7 +78,7 @@ function LiveState({
   });
 
   const state = progress.data?.state ?? (status === "live" ? "active" : "unknown");
-  const badge = STATE_BADGE[state] ?? STATE_BADGE.unknown;
+  const badge = PROVIDER_STATE_BADGE[state] ?? PROVIDER_STATE_BADGE.unknown;
   const counts = progress.data?.counts;
   const placesTaken = progress.data?.placesTaken ?? null;
   const totalPlaces = progress.data?.totalPlaces ?? null;
