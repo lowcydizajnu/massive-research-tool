@@ -1007,6 +1007,37 @@ export const workspaceDashboardDefault = pgTable("workspace_dashboard_default", 
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/* ---------- study record (ADR-0054 §41) ---------- */
+
+/**
+ * The composed Study Record for a finished study — one row per experiment. The
+ * readable, citable "publication" face (Slice 2). `layout` is the ordered list
+ * of section instances the composer persists, mirroring `dashboard_layout`'s
+ * model: bound sections (`method`/`results`/`data`/`preregistration`/
+ * `replications`/`materials`) carry only `{type, hidden}` and resolve from study
+ * data server-side; authored sections (`abstract`/`narrative`/`article-link`/
+ * `custom`) carry `content`. `abstract` is also a top-level column because a
+ * public Record requires it (validated at publish). `visibility` is
+ * `workspace` | `public` (text + Zod-validated, mirroring `dashboard_kind`).
+ * Public sections never resolve participant PII (ADR-0014) — enforced in the
+ * resolvers, not here. `published_at` stamps the first public publish.
+ */
+export const studyRecord = pgTable("study_record", {
+  experimentId: uuid("experiment_id")
+    .primaryKey()
+    .references(() => experiment.id, { onDelete: "cascade" }),
+  visibility: text("visibility").notNull().default("workspace"), // 'workspace' | 'public'
+  abstract: text("abstract"),
+  articleUrl: text("article_url"),
+  articleDoi: text("article_doi"),
+  layout: jsonb("layout")
+    .notNull()
+    .default(sql`'[]'::jsonb`)
+    .$type<{ type: string; content?: string; hidden?: boolean }[]>(),
+  publishedAt: timestamp("published_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 /* ---------- inferred types ---------- */
 
 export type User = typeof user.$inferSelect;
@@ -1018,6 +1049,8 @@ export type Member = typeof member.$inferSelect;
 export type NewMember = typeof member.$inferInsert;
 export type Experiment = typeof experiment.$inferSelect;
 export type ExperimentVersion = typeof experimentVersion.$inferSelect;
+export type StudyRecord = typeof studyRecord.$inferSelect;
+export type NewStudyRecord = typeof studyRecord.$inferInsert;
 export type Module = typeof moduleTable.$inferSelect;
 export type NewModule = typeof moduleTable.$inferInsert;
 export type ModuleVersion = typeof moduleVersion.$inferSelect;

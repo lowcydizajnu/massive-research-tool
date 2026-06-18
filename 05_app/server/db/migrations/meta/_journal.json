@@ -169,6 +169,13 @@
       "when": 1781790995721,
       "tag": "0023_futuristic_betty_ross",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1781809172857,
+      "tag": "0024_shallow_tempest",
+      "breakpoints": true
     }
   ]
 }
