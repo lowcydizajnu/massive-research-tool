@@ -35,9 +35,16 @@ export function ReplicateButton({ studyId, className }: { studyId: string; class
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [intent, setIntent] = useState<"direct" | "conceptual" | "extension">("direct");
+  const [target, setTarget] = useState<string | undefined>(undefined);
   const fork = api.studies.fork.useMutation({
     onSuccess: ({ id }) => router.push(`/studies/${id}/build`),
   });
+  // Where it lands (ADR-0055): from the global Browse there's no active-workspace
+  // context to assume, so offer a picker of the caller's write-capable workspaces,
+  // preselected to the most-recently-active one (the list is sorted by activity).
+  const workspaces = api.workspace.list.useQuery(undefined, { enabled: open });
+  const writable = (workspaces.data ?? []).filter((w) => w.role !== "viewer");
+  const targetId = target ?? writable[0]?.id;
 
   return (
     <div className="flex flex-col items-end gap-1">
@@ -102,13 +109,29 @@ export function ReplicateButton({ studyId, className }: { studyId: string; class
                 </label>
               ))}
             </div>
+            {writable.length > 1 ? (
+              <label className="flex flex-col gap-1">
+                <span className="text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)]">Replicate into</span>
+                <select
+                  value={targetId ?? ""}
+                  onChange={(e) => setTarget(e.target.value)}
+                  className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-1.5 text-[length:var(--text-small)] text-[var(--color-text-primary)]"
+                >
+                  {writable.map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {w.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             <div className="flex items-center justify-between gap-2">
               <button
                 type="button"
                 disabled={fork.isPending}
                 onClick={() => {
                   setOpen(false);
-                  fork.mutate({ studyId });
+                  fork.mutate({ studyId, targetWorkspaceId: targetId });
                 }}
                 className="text-[length:var(--text-small)] text-[var(--color-text-secondary)] hover:underline"
               >
@@ -127,7 +150,7 @@ export function ReplicateButton({ studyId, className }: { studyId: string; class
                   pending={fork.isPending}
                   idleLabel="Create replication"
                   pendingLabel="Replicating…"
-                  onClick={() => fork.mutate({ studyId, intent })}
+                  onClick={() => fork.mutate({ studyId, intent, targetWorkspaceId: targetId })}
                 />
               </span>
             </div>
