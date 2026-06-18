@@ -267,6 +267,25 @@ async function loadForkSource(studyId: string, callerUserId: string) {
   return { experiment: exp, version };
 }
 
+/**
+ * Where a replication/template lands (ADR-0055). Defaults to the active
+ * workspace; when a different `targetWorkspaceId` is chosen (the global-Browse
+ * "into which workspace?" picker), the caller must be an active, write-capable
+ * member of it. Returns the validated tenant id.
+ */
+async function resolveTargetTenant(callerUserId: string, activeWorkspaceId: string, target: string | undefined): Promise<string> {
+  if (!target || target === activeWorkspaceId) return activeWorkspaceId;
+  const [m] = await db
+    .select({ role: member.role })
+    .from(member)
+    .where(and(eq(member.workspaceId, target), eq(member.userId, callerUserId), eq(member.status, "active")))
+    .limit(1);
+  if (!m || m.role === "viewer") {
+    throw new TRPCError({ code: "FORBIDDEN", message: "You can't create studies in that workspace." });
+  }
+  return target;
+}
+
 /** Current-tip blocks of an experiment (for the replication diff). */
 async function studyTipSnapshot(exp: typeof experiment.$inferSelect): Promise<unknown> {
   if (!exp.currentVersionId) return {};
@@ -4032,8 +4051,9 @@ export const studiesRouter = router({
     }),
 
   /**
-   * Replicate (fork) a study into the caller's active workspace (ADR-0002 +
-   * ADR-0018). Reads the source cross-tenant via the permission-gated loader
+   * Replicate (fork) a study into the caller's active workspace — or a chosen
+   * one when replicating from the global Browse (ADR-0002 + ADR-0018 + ADR-0055).
+   * Reads the source cross-tenant via the permission-gated loader
    * (public, or caller is a member), copies its latest runnable (else tip)
    * snapshot — instanceIds PRESERVED so the Replications diff aligns by
    * identity — plus its conditions, pins lineage to that version, and emits the
@@ -4046,16 +4066,19 @@ export const studiesRouter = router({
         studyId: z.string().uuid(),
         /** Declared replication kind (ADR-0039) — optional; skippable dialog. */
         intent: z.enum(["direct", "conceptual", "extension"]).optional(),
+        /** Where it lands (ADR-0055 global Browse). Defaults to the active workspace. */
+        targetWorkspaceId: z.string().uuid().optional(),
       }),
     )
     .mutation(async ({ ctx, input }): Promise<{ id: string }> => {
       const source = await loadForkSource(input.studyId, ctx.dbUser.id);
+      const tenantId = await resolveTargetTenant(ctx.dbUser.id, ctx.workspace.id, input.targetWorkspaceId);
       // Cross-workspace replication is for FINISHED studies (ADR-0054): you
       // replicate a *finding*, not a plan. Same-workspace duplication (forking
       // into the source's own workspace) stays open — that's iteration, not a
       // scientific replication. Borrowing an unfinished study's design uses
       // `useAsTemplate`, which shares loadForkSource but skips this gate.
-      if (source.experiment.tenantId !== ctx.workspace.id && !source.experiment.finishedAt) {
+      if (source.experiment.tenantId !== tenantId && !source.experiment.finishedAt) {
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
           message: "Only a finished study can be replicated. Use “Use as template” to start from its design instead.",
@@ -4076,7 +4099,7 @@ export const studiesRouter = router({
         const [exp] = await tx
           .insert(experiment)
           .values({
-            tenantId: ctx.workspace.id,
+            tenantId,
             ownerId: ctx.dbUser.id,
             title: source.experiment.title,
             tags: source.experiment.tags ?? null,
@@ -4410,9 +4433,10 @@ export const studiesRouter = router({
    *  identities (ADR-0038 — the template-repo analogue; vs Replicate/ADR-0018
    *  which preserves ids for diffing). */
   useAsTemplate: writeProcedure
-    .input(z.object({ studyId: z.string().uuid() }))
+    .input(z.object({ studyId: z.string().uuid(), targetWorkspaceId: z.string().uuid().optional() }))
     .mutation(async ({ ctx, input }): Promise<{ id: string }> => {
       const source = await loadForkSource(input.studyId, ctx.dbUser.id); // same public/member gate as fork
+      const tenantId = await resolveTargetTenant(ctx.dbUser.id, ctx.workspace.id, input.targetWorkspaceId);
       const blocks = readBlocks(source.version.definitionSnapshot);
       const groups = readGroups(source.version.definitionSnapshot).map(({ moduleId: _m, ...g }) => g);
       const overview = readOverview(source.version.definitionSnapshot);
@@ -4447,7 +4471,7 @@ export const studiesRouter = router({
         const [exp] = await tx
           .insert(experiment)
           .values({
-            tenantId: ctx.workspace.id,
+            tenantId,
             ownerId: ctx.dbUser.id,
             title: `${source.experiment.title} (from template)`,
             tags: source.experiment.tags ?? null,
