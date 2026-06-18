@@ -3,6 +3,7 @@ import type { Route } from "next";
 import { notFound } from "next/navigation";
 
 import { StageTabs } from "@/components/chrome/stage-tabs";
+import { FinishStudyCard } from "@/components/feature/results/finish-study-card";
 import { ResultsActions } from "@/components/feature/results/results-actions";
 import { SpatialOverlay } from "@/components/feature/results/spatial-overlay";
 import { getServerApi } from "@/server/trpc/server";
@@ -55,6 +56,7 @@ export default async function ResultsStagePage({
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-3">
       <StageTabs studyId={study.id} active="Results" />
+      <FinishStudyCard studyId={study.id} />
 
       <div className="flex flex-1 flex-col gap-5 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6">
         <div className="flex items-start justify-between gap-3">

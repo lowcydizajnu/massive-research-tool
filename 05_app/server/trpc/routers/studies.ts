@@ -4033,6 +4033,17 @@ export const studiesRouter = router({
     )
     .mutation(async ({ ctx, input }): Promise<{ id: string }> => {
       const source = await loadForkSource(input.studyId, ctx.dbUser.id);
+      // Cross-workspace replication is for FINISHED studies (ADR-0054): you
+      // replicate a *finding*, not a plan. Same-workspace duplication (forking
+      // into the source's own workspace) stays open — that's iteration, not a
+      // scientific replication. Borrowing an unfinished study's design uses
+      // `useAsTemplate`, which shares loadForkSource but skips this gate.
+      if (source.experiment.tenantId !== ctx.workspace.id && !source.experiment.finishedAt) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Only a finished study can be replicated. Use “Use as template” to start from its design instead.",
+        });
+      }
       const blocks = readBlocks(source.version.definitionSnapshot);
       // A replication carries the WHOLE protocol: groups (minus moduleId — a
       // workspace-local custom-module link) + the Overview document (ADR-0028/0029).
@@ -4568,5 +4579,81 @@ export const studiesRouter = router({
         .returning({ forkableBy: experiment.forkableBy });
       if (!row) throw new TRPCError({ code: "NOT_FOUND" });
       return { forkableBy: row.forkableBy };
+    }),
+
+  /**
+   * Finished-state for the Results-stage CTA (ADR-0054). Reports whether the
+   * study is finished + whether it CAN be finished (no open recruitment +
+   * >=1 completed response — "there's something to report").
+   */
+  finishedState: workspaceProcedure
+    .input(z.object({ studyId: z.string().uuid() }))
+    .query(async ({ ctx, input }): Promise<{ finishedAt: string | null; completedResponses: number; hasOpenRecruitment: boolean }> => {
+      const [exp] = await db
+        .select({ finishedAt: experiment.finishedAt })
+        .from(experiment)
+        .where(and(eq(experiment.id, input.studyId), eq(experiment.tenantId, ctx.workspace.id)))
+        .limit(1);
+      if (!exp) throw new TRPCError({ code: "NOT_FOUND", message: "Study not found." });
+      const [open] = await db
+        .select({ id: recruitmentSession.id })
+        .from(recruitmentSession)
+        .innerJoin(experimentVersion, eq(recruitmentSession.experimentVersionId, experimentVersion.id))
+        .where(and(eq(experimentVersion.experimentId, input.studyId), eq(recruitmentSession.status, "open")))
+        .limit(1);
+      const [{ n }] = await db
+        .select({ n: count() })
+        .from(responseTable)
+        .innerJoin(experimentVersion, eq(responseTable.experimentVersionId, experimentVersion.id))
+        .where(and(eq(experimentVersion.experimentId, input.studyId), eq(responseTable.status, "completed")));
+      return { finishedAt: exp.finishedAt?.toISOString() ?? null, completedResponses: Number(n), hasOpenRecruitment: !!open };
+    }),
+
+  /**
+   * Mark a study Finished / reopen it (ADR-0054). Finishing requires recruitment
+   * closed + >=1 completed response; it gates Replicate + the Study Record.
+   * Reversible: reopen clears the state. writeProcedure.
+   */
+  setFinished: writeProcedure
+    .input(z.object({ studyId: z.string().uuid(), finished: z.boolean() }))
+    .mutation(async ({ ctx, input }): Promise<{ finishedAt: string | null }> => {
+      const [exp] = await db
+        .select({ id: experiment.id })
+        .from(experiment)
+        .where(and(eq(experiment.id, input.studyId), eq(experiment.tenantId, ctx.workspace.id)))
+        .limit(1);
+      if (!exp) throw new TRPCError({ code: "NOT_FOUND", message: "Study not found." });
+
+      if (input.finished) {
+        const [open] = await db
+          .select({ id: recruitmentSession.id })
+          .from(recruitmentSession)
+          .innerJoin(experimentVersion, eq(recruitmentSession.experimentVersionId, experimentVersion.id))
+          .where(and(eq(experimentVersion.experimentId, input.studyId), eq(recruitmentSession.status, "open")))
+          .limit(1);
+        if (open) {
+          throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Stop recruitment before marking the study finished." });
+        }
+        const [{ n }] = await db
+          .select({ n: count() })
+          .from(responseTable)
+          .innerJoin(experimentVersion, eq(responseTable.experimentVersionId, experimentVersion.id))
+          .where(and(eq(experimentVersion.experimentId, input.studyId), eq(responseTable.status, "completed")));
+        if (Number(n) === 0) {
+          throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Collect at least one completed response before marking the study finished." });
+        }
+      }
+
+      const [row] = await db
+        .update(experiment)
+        .set(
+          input.finished
+            ? { finishedAt: new Date(), finishedByUserId: ctx.dbUser.id, updatedAt: new Date() }
+            : { finishedAt: null, finishedByUserId: null, updatedAt: new Date() },
+        )
+        .where(and(eq(experiment.id, input.studyId), eq(experiment.tenantId, ctx.workspace.id)))
+        .returning({ finishedAt: experiment.finishedAt });
+      // The study_finished activity event + the Study Record page land in the next Slice-1 commit.
+      return { finishedAt: row?.finishedAt?.toISOString() ?? null };
     }),
 });

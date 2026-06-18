@@ -301,6 +301,11 @@ export const experiment = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
+    /** Marked Finished (ADR-0054): data collection done, a Study Record exists.
+     *  Gates Replicate (you replicate a finding, not a plan) + Browse landing.
+     *  Nullable = not finished; reversible (reopen clears it). */
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    finishedByUserId: uuid("finished_by_user_id").references((): AnyPgColumn => user.id),
     /** Seeded demo study (ADR-0023) — excluded from /browse + public aggregates;
      *  shown in its workspace only when workspace.show_demo_content is on. */
     isDemo: boolean("is_demo").notNull().default(false),
