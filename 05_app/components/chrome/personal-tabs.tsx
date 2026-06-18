@@ -11,9 +11,12 @@ import { cn } from "@/lib/utils";
  * Home (your dashboard across workspaces) + Browse (discover + replicate public
  * studies). Browse lives here, not in the workspace rail, because it's global.
  */
+// Labels name the SCOPE, not just the surface: "Your Dashboard" is your own
+// cross-workspace home; "Browse Entire App" is the global public catalogue. An
+// app-level section may join them later (owner note 2026-06-18).
 const TABS: { label: string; href: Route }[] = [
-  { label: "Dashboard", href: "/home" as Route },
-  { label: "Browse", href: "/browse" as Route },
+  { label: "Your Dashboard", href: "/home" as Route },
+  { label: "Browse Entire App", href: "/browse" as Route },
 ];
 
 export function PersonalTabs() {

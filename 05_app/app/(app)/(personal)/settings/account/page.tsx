@@ -2,8 +2,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { ProfileForm } from "@/components/feature/settings/profile-form";
-import { ActivityFilterSettings } from "@/components/feature/settings/activity-filter-settings";
-import { DemoContentToggle } from "@/components/feature/settings/demo-content-toggle";
 import { PanelSideToggle } from "@/components/feature/settings/panel-side-toggle";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { FormSubmitButton } from "@/components/ui/form-submit-button";
@@ -15,9 +13,12 @@ import { connectOsfTokenAction } from "@/server/registry/connect-token";
 import { disconnectOsfAction } from "@/server/registry/disconnect";
 
 /**
- * Account Settings (account-settings.md). V1.5 ships the **Connections** tab
- * (per-user OSF OAuth, ADR-0005); Profile / Appearance / Notifications are
- * shown but inert (full account settings are a later surface).
+ * Account Settings (account-settings.md) — PERSONAL scope (IA v0.7): renders in
+ * personal-mode chrome, holding only per-user concerns — Profile, Connections
+ * (per-user OSF OAuth, ADR-0005), and Appearance (theme + panel side). Anything
+ * that mutates a workspace (demo content, the workspace Activity-feed filter)
+ * lives on `/settings/workspace` instead, so Account never "leads to a
+ * workspace". Notifications stays shown-but-inert (a later surface).
  */
 const TABS = ["Profile", "Connections", "Appearance", "Notifications"] as const;
 const ACTIVE_TABS = new Set(["Profile", "Connections", "Appearance"]);
@@ -47,10 +48,19 @@ export default async function AccountSettingsPage({
     sp.tab === "connections" ? "connections" : sp.tab === "appearance" ? "appearance" : "profile";
 
   return (
-    <main className="flex min-w-0 flex-1 flex-col gap-5 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6">
-      <h1 className="font-serif text-[length:var(--text-display)] font-medium text-[var(--color-text-primary)]">
-        Account
-      </h1>
+    <main className="mx-auto flex w-full max-w-5xl flex-col gap-5 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6">
+      <div className="flex flex-col gap-1">
+        <h1 className="font-serif text-[length:var(--text-display)] font-medium text-[var(--color-text-primary)]">
+          Account
+        </h1>
+        <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+          Your personal settings. Workspace settings (demo content, the team Activity feed) live in{" "}
+          <Link href="/settings/workspace" className="text-[var(--color-primary)] hover:opacity-90">
+            Workspace settings
+          </Link>
+          .
+        </p>
+      </div>
 
       <nav role="tablist" aria-label="Account settings" className="flex flex-wrap gap-1 border-b border-[var(--color-border-subtle)] pb-2">
         {TABS.map((label) => {
@@ -95,12 +105,6 @@ export default async function AccountSettingsPage({
           <ThemeToggle />
           <div className="mt-2 border-t border-[var(--color-border-subtle)] pt-4">
             <PanelSideToggle />
-          </div>
-          <div className="mt-2 border-t border-[var(--color-border-subtle)] pt-4">
-            <DemoContentToggle />
-          </div>
-          <div className="mt-2 border-t border-[var(--color-border-subtle)] pt-4">
-            <ActivityFilterSettings />
           </div>
         </section>
       ) : null}

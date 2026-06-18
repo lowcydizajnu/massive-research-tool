@@ -5,6 +5,8 @@
 - **Persona:** [Hanna Kowalczyk — postdoc operator](../../02_product/personas/postdoc-operator.md)
 - **Status:** draft
 
+> **v0.7 amendment (2026-06-18, IA v0.7):** Account settings now renders in **personal-mode chrome** (slim personal top bar, **no workspace left rail**), reached from the UserMenu → *Account settings*. Its scope is strictly per-user: Profile · Connections (per-user OSF) · Appearance (theme + right-panel side). The two workspace-admin toggles that used to sit under Appearance — **Show demo content** and the **workspace Activity-feed filter** — moved to the new **Workspace settings** page (`/settings/workspace`, workspace chrome, reached from the rail's *Settings*). Sub-nav references to a Settings left rail below are superseded by this entry.
+
 ## Purpose
 
 User-level identity + visual preference + connected-services management. Separate from workspace-level settings.
