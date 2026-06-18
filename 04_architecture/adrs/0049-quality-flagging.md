@@ -59,9 +59,20 @@ Deferred detection rules (shape ready, rules land later): attention-check failur
 - False positives annoy users → tune thresholds / add the auto-approval policy.
 - Detection volume grows → move the scan to the Inngest post-completion / recruitment-close job.
 
+## Amendment 1 (2026-06-18) — three deferred rules + the background sweep
+
+The deferred rules now ship (the attention-check block + enough live data exist), and detection moves from on-demand-only to on-demand **plus** a background cron. All additive — the `quality_flag_kind` enum already carries every kind (migration 0021); no migration.
+
+- **slow_completion** — > 3× the study median (≥5 sample). Severity **low** (often benign — a participant stepped away); surfaced so the researcher can judge, not as an accusation.
+- **attention_check** — a response whose `attention-check` block answer (`{selected:[…]}`) ≠ the block's `config.correctAnswer`. The correct answer is read from the response's **own** `experiment_version.definition_snapshot` (the frozen blocks), so it stays correct across amendments. Severity **high**.
+- **spam_text** — a `free-text` answer that is a pasted URL or a single character repeated ≥4×. Deliberately narrow (NLP-grade spam detection is high-FP and out of scope); severity **medium**.
+- **Background sweep** — `detectFlagsAllWorkspaces()` runs hourly via an Inngest cron (`recruitment-detect-quality`), iterating workspaces with completed responses. Idempotent (the existing `onConflictDoNothing` on `(response, kind)`), so it never collides with a manual Re-scan and never resurrects a resolved flag. Re-scan stays for on-demand use.
+
+Unchanged: the money boundary (resolve→pay is ADR-0052, now shipped), opaque-PID-only, write-member resolution. Auto-approval policy remains deferred (its own money-sensitive decision).
+
 ## References
 
-- ADR-0050 (reconciliation — `provider_submission`), ADR-0048 (compensation; same money boundary), ADR-0014 (PII; opaque PID only), ADR-0051 (panels — exclude flagged PIDs later).
+- ADR-0050 (reconciliation — `provider_submission`), ADR-0048 (compensation; same money boundary), ADR-0052 (resolve→provider money actions), ADR-0014 (PII; opaque PID only), ADR-0051 (panels — exclude flagged PIDs later).
 - Wireframe: `03_design/wireframes/participants-quality.md`.
 - Handoff: `04_architecture/handoffs/code-tab-v1150-participants.md` §P5/§P6.
 - Code (on build): `05_app/server/db/schema.ts` (`quality_flag`), `05_app/server/recruitment/quality.ts` (detection), `05_app/server/trpc/routers/quality.ts`, `05_app/app/(app)/(workspace)/participants/quality/`.

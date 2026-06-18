@@ -49,6 +49,7 @@ import {
   user,
   workspace,
 } from "@/server/db/schema";
+import { detectFlagsAllWorkspaces } from "@/server/recruitment/quality";
 import { appRouter } from "@/server/trpc/root";
 import { createCallerFactory } from "@/server/trpc/trpc";
 
@@ -62,11 +63,11 @@ async function seedWs(ext: string, slug: string, role: "owner" | "viewer" = "own
   return { u, ws };
 }
 
-async function seedStudyGraph(ws: { id: string }, owner: { id: string }, title = "Study") {
+async function seedStudyGraph(ws: { id: string }, owner: { id: string }, title = "Study", blocks: unknown[] = []) {
   const [exp] = await db.insert(experiment).values({ tenantId: ws.id, ownerId: owner.id, title }).returning();
   const [ver] = await db
     .insert(experimentVersion)
-    .values({ experimentId: exp.id, versionNumber: 1, kind: "preregistered", name: "v1", definitionSnapshot: { blocks: [] }, moduleVersionLocks: {}, createdBy: owner.id })
+    .values({ experimentId: exp.id, versionNumber: 1, kind: "preregistered", name: "v1", definitionSnapshot: { blocks }, moduleVersionLocks: {}, createdBy: owner.id })
     .returning();
   const [cond] = await db
     .insert(condition)
@@ -130,6 +131,20 @@ async function addItem(responseId: string, value: string | number, n: number) {
     moduleKey: "likert",
     moduleVersion: "1",
     answer: { value },
+  });
+}
+
+/** Insert a response item with an explicit block instance id / module / answer shape. */
+async function addRawItem(responseId: string, blockInstanceId: string, moduleKey: string, answer: unknown, n: number) {
+  await db.insert(responseItem).values({
+    id: ulid(),
+    responseId,
+    blockInstanceId,
+    blockPosition: n,
+    moduleSource: "core",
+    moduleKey,
+    moduleVersion: "1",
+    answer: answer as Record<string, unknown>,
   });
 }
 
@@ -201,6 +216,70 @@ describe("quality.rescan detection", () => {
     expect(second.created).toBe(0);
     const open = await caller.recruitment.quality.list({ resolved: false });
     expect(open.filter((f) => f.flagKind === "straight_lining")).toHaveLength(1);
+  });
+});
+
+describe("quality detection — amendment 1 rules", () => {
+  it("flags a suspiciously slow completion (> 3x median)", async () => {
+    const { u, ws } = await seedWs("u", "lab");
+    const g = await seedStudyGraph(ws, u);
+    for (let i = 0; i < 5; i++) await seedResponse(g, `p${i}`, 600); // median ~600s
+    await seedResponse(g, "slowpoke", 3000); // > 1800
+    const caller = createCaller({ authUser: authUser("u") });
+    await caller.recruitment.quality.rescan({});
+    const slow = (await caller.recruitment.quality.list({ resolved: false })).filter((f) => f.flagKind === "slow_completion");
+    expect(slow).toHaveLength(1);
+    expect(slow[0]).toMatchObject({ externalPid: "slowpoke", severity: "low" });
+  });
+
+  it("flags a failed attention check against the version's correctAnswer", async () => {
+    const { u, ws } = await seedWs("u", "lab");
+    const block = { instanceId: "ac1", source: "core", key: "attention-check", version: "1.0.0", config: { correctAnswer: "Strongly agree" } };
+    const g = await seedStudyGraph(ws, u, "Study", [block]);
+    const pass = await seedResponse(g, "honest", 600);
+    await addRawItem(pass, "ac1", "attention-check", { selected: ["Strongly agree"] }, 1);
+    const fail = await seedResponse(g, "inattentive", 600);
+    await addRawItem(fail, "ac1", "attention-check", { selected: ["Neutral"] }, 1);
+    const caller = createCaller({ authUser: authUser("u") });
+    await caller.recruitment.quality.rescan({});
+    const ac = (await caller.recruitment.quality.list({ resolved: false })).filter((f) => f.flagKind === "attention_check");
+    expect(ac).toHaveLength(1);
+    expect(ac[0]).toMatchObject({ externalPid: "inattentive", severity: "high" });
+  });
+
+  it("flags spam free-text (URL) but not normal prose", async () => {
+    const { u, ws } = await seedWs("u", "lab");
+    const g = await seedStudyGraph(ws, u);
+    const spam = await seedResponse(g, "spammer", 600);
+    await addRawItem(spam, "ft1", "free-text", { text: "visit http://buy-now.example" }, 1);
+    const clean = await seedResponse(g, "genuine", 600);
+    await addRawItem(clean, "ft1", "free-text", { text: "I found the task clear and engaging." }, 1);
+    const caller = createCaller({ authUser: authUser("u") });
+    await caller.recruitment.quality.rescan({});
+    const spamFlags = (await caller.recruitment.quality.list({ resolved: false })).filter((f) => f.flagKind === "spam_text");
+    expect(spamFlags).toHaveLength(1);
+    expect(spamFlags[0].externalPid).toBe("spammer");
+  });
+
+  it("background sweep flags across every workspace, idempotently", async () => {
+    const a = await seedWs("a", "lab-a");
+    const ga = await seedStudyGraph(a.ws, a.u);
+    const session2 = ulid();
+    await db.insert(recruitmentSession).values({ id: session2, experimentVersionId: ga.versionId, status: "open" });
+    await seedResponse(ga, "dup", 600);
+    await seedResponse({ ...ga, sessionId: session2 }, "dup", 600); // duplicate across sessions
+    const b = await seedWs("b", "lab-b");
+    const gb = await seedStudyGraph(b.ws, b.u);
+    const r = await seedResponse(gb, "flat", 600);
+    await addItem(r, "agree", 1);
+    await addItem(r, "agree", 2);
+    await addItem(r, "agree", 3);
+
+    const first = await detectFlagsAllWorkspaces();
+    expect(first.workspaces).toBe(2);
+    expect(first.created).toBe(3); // 2 duplicate + 1 straight-lining
+    const second = await detectFlagsAllWorkspaces();
+    expect(second.created).toBe(0); // idempotent
   });
 });
 

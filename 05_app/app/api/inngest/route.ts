@@ -4,7 +4,7 @@ import { inngest } from "@/server/adapters/jobs.inngest";
 import type { JobCatalog } from "@/server/adapters/jobs";
 import { runRegistryPush } from "@/server/jobs/registry-push";
 import { runEmailDigest, runNotificationFanout } from "@/server/jobs/notification-fanout";
-import { runPollProviderStatus, runReconcileStudy } from "@/server/jobs/recruitment";
+import { runDetectQuality, runPollProviderStatus, runReconcileStudy } from "@/server/jobs/recruitment";
 
 /**
  * Inngest serve endpoint. Deliberate lock-in exception (ADR-0007,
@@ -61,6 +61,17 @@ const recruitmentPollProviderStatus = inngest.createFunction(
   },
 );
 
+// V1.15 (ADR-0049 am. 1): hourly quality-detection sweep. detectFlags is
+// idempotent (onConflictDoNothing on (response, kind)), so this never collides
+// with a manual Re-scan and never resurrects a resolved flag.
+const recruitmentDetectQuality = inngest.createFunction(
+  { id: "recruitment-detect-quality", retries: 1 },
+  { cron: "0 * * * *" },
+  async () => {
+    return runDetectQuality();
+  },
+);
+
 export const { GET, POST, PUT } = serve({
   client: inngest,
   functions: [
@@ -69,5 +80,6 @@ export const { GET, POST, PUT } = serve({
     emailDigest,
     recruitmentReconcileStudy,
     recruitmentPollProviderStatus,
+    recruitmentDetectQuality,
   ],
 });
