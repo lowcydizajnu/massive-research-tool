@@ -52,10 +52,18 @@ export function QualityView({ initialOpen, initialResolved }: { initialOpen: Qua
   const utils = api.useUtils();
   const [tab, setTab] = useState<"open" | "resolved">("open");
   const [note, setNote] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkAction, setBulkAction] = useState<"approved" | "rejected" | "dismissed" | null>(null);
+  const [bulkReason, setBulkReason] = useState("");
 
   const open = api.recruitment.quality.list.useQuery({ resolved: false }, { initialData: initialOpen });
   const resolved = api.recruitment.quality.list.useQuery({ resolved: true }, { initialData: initialResolved });
   const refresh = () => void utils.recruitment.quality.list.invalidate();
+  const clearSelection = () => {
+    setSelected(new Set());
+    setBulkAction(null);
+    setBulkReason("");
+  };
 
   const rescan = api.recruitment.quality.rescan.useMutation({
     onSuccess: (r) => {
@@ -64,8 +72,27 @@ export function QualityView({ initialOpen, initialResolved }: { initialOpen: Qua
     },
     onError: (e) => setNote(e.message),
   });
+  const bulkResolve = api.recruitment.quality.bulkResolve.useMutation({
+    onSuccess: (r) => {
+      setNote(
+        `${r.resolved} resolved${r.appliedOnProvider ? ` · ${r.appliedOnProvider} actioned on Prolific` : ""}${r.failed.length ? ` · ${r.failed.length} failed` : ""}.`,
+      );
+      clearSelection();
+      refresh();
+    },
+    onError: (e) => setNote(e.message),
+  });
 
   const rows = tab === "open" ? (open.data ?? []) : (resolved.data ?? []);
+  const openIds = (open.data ?? []).map((f) => f.id);
+  const allSelected = openIds.length > 0 && openIds.every((id) => selected.has(id));
+  const toggle = (id: string) =>
+    setSelected((s) => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
 
   return (
     <section className="flex flex-col gap-4">
@@ -77,7 +104,10 @@ export function QualityView({ initialOpen, initialResolved }: { initialOpen: Qua
               key={t}
               role="tab"
               aria-selected={tab === t}
-              onClick={() => setTab(t)}
+              onClick={() => {
+                setTab(t);
+                clearSelection();
+              }}
               className={
                 "rounded-[var(--radius-sm)] px-2.5 py-1 font-medium " +
                 (tab === t ? "bg-[var(--color-surface-subtle)] text-[var(--color-text-primary)]" : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]")
@@ -109,11 +139,82 @@ export function QualityView({ initialOpen, initialResolved }: { initialOpen: Qua
           </p>
         </div>
       ) : (
-        <ul className="flex flex-col gap-2">
-          {rows.map((f) => (
-            <FlagRow key={f.id} flag={f} canWrite={canWrite} resolved={tab === "resolved"} onDone={refresh} />
-          ))}
-        </ul>
+        <>
+          {tab === "open" && canWrite ? (
+            <div className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] p-2">
+              <div className="flex flex-wrap items-center gap-3 text-[length:var(--text-small)]">
+                <label className="flex items-center gap-2 text-[var(--color-text-secondary)]">
+                  <input type="checkbox" checked={allSelected} onChange={() => setSelected(allSelected ? new Set() : new Set(openIds))} />
+                  {selected.size > 0 ? `${selected.size} selected` : "Select all"}
+                </label>
+                {selected.size > 0 ? (
+                  <span className="flex items-center gap-3">
+                    {(["approved", "rejected", "dismissed"] as const).map((a) => (
+                      <button
+                        key={a}
+                        type="button"
+                        onClick={() => {
+                          setNote(null);
+                          setBulkAction(a);
+                        }}
+                        className="font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+                      >
+                        {a === "approved" ? "Approve" : a === "rejected" ? "Reject" : "Dismiss"} {selected.size}
+                      </button>
+                    ))}
+                  </span>
+                ) : null}
+              </div>
+              {bulkAction ? (
+                <div className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-3">
+                  <p className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+                    {bulkAction === "approved"
+                      ? `Approve ${selected.size} on Prolific — each linked submission is paid its reward. Continue?`
+                      : bulkAction === "rejected"
+                        ? `Reject ${selected.size} on Prolific — these participants are not paid and Prolific notifies them with your reason.`
+                        : `Dismiss ${selected.size} flag${selected.size === 1 ? "" : "s"} (records your decision; no payment action).`}
+                  </p>
+                  {bulkAction === "rejected" ? (
+                    <textarea
+                      value={bulkReason}
+                      onChange={(e) => setBulkReason(e.target.value)}
+                      rows={2}
+                      placeholder="Reason shown to every rejected participant (required)"
+                      className="w-full max-w-prose rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-3 py-1.5 text-[length:var(--text-small)] text-[var(--color-text-primary)]"
+                    />
+                  ) : null}
+                  <div className="flex items-center gap-3">
+                    <PendingButton
+                      onClick={() => bulkResolve.mutate({ flagIds: [...selected], resolution: bulkAction, note: bulkReason.trim() || undefined })}
+                      disabled={bulkAction === "rejected" && !bulkReason.trim()}
+                      pending={bulkResolve.isPending}
+                      idleLabel={`Confirm — ${selected.size}`}
+                      pendingLabel="Working…"
+                      className={"w-fit px-4 py-1.5 " + (bulkAction === "rejected" ? "bg-[var(--color-danger)] hover:opacity-90" : "")}
+                    />
+                    <button type="button" onClick={() => setBulkAction(null)} className="text-[length:var(--text-small)] text-[var(--color-text-secondary)] underline hover:opacity-80">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          <ul className="flex flex-col gap-2">
+            {rows.map((f) => (
+              <FlagRow
+                key={f.id}
+                flag={f}
+                canWrite={canWrite}
+                resolved={tab === "resolved"}
+                onDone={refresh}
+                selectable={tab === "open" && canWrite}
+                checked={selected.has(f.id)}
+                onToggle={() => toggle(f.id)}
+              />
+            ))}
+          </ul>
+        </>
       )}
     </section>
   );
@@ -121,7 +222,23 @@ export function QualityView({ initialOpen, initialResolved }: { initialOpen: Qua
 
 type Action = "approved" | "rejected" | "bonus";
 
-function FlagRow({ flag, canWrite, resolved, onDone }: { flag: QualityFlagRow; canWrite: boolean; resolved: boolean; onDone: () => void }) {
+function FlagRow({
+  flag,
+  canWrite,
+  resolved,
+  onDone,
+  selectable = false,
+  checked = false,
+  onToggle,
+}: {
+  flag: QualityFlagRow;
+  canWrite: boolean;
+  resolved: boolean;
+  onDone: () => void;
+  selectable?: boolean;
+  checked?: boolean;
+  onToggle?: () => void;
+}) {
   const [expanded, setExpanded] = useState(false);
   const [action, setAction] = useState<Action | null>(null);
   const [reason, setReason] = useState("");
@@ -142,7 +259,17 @@ function FlagRow({ flag, canWrite, resolved, onDone }: { flag: QualityFlagRow; c
   return (
     <li className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0">
+        <div className="flex min-w-0 items-start gap-2">
+          {selectable ? (
+            <input
+              type="checkbox"
+              checked={checked}
+              onChange={onToggle}
+              aria-label="Select flag for bulk action"
+              className="mt-0.5"
+            />
+          ) : null}
+          <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className={"rounded-[var(--radius-sm)] px-1.5 py-0.5 text-[length:var(--text-small)] font-medium " + (SEVERITY_TONE[flag.severity] ?? "")}>
               {KIND_LABEL[flag.flagKind] ?? flag.flagKind}
@@ -153,6 +280,7 @@ function FlagRow({ flag, canWrite, resolved, onDone }: { flag: QualityFlagRow; c
             </span>
           </div>
           {flag.detail ? <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">{flag.detail}</p> : null}
+          </div>
         </div>
         {resolved ? (
           <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">

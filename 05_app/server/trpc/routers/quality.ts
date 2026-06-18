@@ -98,6 +98,69 @@ async function flagWithSubmission(flagId: string, workspaceId: string) {
   return row;
 }
 
+type LinkedFlag = Awaited<ReturnType<typeof flagWithSubmission>>;
+
+/**
+ * Apply one approve/reject/dismiss to a flag: trigger the provider money op when
+ * linked + connected (approve → reward payout + stamp; reject → stamp, requires a
+ * reason; dismiss → audit-only), then record the resolution. Shared by single
+ * `resolve` and `bulkResolve`. Throws BAD_REQUEST (reject w/o reason) or a mapped
+ * provider error BEFORE marking the flag resolved, so a failure never falsely
+ * records a decision. Returns whether the provider action fired.
+ */
+async function applyResolution(
+  f: LinkedFlag,
+  resolution: "approved" | "rejected" | "dismissed",
+  note: string | undefined,
+  token: string | null,
+  userId: string,
+  workspaceId: string,
+): Promise<{ appliedOnProvider: boolean }> {
+  if (resolution === "rejected" && !note) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "A reason is required to reject (the participant is notified)." });
+  }
+  let appliedOnProvider = false;
+  if (resolution !== "dismissed" && f.providerSubmissionId && f.submissionId && f.provider && token) {
+    const adapter = getRecruitmentAdapter(f.provider);
+    try {
+      if (resolution === "approved") {
+        await adapter.approveSubmission({ accessToken: token, submissionId: f.submissionId });
+        await db
+          .insert(payoutRecord)
+          .values({
+            id: ulid(),
+            workspaceId,
+            experimentId: f.experimentId,
+            providerSubmissionId: f.providerSubmissionId,
+            kind: "reward",
+            amountCents: f.rewardAmountCents ?? 0,
+            currency: f.currency ?? "GBP",
+            decidedByUserId: userId,
+          })
+          .onConflictDoNothing();
+        await db
+          .update(providerSubmission)
+          .set({ status: "approved", decidedAt: new Date(), decidedByUserId: userId })
+          .where(eq(providerSubmission.id, f.providerSubmissionId));
+      } else {
+        await adapter.rejectSubmission({ accessToken: token, submissionId: f.submissionId, reason: note! });
+        await db
+          .update(providerSubmission)
+          .set({ status: "rejected", decidedAt: new Date(), decidedByUserId: userId })
+          .where(eq(providerSubmission.id, f.providerSubmissionId));
+      }
+      appliedOnProvider = true;
+    } catch (e) {
+      throw toTRPC(e);
+    }
+  }
+  await db
+    .update(qualityFlag)
+    .set({ resolution, resolutionNote: note ?? null, resolvedAt: new Date(), resolvedByUserId: userId })
+    .where(eq(qualityFlag.id, f.id));
+  return { appliedOnProvider };
+}
+
 export const qualityRouter = router({
   list: workspaceProcedure
     .input(z.object({ resolved: z.boolean().default(false) }))
@@ -178,52 +241,44 @@ export const qualityRouter = router({
     )
     .mutation(async ({ ctx, input }): Promise<{ ok: true; appliedOnProvider: boolean }> => {
       const f = await flagWithSubmission(input.flagId, ctx.workspace.id);
-      let appliedOnProvider = false;
+      const token = input.resolution === "dismissed" ? null : await prolificToken(ctx.workspace.id, ctx.dbUser.id);
+      const { appliedOnProvider } = await applyResolution(f, input.resolution, input.note, token, ctx.dbUser.id, ctx.workspace.id);
+      return { ok: true, appliedOnProvider };
+    }),
 
-      if (input.resolution !== "dismissed" && f.providerSubmissionId && f.submissionId && f.provider) {
-        const token = await prolificToken(ctx.workspace.id, ctx.dbUser.id);
-        if (token) {
-          const adapter = getRecruitmentAdapter(f.provider);
-          try {
-            if (input.resolution === "approved") {
-              await adapter.approveSubmission({ accessToken: token, submissionId: f.submissionId });
-              await db
-                .insert(payoutRecord)
-                .values({
-                  id: ulid(),
-                  workspaceId: ctx.workspace.id,
-                  experimentId: f.experimentId,
-                  providerSubmissionId: f.providerSubmissionId,
-                  kind: "reward",
-                  amountCents: f.rewardAmountCents ?? 0,
-                  currency: f.currency ?? "GBP",
-                  decidedByUserId: ctx.dbUser.id,
-                })
-                .onConflictDoNothing();
-              await db
-                .update(providerSubmission)
-                .set({ status: "approved", decidedAt: new Date(), decidedByUserId: ctx.dbUser.id })
-                .where(eq(providerSubmission.id, f.providerSubmissionId));
-            } else {
-              if (!input.note) throw new TRPCError({ code: "BAD_REQUEST", message: "A reason is required to reject (the participant is notified)." });
-              await adapter.rejectSubmission({ accessToken: token, submissionId: f.submissionId, reason: input.note });
-              await db
-                .update(providerSubmission)
-                .set({ status: "rejected", decidedAt: new Date(), decidedByUserId: ctx.dbUser.id })
-                .where(eq(providerSubmission.id, f.providerSubmissionId));
-            }
-            appliedOnProvider = true;
-          } catch (e) {
-            throw toTRPC(e);
-          }
+  /**
+   * Resolve many flags in one action (ADR-0052 — bulk, with a single confirm of
+   * the total in the UI). Sequential (Prolific rate-limits); one flag's provider
+   * failure is collected, not fatal — the rest still process. Reject needs one
+   * shared reason. Returns a per-batch summary.
+   */
+  bulkResolve: writeProcedure
+    .input(
+      z.object({
+        flagIds: z.array(z.string()).min(1).max(200),
+        resolution: z.enum(["approved", "rejected", "dismissed"]),
+        note: z.string().trim().max(2000).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }): Promise<{ resolved: number; appliedOnProvider: number; failed: { flagId: string; message: string }[] }> => {
+      if (input.resolution === "rejected" && !input.note) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "A reason is required to reject (the participant is notified)." });
+      }
+      const token = input.resolution === "dismissed" ? null : await prolificToken(ctx.workspace.id, ctx.dbUser.id);
+      let resolved = 0;
+      let appliedOnProvider = 0;
+      const failed: { flagId: string; message: string }[] = [];
+      for (const flagId of input.flagIds) {
+        try {
+          const f = await flagWithSubmission(flagId, ctx.workspace.id);
+          const r = await applyResolution(f, input.resolution, input.note, token, ctx.dbUser.id, ctx.workspace.id);
+          resolved += 1;
+          if (r.appliedOnProvider) appliedOnProvider += 1;
+        } catch (e) {
+          failed.push({ flagId, message: e instanceof TRPCError ? e.message : "Failed." });
         }
       }
-
-      await db
-        .update(qualityFlag)
-        .set({ resolution: input.resolution, resolutionNote: input.note ?? null, resolvedAt: new Date(), resolvedByUserId: ctx.dbUser.id })
-        .where(eq(qualityFlag.id, f.id));
-      return { ok: true, appliedOnProvider };
+      return { resolved, appliedOnProvider, failed };
     }),
 
   /** Send a bonus on the provider for a flagged submission (ADR-0052). Records a bonus payout. */
