@@ -1041,6 +1041,9 @@ export const studiesRouter = router({
       z.object({
         tags: z.array(z.string()).optional(),
         authorQuery: z.string().trim().max(120).optional(),
+        /** Facets (ADR-0055). Finished = has a published Study Record; preregistered = has a prereg version. */
+        finished: z.boolean().optional(),
+        hasPreregistration: z.boolean().optional(),
         sort: z.enum(["recent", "replicated"]).default("recent"),
         cursor: z.string().optional(),
         limit: z.number().int().min(1).max(48).default(24),
@@ -1064,6 +1067,12 @@ export const studiesRouter = router({
       }
       if (input.authorQuery) {
         filters.push(ilike(user.displayName, `%${input.authorQuery}%`));
+      }
+      if (input.finished) {
+        filters.push(isNotNull(experiment.finishedAt));
+      }
+      if (input.hasPreregistration) {
+        filters.push(sql`exists (select 1 from ${experimentVersion} v where v.experiment_id = ${experiment.id} and v.kind = 'preregistered')`);
       }
 
       // Keyset cursor — rows strictly "after" the cursor in the sort order.

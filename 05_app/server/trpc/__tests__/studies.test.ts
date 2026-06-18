@@ -1435,6 +1435,29 @@ describe("studies.browsePublic + browseTags (V1.8 Stream B, ADR-0018)", () => {
     expect(r.items.map((i) => i.studyId)).toEqual([hStudy]);
   });
 
+  it("filters by finished + has-preregistration facets (ADR-0055)", async () => {
+    await seedUserWithWorkspace("hanna", "Hanna Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const finishedId = await makePublic(a, "Finished one"); // published + finishedAt set
+    // Public + published but NOT finished.
+    const { id: liveId } = await a.studies.create({ kind: "blank", title: "Live not finished" });
+    await a.studies.publish({ studyId: liveId });
+    await a.studies.setForkable({ studyId: liveId, forkableBy: "public" });
+    // Public + preregistered (not finished).
+    const { id: preregId } = await a.studies.create({ kind: "blank", title: "Prereg" });
+    await a.studies.preregister({ studyId: preregId });
+    await a.studies.setForkable({ studyId: preregId, forkableBy: "public" });
+
+    const fin = (await a.studies.browsePublic({ finished: true })).items.map((i) => i.studyId);
+    expect(fin).toContain(finishedId);
+    expect(fin).not.toContain(liveId);
+    expect(fin).not.toContain(preregId);
+
+    const pre = (await a.studies.browsePublic({ hasPreregistration: true })).items.map((i) => i.studyId);
+    expect(pre).toContain(preregId);
+    expect(pre).not.toContain(finishedId); // published-only
+  });
+
   it("sorts by most replicated", async () => {
     await seedUserWithWorkspace("hanna", "Hanna Lab");
     await seedUserWithWorkspace("sofia", "Sofia Lab");
