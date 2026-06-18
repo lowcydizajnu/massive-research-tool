@@ -719,12 +719,14 @@ export type BrowseStudyCard = {
   latestKind: "published" | "preregistered";
   latestVersionNumber: number;
   replicationCount: number;
+  /** Finished (ADR-0054) — gates Replicate vs Template on the card. */
+  finishedAt: string | null;
   createdAt: string;
 };
 
 export type BrowsePage = { items: BrowseStudyCard[]; nextCursor: string | null };
 
-/** Read-only public study detail for `/browse/[studyId]` (ADR-0018). */
+/** Read-only public study detail / Study Record for `/browse/[studyId]` (ADR-0018 / ADR-0054). */
 export type PublicStudyDetail = {
   studyId: string;
   title: string;
@@ -734,6 +736,11 @@ export type PublicStudyDetail = {
   latestKind: "published" | "preregistered";
   latestVersionNumber: number;
   replicationCount: number;
+  /** Finished (ADR-0054) — Record reads as a finished artifact vs "preliminary". */
+  finishedAt: string | null;
+  /** Bound Record sections (auto-composed, read-only) — abstract + method narrative from the snapshot. */
+  overview: { abstract: string; sections: { heading: string; contentMd: string }[] };
+  conditions: { name: string }[];
   blocks: VersionPreviewBlock[];
 };
 
@@ -1067,6 +1074,7 @@ export const studiesRouter = router({
           authorName: user.displayName,
           tags: experiment.tags,
           createdAt: experiment.createdAt,
+          finishedAt: experiment.finishedAt,
           replicationCount: repCount,
           latestVersionNumber: latestNum,
           latestKind: latestKind,
@@ -1099,6 +1107,7 @@ export const studiesRouter = router({
           latestKind: r.latestKind,
           latestVersionNumber: Number(r.latestVersionNumber),
           replicationCount: Number(r.replicationCount),
+          finishedAt: r.finishedAt?.toISOString() ?? null,
           createdAt: r.createdAt.toISOString(),
         })),
         nextCursor,
@@ -1121,6 +1130,7 @@ export const studiesRouter = router({
           authorId: experiment.ownerId,
           authorName: user.displayName,
           tags: experiment.tags,
+          finishedAt: experiment.finishedAt,
         })
         .from(experiment)
         .innerJoin(user, eq(user.id, experiment.ownerId))
@@ -1137,6 +1147,7 @@ export const studiesRouter = router({
 
       const [ver] = await db
         .select({
+          id: experimentVersion.id,
           kind: experimentVersion.kind,
           versionNumber: experimentVersion.versionNumber,
           snapshot: experimentVersion.definitionSnapshot,
@@ -1157,6 +1168,9 @@ export const studiesRouter = router({
         .from(experiment)
         .where(eq(experiment.forkOfExperimentId, input.studyId));
 
+      const ov = readOverview(ver.snapshot);
+      const conditions = await conditionsForVersion(ver.id);
+
       return {
         studyId: exp.id,
         title: exp.title,
@@ -1166,6 +1180,9 @@ export const studiesRouter = router({
         latestKind: ver.kind as "published" | "preregistered",
         latestVersionNumber: ver.versionNumber,
         replicationCount: reps?.c ?? 0,
+        finishedAt: exp.finishedAt?.toISOString() ?? null,
+        overview: { abstract: ov.abstract, sections: ov.sections.map((s) => ({ heading: s.heading, contentMd: s.contentMd })) },
+        conditions: conditions.map((c) => ({ name: c.name })),
         blocks: readBlocks(ver.snapshot).map((b) => {
           const d = blockDisplay(b);
           return { instanceId: b.instanceId, name: d.name, ref: d.ref, complete: d.complete };
