@@ -62,12 +62,26 @@ export function StudyCard({ study }: { study: StudyListItem }) {
           Edited {formatEdited(study.lastEditedAt)}
         </p>
       </div>
-      <span
-        className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[length:var(--text-small)] font-medium"
-        style={{ backgroundColor: stage.bg, color: stage.text }}
-      >
-        <span className="size-1.5 rounded-full" style={{ backgroundColor: stage.dot }} />
-        {stage.label}
+      <span className="flex shrink-0 flex-wrap items-center justify-end gap-1">
+        {/* Finished is a study-lifecycle tag shown ALONGSIDE the version tag, not
+            instead of it (ADR-0056) — a finished study is still Preregistered/
+            Published. Consistent wording with the focused top-bar badge. */}
+        {study.finishedAt ? (
+          <span
+            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[length:var(--text-small)] font-medium"
+            style={{ backgroundColor: "var(--color-success-subtle)", color: "var(--color-success-text-on-subtle)" }}
+          >
+            <span className="size-1.5 rounded-full" style={{ backgroundColor: "var(--color-success)" }} />
+            Finished
+          </span>
+        ) : null}
+        <span
+          className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[length:var(--text-small)] font-medium"
+          style={{ backgroundColor: stage.bg, color: stage.text }}
+        >
+          <span className="size-1.5 rounded-full" style={{ backgroundColor: stage.dot }} />
+          {stage.label}
+        </span>
       </span>
     </Link>
   );
