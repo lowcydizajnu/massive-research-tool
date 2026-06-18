@@ -470,6 +470,8 @@ export type StudyListItem = {
   lastEditedAt: string;
   isReplication: boolean;
   isOwner: boolean;
+  /** Finished (ADR-0054) — drives the consistent "Finished" tag on the card (ADR-0056). */
+  finishedAt: string | null;
 };
 
 export type StudyBlock = {
@@ -663,6 +665,8 @@ export type RunInfo = {
    *  i.e. Build edits that won't reach participants until publish/amend. */
   divergedFromLive: boolean;
   recruitment: { status: "open" | "paused" | "closed"; currentN: number } | null;
+  /** Study marked Finished (ADR-0054) — the badge shows "Finished" consistently (ADR-0056). */
+  finishedAt: string | null;
 };
 
 /** Per-condition + per-question results, plus per-response rows for CSV export. */
@@ -759,6 +763,8 @@ export type PublicStudyDetail = {
   replicationCount: number;
   /** Finished (ADR-0054) — Record reads as a finished artifact vs "preliminary". */
   finishedAt: string | null;
+  /** Study creation timestamp — drives the citation year fallback (ADR-0056). */
+  createdAt: string;
   /** Bound Record sections (auto-composed, read-only) — abstract + method narrative from the snapshot. */
   overview: { abstract: string; sections: { heading: string; contentMd: string }[] };
   conditions: { name: string }[];
@@ -774,6 +780,7 @@ export type PublicStudyDetail = {
     abstract: string | null;
     articleUrl: string | null;
     articleDoi: string | null;
+    publishedAt: string | null;
     layout: { type: string; content?: string; hidden?: boolean }[];
   } | null;
 };
@@ -1196,6 +1203,7 @@ export const studiesRouter = router({
           authorName: user.displayName,
           tags: experiment.tags,
           finishedAt: experiment.finishedAt,
+          createdAt: experiment.createdAt,
         })
         .from(experiment)
         .innerJoin(user, eq(user.id, experiment.ownerId))
@@ -1243,6 +1251,7 @@ export const studiesRouter = router({
           abstract: studyRecord.abstract,
           articleUrl: studyRecord.articleUrl,
           articleDoi: studyRecord.articleDoi,
+          publishedAt: studyRecord.publishedAt,
           layout: studyRecord.layout,
         })
         .from(studyRecord)
@@ -1254,6 +1263,7 @@ export const studiesRouter = router({
               abstract: recRow.abstract,
               articleUrl: recRow.articleUrl,
               articleDoi: recRow.articleDoi,
+              publishedAt: recRow.publishedAt?.toISOString() ?? null,
               layout: sanitizeRecordLayout(recRow.layout ?? []),
             }
           : null;
@@ -1268,6 +1278,7 @@ export const studiesRouter = router({
         latestVersionNumber: ver.versionNumber,
         replicationCount: reps?.c ?? 0,
         finishedAt: exp.finishedAt?.toISOString() ?? null,
+        createdAt: exp.createdAt.toISOString(),
         overview: { abstract: ov.abstract, sections: ov.sections.map((s) => ({ heading: s.heading, contentMd: s.contentMd })) },
         conditions: conditions.map((c) => ({ name: c.name })),
         blocks: readBlocks(ver.snapshot).map((b) => {
@@ -1361,6 +1372,7 @@ export const studiesRouter = router({
         lastEditedAt: e.updatedAt.toISOString(),
         isReplication: e.forkOfExperimentId !== null,
         isOwner: e.ownerId === ctx.dbUser.id,
+        finishedAt: e.finishedAt?.toISOString() ?? null,
       }));
 
       // Sub-nav filters beyond archived are applied in-memory (the workspace's
@@ -3306,7 +3318,7 @@ export const studiesRouter = router({
     .input(z.object({ studyId: z.string().uuid() }))
     .query(async ({ ctx, input }): Promise<RunInfo> => {
       const [ver] = await db
-        .select({ id: experimentVersion.id, kind: experimentVersion.kind, n: experimentVersion.versionNumber, snapshot: experimentVersion.definitionSnapshot })
+        .select({ id: experimentVersion.id, kind: experimentVersion.kind, n: experimentVersion.versionNumber, snapshot: experimentVersion.definitionSnapshot, finishedAt: experiment.finishedAt })
         .from(experimentVersion)
         .innerJoin(experiment, eq(experimentVersion.experimentId, experiment.id))
         .where(
@@ -3318,7 +3330,7 @@ export const studiesRouter = router({
         )
         .orderBy(desc(experimentVersion.versionNumber))
         .limit(1);
-      if (!ver) return { runnable: false, versionKind: null, liveVersionNumber: null, divergedFromLive: false, recruitment: null };
+      if (!ver) return { runnable: false, versionKind: null, liveVersionNumber: null, divergedFromLive: false, recruitment: null, finishedAt: null };
 
       // Drift: the editable autosave tip vs the frozen live version — edits made
       // after freezing don't reach participants until publish/amend/make-live.
@@ -3360,6 +3372,7 @@ export const studiesRouter = router({
         liveVersionNumber: ver.n,
         divergedFromLive,
         recruitment: rs ? { status: rs.status, currentN: pooledN } : null,
+        finishedAt: ver.finishedAt?.toISOString() ?? null,
       };
     }),
 

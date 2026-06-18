@@ -564,6 +564,7 @@ describe("studies.getRunInfo + openRecruitment", () => {
       liveVersionNumber: null,
       divergedFromLive: false,
       recruitment: null,
+      finishedAt: null,
     });
 
     await caller.studies.preregister({ studyId: id });

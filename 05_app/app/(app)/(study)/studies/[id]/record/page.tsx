@@ -2,16 +2,15 @@ import Link from "next/link";
 import type { Route } from "next";
 import { notFound } from "next/navigation";
 
+import { StageTabs } from "@/components/chrome/stage-tabs";
 import { RecordComposer } from "@/components/feature/study-record/record-composer";
 import { getServerApi } from "@/server/trpc/server";
 import type { StudyDetail } from "@/server/trpc/routers/studies";
 
 /**
- * Study Record composer stage (ADR-0054 §41, study-record.md, Slice 2). The
- * owner's edit mode for the finished-study publication: compose bound + authored
- * sections, then publish (visibility = public). Reached from Results once the
- * study is finished and from the Record's owner action card. Focused-study
- * chrome (no StageTabs — the Record is post-build, not one of the eight stages).
+ * Study Record composer — the LAST stage tab (ADR-0056; was nested under
+ * Results). The owner's edit mode for the finished-study publication: compose
+ * bound + authored sections, preview, then publish (visibility = public).
  */
 export const dynamic = "force-dynamic";
 
@@ -28,13 +27,8 @@ export default async function RecordStagePage({ params }: { params: Promise<{ id
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-3">
-      <div className="flex items-center justify-between gap-2">
-        <Link
-          href={`/studies/${study.id}/results` as Route}
-          className="text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
-        >
-          ← Back to Results
-        </Link>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <StageTabs studyId={study.id} active="Record" />
         {study.forkableBy === "public" ? (
           <Link
             href={`/browse/${study.id}` as Route}

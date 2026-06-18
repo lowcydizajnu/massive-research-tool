@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
  * spans only the center column, above the work surface. All eight stages
  * (Overview · Build · Design · Preview · Share · Preregister · Run · Results) route.
  */
-const STAGES = ["Overview", "Build", "Design", "Preview", "Share", "Preregister", "Run", "Results"] as const;
+const STAGES = ["Overview", "Build", "Design", "Preview", "Share", "Preregister", "Run", "Results", "Record"] as const;
 type Stage = (typeof STAGES)[number];
 
 /** Live stages map to a route; absent = inert ("coming soon"). */
@@ -21,6 +21,7 @@ function hrefFor(stage: Stage, studyId: string): Route | null {
   if (stage === "Preregister") return `/studies/${studyId}/preregister` as Route;
   if (stage === "Run") return `/studies/${studyId}/run` as Route;
   if (stage === "Results") return `/studies/${studyId}/results` as Route;
+  if (stage === "Record") return `/studies/${studyId}/record` as Route;
   return null;
 }
 

@@ -15,8 +15,20 @@ export function StudyStateBadge({ studyId }: { studyId: string }) {
   if (!data?.runnable) return null;
 
   const r = data.recruitment;
-  const statusLabel = !r ? "Frozen" : r.status === "open" ? "Recruiting" : r.status === "paused" ? "Paused" : "Closed";
-  const dot = !r || r.status === "closed"
+  // "Finished" is the study-lifecycle state (ADR-0054) and outranks the
+  // recruitment status in the label — so we never say "Closed" here while the
+  // rest of the app calls the same study "Finished" (ADR-0056 vocabulary fix).
+  const finished = !!data.finishedAt;
+  const statusLabel = finished
+    ? "Finished"
+    : !r
+      ? "Frozen"
+      : r.status === "open"
+        ? "Recruiting"
+        : r.status === "paused"
+          ? "Paused"
+          : "Closed";
+  const dot = finished || !r || r.status === "closed"
     ? "bg-[var(--color-text-muted)]"
     : r.status === "open"
       ? "bg-[var(--color-success)]"
