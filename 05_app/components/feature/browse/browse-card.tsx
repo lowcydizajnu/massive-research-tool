@@ -27,6 +27,12 @@ export function BrowseCard({
   const fork = api.studies.fork.useMutation({
     onSuccess: ({ id }) => router.push(`/studies/${id}/build`),
   });
+  // Replicate is for FINISHED studies (ADR-0054); otherwise offer Template
+  // (borrow the design). Server enforces the same rule on fork.
+  const template = api.studies.useAsTemplate.useMutation({
+    onSuccess: ({ id }) => router.push(`/studies/${id}/build`),
+  });
+  const finished = !!card.finishedAt;
 
   const marker =
     card.latestKind === "preregistered"
@@ -81,18 +87,30 @@ export function BrowseCard({
           {marker}
           {reps}
         </span>
-        <PendingButton
-          pending={fork.isPending}
-          idleLabel="Replicate"
-          pendingLabel="Replicating…"
-          onClick={() => fork.mutate({ studyId: card.studyId })}
-          className={cn("px-3 py-1.5 text-[length:var(--text-small)]")}
-        />
+        {finished ? (
+          <PendingButton
+            pending={fork.isPending}
+            idleLabel="Replicate"
+            pendingLabel="Replicating…"
+            onClick={() => fork.mutate({ studyId: card.studyId })}
+            className={cn("px-3 py-1.5 text-[length:var(--text-small)]")}
+          />
+        ) : (
+          <PendingButton
+            variant="secondary"
+            pending={template.isPending}
+            idleLabel="Use as template"
+            pendingLabel="Copying…"
+            onClick={() => template.mutate({ studyId: card.studyId })}
+            title="Not finished yet — start from its design (no replication lineage)"
+            className={cn("px-3 py-1.5 text-[length:var(--text-small)]")}
+          />
+        )}
       </div>
 
-      {fork.isError ? (
+      {fork.isError || template.isError ? (
         <p role="alert" className="text-[length:var(--text-small)] text-[var(--color-danger-text-on-subtle)]">
-          This study is no longer available to replicate.
+          {(fork.error ?? template.error)?.message ?? "This study is no longer available."}
         </p>
       ) : null}
     </article>

@@ -439,7 +439,7 @@
   "project": "Massive Research Tool",
   "tagline": "Multi-tenant SaaS for psychological experiments",
   "lastUpdated": "2026-06-18",
-  "currentFocus": "Study Record — Slice 1 spine: Finished state + Replicate gating + 'Mark as finished' CTA (v1.16.0-a1, MIGRATION 0023, pending deploy). First build off ADR-0054. experiment.finished_at + finished_by_user_id (migration 0023, additive — run db:migrate:prod before deploy). studies.setFinished (finish requires recruitment closed + >=1 completed response; reversible reopen) + studies.finishedState. Cross-workspace Replicate now requires the source be Finished (studies.fork throws otherwise); same-workspace duplication + useAsTemplate stay unrestricted. New 'Mark as finished' card on the Results stage (gated, precondition reasons, reopen). 568 vitest green (+4); existing fork tests updated to finish their cross-workspace sources; tsc + lint + build clean. Slice 1 remaining (commit 2): read-only Study Record page + Browse-lands-on-Record + card Replicate->Template swap + study_finished event. PRIOR: gate docs for Finished->Record->discovery (committed b83a133).",
+  "currentFocus": "Study Record — Slice 1 COMPLETE: the Record page + Browse landing (v1.16.0-a1, MIGRATION 0023, pending deploy). Commit 2 of Slice 1 (ADR-0054). getPublicStudy returns finishedAt + auto-composed bound sections (abstract + method narrative + conditions + protocol); browsePublic/BrowseStudyCard carry finishedAt. /browse/[studyId] is now the Study Record — Finished/Preliminary badge, Abstract, Method, Conditions, Protocol, and a gated action card: Replicate only when Finished, Use-as-template otherwise. Browse card swaps its CTA the same way. No new migration (reuses 0023). 568 vitest green; tsc + lint + build clean. Deferred to a small follow-up: the study_finished activity event. Slice 1 functionally complete, pending the gated deploy (migration 0023 -> push -> tag v1.16.0-a1). Next: Slice 2 composer, Slice 3 discovery+OSF. PRIOR: Slice 1 spine committed cb2feec.",
   "currentFocusPrev": "V1.15 Participants — Prolific filters fix SHIPPED (v1.15.0-a4, live 78b49c4). eligibility_requirements deprecated (error 140003) → createStudy now sends `filters`; empty when nothing selected so a no-filter study recruits anyone (owner confirmed this works). +1 test; 494 vitest green.",
   "phases": [
     {
@@ -1213,6 +1213,10 @@
     }
   ],
   "recentActivity": [
+    {
+      "date": "2026-06-18",
+      "text": "feat: Study Record Slice 1 complete (v1.16.0-a1) — the Record page + Browse landing (ADR-0054). getPublicStudy returns finishedAt + bound sections (abstract/method/conditions/protocol); /browse/[studyId] renders the Study Record with a Finished/Preliminary badge and a gated action card (Replicate when Finished, Use-as-template otherwise); Browse card swaps CTA the same way. No new migration (reuses 0023). 568 vitest green; tsc + lint + build clean. Deferred: study_finished activity event. Next: Slice 2 composer, Slice 3 discovery+OSF."
+    },
     {
       "date": "2026-06-18",
       "text": "feat: Study Record Slice 1 spine (v1.16.0-a1, MIGRATION 0023) — Finished lifecycle + Replicate gating + Mark-as-finished CTA (ADR-0054). experiment.finished_at + finished_by_user_id; studies.setFinished (closed recruitment + >=1 completed response; reversible) + finishedState; cross-workspace fork now requires Finished (Template + same-workspace dup stay open); Results-stage Mark-as-finished card. +4 tests; 568 vitest green; tsc + lint + build clean. Commit 2: the Study Record page + Browse landing."
