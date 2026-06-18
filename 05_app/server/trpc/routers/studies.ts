@@ -21,8 +21,10 @@ import {
   registryPush,
   response as responseTable,
   responseItem,
+  studyRecord,
   user,
 } from "@/server/db/schema";
+import { sanitizeLayout as sanitizeRecordLayout } from "@/lib/study-record/sections";
 import {
   type CustomModuleDefinition,
   definitionToBlocks,
@@ -761,6 +763,19 @@ export type PublicStudyDetail = {
   overview: { abstract: string; sections: { heading: string; contentMd: string }[] };
   conditions: { name: string }[];
   blocks: VersionPreviewBlock[];
+  /**
+   * The composed Study Record (ADR-0054 §41) when its owner has **published** it
+   * (visibility=public) — the page renders sections in this order, honouring
+   * authored content + hide. Null when no record is published yet (the page
+   * falls back to the default bound composition). Authored content only; bound
+   * sections still resolve from the fields above (PII-safe).
+   */
+  record: {
+    abstract: string | null;
+    articleUrl: string | null;
+    articleDoi: string | null;
+    layout: { type: string; content?: string; hidden?: boolean }[];
+  } | null;
 };
 
 /** Tag + usage count for the Browse filter sidebar. */
@@ -1221,6 +1236,28 @@ export const studiesRouter = router({
       const ov = readOverview(ver.snapshot);
       const conditions = await conditionsForVersion(ver.id);
 
+      // The composed Record overrides the default render only once published (ADR-0054).
+      const [recRow] = await db
+        .select({
+          visibility: studyRecord.visibility,
+          abstract: studyRecord.abstract,
+          articleUrl: studyRecord.articleUrl,
+          articleDoi: studyRecord.articleDoi,
+          layout: studyRecord.layout,
+        })
+        .from(studyRecord)
+        .where(eq(studyRecord.experimentId, input.studyId))
+        .limit(1);
+      const record =
+        recRow && recRow.visibility === "public"
+          ? {
+              abstract: recRow.abstract,
+              articleUrl: recRow.articleUrl,
+              articleDoi: recRow.articleDoi,
+              layout: sanitizeRecordLayout(recRow.layout ?? []),
+            }
+          : null;
+
       return {
         studyId: exp.id,
         title: exp.title,
@@ -1237,6 +1274,7 @@ export const studiesRouter = router({
           const d = blockDisplay(b);
           return { instanceId: b.instanceId, name: d.name, ref: d.ref, complete: d.complete };
         }),
+        record,
       };
     }),
 
