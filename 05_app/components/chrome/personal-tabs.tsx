@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
  * studies). Browse lives here, not in the workspace rail, because it's global.
  */
 const TABS: { label: string; href: Route }[] = [
-  { label: "Home", href: "/home" as Route },
+  { label: "Dashboard", href: "/home" as Route },
   { label: "Browse", href: "/browse" as Route },
 ];
 

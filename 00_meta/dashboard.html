@@ -439,7 +439,7 @@
   "project": "Massive Research Tool",
   "tagline": "Multi-tenant SaaS for psychological experiments",
   "lastUpdated": "2026-06-18",
-  "currentFocus": "Browse -> Home (item 2) COMPLETE — picker wired (3 commits stacked, pending deploy, migration-free). The Replicate dialog offers a workspace picker preselected to the most-recently-active writable workspace (workspace.list sorted by activity; viewer-role excluded), shown only when there's a choice, passing targetWorkspaceId. Browse card + Record's Use-as-template default to the active workspace (= your last-used). 569 vitest green; tsc + lint + build clean. Item 2 end-to-end: server foundation (b623474) -> IA move (2aeb179, Browse to Home + rail + tabs + IA v0.6) -> picker (this commit). 3 local commits await the gated deploy (tag v1.16.0-a3). Next item 1: Slice-3 facets (replication-allowed/finished/preregistered/country/language) + FTS behind SearchAdapter (ADR-0055; carries a migration). PRIOR: IA move 2aeb179.",
+  "currentFocus": "Browse/chrome polish round 2 (pending deploy, migration-free). Five fixes: Home top-tab renamed 'Dashboard' (route still /home); Browse is now a single-column list (one study per row) not a grid; the workspace breadcrumb no longer repeats the rail's destination (drops the section label when it's a left-rail item); the focused study breadcrumb title is black + bold (not clickable-blue); the workspace name + caret highlight together on hover (one unit, two targets). tsc + lint + build clean. Acknowledged: single-workspace users get no picker (works as designed). Deferred to item 1: filters become sticky top dropdowns (not the left sidebar); Home tabs stay a chrome strip (they span /home + /browse). Next: item 1 Slice-3 facets (top dropdowns) + FTS (ADR-0055; carries a migration). PRIOR: Browse->Home item 2 (deployed 1472231, v1.16.0-a3).",
   "currentFocusPrev": "V1.15 Participants — Prolific filters fix SHIPPED (v1.15.0-a4, live 78b49c4). eligibility_requirements deprecated (error 140003) → createStudy now sends `filters`; empty when nothing selected so a no-filter study recruits anyone (owner confirmed this works). +1 test; 494 vitest green.",
   "phases": [
     {
@@ -1213,6 +1213,10 @@
     }
   ],
   "recentActivity": [
+    {
+      "date": "2026-06-18",
+      "text": "chore(chrome): Browse/nav polish round 2 — Home tab renamed Dashboard; Browse single-column list (not grid); workspace breadcrumb stops repeating the rail's destination; focused study-title breadcrumb black+bold (not link-blue); workspace name+caret highlight together on hover. tsc + lint + build clean; migration-free. Deferred to item 1: filters as sticky top dropdowns."
+    },
     {
       "date": "2026-06-18",
       "text": "feat(browse): Replicate workspace picker preselected to last-used (ADR-0055) — completes item 2. The Replicate dialog shows a writable-workspace picker (preselected to the most-recently-active; shown only when >1), passing targetWorkspaceId; card + Use-as-template default to the active workspace. 569 vitest green; tsc + lint + build clean; migration-free. Item 2 done: foundation + IA move + picker (3 commits). Next: item 1 Slice-3 facets + FTS."

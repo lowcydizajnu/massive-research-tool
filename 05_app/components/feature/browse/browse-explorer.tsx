@@ -198,7 +198,9 @@ export function BrowseExplorer() {
           </div>
         ) : (
           <>
-            <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {/* One study per row (not a grid) — leaves room to surface more
+                detail per study (abstract, finished badge, counts) later. */}
+            <ul className="flex flex-col gap-3">
               {items.map((card) => (
                 <li key={card.studyId}>
                   <BrowseCard card={card} onAddTag={addTag} />

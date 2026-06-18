@@ -21,7 +21,11 @@ export function FocusedBreadcrumb({ studyId }: { studyId: string }) {
         Studies
       </Link>
       <span aria-hidden className="text-[var(--color-text-muted)]">/</span>
-      <span className="max-w-[300px] truncate font-serif text-[length:var(--text-body-emphasis)] text-[var(--color-primary)]">
+      {/* Not a link → black + bold, not the clickable-blue treatment. */}
+      <span
+        aria-current="page"
+        className="max-w-[300px] truncate font-serif text-[length:var(--text-body-emphasis)] font-semibold text-[var(--color-text-primary)]"
+      >
         {study.data?.title ?? "Study"}
       </span>
     </nav>

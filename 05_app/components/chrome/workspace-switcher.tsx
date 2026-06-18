@@ -32,23 +32,27 @@ export function WorkspaceSwitcher({
 
   return (
     <div className="relative flex items-center">
-      <Link
-        href={homeHref}
-        title={`${activeLabel} — go to ${mode === "workspace" ? "dashboard" : "home"}`}
-        className="flex max-w-[200px] items-center rounded-[var(--radius-md)] px-2 py-1 text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)] hover:bg-[var(--color-surface-subtle)]"
-      >
-        <span className="truncate">{activeLabel}</span>
-      </Link>
-      <button
-        type="button"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label="Switch workspace"
-        onClick={() => setOpen((v) => !v)}
-        className="flex items-center rounded-[var(--radius-md)] px-1 py-1 hover:bg-[var(--color-surface-subtle)]"
-      >
-        <ChevronDown className="size-3.5 shrink-0 text-[var(--color-text-muted)]" aria-hidden />
-      </button>
+      {/* Name + caret read as one unit — hovering either highlights both (group),
+          but they stay distinct targets: name → dashboard/home, caret → switcher. */}
+      <span className="group flex items-center rounded-[var(--radius-md)] hover:bg-[var(--color-surface-subtle)]">
+        <Link
+          href={homeHref}
+          title={`${activeLabel} — go to ${mode === "workspace" ? "dashboard" : "home"}`}
+          className="flex max-w-[200px] items-center rounded-l-[var(--radius-md)] py-1 pl-2 pr-1 text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]"
+        >
+          <span className="truncate">{activeLabel}</span>
+        </Link>
+        <button
+          type="button"
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-label="Switch workspace"
+          onClick={() => setOpen((v) => !v)}
+          className="flex items-center rounded-r-[var(--radius-md)] py-1 pl-0.5 pr-1.5"
+        >
+          <ChevronDown className="size-3.5 shrink-0 text-[var(--color-text-muted)]" aria-hidden />
+        </button>
+      </span>
 
       {open ? (
         <>
