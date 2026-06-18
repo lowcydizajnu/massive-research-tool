@@ -40,7 +40,10 @@ const DESTINATIONS: Destination[] = [
   { label: "Participants", icon: Users, href: "/participants" as Route },
   { label: "Activity", icon: Activity, href: "/activity" as Route },
   { label: "Team", icon: UsersRound, href: "/team" as Route },
-  { label: "Settings", icon: Settings, href: "/settings/account" },
+  // Workspace-scoped settings (IA v0.7). Personal/account settings live in the
+  // personal chrome (UserMenu → Account settings), NOT here — the rail is
+  // workspace nav, so it points at the workspace settings page.
+  { label: "Settings", icon: Settings, href: "/settings/workspace" as Route },
 ];
 
 export function LeftRail() {

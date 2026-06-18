@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { PersonalTabs } from "@/components/chrome/personal-tabs";
 import { FollowButton } from "@/components/feature/follow/follow-button";
+import { SelectMenu } from "@/components/ui/select-menu";
 import { api } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
 
@@ -66,8 +67,6 @@ export function BrowseExplorer() {
   const toggleTag = (t: string) =>
     setTags((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
 
-  const selectCls =
-    "rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2.5 py-1.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]";
   const summaryCls =
     "cursor-pointer list-none rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2.5 py-1.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)] [&::-webkit-details-marker]:hidden";
 
@@ -91,22 +90,12 @@ export function BrowseExplorer() {
         />
 
         {/* Studies — state filter (not a sort) */}
-        <label className="sr-only" htmlFor="browse-studies">
-          Studies
-        </label>
-        <select
-          id="browse-studies"
+        <SelectMenu
           value={studyState}
-          onChange={(e) => setStudyState(e.target.value as StudyState)}
-          className={selectCls}
-          aria-label="Filter by study state"
-        >
-          {STUDY_STATES.map((s) => (
-            <option key={s.value} value={s.value}>
-              {s.label}
-            </option>
-          ))}
-        </select>
+          options={STUDY_STATES}
+          onChange={setStudyState}
+          ariaLabel="Filter by study state"
+        />
 
         {/* Tags — multi-select dropdown (native details, keyboard-accessible) */}
         <details className="relative">
@@ -176,22 +165,14 @@ export function BrowseExplorer() {
         </details>
 
         {/* Sort — kept separate from filtering, pushed to the right */}
-        <label className="sr-only" htmlFor="browse-sort">
-          Sort
-        </label>
-        <select
-          id="browse-sort"
+        <SelectMenu
           value={sort}
-          onChange={(e) => setSort(e.target.value as Sort)}
-          className={cn(selectCls, "ml-auto")}
-          aria-label="Sort studies"
-        >
-          {SORTS.map((s) => (
-            <option key={s.value} value={s.value}>
-              {s.label}
-            </option>
-          ))}
-        </select>
+          options={SORTS}
+          onChange={setSort}
+          ariaLabel="Sort studies"
+          align="right"
+          className="ml-auto"
+        />
 
         {filtered ? (
           <button
