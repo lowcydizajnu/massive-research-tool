@@ -49,6 +49,7 @@ function fakeAdapter(over: Partial<RecruitmentAdapter> = {}): RecruitmentAdapter
     pauseStudy: vi.fn(),
     closeStudy: vi.fn(),
     getStudy: vi.fn().mockResolvedValue({ state: "active", placesTaken: 0, totalPlaces: 0 }),
+    studyUrl: (id: string) => `https://app.prolific.com/researcher/studies/${id}`,
     listSubmissions: vi.fn().mockResolvedValue([]),
     approveSubmission: vi.fn(),
     rejectSubmission: vi.fn(),

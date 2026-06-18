@@ -141,6 +141,9 @@ async function buildFilters(accessToken: string, e?: Eligibility): Promise<unkno
   return filters;
 }
 
+/** Researcher-facing study URL, derived purely from the id. */
+const researcherStudyUrl = (providerStudyId: string) => `https://app.prolific.com/researcher/studies/${providerStudyId}`;
+
 export const prolificAdapter: RecruitmentAdapter = {
   async validateToken({ accessToken }) {
     const res = await call("/users/me/", { accessToken, method: "GET" });
@@ -177,8 +180,10 @@ export const prolificAdapter: RecruitmentAdapter = {
     if (!study?.id) {
       throw new Error(`Prolific create returned no study id — response: ${JSON.stringify(study).slice(0, 400)}`);
     }
-    return { providerStudyId: study.id, providerStudyUrl: `https://app.prolific.com/researcher/studies/${study.id}` };
+    return { providerStudyId: study.id, providerStudyUrl: researcherStudyUrl(study.id) };
   },
+
+  studyUrl: researcherStudyUrl,
 
   async publishStudy({ accessToken, providerStudyId }) {
     await call(`/studies/${providerStudyId}/transition/`, {

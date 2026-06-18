@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Route } from "next";
 
 import { ParticipantsComingSoon } from "@/components/feature/participants/coming-soon";
+import { PROVIDER_STATE_BADGE } from "@/lib/recruitment-status";
 import { getServerApi } from "@/server/trpc/server";
 import type { OpenRecruitmentStudy } from "@/server/trpc/routers/recruitment";
 
@@ -12,11 +13,6 @@ import type { OpenRecruitmentStudy } from "@/server/trpc/routers/recruitment";
  * Studies · Running (which is our-side recruitment health).
  */
 export const dynamic = "force-dynamic";
-
-const STATUS_TONE: Record<string, string> = {
-  live: "bg-[var(--color-success-subtle)] text-[var(--color-success-text-on-subtle)]",
-  stopped: "bg-[var(--color-surface-subtle)] text-[var(--color-text-secondary)]",
-};
 
 function Stat({ n, label }: { n: number; label: string }) {
   return (
@@ -40,10 +36,11 @@ function StudyCard({ s }: { s: OpenRecruitmentStudy }) {
           </Link>
           <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
             Prolific · reward {s.reward.currency} {s.reward.amount.toFixed(2)}
+            {s.totalPlaces ? ` · ${s.placesTaken ?? 0} / ${s.totalPlaces} recruited` : ""}
           </p>
         </div>
-        <span className={`rounded-[var(--radius-sm)] px-1.5 py-0.5 text-[length:var(--text-small)] font-medium ${STATUS_TONE[s.providerStatus] ?? ""}`}>
-          {s.providerStatus === "live" ? "Live on Prolific" : "Stopped"}
+        <span className={`rounded-[var(--radius-sm)] px-1.5 py-0.5 text-[length:var(--text-small)] font-medium ${(PROVIDER_STATE_BADGE[s.state] ?? PROVIDER_STATE_BADGE.unknown).cls}`}>
+          {(PROVIDER_STATE_BADGE[s.state] ?? PROVIDER_STATE_BADGE.unknown).label}
         </span>
       </div>
 
