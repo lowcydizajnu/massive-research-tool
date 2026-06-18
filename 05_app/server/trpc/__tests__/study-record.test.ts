@@ -201,6 +201,35 @@ describe("studyRecord.saveAuthored + setVisibility (publish gate)", () => {
   });
 });
 
+describe("getPublicStudy reflects the published record (ADR-0054 read path)", () => {
+  it("returns null record until published, then the composed layout", async () => {
+    await seed("hanna", "Hanna Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const { id } = await a.studies.create({ kind: "blank", title: "Public record" });
+    await a.studies.publish({ studyId: id });
+    await a.studies.setForkable({ studyId: id, forkableBy: "public" });
+    await a.studyRecord.saveAuthored({ studyId: id, abstract: "Headline finding." });
+
+    // Composed but not yet published → public page falls back to the default render.
+    const before = await a.studies.getPublicStudy({ studyId: id });
+    expect(before.record).toBeNull();
+
+    // Reorder + hide, then publish.
+    await a.studyRecord.saveLayout({
+      studyId: id,
+      layout: [{ type: "abstract" }, { type: "method", hidden: true }, { type: "narrative", content: "Prose." }],
+    });
+    await a.studyRecord.setVisibility({ studyId: id, visibility: "public" });
+
+    const after = await a.studies.getPublicStudy({ studyId: id });
+    expect(after.record).not.toBeNull();
+    expect(after.record!.abstract).toBe("Headline finding.");
+    expect(after.record!.layout.map((s) => s.type)).toEqual(["abstract", "method", "narrative"]);
+    expect(after.record!.layout[1].hidden).toBe(true);
+    expect(after.record!.layout[2].content).toBe("Prose.");
+  });
+});
+
 describe("studyRecord tenant scoping", () => {
   it("is NOT_FOUND for a study in another workspace", async () => {
     await seed("hanna", "Hanna Lab");

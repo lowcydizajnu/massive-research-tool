@@ -89,52 +89,156 @@ export default async function StudyRecordPage({
         </p>
       ) : null}
 
+      {/* Composed Record (ADR-0054) once published; otherwise the default
+          bound composition. Authored sections (abstract/narrative/custom/
+          article) come from the record; bound sections resolve from `detail`. */}
+      {detail.record ? <ComposedRecord detail={detail} /> : <DefaultRecord detail={detail} />}
+    </main>
+  );
+}
+
+/** Default bound composition (Slice 1) — shown until the owner publishes a composed record. */
+function DefaultRecord({ detail }: { detail: PublicStudyDetail }) {
+  return (
+    <>
       {detail.overview.abstract ? (
         <Section title="Abstract">
           <p className="whitespace-pre-wrap text-[length:var(--text-body)] text-[var(--color-text-primary)]">{detail.overview.abstract}</p>
         </Section>
       ) : null}
+      <MethodSection detail={detail} />
+      <ProtocolSection detail={detail} />
+    </>
+  );
+}
 
-      {detail.overview.sections.length > 0 ? (
-        <Section title="Method">
-          <div className="flex flex-col gap-3">
-            {detail.overview.sections.map((s, i) => (
-              <div key={i} className="flex flex-col gap-1">
-                <h3 className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">{s.heading}</h3>
-                <p className="whitespace-pre-wrap text-[length:var(--text-small)] text-[var(--color-text-secondary)]">{s.contentMd}</p>
-              </div>
-            ))}
+/** Composed render — sections in the owner's saved order, hidden ones dropped. */
+function ComposedRecord({ detail }: { detail: PublicStudyDetail }) {
+  const rec = detail.record!;
+  const visible = rec.layout.filter((s) => !s.hidden);
+  return (
+    <>
+      {visible.map((s, i) => {
+        const key = `${s.type}-${i}`;
+        switch (s.type) {
+          case "abstract": {
+            const text = rec.abstract || detail.overview.abstract;
+            return text ? (
+              <Section key={key} title="Abstract">
+                <p className="whitespace-pre-wrap text-[length:var(--text-body)] text-[var(--color-text-primary)]">{text}</p>
+              </Section>
+            ) : null;
+          }
+          case "method":
+            return <MethodSection key={key} detail={detail} />;
+          case "preregistration":
+            return detail.latestKind === "preregistered" ? (
+              <Section key={key} title="Preregistration">
+                <p className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+                  This study was preregistered (v{detail.latestVersionNumber}) — its plan was frozen before data collection.
+                </p>
+              </Section>
+            ) : null;
+          case "replications":
+            return (
+              <Section key={key} title="Replications">
+                <p className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+                  {detail.replicationCount > 0
+                    ? `${detail.replicationCount} replication${detail.replicationCount === 1 ? "" : "s"} so far.`
+                    : "No replications yet."}
+                </p>
+              </Section>
+            );
+          case "results":
+          case "data":
+            return (
+              <Section key={key} title={s.type === "results" ? "Results" : "Data"}>
+                <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                  Aggregate results are shared with replicators; raw participant data stays private (ADR-0014).
+                </p>
+              </Section>
+            );
+          case "narrative":
+            return s.content ? (
+              <Section key={key} title="Results narrative">
+                <p className="whitespace-pre-wrap text-[length:var(--text-body)] text-[var(--color-text-primary)]">{s.content}</p>
+              </Section>
+            ) : null;
+          case "article-link":
+            return rec.articleUrl || rec.articleDoi ? (
+              <Section key={key} title="Article">
+                <div className="flex flex-col gap-1 text-[length:var(--text-small)]">
+                  {rec.articleUrl ? (
+                    <a href={rec.articleUrl} target="_blank" rel="noreferrer" className="text-[var(--color-primary)] hover:opacity-90">
+                      {rec.articleUrl}
+                    </a>
+                  ) : null}
+                  {rec.articleDoi ? <span className="text-[var(--color-text-secondary)]">DOI: {rec.articleDoi}</span> : null}
+                </div>
+              </Section>
+            ) : null;
+          case "materials":
+            return null; // media inventory deferred (greyed in the composer)
+          case "custom":
+            return s.content ? (
+              <Section key={key} title="More">
+                <p className="whitespace-pre-wrap text-[length:var(--text-body)] text-[var(--color-text-primary)]">{s.content}</p>
+              </Section>
+            ) : null;
+          default:
+            return null;
+        }
+      })}
+    </>
+  );
+}
+
+/** Bound Method section — overview narrative + conditions (the comparable skeleton). */
+function MethodSection({ detail }: { detail: PublicStudyDetail }) {
+  if (detail.overview.sections.length === 0 && detail.conditions.length === 0) return null;
+  return (
+    <Section title="Method">
+      <div className="flex flex-col gap-3">
+        {detail.overview.sections.map((s, i) => (
+          <div key={i} className="flex flex-col gap-1">
+            <h3 className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">{s.heading}</h3>
+            <p className="whitespace-pre-wrap text-[length:var(--text-small)] text-[var(--color-text-secondary)]">{s.contentMd}</p>
           </div>
-        </Section>
-      ) : null}
+        ))}
+        {detail.conditions.length > 0 ? (
+          <div className="flex flex-col gap-1">
+            <h3 className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">Conditions ({detail.conditions.length})</h3>
+            <ul className="flex flex-wrap gap-2">
+              {detail.conditions.map((c, i) => (
+                <li key={i} className="rounded-[var(--radius-sm)] bg-[var(--color-surface-subtle)] px-2 py-0.5 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+                  {c.name}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+      </div>
+    </Section>
+  );
+}
 
-      {detail.conditions.length > 0 ? (
-        <Section title={`Conditions (${detail.conditions.length})`}>
-          <ul className="flex flex-wrap gap-2">
-            {detail.conditions.map((c, i) => (
-              <li key={i} className="rounded-[var(--radius-sm)] bg-[var(--color-surface-subtle)] px-2 py-0.5 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
-                {c.name}
-              </li>
-            ))}
-          </ul>
-        </Section>
-      ) : null}
-
-      <Section title="Protocol">
-        {detail.blocks.length === 0 ? (
-          <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">This version has no blocks.</p>
-        ) : (
-          <ul className="flex flex-col gap-2">
-            {detail.blocks.map((b) => (
-              <li key={b.instanceId} className="flex flex-col rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-3">
-                <span className="text-[length:var(--text-body)] text-[var(--color-text-primary)]">{b.name}</span>
-                <span className="font-mono text-[length:var(--text-mono)] text-[var(--color-text-muted)]">{b.ref}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Section>
-    </main>
+/** Bound Protocol section — the version's blocks (names + refs). */
+function ProtocolSection({ detail }: { detail: PublicStudyDetail }) {
+  return (
+    <Section title="Protocol">
+      {detail.blocks.length === 0 ? (
+        <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">This version has no blocks.</p>
+      ) : (
+        <ul className="flex flex-col gap-2">
+          {detail.blocks.map((b) => (
+            <li key={b.instanceId} className="flex flex-col rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-3">
+              <span className="text-[length:var(--text-body)] text-[var(--color-text-primary)]">{b.name}</span>
+              <span className="font-mono text-[length:var(--text-mono)] text-[var(--color-text-muted)]">{b.ref}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Section>
   );
 }
 
