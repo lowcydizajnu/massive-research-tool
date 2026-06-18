@@ -439,7 +439,7 @@
   "project": "Massive Research Tool",
   "tagline": "Multi-tenant SaaS for psychological experiments",
   "lastUpdated": "2026-06-18",
-  "currentFocus": "Study Record — Slice 1 COMPLETE: the Record page + Browse landing (v1.16.0-a1, MIGRATION 0023, pending deploy). Commit 2 of Slice 1 (ADR-0054). getPublicStudy returns finishedAt + auto-composed bound sections (abstract + method narrative + conditions + protocol); browsePublic/BrowseStudyCard carry finishedAt. /browse/[studyId] is now the Study Record — Finished/Preliminary badge, Abstract, Method, Conditions, Protocol, and a gated action card: Replicate only when Finished, Use-as-template otherwise. Browse card swaps its CTA the same way. No new migration (reuses 0023). 568 vitest green; tsc + lint + build clean. Deferred to a small follow-up: the study_finished activity event. Slice 1 functionally complete, pending the gated deploy (migration 0023 -> push -> tag v1.16.0-a1). Next: Slice 2 composer, Slice 3 discovery+OSF. PRIOR: Slice 1 spine committed cb2feec.",
+  "currentFocus": "Chrome polish from owner feedback (pending deploy, migration-free). Workspace name in the top bar is now a link (workspace -> /dashboard, personal -> /home) with the caret as the switcher trigger; focused study bar's workspace name -> /dashboard. The cmd-K chip is removed from all top bars (command palette is headless — shortcut + modal still work, no visible icon). Owner role badge moved next to the user avatar. Pure chrome; tsc + lint + build clean. Investigated (not a code bug): duplicate 'DELETE ME' tiles are two real experiments (a study + its same-workspace fork); recent-study queries return one row per experiment. Owner decisions pending: move Browse into Home/global nav (IA), and confirm which 'old improvisation' to swap (likely the Browse filter sidebar -> ADR-0055 facets = Slice 3). PRIOR: Study Record Slice 1 complete (v1.16.0-a1, deployed 14b7b4e).",
   "currentFocusPrev": "V1.15 Participants — Prolific filters fix SHIPPED (v1.15.0-a4, live 78b49c4). eligibility_requirements deprecated (error 140003) → createStudy now sends `filters`; empty when nothing selected so a no-filter study recruits anyone (owner confirmed this works). +1 test; 494 vitest green.",
   "phases": [
     {
@@ -1213,6 +1213,10 @@
     }
   ],
   "recentActivity": [
+    {
+      "date": "2026-06-18",
+      "text": "chore(chrome): owner-feedback polish — workspace name links to /dashboard (caret = switcher); cmd-K chip removed from all top bars (palette headless, shortcut kept); Owner badge moved next to the avatar. Pure chrome; tsc + lint + build clean. Noted: duplicate 'DELETE ME' tiles are two real experiments (study + fork), not a query bug."
+    },
     {
       "date": "2026-06-18",
       "text": "feat: Study Record Slice 1 complete (v1.16.0-a1) — the Record page + Browse landing (ADR-0054). getPublicStudy returns finishedAt + bound sections (abstract/method/conditions/protocol); /browse/[studyId] renders the Study Record with a Finished/Preliminary badge and a gated action card (Replicate when Finished, Use-as-template otherwise); Browse card swaps CTA the same way. No new migration (reuses 0023). 568 vitest green; tsc + lint + build clean. Deferred: study_finished activity event. Next: Slice 2 composer, Slice 3 discovery+OSF."

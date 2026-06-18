@@ -26,18 +26,27 @@ export function WorkspaceSwitcher({
   // Only fetch the list when the popover opens (cheap, and keeps the bar quiet).
   const { data: workspaces, isLoading } = api.workspace.list.useQuery(undefined, { enabled: open });
 
+  // The name links "home" for the mode (workspace → its dashboard; personal →
+  // /home); the caret opens the switcher. Two affordances, one for each intent.
+  const homeHref = mode === "workspace" ? "/dashboard" : "/home";
+
   return (
-    <div className="relative">
+    <div className="relative flex items-center">
+      <Link
+        href={homeHref}
+        title={`${activeLabel} — go to ${mode === "workspace" ? "dashboard" : "home"}`}
+        className="flex max-w-[200px] items-center rounded-[var(--radius-md)] px-2 py-1 text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)] hover:bg-[var(--color-surface-subtle)]"
+      >
+        <span className="truncate">{activeLabel}</span>
+      </Link>
       <button
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
+        aria-label="Switch workspace"
         onClick={() => setOpen((v) => !v)}
-        className="flex max-w-[200px] items-center gap-1 rounded-[var(--radius-md)] px-2 py-1 text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)] hover:bg-[var(--color-surface-subtle)]"
+        className="flex items-center rounded-[var(--radius-md)] px-1 py-1 hover:bg-[var(--color-surface-subtle)]"
       >
-        <span className="truncate" title={activeLabel}>
-          {activeLabel}
-        </span>
         <ChevronDown className="size-3.5 shrink-0 text-[var(--color-text-muted)]" aria-hidden />
       </button>
 
