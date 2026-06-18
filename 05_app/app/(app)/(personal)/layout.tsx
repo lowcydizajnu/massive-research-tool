@@ -1,4 +1,3 @@
-import { PersonalTabs } from "@/components/chrome/personal-tabs";
 import { PersonalTopBar } from "@/components/chrome/personal-top-bar";
 import { auth } from "@/server/adapters/auth";
 
@@ -30,7 +29,9 @@ export default async function PersonalLayout({
         displayName={user?.displayName ?? null}
         email={user?.email ?? null}
       />
-      <PersonalTabs />
+      {/* Tabs are rendered per-page (on the dashboard's toolbar row + atop
+          Browse) so they share the dashboard's content width — not a full-bleed
+          strip. */}
       <div className="flex flex-1 flex-col gap-3 p-3">{children}</div>
     </>
   );
