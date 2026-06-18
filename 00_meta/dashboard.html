@@ -439,7 +439,7 @@
   "project": "Massive Research Tool",
   "tagline": "Multi-tenant SaaS for psychological experiments",
   "lastUpdated": "2026-06-18",
-  "currentFocus": "Browse/chrome polish round 2 (pending deploy, migration-free). Five fixes: Home top-tab renamed 'Dashboard' (route still /home); Browse is now a single-column list (one study per row) not a grid; the workspace breadcrumb no longer repeats the rail's destination (drops the section label when it's a left-rail item); the focused study breadcrumb title is black + bold (not clickable-blue); the workspace name + caret highlight together on hover (one unit, two targets). tsc + lint + build clean. Acknowledged: single-workspace users get no picker (works as designed). Deferred to item 1: filters become sticky top dropdowns (not the left sidebar); Home tabs stay a chrome strip (they span /home + /browse). Next: item 1 Slice-3 facets (top dropdowns) + FTS (ADR-0055; carries a migration). PRIOR: Browse->Home item 2 (deployed 1472231, v1.16.0-a3).",
+  "currentFocus": "Workspace switcher: whole highlighted item opens the dropdown again (pending deploy, migration-free). Reverted the name/caret split; dashboard reachable via the current-workspace row in the dropdown (-> /dashboard, 'Dashboard ->'). tsc + lint + build clean. Owner queue open: (#1) move Home tabs to the Customise toolbar row (folding into item 1's Browse top-area rework); (#2) Replicate/Template from a Browse card should open a dialog showing the destination (picker or static 'into [workspace]' even for single-workspace users); (#4) account settings -> personal/Home (settings is mixed; workspace settings stay); item 1 = Slice-3 facets as sticky top dropdowns + FTS (ADR-0055, migration); Slice 2 = Study Record composer. PRIOR: chrome polish r2 (deployed adba103, v1.16.0-a4).",
   "currentFocusPrev": "V1.15 Participants — Prolific filters fix SHIPPED (v1.15.0-a4, live 78b49c4). eligibility_requirements deprecated (error 140003) → createStudy now sends `filters`; empty when nothing selected so a no-filter study recruits anyone (owner confirmed this works). +1 test; 494 vitest green.",
   "phases": [
     {
@@ -1213,6 +1213,10 @@
     }
   ],
   "recentActivity": [
+    {
+      "date": "2026-06-18",
+      "text": "chore(chrome): workspace switcher — whole item opens the dropdown again (reverted name/caret split); current-workspace row in the menu links to /dashboard so the dashboard stays reachable. tsc + lint + build clean; migration-free. Queued: #1 tabs->toolbar row (with item 1), #2 card Replicate dialog + always-show destination, #4 account settings -> Home, then item 1 (facets+FTS) + Slice 2 (composer)."
+    },
     {
       "date": "2026-06-18",
       "text": "chore(chrome): Browse/nav polish round 2 — Home tab renamed Dashboard; Browse single-column list (not grid); workspace breadcrumb stops repeating the rail's destination; focused study-title breadcrumb black+bold (not link-blue); workspace name+caret highlight together on hover. tsc + lint + build clean; migration-free. Deferred to item 1: filters as sticky top dropdowns."

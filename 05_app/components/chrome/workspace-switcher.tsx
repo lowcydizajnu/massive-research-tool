@@ -6,7 +6,6 @@ import { useState } from "react";
 
 import { switchWorkspaceAction } from "@/app/actions/switch-workspace";
 import { api } from "@/lib/trpc/react";
-import { cn } from "@/lib/utils";
 
 /**
  * Workspace switcher (ADR-0033) — replaces the old disabled stub. The popover
@@ -26,33 +25,22 @@ export function WorkspaceSwitcher({
   // Only fetch the list when the popover opens (cheap, and keeps the bar quiet).
   const { data: workspaces, isLoading } = api.workspace.list.useQuery(undefined, { enabled: open });
 
-  // The name links "home" for the mode (workspace → its dashboard; personal →
-  // /home); the caret opens the switcher. Two affordances, one for each intent.
-  const homeHref = mode === "workspace" ? "/dashboard" : "/home";
-
   return (
     <div className="relative flex items-center">
-      {/* Name + caret read as one unit — hovering either highlights both (group),
-          but they stay distinct targets: name → dashboard/home, caret → switcher. */}
-      <span className="group flex items-center rounded-[var(--radius-md)] hover:bg-[var(--color-surface-subtle)]">
-        <Link
-          href={homeHref}
-          title={`${activeLabel} — go to ${mode === "workspace" ? "dashboard" : "home"}`}
-          className="flex max-w-[200px] items-center rounded-l-[var(--radius-md)] py-1 pl-2 pr-1 text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]"
-        >
-          <span className="truncate">{activeLabel}</span>
-        </Link>
-        <button
-          type="button"
-          aria-haspopup="menu"
-          aria-expanded={open}
-          aria-label="Switch workspace"
-          onClick={() => setOpen((v) => !v)}
-          className="flex items-center rounded-r-[var(--radius-md)] py-1 pl-0.5 pr-1.5"
-        >
-          <ChevronDown className="size-3.5 shrink-0 text-[var(--color-text-muted)]" aria-hidden />
-        </button>
-      </span>
+      {/* The whole highlighted item (name + caret) opens the switcher. Dashboard
+          stays reachable from inside the menu (the current workspace row). */}
+      <button
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className="flex max-w-[220px] items-center gap-1 rounded-[var(--radius-md)] px-2 py-1 text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)] hover:bg-[var(--color-surface-subtle)]"
+      >
+        <span className="truncate" title={activeLabel}>
+          {activeLabel}
+        </span>
+        <ChevronDown className="size-3.5 shrink-0 text-[var(--color-text-muted)]" aria-hidden />
+      </button>
 
       {open ? (
         <>
@@ -90,22 +78,37 @@ export function WorkspaceSwitcher({
             ) : (
               (workspaces ?? []).map((w) => {
                 const isCurrent = mode === "workspace" && w.name === activeLabel;
+                // The current workspace doesn't need switching — its row goes to
+                // that workspace's dashboard (the name's old link target).
+                if (isCurrent) {
+                  return (
+                    <Link
+                      key={w.id}
+                      role="menuitem"
+                      href="/dashboard"
+                      onClick={() => setOpen(false)}
+                      aria-current="page"
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-[length:var(--text-small)] text-[var(--color-text-primary)] hover:bg-[var(--color-surface-subtle)]"
+                    >
+                      <span className="min-w-0 flex-1 truncate" title={w.name}>
+                        {w.name}
+                      </span>
+                      <span className="shrink-0 text-[var(--color-text-muted)]">Dashboard →</span>
+                      <Check className="size-3.5 shrink-0 text-[var(--color-primary)]" aria-hidden />
+                    </Link>
+                  );
+                }
                 return (
                   <form key={w.id} action={switchWorkspaceAction.bind(null, w.id)}>
                     <button
                       type="submit"
                       role="menuitem"
-                      aria-current={isCurrent ? "page" : undefined}
-                      className={cn(
-                        "flex w-full items-center gap-2 px-3 py-2 text-left text-[length:var(--text-small)] hover:bg-[var(--color-surface-subtle)]",
-                        isCurrent ? "text-[var(--color-text-primary)]" : "text-[var(--color-text-secondary)]",
-                      )}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-[length:var(--text-small)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
                     >
                       <span className="min-w-0 flex-1 truncate" title={w.name}>
                         {w.name}
                       </span>
                       <span className="shrink-0 text-[var(--color-text-muted)]">{w.role}</span>
-                      {isCurrent ? <Check className="size-3.5 shrink-0 text-[var(--color-primary)]" aria-hidden /> : null}
                     </button>
                   </form>
                 );
