@@ -11,6 +11,7 @@ import { previewTokensRouter } from "@/server/trpc/routers/preview-tokens";
 import { profileRouter } from "@/server/trpc/routers/profile";
 import { recruitmentRouter } from "@/server/trpc/routers/recruitment";
 import { studiesRouter } from "@/server/trpc/routers/studies";
+import { studyRecordRouter } from "@/server/trpc/routers/study-record";
 import { teamRouter } from "@/server/trpc/routers/team";
 import { uploadsRouter } from "@/server/trpc/routers/uploads";
 import { workspaceRouter } from "@/server/trpc/routers/workspace";
@@ -22,6 +23,7 @@ export const appRouter = router({
   recruitment: recruitmentRouter,
   panels: panelsRouter,
   studies: studiesRouter,
+  studyRecord: studyRecordRouter,
   dashboard: dashboardRouter,
   modules: modulesRouter,
   proposals: proposalsRouter,
