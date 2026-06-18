@@ -4,7 +4,14 @@ import { z } from "zod";
 
 import { db } from "@/server/db/client";
 import { experiment, experimentVersion, response, studyRecord } from "@/server/db/schema";
-import { DEFAULT_LAYOUT, SECTION_TYPES, sanitizeLayout, sectionType } from "@/lib/study-record/sections";
+import {
+  DEFAULT_LAYOUT,
+  SECTION_TYPES,
+  type RecordSection,
+  carriesAuthoredContent,
+  isFrozenSection,
+  sanitizeLayout,
+} from "@/lib/study-record/sections";
 import { writeProcedure, router } from "@/server/trpc/trpc";
 
 /**
@@ -19,15 +26,27 @@ import { writeProcedure, router } from "@/server/trpc/trpc";
  * `narrative`/`custom` carry prose in the layout entry's `content`.
  */
 
+const hypothesisFields = z
+  .object({
+    effectType: z.string().max(80).optional(),
+    direction: z.string().max(80).optional(),
+    statisticKind: z.string().max(80).optional(),
+    statisticValue: z.string().max(120).optional(),
+    analysis: z.string().max(120).optional(),
+  })
+  .optional();
+
 const layoutInput = z
   .array(
     z.object({
       type: z.string().min(1).max(40),
+      title: z.string().max(200).optional(),
       content: z.string().max(20_000).optional(),
       hidden: z.boolean().optional(),
+      fields: hypothesisFields,
     }),
   )
-  .max(40);
+  .max(60);
 
 export type StudyRecordForEdit = {
   studyId: string;
@@ -37,9 +56,11 @@ export type StudyRecordForEdit = {
   articleUrl: string | null;
   articleDoi: string | null;
   publishedAt: string | null;
-  layout: { type: string; content?: string; hidden?: boolean }[];
+  layout: RecordSection[];
   /** Which bound sections have data to show (greyed in the palette otherwise). */
   availability: Record<string, boolean>;
+  /** Whether this study is preregistered — frozes the preregistration section (ADR-0056). */
+  hasPreregistration: boolean;
   sectionTypes: typeof SECTION_TYPES;
 };
 
@@ -117,23 +138,38 @@ export const studyRecordRouter = router({
         articleUrl: rec.articleUrl,
         articleDoi: rec.articleDoi,
         publishedAt: rec.publishedAt?.toISOString() ?? null,
-        layout: sanitizeLayout(rec.layout ?? []),
+        layout: sanitizeLayout((rec.layout as RecordSection[]) ?? []),
         availability,
+        hasPreregistration: availability.preregistration,
         sectionTypes: SECTION_TYPES,
       };
     }),
 
-  /** Persist the composed layout (order, show/hide, narrative/custom content). */
+  /**
+   * Persist the composed layout (order, show/hide, titles, content, hypothesis
+   * fields). Bound sections accept a title/content **override**; preregistration
+   * is frozen once preregistered (ADR-0056) — its override is dropped server-side.
+   */
   saveLayout: writeProcedure
     .input(z.object({ studyId: z.string().uuid(), layout: layoutInput }))
     .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
       await requireOwnStudy(input.studyId, ctx.workspace.id);
       await ensureRecord(input.studyId);
-      // Drop unknown types (forward-compat); keep content only where the type allows it.
-      const clean = sanitizeLayout(input.layout).map((e) => {
-        const t = sectionType(e.type);
-        const carriesContent = t?.group === "authored" && (e.type === "narrative" || e.type === "custom");
-        return carriesContent ? { type: e.type, content: e.content ?? "", hidden: e.hidden } : { type: e.type, hidden: e.hidden };
+      const { preregistration: hasPrereg } = await boundAvailability(input.studyId);
+      const clean: RecordSection[] = sanitizeLayout(input.layout).map((e) => {
+        const out: RecordSection = { type: e.type };
+        if (e.hidden) out.hidden = true;
+        if (isFrozenSection(e.type, hasPrereg)) return out; // frozen — no overrides persisted
+        if (e.title?.trim()) out.title = e.title.trim();
+        // Authored types + bound overrides both carry content; hypotheses also carry fields.
+        if (e.content != null && (carriesAuthoredContent(e.type) || e.type !== "preregistration")) {
+          if (e.content) out.content = e.content;
+        }
+        if (e.type === "hypotheses" && e.fields) {
+          const f = Object.fromEntries(Object.entries(e.fields).filter(([, v]) => v?.trim()));
+          if (Object.keys(f).length) out.fields = f;
+        }
+        return out;
       });
       await db
         .update(studyRecord)

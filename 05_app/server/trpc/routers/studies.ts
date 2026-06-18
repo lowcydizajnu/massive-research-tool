@@ -781,7 +781,13 @@ export type PublicStudyDetail = {
     articleUrl: string | null;
     articleDoi: string | null;
     publishedAt: string | null;
-    layout: { type: string; content?: string; hidden?: boolean }[];
+    layout: {
+      type: string;
+      title?: string;
+      content?: string;
+      hidden?: boolean;
+      fields?: Record<string, string>;
+    }[];
   } | null;
 };
 

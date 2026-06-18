@@ -1033,7 +1033,11 @@ export const studyRecord = pgTable("study_record", {
   layout: jsonb("layout")
     .notNull()
     .default(sql`'[]'::jsonb`)
-    .$type<{ type: string; content?: string; hidden?: boolean }[]>(),
+    // RecordSection[] (ADR-0056): bound sections accept title/content overrides;
+    // hypotheses carry optional structured `fields`. jsonb — extending is migration-free.
+    .$type<
+      { type: string; title?: string; content?: string; hidden?: boolean; fields?: Record<string, string> }[]
+    >(),
   publishedAt: timestamp("published_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
