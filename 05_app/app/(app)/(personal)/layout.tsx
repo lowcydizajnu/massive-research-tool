@@ -1,3 +1,4 @@
+import { PersonalTabs } from "@/components/chrome/personal-tabs";
 import { PersonalTopBar } from "@/components/chrome/personal-top-bar";
 import { auth } from "@/server/adapters/auth";
 
@@ -29,6 +30,7 @@ export default async function PersonalLayout({
         displayName={user?.displayName ?? null}
         email={user?.email ?? null}
       />
+      <PersonalTabs />
       <div className="flex flex-1 flex-col gap-3 p-3">{children}</div>
     </>
   );

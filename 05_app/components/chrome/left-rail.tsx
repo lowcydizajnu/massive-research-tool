@@ -3,7 +3,6 @@
 import {
   Activity,
   Boxes,
-  Compass,
   FlaskConical,
   LayoutDashboard,
   Library,
@@ -36,7 +35,8 @@ const DESTINATIONS: Destination[] = [
   { label: "Studies", icon: FlaskConical, href: "/studies" },
   { label: "Library", icon: Library, href: "/library" as Route },
   { label: "Frameworks", icon: Boxes, href: "/frameworks" as Route },
-  { label: "Browse", icon: Compass, href: "/browse" as Route },
+  // Browse moved to Home/global nav (ADR-0055) — it's cross-workspace, so it
+  // doesn't belong in the workspace rail alongside workspace-scoped surfaces.
   { label: "Participants", icon: Users, href: "/participants" as Route },
   { label: "Activity", icon: Activity, href: "/activity" as Route },
   { label: "Team", icon: UsersRound, href: "/team" as Route },

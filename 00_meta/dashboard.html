@@ -439,7 +439,7 @@
   "project": "Massive Research Tool",
   "tagline": "Multi-tenant SaaS for psychological experiments",
   "lastUpdated": "2026-06-18",
-  "currentFocus": "Browse -> Home (item 2) server foundation: replicate into a chosen workspace (pending deploy, migration-free). Owner decided B + preselect last workspace for where a global-Browse Replicate lands. Safe server core: studies.fork + studies.useAsTemplate gained an optional, server-validated targetWorkspaceId (defaults to active workspace; a different target requires the caller be an active write-capable member via resolveTargetTenant). resolveActiveWorkspace always yields a workspace even in Home mode, so no procedure refactor needed (additive, nothing breaks). 569 vitest green (+1: non-member target FORBIDDEN; explicit own target lands there); tsc + lint + build clean. Remaining (commit 2): move /browse routes under personal/Home chrome, drop Browse from the workspace rail, add a Home top-nav (Dashboard / Browse / Activity), Replicate/Template dialog with a workspace picker preselected to last-used (passes targetWorkspaceId), + IA-doc amendment. Then item 1: Slice-3 facets + FTS. PRIOR: chrome polish (v1.16.0-a2, deployed 0b4c7b4).",
+  "currentFocus": "Browse -> Home (item 2): the IA move shipped (pending deploy, migration-free). Browse is now global — git mv the /browse routes (list + Study Record) from (workspace) to (personal) (URL unchanged; pages use @/ absolute imports); removed Browse from the workspace left rail; added a Home top-nav (Home / Browse) via a new PersonalTabs; IA doc -> v0.6. Replicate from global Browse already works (defaults to the active workspace via the targetWorkspaceId foundation). 569 vitest green; tsc + lint + build clean. Remaining (commit 2b): the Replicate/Template workspace-picker dialog preselected to last-used (passes targetWorkspaceId to choose a different target). Then item 1: Slice-3 facets + FTS. PRIOR: Browse->Home server foundation (committed b623474).",
   "currentFocusPrev": "V1.15 Participants — Prolific filters fix SHIPPED (v1.15.0-a4, live 78b49c4). eligibility_requirements deprecated (error 140003) → createStudy now sends `filters`; empty when nothing selected so a no-filter study recruits anyone (owner confirmed this works). +1 test; 494 vitest green.",
   "phases": [
     {
@@ -1213,6 +1213,10 @@
     }
   ],
   "recentActivity": [
+    {
+      "date": "2026-06-18",
+      "text": "feat(browse): Browse moves to Home/global (ADR-0055 IA v0.6) — git mv /browse routes from (workspace) to (personal); removed Browse from the workspace rail; added a Home top-nav (Home/Browse) via PersonalTabs. URL unchanged; Replicate defaults to the active workspace via the targetWorkspaceId foundation. 569 vitest green; tsc + lint + build clean; migration-free. Remaining: the Replicate workspace-picker dialog (preselect last-used)."
+    },
     {
       "date": "2026-06-18",
       "text": "feat(studies): replicate/useAsTemplate accept a validated targetWorkspaceId (ADR-0055) — server foundation for replicating from the global Browse into a chosen workspace (owner choice: picker preselected to last-used). Defaults to the active workspace; a different target requires active write-capable membership (resolveTargetTenant). Additive, migration-free. +1 test (non-member FORBIDDEN; explicit own target lands there); 569 vitest green; tsc + lint + build clean. Next: route move + Home top-nav + picker dialog."
