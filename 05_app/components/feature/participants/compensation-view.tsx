@@ -155,7 +155,73 @@ export function CompensationView({
       )}
 
       {canManageBudget ? <BudgetForm initial={summary.budget} /> : null}
+      {canManageBudget ? <AutoApprovalForm /> : null}
     </section>
+  );
+}
+
+function AutoApprovalForm() {
+  const router = useRouter();
+  const { canWrite } = useWorkspaceRole();
+  const policy = api.recruitment.compensation.getAutoApprovalPolicy.useQuery();
+  const [enabled, setEnabled] = useState(false);
+  const [hours, setHours] = useState(24);
+  const [synced, setSynced] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  // Seed local state once the policy loads (uncontrolled-until-loaded).
+  if (policy.data && !synced) {
+    setEnabled(policy.data.enabled);
+    setHours(policy.data.minAgeHours);
+    setSynced(true);
+  }
+  const save = api.recruitment.compensation.setAutoApprovalPolicy.useMutation({
+    onSuccess: () => {
+      setErr(null);
+      router.refresh();
+    },
+    onError: (e) => setErr(e.message),
+  });
+
+  return (
+    <div className="flex flex-col gap-2 border-t border-[var(--color-border-subtle)] pt-4">
+      <h2 className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">Auto-approval</h2>
+      <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+        When on, submissions with <strong>no open quality flag</strong> are approved (and paid on Prolific) automatically once
+        they&rsquo;ve been awaiting review for the set time. Flagged participants are never auto-approved; rejections always stay manual.
+      </p>
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="flex items-center gap-2 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+          <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+          Enable auto-approval
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)]">After (hours awaiting review)</span>
+          <input
+            type="number"
+            min={1}
+            max={720}
+            value={hours}
+            onChange={(e) => setHours(Math.min(720, Math.max(1, Number(e.target.value) || 24)))}
+            disabled={!enabled}
+            className="w-24 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-3 py-1.5 text-[length:var(--text-small)] text-[var(--color-text-primary)] disabled:opacity-50"
+          />
+        </label>
+        <PendingButton
+          onClick={() => save.mutate({ enabled, minAgeHours: hours })}
+          disabled={!canWrite}
+          title={canWrite ? undefined : READ_ONLY_TITLE}
+          pending={save.isPending}
+          idleLabel="Save"
+          pendingLabel="Saving…"
+          className="px-4 py-1.5"
+        />
+      </div>
+      {err ? (
+        <p role="alert" className="text-[length:var(--text-small)] text-[var(--color-danger-text-on-subtle)]">
+          {err}
+        </p>
+      ) : null}
+    </div>
   );
 }
 

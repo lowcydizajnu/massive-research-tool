@@ -57,6 +57,14 @@ Participants destination shell (sub-nav: Connections · Open recruitment · Pane
 - By-month bars have text labels + values (not a chart-only representation); the by-study + payouts tables are real `<table>`s with captions.
 - Budget form inputs are labelled; the threshold is a labelled number input with min/max.
 
+## Auto-approval (owner/admin; ADR-0053)
+
+Below the budget form, a second owner/admin-only card: **Auto-approval**.
+
+- A copy line states the rule plainly: submissions with **no open quality flag** are approved (and paid on Prolific) automatically once they've awaited review for the set time; flagged participants are never auto-approved and rejections always stay manual.
+- Controls: an **Enable auto-approval** checkbox + an **"After (hours awaiting review)"** number input (1–720, default 24; disabled until enabled) + Save.
+- Hidden entirely for editor/viewer (same gate as the budget form). Maps to `compensation.getAutoApprovalPolicy` / `setAutoApprovalPolicy`; the hourly `recruitment-auto-approve` cron executes it.
+
 ## Open questions
 
 - **Bonuses** — the `payout_record` shape supports `kind='bonus'`, but rows only appear once an in-app bonus action exists (out of P4 scope). Until then bonus spend reads 0. Acceptable for V1?
