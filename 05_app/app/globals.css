@@ -93,3 +93,21 @@ body {
   background-color: var(--color-primary-subtle);
   color: var(--color-primary-text-on-subtle);
 }
+
+/* Study Record authored markdown (ADR-0056). Token-driven prose for the
+   record-markdown client island — headings, lists, links, emphasis. */
+.record-prose > :first-child { margin-top: 0; }
+.record-prose > :last-child { margin-bottom: 0; }
+.record-prose p { margin: 0 0 0.75em; line-height: 1.6; }
+.record-prose h3 { font-family: var(--font-serif, serif); font-weight: 500; font-size: 1.05rem; margin: 1em 0 0.4em; color: var(--color-text-primary); }
+.record-prose h4 { font-weight: 600; font-size: 0.95rem; margin: 0.9em 0 0.3em; color: var(--color-text-primary); }
+.record-prose ul, .record-prose ol { margin: 0 0 0.75em; padding-left: 1.4em; }
+.record-prose ul { list-style: disc; }
+.record-prose ol { list-style: decimal; }
+.record-prose li { margin: 0.2em 0; line-height: 1.55; }
+.record-prose a { color: var(--color-primary); text-decoration: underline; text-underline-offset: 2px; }
+.record-prose strong { font-weight: 600; color: var(--color-text-primary); }
+.record-prose code { font-family: var(--font-mono, monospace); font-size: 0.9em; background: var(--color-surface-subtle); padding: 0.1em 0.3em; border-radius: var(--radius-sm); }
+.record-prose pre { background: var(--color-surface-subtle); padding: 0.75em; border-radius: var(--radius-md); overflow-x: auto; }
+.record-prose blockquote { border-left: 3px solid var(--color-border-medium); padding-left: 0.8em; color: var(--color-text-secondary); margin: 0 0 0.75em; }
+.record-prose hr { border: 0; border-top: 1px solid var(--color-border-subtle); margin: 1em 0; }

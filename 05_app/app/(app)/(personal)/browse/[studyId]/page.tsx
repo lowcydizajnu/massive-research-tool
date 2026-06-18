@@ -6,6 +6,9 @@ import { FollowButton } from "@/components/feature/follow/follow-button";
 import { ReplicateButton } from "@/components/feature/browse/replicate-button";
 import { UseAsTemplateButton } from "@/components/feature/browse/use-as-template-button";
 import { CiteShare } from "@/components/feature/study-record/cite-share";
+import { HypothesisChips } from "@/components/feature/study-record/hypothesis-chips";
+import { RecordMarkdown } from "@/components/feature/study-record/record-markdown";
+import { sectionType } from "@/lib/study-record/sections";
 import { getServerApi } from "@/server/trpc/server";
 import type { PublicStudyDetail } from "@/server/trpc/routers/studies";
 
@@ -130,28 +133,45 @@ function DefaultRecord({ detail }: { detail: PublicStudyDetail }) {
   );
 }
 
-/** Composed render — sections in the owner's saved order, hidden ones dropped. */
+/** Composed render (ADR-0056) — sections in the owner's saved order; Markdown
+ *  authored content, editable titles, hypotheses, article-in-abstract. */
 function ComposedRecord({ detail }: { detail: PublicStudyDetail }) {
   const rec = detail.record!;
   const visible = rec.layout.filter((s) => !s.hidden);
+  const heading = (s: (typeof visible)[number]) => s.title?.trim() || sectionType(s.type)?.label || s.type;
   return (
     <>
       {visible.map((s, i) => {
         const key = `${s.type}-${i}`;
+        const title = heading(s);
         switch (s.type) {
           case "abstract": {
             const text = rec.abstract || detail.overview.abstract;
-            return text ? (
-              <Section key={key} title="Abstract">
-                <p className="whitespace-pre-wrap text-[length:var(--text-body)] text-[var(--color-text-primary)]">{text}</p>
+            if (!text && !rec.articleUrl && !rec.articleDoi) return null;
+            return (
+              <Section key={key} title={title}>
+                {text ? <RecordMarkdown md={text} /> : null}
+                {rec.articleUrl || rec.articleDoi ? (
+                  <p className="text-[length:var(--text-small)]">
+                    {rec.articleUrl ? <a href={rec.articleUrl} target="_blank" rel="noreferrer" className="text-[var(--color-primary)] hover:opacity-90">{rec.articleUrl}</a> : null}
+                    {rec.articleDoi ? <span className="ml-2 text-[var(--color-text-secondary)]">DOI: {rec.articleDoi}</span> : null}
+                  </p>
+                ) : null}
               </Section>
-            ) : null;
+            );
           }
+          case "hypotheses":
+            return (
+              <Section key={key} title={title}>
+                <HypothesisChips fields={s.fields ?? {}} />
+                {s.content ? <RecordMarkdown md={s.content} /> : null}
+              </Section>
+            );
           case "method":
-            return <MethodSection key={key} detail={detail} />;
+            return <MethodSection key={key} detail={detail} title={title} override={s.content} />;
           case "preregistration":
             return detail.latestKind === "preregistered" ? (
-              <Section key={key} title="Preregistration">
+              <Section key={key} title={title}>
                 <p className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
                   This study was preregistered (v{detail.latestVersionNumber}) — its plan was frozen before data collection.
                 </p>
@@ -159,7 +179,8 @@ function ComposedRecord({ detail }: { detail: PublicStudyDetail }) {
             ) : null;
           case "replications":
             return (
-              <Section key={key} title="Replications">
+              <Section key={key} title={title}>
+                {s.content ? <RecordMarkdown md={s.content} /> : null}
                 <p className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
                   {detail.replicationCount > 0
                     ? `${detail.replicationCount} replication${detail.replicationCount === 1 ? "" : "s"} so far.`
@@ -170,52 +191,43 @@ function ComposedRecord({ detail }: { detail: PublicStudyDetail }) {
           case "results":
           case "data":
             return (
-              <Section key={key} title={s.type === "results" ? "Results" : "Data"}>
+              <Section key={key} title={title}>
+                {s.content ? <RecordMarkdown md={s.content} /> : null}
                 <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
                   Aggregate results are shared with replicators; raw participant data stays private (ADR-0014).
                 </p>
               </Section>
             );
-          case "narrative":
-            return s.content ? (
-              <Section key={key} title="Results narrative">
-                <p className="whitespace-pre-wrap text-[length:var(--text-body)] text-[var(--color-text-primary)]">{s.content}</p>
-              </Section>
-            ) : null;
-          case "article-link":
-            return rec.articleUrl || rec.articleDoi ? (
-              <Section key={key} title="Article">
-                <div className="flex flex-col gap-1 text-[length:var(--text-small)]">
-                  {rec.articleUrl ? (
-                    <a href={rec.articleUrl} target="_blank" rel="noreferrer" className="text-[var(--color-primary)] hover:opacity-90">
-                      {rec.articleUrl}
-                    </a>
-                  ) : null}
-                  {rec.articleDoi ? <span className="text-[var(--color-text-secondary)]">DOI: {rec.articleDoi}</span> : null}
-                </div>
-              </Section>
-            ) : null;
           case "materials":
-            return null; // media inventory deferred (greyed in the composer)
-          case "custom":
             return s.content ? (
-              <Section key={key} title="More">
-                <p className="whitespace-pre-wrap text-[length:var(--text-body)] text-[var(--color-text-primary)]">{s.content}</p>
+              <Section key={key} title={title}><RecordMarkdown md={s.content} /></Section>
+            ) : null;
+          // narrative / custom / article-link (legacy) — authored Markdown.
+          default:
+            return s.content || (s.type === "article-link" && (rec.articleUrl || rec.articleDoi)) ? (
+              <Section key={key} title={title}>
+                {s.content ? <RecordMarkdown md={s.content} /> : null}
+                {s.type === "article-link" && (rec.articleUrl || rec.articleDoi) ? (
+                  <p className="text-[length:var(--text-small)]">
+                    {rec.articleUrl ? <a href={rec.articleUrl} target="_blank" rel="noreferrer" className="text-[var(--color-primary)] hover:opacity-90">{rec.articleUrl}</a> : null}
+                    {rec.articleDoi ? <span className="ml-2 text-[var(--color-text-secondary)]">DOI: {rec.articleDoi}</span> : null}
+                  </p>
+                ) : null}
               </Section>
             ) : null;
-          default:
-            return null;
         }
       })}
     </>
   );
 }
 
-/** Bound Method section — overview narrative + conditions (the comparable skeleton). */
-function MethodSection({ detail }: { detail: PublicStudyDetail }) {
-  if (detail.overview.sections.length === 0 && detail.conditions.length === 0) return null;
+/** Bound Method section — overview narrative + conditions (the comparable
+ *  skeleton), with an optional editable title + authored override note (ADR-0056). */
+function MethodSection({ detail, title = "Method", override }: { detail: PublicStudyDetail; title?: string; override?: string }) {
+  if (!override && detail.overview.sections.length === 0 && detail.conditions.length === 0) return null;
   return (
-    <Section title="Method">
+    <Section title={title}>
+      {override ? <RecordMarkdown md={override} /> : null}
       <div className="flex flex-col gap-3">
         {detail.overview.sections.map((s, i) => (
           <div key={i} className="flex flex-col gap-1">

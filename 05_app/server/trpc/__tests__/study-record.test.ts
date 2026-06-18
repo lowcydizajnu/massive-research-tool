@@ -105,6 +105,7 @@ describe("studyRecord.getForEdit", () => {
     // Default layout = the on-by-default section types, in order.
     expect(rec.layout.map((s) => s.type)).toEqual([
       "abstract",
+      "hypotheses",
       "method",
       "results",
       "data",
