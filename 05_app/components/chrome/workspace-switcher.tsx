@@ -78,24 +78,21 @@ export function WorkspaceSwitcher({
             ) : (
               (workspaces ?? []).map((w) => {
                 const isCurrent = mode === "workspace" && w.name === activeLabel;
-                // The current workspace doesn't need switching — its row goes to
-                // that workspace's dashboard (the name's old link target).
+                // The current workspace is just an indicator (you're already in
+                // it) — no switch, no dashboard link.
                 if (isCurrent) {
                   return (
-                    <Link
+                    <div
                       key={w.id}
                       role="menuitem"
-                      href="/dashboard"
-                      onClick={() => setOpen(false)}
                       aria-current="page"
-                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-[length:var(--text-small)] text-[var(--color-text-primary)] hover:bg-[var(--color-surface-subtle)]"
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-[length:var(--text-small)] text-[var(--color-text-primary)]"
                     >
                       <span className="min-w-0 flex-1 truncate" title={w.name}>
                         {w.name}
                       </span>
-                      <span className="shrink-0 text-[var(--color-text-muted)]">Dashboard →</span>
                       <Check className="size-3.5 shrink-0 text-[var(--color-primary)]" aria-hidden />
-                    </Link>
+                    </div>
                   );
                 }
                 return (

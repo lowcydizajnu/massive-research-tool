@@ -109,9 +109,11 @@ export function ReplicateButton({ studyId, className }: { studyId: string; class
                 </label>
               ))}
             </div>
-            {writable.length > 1 ? (
-              <label className="flex flex-col gap-1">
-                <span className="text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)]">Replicate into</span>
+            {/* Always show where it lands (ADR-0055) — a picker when there's a
+                choice, a static line when there's only one workspace. */}
+            <div className="flex flex-col gap-1">
+              <span className="text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)]">Replicate into</span>
+              {writable.length > 1 ? (
                 <select
                   value={targetId ?? ""}
                   onChange={(e) => setTarget(e.target.value)}
@@ -123,8 +125,12 @@ export function ReplicateButton({ studyId, className }: { studyId: string; class
                     </option>
                   ))}
                 </select>
-              </label>
-            ) : null}
+              ) : (
+                <span className="rounded-[var(--radius-md)] bg-[var(--color-surface-subtle)] px-2 py-1.5 text-[length:var(--text-small)] text-[var(--color-text-primary)]">
+                  {writable[0]?.name ?? "your workspace"}
+                </span>
+              )}
+            </div>
             <div className="flex items-center justify-between gap-2">
               <button
                 type="button"

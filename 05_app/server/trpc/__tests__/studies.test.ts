@@ -1475,6 +1475,35 @@ describe("studies.browsePublic + browseTags (V1.8 Stream B, ADR-0018)", () => {
     expect(r.items.find((i) => i.studyId === quiet)!.replicationCount).toBe(0);
   });
 
+  it("searches by title (q) — ADR-0055", async () => {
+    await seedUserWithWorkspace("hanna", "Hanna Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const trust = await makePublic(a, "Trust in headlines");
+    await makePublic(a, "Sharing intentions");
+
+    const r = await a.studies.browsePublic({ q: "headline" });
+    expect(r.items.map((i) => i.studyId)).toEqual([trust]);
+  });
+
+  it("sorts oldest-first and A–Z (ADR-0055), each cursor-stable", async () => {
+    await seedUserWithWorkspace("hanna", "Hanna Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const first = await makePublic(a, "Zeta"); // created first
+    const second = await makePublic(a, "Alpha"); // created later
+
+    const oldest = await a.studies.browsePublic({ sort: "oldest" });
+    expect(oldest.items.map((i) => i.studyId)).toEqual([first, second]);
+
+    const alpha = await a.studies.browsePublic({ sort: "alpha" });
+    expect(alpha.items.map((i) => i.title)).toEqual(["Alpha", "Zeta"]);
+
+    // Alpha keyset paginates without overlap.
+    const p1 = await a.studies.browsePublic({ sort: "alpha", limit: 1 });
+    expect(p1.items[0].title).toBe("Alpha");
+    const p2 = await a.studies.browsePublic({ sort: "alpha", limit: 1, cursor: p1.nextCursor! });
+    expect(p2.items[0].title).toBe("Zeta");
+  });
+
   it("paginates by cursor", async () => {
     await seedUserWithWorkspace("hanna", "Hanna Lab");
     const a = createCaller({ authUser: authUser("hanna") });

@@ -58,6 +58,7 @@ export function DashboardGrid({
   layout,
   nodes,
   canSetWorkspaceDefault = false,
+  headerLeft,
 }: {
   kind: "user" | "workspace";
   workspaceId?: string;
@@ -67,6 +68,8 @@ export function DashboardGrid({
   nodes: Record<string, ReactNode>;
   /** Workspace dashboard only: the caller may set the workspace "house default". */
   canSetWorkspaceDefault?: boolean;
+  /** Optional left-of-Customize content (e.g. the personal Home tabs). */
+  headerLeft?: ReactNode;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -140,7 +143,8 @@ export function DashboardGrid({
   if (!editing) {
     return (
       <div className="flex flex-col gap-3">
-        <div className="flex justify-end">
+        <div className="flex items-center justify-between gap-2">
+          {headerLeft ?? <span />}
           <button
             type="button"
             onClick={startEdit}

@@ -2,12 +2,10 @@
 
 import Link from "next/link";
 import type { Route } from "next";
-import { useRouter } from "next/navigation";
 
+import { ReplicateButton } from "@/components/feature/browse/replicate-button";
+import { UseAsTemplateButton } from "@/components/feature/browse/use-as-template-button";
 import { FollowButton } from "@/components/feature/follow/follow-button";
-import { PendingButton } from "@/components/ui/pending-button";
-import { api } from "@/lib/trpc/react";
-import { cn } from "@/lib/utils";
 import type { BrowseStudyCard } from "@/server/trpc/routers/studies";
 
 /**
@@ -23,15 +21,9 @@ export function BrowseCard({
   card: BrowseStudyCard;
   onAddTag?: (tag: string) => void;
 }) {
-  const router = useRouter();
-  const fork = api.studies.fork.useMutation({
-    onSuccess: ({ id }) => router.push(`/studies/${id}/build`),
-  });
   // Replicate is for FINISHED studies (ADR-0054); otherwise offer Template
-  // (borrow the design). Server enforces the same rule on fork.
-  const template = api.studies.useAsTemplate.useMutation({
-    onSuccess: ({ id }) => router.push(`/studies/${id}/build`),
-  });
+  // (borrow the design). Both open a destination dialog (ADR-0055) rather than
+  // creating silently; the server enforces the same finished rule on fork.
   const finished = !!card.finishedAt;
 
   const marker =
@@ -88,31 +80,11 @@ export function BrowseCard({
           {reps}
         </span>
         {finished ? (
-          <PendingButton
-            pending={fork.isPending}
-            idleLabel="Replicate"
-            pendingLabel="Replicating…"
-            onClick={() => fork.mutate({ studyId: card.studyId })}
-            className={cn("px-3 py-1.5 text-[length:var(--text-small)]")}
-          />
+          <ReplicateButton studyId={card.studyId} className="px-3 py-1.5 text-[length:var(--text-small)]" />
         ) : (
-          <PendingButton
-            variant="secondary"
-            pending={template.isPending}
-            idleLabel="Use as template"
-            pendingLabel="Copying…"
-            onClick={() => template.mutate({ studyId: card.studyId })}
-            title="Not finished yet — start from its design (no replication lineage)"
-            className={cn("px-3 py-1.5 text-[length:var(--text-small)]")}
-          />
+          <UseAsTemplateButton studyId={card.studyId} className="px-3 py-1.5 text-[length:var(--text-small)]" />
         )}
       </div>
-
-      {fork.isError || template.isError ? (
-        <p role="alert" className="text-[length:var(--text-small)] text-[var(--color-danger-text-on-subtle)]">
-          {(fork.error ?? template.error)?.message ?? "This study is no longer available."}
-        </p>
-      ) : null}
     </article>
   );
 }

@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { and, arrayContains, count, desc, eq, gte, ilike, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
+import { and, arrayContains, asc, count, desc, eq, gte, ilike, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { ulid } from "ulid";
 import { z } from "zod";
 
@@ -766,7 +766,7 @@ export type PublicStudyDetail = {
 /** Tag + usage count for the Browse filter sidebar. */
 export type BrowseTag = { tag: string; count: number };
 
-type BrowseCursor = { c: string; i: string; r?: number };
+type BrowseCursor = { c: string; i: string; r?: number; t?: string };
 
 function encodeCursor(cur: BrowseCursor): string {
   return Buffer.from(JSON.stringify(cur), "utf8").toString("base64url");
@@ -1031,8 +1031,9 @@ export const studiesRouter = router({
    * Browse public studies (ADR-0018 + browse-public-studies wireframe). Public
    * — no workspace context needed to read the listing. The discoverable set is
    * `forkable_by = 'public'`, not archived, with at least one published or
-   * preregistered (frozen) version. Filters: tag intersection + author name.
-   * Sort: most recent or most replicated. Keyset (cursor) pagination.
+   * preregistered (frozen) version. Filters (ADR-0055): title search (`q`), tag
+   * intersection, author name, finished, preregistered. Sort (separate from
+   * filtering): recent | oldest | replicated | alpha. Keyset (cursor) pagination.
    * Framework filtering is DEFERRED (no study→framework provenance in the
    * schema; owner decision 2026-06-07).
    */
@@ -1041,10 +1042,13 @@ export const studiesRouter = router({
       z.object({
         tags: z.array(z.string()).optional(),
         authorQuery: z.string().trim().max(120).optional(),
+        /** Free-text search over the study title (ADR-0055). Title-only for now;
+            full-text over abstract/blocks arrives with the SearchAdapter (item 1b). */
+        q: z.string().trim().max(120).optional(),
         /** Facets (ADR-0055). Finished = has a published Study Record; preregistered = has a prereg version. */
         finished: z.boolean().optional(),
         hasPreregistration: z.boolean().optional(),
-        sort: z.enum(["recent", "replicated"]).default("recent"),
+        sort: z.enum(["recent", "oldest", "replicated", "alpha"]).default("recent"),
         cursor: z.string().optional(),
         limit: z.number().int().min(1).max(48).default(24),
       }),
@@ -1068,6 +1072,9 @@ export const studiesRouter = router({
       if (input.authorQuery) {
         filters.push(ilike(user.displayName, `%${input.authorQuery}%`));
       }
+      if (input.q) {
+        filters.push(ilike(experiment.title, `%${input.q}%`));
+      }
       if (input.finished) {
         filters.push(isNotNull(experiment.finishedAt));
       }
@@ -1076,11 +1083,21 @@ export const studiesRouter = router({
       }
 
       // Keyset cursor — rows strictly "after" the cursor in the sort order.
+      // Keyset comparator per sort — the row tuple must be strictly past the
+      // cursor in the sort's direction (`<` for desc, `>` for asc).
       const cur = input.cursor ? decodeCursor(input.cursor) : null;
       if (cur) {
         if (input.sort === "replicated") {
           filters.push(
             sql`(${repCount}, ${experiment.createdAt}, ${experiment.id}) < (${cur.r ?? 0}, ${cur.c}::timestamptz, ${cur.i}::uuid)`,
+          );
+        } else if (input.sort === "oldest") {
+          filters.push(
+            sql`(${experiment.createdAt}, ${experiment.id}) > (${cur.c}::timestamptz, ${cur.i}::uuid)`,
+          );
+        } else if (input.sort === "alpha") {
+          filters.push(
+            sql`(lower(${experiment.title}), ${experiment.id}) > (${cur.t ?? ""}, ${cur.i}::uuid)`,
           );
         } else {
           filters.push(
@@ -1092,7 +1109,11 @@ export const studiesRouter = router({
       const order =
         input.sort === "replicated"
           ? [desc(repCount), desc(experiment.createdAt), desc(experiment.id)]
-          : [desc(experiment.createdAt), desc(experiment.id)];
+          : input.sort === "oldest"
+            ? [asc(experiment.createdAt), asc(experiment.id)]
+            : input.sort === "alpha"
+              ? [asc(sql`lower(${experiment.title})`), asc(experiment.id)]
+              : [desc(experiment.createdAt), desc(experiment.id)];
 
       const rows = await db
         .select({
@@ -1122,6 +1143,7 @@ export const studiesRouter = router({
               c: last.createdAt.toISOString(),
               i: last.studyId,
               r: input.sort === "replicated" ? Number(last.replicationCount) : undefined,
+              t: input.sort === "alpha" ? last.title.toLowerCase() : undefined,
             })
           : null;
 
