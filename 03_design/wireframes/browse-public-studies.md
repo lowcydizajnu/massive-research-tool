@@ -66,6 +66,23 @@ Standard three-zone modular surface per brief v0.6 — slim top bar (destination
 - Replication count and version marker never rely on color alone.
 - `Load more` moves focus to the first newly-loaded card so keyboard users don't lose their place.
 
+## Addendum — discovery expansion (ADR-0055)
+
+This extends the V1.8 Browse with search, more filters, and a better landing target. Backwards-compatible with the existing faceted layout.
+
+- **Lands on the Study Record, not the Builder.** A card → the [Study Record](study-record.md) read view (ADR-0054), not the protocol-blocks Details page. A public study that isn't yet Finished shows the preliminary protocol preview with a "Preliminary — not yet finished. Follow for results." note.
+- **Search box** (top of the grid) — full-text over title + abstract + method summary (Postgres FTS behind a `SearchAdapter` seam). Debounced; combines (AND) with the active filters; empty-query falls back to the sort order. Empty-results copy: "No studies match "{q}" with those filters — try fewer filters or broader terms."
+- **Expanded filter sidebar** (all optional, AND-combined, each a labelled control in the existing `<form>`):
+  - **Tags** (existing, intersection) · **Author** (existing).
+  - **Allowed for replication** — toggle; `forkable_by = public` (and, once Finished gating lands, "Finished + public").
+  - **Finished only** — toggle; `finished_at` set (completed studies with results).
+  - **Has preregistration** — toggle; a `preregistered` version exists.
+  - **Participant country** — multiselect of ISO countries, from the study's recruitment eligibility (a study setting, not participant data).
+  - **Language** — multiselect, same source.
+  - **Sort** — Recent · Most replicated · **Recently finished**.
+- **Card additions** — a **Finished** chip (vs "Preliminary"), and the country/language facets shown as small meta when filtered by them. A11y: filters remain a labelled form; new toggles are real checkboxes with visible labels; multiselects are comboboxes with `aria-expanded`.
+- **Comparability payoff** — because Records share a bound skeleton (ADR-0054), a future "compare selected" action can diff 2–3 Records side by side; the cards expose a select checkbox in that mode.
+
 ## Open questions
 
 - **Framework chip + framework filter — deferred.** The schema doesn't persist study→framework provenance (no `framework_key` on `experiment`; create-from-framework copies blocks only). Showing a framework chip or filtering by framework needs an additive column + recording it at create time — out of V1.8 scope per owner decision (2026-06-07). Revisit if framework-based discovery is wanted; the filter sidebar leaves room for it.
