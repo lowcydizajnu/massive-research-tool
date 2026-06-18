@@ -2530,4 +2530,26 @@ describe("studies finished lifecycle (ADR-0054)", () => {
     const { id: forkId } = await sofia.studies.fork({ studyId: id });
     expect(forkId).toBeTruthy();
   });
+
+  it("replicate into a chosen target workspace (global Browse) — validated server-side", async () => {
+    const hannaSeed = await seedUserWithWorkspace("hanna", "Hanna Lab");
+    const sofiaSeed = await seedUserWithWorkspace("sofia", "Sofia Lab");
+    const hanna = createCaller({ authUser: authUser("hanna") });
+    const sofia = createCaller({ authUser: authUser("sofia") });
+    const { id } = await hanna.studies.create({ kind: "blank", title: "Src" });
+    await hanna.studies.addBlock({ studyId: id, source: "core", key: "likert-7", version: "1.0.0" });
+    await hanna.studies.publish({ studyId: id });
+    await hanna.studies.setForkable({ studyId: id, forkableBy: "public" });
+    await db.update(experiment).set({ finishedAt: new Date() }).where(eq(experiment.id, id));
+
+    // Can't target a workspace you don't belong to.
+    await expect(
+      sofia.studies.fork({ studyId: id, targetWorkspaceId: hannaSeed.workspace.id }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    // Explicit target = your own workspace → lands there.
+    const { id: forkId } = await sofia.studies.fork({ studyId: id, targetWorkspaceId: sofiaSeed.workspace.id });
+    const [exp] = await db.select().from(experiment).where(eq(experiment.id, forkId));
+    expect(exp.tenantId).toBe(sofiaSeed.workspace.id);
+  });
 });

@@ -439,7 +439,7 @@
   "project": "Massive Research Tool",
   "tagline": "Multi-tenant SaaS for psychological experiments",
   "lastUpdated": "2026-06-18",
-  "currentFocus": "Chrome polish from owner feedback (pending deploy, migration-free). Workspace name in the top bar is now a link (workspace -> /dashboard, personal -> /home) with the caret as the switcher trigger; focused study bar's workspace name -> /dashboard. The cmd-K chip is removed from all top bars (command palette is headless — shortcut + modal still work, no visible icon). Owner role badge moved next to the user avatar. Pure chrome; tsc + lint + build clean. Investigated (not a code bug): duplicate 'DELETE ME' tiles are two real experiments (a study + its same-workspace fork); recent-study queries return one row per experiment. Owner decisions pending: move Browse into Home/global nav (IA), and confirm which 'old improvisation' to swap (likely the Browse filter sidebar -> ADR-0055 facets = Slice 3). PRIOR: Study Record Slice 1 complete (v1.16.0-a1, deployed 14b7b4e).",
+  "currentFocus": "Browse -> Home (item 2) server foundation: replicate into a chosen workspace (pending deploy, migration-free). Owner decided B + preselect last workspace for where a global-Browse Replicate lands. Safe server core: studies.fork + studies.useAsTemplate gained an optional, server-validated targetWorkspaceId (defaults to active workspace; a different target requires the caller be an active write-capable member via resolveTargetTenant). resolveActiveWorkspace always yields a workspace even in Home mode, so no procedure refactor needed (additive, nothing breaks). 569 vitest green (+1: non-member target FORBIDDEN; explicit own target lands there); tsc + lint + build clean. Remaining (commit 2): move /browse routes under personal/Home chrome, drop Browse from the workspace rail, add a Home top-nav (Dashboard / Browse / Activity), Replicate/Template dialog with a workspace picker preselected to last-used (passes targetWorkspaceId), + IA-doc amendment. Then item 1: Slice-3 facets + FTS. PRIOR: chrome polish (v1.16.0-a2, deployed 0b4c7b4).",
   "currentFocusPrev": "V1.15 Participants — Prolific filters fix SHIPPED (v1.15.0-a4, live 78b49c4). eligibility_requirements deprecated (error 140003) → createStudy now sends `filters`; empty when nothing selected so a no-filter study recruits anyone (owner confirmed this works). +1 test; 494 vitest green.",
   "phases": [
     {
@@ -1213,6 +1213,10 @@
     }
   ],
   "recentActivity": [
+    {
+      "date": "2026-06-18",
+      "text": "feat(studies): replicate/useAsTemplate accept a validated targetWorkspaceId (ADR-0055) — server foundation for replicating from the global Browse into a chosen workspace (owner choice: picker preselected to last-used). Defaults to the active workspace; a different target requires active write-capable membership (resolveTargetTenant). Additive, migration-free. +1 test (non-member FORBIDDEN; explicit own target lands there); 569 vitest green; tsc + lint + build clean. Next: route move + Home top-nav + picker dialog."
+    },
     {
       "date": "2026-06-18",
       "text": "chore(chrome): owner-feedback polish — workspace name links to /dashboard (caret = switcher); cmd-K chip removed from all top bars (palette headless, shortcut kept); Owner badge moved next to the avatar. Pure chrome; tsc + lint + build clean. Noted: duplicate 'DELETE ME' tiles are two real experiments (study + fork), not a query bug."
