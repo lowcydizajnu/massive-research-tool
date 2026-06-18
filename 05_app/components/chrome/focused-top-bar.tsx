@@ -23,9 +23,13 @@ export function FocusedTopBar({
 }) {
   return (
     <header className="flex items-center gap-3 border-b border-[var(--color-border-subtle)] bg-[var(--color-surface-panel)] px-4 py-2">
-      <span className="max-w-[180px] truncate text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+      <Link
+        href="/dashboard"
+        title={`${workspaceName} — go to dashboard`}
+        className="max-w-[180px] truncate rounded-[var(--radius-sm)] px-1 text-[length:var(--text-small)] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)] hover:text-[var(--color-text-secondary)]"
+      >
         {workspaceName}
-      </span>
+      </Link>
       <span aria-hidden className="text-[var(--color-text-muted)]">·</span>
 
       <FocusedBreadcrumb studyId={studyId} />

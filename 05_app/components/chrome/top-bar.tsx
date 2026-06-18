@@ -30,13 +30,13 @@ export function TopBar({
 
       <div className="flex-1" />
 
-      <WorkspaceRoleBadge />
-
       <AutosaveIndicator />
 
       <CommandPalette />
 
       <NewStudyButton variant="topbar" />
+
+      <WorkspaceRoleBadge />
 
       <UserMenu initials={userInitials} displayName={displayName} email={email} />
     </header>

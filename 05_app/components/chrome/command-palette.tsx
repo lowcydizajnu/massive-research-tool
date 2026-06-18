@@ -124,31 +124,15 @@ export function CommandPalette() {
     [router],
   );
 
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        aria-label="Open command palette"
-        className="rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] px-1.5 py-0.5 font-mono text-[length:var(--text-mono)] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)]"
-      >
-        ⌘K
-      </button>
-    );
-  }
+  // Headless trigger: no visible ⌘K chip in the top bar (owner preference) — the
+  // ⌘K / Ctrl+K shortcut (registered above) still opens it anywhere in the chrome.
+  if (!open) return null;
 
   const clamped = Math.min(active, Math.max(0, items.length - 1));
   let lastGroup: string | null = null;
 
   return (
     <>
-      {/* keep the trigger in place so layout doesn't shift */}
-      <span
-        aria-hidden
-        className="rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] px-1.5 py-0.5 font-mono text-[length:var(--text-mono)] text-[var(--color-text-muted)]"
-      >
-        ⌘K
-      </span>
       <div
         className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 pt-[15vh]"
         onMouseDown={(e) => {
