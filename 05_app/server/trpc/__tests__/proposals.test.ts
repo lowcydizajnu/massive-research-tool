@@ -85,6 +85,9 @@ async function forkFixture() {
   const likert = await hanna.studies.addBlock({ studyId: originId, source: "core", key: "likert-7", version: "1.0.0" });
   await hanna.studies.publish({ studyId: originId });
   await hanna.studies.setForkable({ studyId: originId, forkableBy: "public" });
+  // Cross-workspace replication now requires the source be Finished (ADR-0054).
+  // Only originId exists at this point, so an unfiltered update is safe here.
+  await db.update(experiment).set({ finishedAt: new Date() });
   const { id: forkId } = await sofia.studies.fork({ studyId: originId });
   return { hanna, sofia, originId, forkId, likertId: likert.instanceId };
 }

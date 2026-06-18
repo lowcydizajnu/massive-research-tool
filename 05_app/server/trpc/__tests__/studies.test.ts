@@ -1193,6 +1193,7 @@ describe("studies.fork + getReplications (ADR-0018)", () => {
 
     await hanna.studies.preregister({ studyId: src }); // replication requires a frozen version (ADR-0018 am.)
     await hanna.studies.setForkable({ studyId: src, forkableBy: "public" });
+    await db.update(experiment).set({ finishedAt: new Date() }).where(eq(experiment.id, src)); // + finished (ADR-0054)
     const { id: fork } = await sofia.studies.fork({ studyId: src });
     const [exp] = await db.select().from(experiment).where(eq(experiment.id, fork));
     expect(exp.tenantId).toBe(beta.workspace.id); // lands in Sofia's workspace
@@ -1374,6 +1375,8 @@ describe("studies.browsePublic + browseTags (V1.8 Stream B, ADR-0018)", () => {
     const { id } = await caller.studies.create({ kind: "blank", title });
     await caller.studies.publish({ studyId: id });
     await caller.studies.setForkable({ studyId: id, forkableBy: "public" });
+    // Cross-workspace replication now requires the source be Finished (ADR-0054).
+    await db.update(experiment).set({ finishedAt: new Date() }).where(eq(experiment.id, id));
     if (tags.length) await caller.studies.setTags({ studyId: id, tags });
     return id;
   }
@@ -1644,6 +1647,7 @@ describe("studies.delete + unarchive (ADR-0037)", () => {
     const open = await resolveOpenRecruitment(id);
     const started = await startResponse({ recruitmentSessionId: open!.recruitmentSessionId, mode: "run", externalPid: null });
     expect("responseId" in started!).toBe(true);
+    await db.update(experiment).set({ finishedAt: new Date() }).where(eq(experiment.id, id)); // cross-workspace fork needs Finished (ADR-0054)
     const { id: forkId } = await sofia.studies.fork({ studyId: id });
 
     await hanna.studies.delete({ studyId: id });
@@ -1815,6 +1819,7 @@ describe("replication experience (ADR-0039)", () => {
     const likert = await hanna.studies.addBlock({ studyId: id, source: "core", key: "likert-7", version: "1.0.0" });
     await hanna.studies.publish({ studyId: id });
     await hanna.studies.setForkable({ studyId: id, forkableBy: "public" });
+    await db.update(experiment).set({ finishedAt: new Date() }).where(eq(experiment.id, id)); // cross-workspace fork needs Finished (ADR-0054)
     return { hanna, sofia, originId: id, likertId: likert.instanceId };
   }
 
@@ -2459,5 +2464,70 @@ describe("studies.withdrawRegistration (ADR-0005 am. 3)", () => {
     expect(status.withdrawn).toBe(true);
     expect((await caller.studies.getPreregistration({ studyId: id }))!.withdrawn).toBe(true);
     spy.mockRestore();
+  });
+});
+
+describe("studies finished lifecycle (ADR-0054)", () => {
+  async function publishedStudy() {
+    await seedUserWithWorkspace("hanna", "Hanna Lab");
+    const hanna = createCaller({ authUser: authUser("hanna") });
+    const { id } = await hanna.studies.create({ kind: "blank", title: "Study" });
+    await hanna.studies.addBlock({ studyId: id, source: "core", key: "likert-7", version: "1.0.0" });
+    await hanna.studies.publish({ studyId: id });
+    const [ver] = await db.select().from(experimentVersion).where(eq(experimentVersion.experimentId, id)).limit(1);
+    return { hanna, id, versionId: ver.id as string };
+  }
+
+  async function seedCompletedResponse(versionId: string) {
+    const [cond] = await db
+      .insert(condition)
+      .values({ id: ulid(), experimentVersionId: versionId, slug: "c1", name: "C1", position: 0 })
+      .returning();
+    const sid = ulid();
+    await db.insert(recruitmentSession).values({ id: sid, experimentVersionId: versionId, status: "closed" });
+    await db.insert(response).values({
+      id: ulid(), recruitmentSessionId: sid, experimentVersionId: versionId, conditionId: cond.id,
+      externalPid: null, mode: "run", status: "completed", startedAt: new Date(Date.now() - 60_000), completedAt: new Date(),
+    });
+  }
+
+  it("setFinished requires at least one completed response", async () => {
+    const { hanna, id } = await publishedStudy();
+    await expect(hanna.studies.setFinished({ studyId: id, finished: true })).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+  });
+
+  it("setFinished refuses while recruitment is still open", async () => {
+    const { hanna, id } = await publishedStudy();
+    await hanna.studies.openRecruitment({ studyId: id });
+    await expect(hanna.studies.setFinished({ studyId: id, finished: true })).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+  });
+
+  it("finishes when closed + has a completed response; reopen clears it", async () => {
+    const { hanna, id, versionId } = await publishedStudy();
+    await seedCompletedResponse(versionId);
+    const r = await hanna.studies.setFinished({ studyId: id, finished: true });
+    expect(r.finishedAt).not.toBeNull();
+    expect((await hanna.studies.finishedState({ studyId: id })).finishedAt).not.toBeNull();
+    const back = await hanna.studies.setFinished({ studyId: id, finished: false });
+    expect(back.finishedAt).toBeNull();
+  });
+
+  it("cross-workspace replicate requires the source be finished (Template stays open)", async () => {
+    await seedUserWithWorkspace("hanna", "Hanna Lab");
+    await seedUserWithWorkspace("sofia", "Sofia Lab");
+    const hanna = createCaller({ authUser: authUser("hanna") });
+    const sofia = createCaller({ authUser: authUser("sofia") });
+    const { id } = await hanna.studies.create({ kind: "blank", title: "Src" });
+    await hanna.studies.addBlock({ studyId: id, source: "core", key: "likert-7", version: "1.0.0" });
+    await hanna.studies.publish({ studyId: id });
+    await hanna.studies.setForkable({ studyId: id, forkableBy: "public" });
+    // Not finished → Replicate is refused, but Use-as-template still works.
+    await expect(sofia.studies.fork({ studyId: id })).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+    const tmpl = await sofia.studies.useAsTemplate({ studyId: id });
+    expect(tmpl.id).toBeTruthy();
+    // Finish it → Replicate now allowed.
+    await db.update(experiment).set({ finishedAt: new Date() }).where(eq(experiment.id, id));
+    const { id: forkId } = await sofia.studies.fork({ studyId: id });
+    expect(forkId).toBeTruthy();
   });
 });
