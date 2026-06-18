@@ -4,7 +4,7 @@ import { inngest } from "@/server/adapters/jobs.inngest";
 import type { JobCatalog } from "@/server/adapters/jobs";
 import { runRegistryPush } from "@/server/jobs/registry-push";
 import { runEmailDigest, runNotificationFanout } from "@/server/jobs/notification-fanout";
-import { runDetectQuality, runPollProviderStatus, runReconcileStudy } from "@/server/jobs/recruitment";
+import { runAutoApprove, runDetectQuality, runPollProviderStatus, runReconcileStudy } from "@/server/jobs/recruitment";
 
 /**
  * Inngest serve endpoint. Deliberate lock-in exception (ADR-0007,
@@ -72,6 +72,17 @@ const recruitmentDetectQuality = inngest.createFunction(
   },
 );
 
+// V1.15 (ADR-0053): hourly auto-approval sweep, offset 30 min after detection so
+// the "no open flag" check sees the latest flags. Opt-in per workspace; only
+// approves clean + aged submissions (never a flagged participant).
+const recruitmentAutoApprove = inngest.createFunction(
+  { id: "recruitment-auto-approve", retries: 1 },
+  { cron: "30 * * * *" },
+  async () => {
+    return runAutoApprove();
+  },
+);
+
 export const { GET, POST, PUT } = serve({
   client: inngest,
   functions: [
@@ -81,5 +92,6 @@ export const { GET, POST, PUT } = serve({
     recruitmentReconcileStudy,
     recruitmentPollProviderStatus,
     recruitmentDetectQuality,
+    recruitmentAutoApprove,
   ],
 });

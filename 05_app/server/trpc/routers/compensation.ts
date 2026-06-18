@@ -3,7 +3,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/server/db/client";
-import { experiment, payoutRecord, user, workspacePayoutBudget } from "@/server/db/schema";
+import { experiment, payoutRecord, user, workspaceAutoApprovalPolicy, workspacePayoutBudget } from "@/server/db/schema";
 import { router, workspaceProcedure, writeProcedure } from "@/server/trpc/trpc";
 
 /**
@@ -234,6 +234,33 @@ export const compensationRouter = router({
             updatedByUserId: ctx.dbUser.id,
             updatedAt: new Date(),
           },
+        });
+      return { ok: true };
+    }),
+
+  /** Auto-approval policy for this workspace (ADR-0053). Disabled by default. */
+  getAutoApprovalPolicy: workspaceProcedure.query(async ({ ctx }): Promise<{ enabled: boolean; minAgeHours: number }> => {
+    const [p] = await db
+      .select({ enabled: workspaceAutoApprovalPolicy.enabled, minAgeHours: workspaceAutoApprovalPolicy.minAgeHours })
+      .from(workspaceAutoApprovalPolicy)
+      .where(eq(workspaceAutoApprovalPolicy.workspaceId, ctx.workspace.id))
+      .limit(1);
+    return p ?? { enabled: false, minAgeHours: 24 };
+  }),
+
+  /** Opt in/out of auto-approval (owner/admin only; ADR-0053). */
+  setAutoApprovalPolicy: writeProcedure
+    .input(z.object({ enabled: z.boolean(), minAgeHours: z.number().int().min(1).max(720).default(24) }))
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      if (ctx.role !== "owner" && ctx.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Only an owner or admin can change auto-approval." });
+      }
+      await db
+        .insert(workspaceAutoApprovalPolicy)
+        .values({ workspaceId: ctx.workspace.id, enabled: input.enabled, minAgeHours: input.minAgeHours, updatedByUserId: ctx.dbUser.id })
+        .onConflictDoUpdate({
+          target: workspaceAutoApprovalPolicy.workspaceId,
+          set: { enabled: input.enabled, minAgeHours: input.minAgeHours, updatedByUserId: ctx.dbUser.id, updatedAt: new Date() },
         });
       return { ok: true };
     }),

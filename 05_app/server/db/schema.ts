@@ -708,6 +708,23 @@ export const workspacePayoutBudget = pgTable("workspace_payout_budget", {
 });
 export type WorkspacePayoutBudget = typeof workspacePayoutBudget.$inferSelect;
 
+/**
+ * Opt-in auto-approval policy (V1.15 / ADR-0053). When enabled, the hourly job
+ * auto-approves a submission ONLY if it has no open quality flag AND has been
+ * awaiting review >= minAgeHours — never a flagged participant. Owner/admin set;
+ * one per workspace. Disabled by default (money automation is opt-in).
+ */
+export const workspaceAutoApprovalPolicy = pgTable("workspace_auto_approval_policy", {
+  workspaceId: uuid("workspace_id")
+    .primaryKey()
+    .references(() => workspace.id),
+  enabled: boolean("enabled").notNull().default(false),
+  minAgeHours: integer("min_age_hours").notNull().default(24),
+  updatedByUserId: uuid("updated_by_user_id").references((): AnyPgColumn => user.id),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type WorkspaceAutoApprovalPolicy = typeof workspaceAutoApprovalPolicy.$inferSelect;
+
 export const qualityFlagKind = pgEnum("quality_flag_kind", [
   "fast_completion",
   "straight_lining",

@@ -5,6 +5,7 @@
  * idempotent path that pulls provider state into our DB.
  */
 import type { JobCatalog } from "@/server/adapters/jobs";
+import { autoApproveEligible } from "@/server/recruitment/auto-approve";
 import { detectFlagsAllWorkspaces } from "@/server/recruitment/quality";
 import { pollProviderStatus, reconcileByProviderStudyId } from "@/server/recruitment/reconcile";
 
@@ -21,4 +22,9 @@ export async function runPollProviderStatus(): Promise<{ scanned: number; reconc
 /** Quality-detection sweep (cron, ADR-0049 am. 1): flag new low-quality responses across workspaces. */
 export async function runDetectQuality(): Promise<{ workspaces: number; created: number }> {
   return detectFlagsAllWorkspaces();
+}
+
+/** Auto-approval sweep (cron, ADR-0053): clear clean + aged submissions for opted-in workspaces. */
+export async function runAutoApprove(): Promise<{ workspaces: number; approved: number }> {
+  return autoApproveEligible(Date.now());
 }
