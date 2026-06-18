@@ -45,9 +45,13 @@ Confirmation modal copy names the money effect ("Approve — pays the participan
 - **Committed to:** never processing money ourselves (provider only); append-only payout audit; confirmation before any charge; idempotent approve.
 - **Precluded:** silent/bulk auto-charging without confirmation (bulk approve, if added later, still confirms a total); storing researcher financial PII.
 
+## Amendment 1 (2026-06-18) — bulk approve/reject/dismiss
+
+The "bulk approve/reject at scale" revisit trigger is now built. `quality.bulkResolve({flagIds, resolution, note})` reuses the same per-flag `applyResolution` path (provider call → reward payout / status stamp → flag record); it runs **sequentially** (Prolific rate-limits) and is **fault-tolerant** — one flag's provider failure is collected into a `failed[]` summary rather than aborting the batch, and a failed flag is never marked resolved. The UI confirms the **total** before firing ("Approve N on Prolific — each linked submission is paid"); reject takes one shared reason. Same money + write-member guardrails as the single path.
+
 ## Revisit triggers
 
-- Bulk approve/reject at scale → design a batched confirm + provider rate-limit handling.
+- Bulk approve/reject at scale → ~~design a batched confirm + provider rate-limit handling~~ (shipped, amendment 1; revisit only if Prolific adds a true batch endpoint).
 - A second provider with different money semantics → re-check the adapter contract.
 - Auto-approval policy (ADR-0049 deferred) → that path would approve without a per-item modal; needs its own explicit opt-in + audit.
 

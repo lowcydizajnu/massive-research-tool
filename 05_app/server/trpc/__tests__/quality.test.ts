@@ -382,6 +382,38 @@ describe("quality money actions (ADR-0052)", () => {
     expect(payouts[0]).toMatchObject({ kind: "bonus", amountCents: 150 });
   });
 
+  it("bulkResolve approves many: provider called per linked flag, payouts written, summary returned", async () => {
+    const { u, ws } = await seedWs("u", "lab");
+    const g = await seedStudyGraph(ws, u);
+    await seedConnection(ws, (await db.select().from(user).limit(1))[0]);
+    const fids: string[] = [];
+    for (const pid of ["pidA", "pidB"]) {
+      const subId = await seedSubmission(ws, g, pid, { rewardCents: 200 });
+      const fid = ulid();
+      await db.insert(qualityFlag).values({
+        id: fid, workspaceId: ws.id, experimentId: g.experimentId, providerSubmissionId: subId,
+        externalPid: pid, flagKind: "fast_completion", severity: "medium", autoDetected: true,
+      });
+      fids.push(fid);
+    }
+    const caller = createCaller({ authUser: authUser("u") });
+    const r = await caller.recruitment.quality.bulkResolve({ flagIds: fids, resolution: "approved" });
+    expect(r).toMatchObject({ resolved: 2, appliedOnProvider: 2 });
+    expect(r.failed).toHaveLength(0);
+    expect(adapterSpies.approveSubmission).toHaveBeenCalledTimes(2);
+    expect(await db.select().from(payoutRecord)).toHaveLength(2);
+    expect(await caller.recruitment.quality.list({ resolved: false })).toHaveLength(0);
+  });
+
+  it("bulkResolve reject requires a shared reason", async () => {
+    const { u, ws } = await seedWs("u", "lab");
+    const g = await seedStudyGraph(ws, u);
+    const fid = ulid();
+    await db.insert(qualityFlag).values({ id: fid, workspaceId: ws.id, experimentId: g.experimentId, flagKind: "manual", severity: "medium", autoDetected: false });
+    const caller = createCaller({ authUser: authUser("u") });
+    await expect(caller.recruitment.quality.bulkResolve({ flagIds: [fid], resolution: "rejected" })).rejects.toThrow(/reason/i);
+  });
+
   it("bonus on a flag with no linked submission is PRECONDITION_FAILED", async () => {
     const { u, ws } = await seedWs("u", "lab");
     const g = await seedStudyGraph(ws, u);
