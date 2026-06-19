@@ -63,6 +63,7 @@ export async function resolveRecipients(input: EmitInput): Promise<string[]> {
 
     case "preregister_complete":
     case "new_named_version":
+    case "study_finished":
       recipients = []; // Follows-only
       break;
   }

@@ -1486,6 +1486,20 @@ describe("studies.browsePublic + browseTags (V1.8 Stream B, ADR-0018)", () => {
     expect(r.items.map((i) => i.studyId)).toEqual([trust]);
   });
 
+  it("search also matches the published record abstract + tags (ADR-0055 1b)", async () => {
+    await seedUserWithWorkspace("hanna", "Hanna Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const byAbstract = await makePublic(a, "Opaque title one");
+    const byTag = await makePublic(a, "Opaque title two", ["neuroephemera"]);
+
+    // Publish a record whose abstract carries a distinctive word.
+    await a.studyRecord.saveAuthored({ studyId: byAbstract, abstract: "A study of zibbleflux priming." });
+    await a.studyRecord.setVisibility({ studyId: byAbstract, visibility: "public" });
+
+    expect((await a.studies.browsePublic({ q: "zibbleflux" })).items.map((i) => i.studyId)).toEqual([byAbstract]);
+    expect((await a.studies.browsePublic({ q: "neuroephemera" })).items.map((i) => i.studyId)).toEqual([byTag]);
+  });
+
   it("sorts oldest-first and A–Z (ADR-0055), each cursor-stable", async () => {
     await seedUserWithWorkspace("hanna", "Hanna Lab");
     const a = createCaller({ authUser: authUser("hanna") });

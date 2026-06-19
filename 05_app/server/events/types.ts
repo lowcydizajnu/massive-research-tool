@@ -14,6 +14,7 @@ export type EventType =
   | "review_request" // someone hit "Save & request review" mentioning you
   | "preregister_complete" // a study (yours or one you follow) was preregistered
   | "new_named_version" // a study you follow saved a new named version
+  | "study_finished" // a study (yours or one you follow) was marked finished (ADR-0054)
   | "proposal_open" // someone proposed changes to your study (ADR-0036)
   | "proposal_decided"; // your proposal was accepted/declined
 
@@ -26,6 +27,7 @@ export const EVENT_TYPES: EventType[] = [
   "review_request",
   "preregister_complete",
   "new_named_version",
+  "study_finished",
   "proposal_open",
   "proposal_decided",
 ];

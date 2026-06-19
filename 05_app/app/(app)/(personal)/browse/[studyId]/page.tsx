@@ -201,8 +201,25 @@ function ComposedRecord({ detail }: { detail: PublicStudyDetail }) {
               </Section>
             );
           case "materials":
-            return s.content ? (
-              <Section key={key} title={title}><RecordMarkdown md={s.content} /></Section>
+            return s.content || detail.materials.length > 0 ? (
+              <Section key={key} title={title}>
+                {s.content ? <RecordMarkdown md={s.content} /> : null}
+                {detail.materials.length > 0 ? (
+                  <div className="flex flex-wrap gap-3">
+                    {detail.materials.map((m) => (
+                      <a key={m.url} href={m.url} target="_blank" rel="noreferrer" className="flex flex-col gap-1 text-[length:var(--text-small)] text-[var(--color-text-secondary)] hover:opacity-90">
+                        {m.kind === "image" ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={m.url} alt={m.label} className="h-24 w-24 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] object-cover" />
+                        ) : (
+                          <span className="flex h-24 w-24 items-center justify-center rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] text-[var(--color-text-muted)]">{m.kind}</span>
+                        )}
+                        <span className="w-24 truncate">{m.label}</span>
+                      </a>
+                    ))}
+                  </div>
+                ) : null}
+              </Section>
             ) : null;
           // narrative / custom / article-link (legacy) — authored Markdown.
           default:
