@@ -268,6 +268,33 @@ describe("studies.studyDashboard — ADR-0056", () => {
   });
 });
 
+describe("studyRecord.publishDataset (ADR-0056 E2)", () => {
+  it("stores a snapshot, exposes it only when the record is public, and unpublish clears it", async () => {
+    await seed("hanna", "Hanna Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const { id } = await a.studies.create({ kind: "blank", title: "Dataset study" });
+    await a.studies.publish({ studyId: id });
+    await a.studies.setForkable({ studyId: id, forkableBy: "public" });
+    await a.studyRecord.saveAuthored({ studyId: id, abstract: "An abstract." });
+
+    await a.studyRecord.publishDataset({ studyId: id, headers: ["response_id", "q1"], rows: [["r1", "yes"], ["r2", "no"]] });
+    const edit = await a.studyRecord.getForEdit({ studyId: id });
+    expect(edit.dataPublished).toBe(true);
+    expect(edit.dataRowCount).toBe(2);
+
+    // Not exposed publicly until the record itself is public.
+    expect((await a.studies.getPublicStudy({ studyId: id })).record).toBeNull();
+    await a.studyRecord.setVisibility({ studyId: id, visibility: "public" });
+    const pub = await a.studies.getPublicStudy({ studyId: id });
+    expect(pub.record!.dataTable!.headers).toEqual(["response_id", "q1"]);
+    expect(pub.record!.dataTable!.rows).toHaveLength(2);
+
+    await a.studyRecord.unpublishDataset({ studyId: id });
+    expect((await a.studies.getPublicStudy({ studyId: id })).record!.dataTable).toBeNull();
+    expect((await a.studyRecord.getForEdit({ studyId: id })).dataPublished).toBe(false);
+  });
+});
+
 describe("studyRecord tenant scoping", () => {
   it("is NOT_FOUND for a study in another workspace", async () => {
     await seed("hanna", "Hanna Lab");

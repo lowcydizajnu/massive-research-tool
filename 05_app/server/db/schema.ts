@@ -1039,6 +1039,11 @@ export const studyRecord = pgTable("study_record", {
       { type: string; title?: string; content?: string; hidden?: boolean; fields?: Record<string, string> }[]
     >(),
   publishedAt: timestamp("published_at", { withTimezone: true }),
+  // Publishable dataset (ADR-0056 amendment / E2) — researcher opt-in, default off.
+  // `data_table` is an immutable snapshot ({headers, rows}) built at publish from
+  // the Export Data view, with the owner's chosen columns (PID excluded by default).
+  dataPublished: boolean("data_published").notNull().default(false),
+  dataTable: jsonb("data_table").$type<{ headers: string[]; rows: string[][] } | null>(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

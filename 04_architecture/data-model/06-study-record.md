@@ -13,6 +13,8 @@
 | `article_doi` | `text` null | Authored — published-article DOI (distinct from the OSF registration DOI on `experiment_version`). |
 | `layout` | `jsonb` not null, default `'[]'` | Ordered section instances `{ type, content?, hidden? }`. Bound types (`method`/`results`/`data`/`preregistration`/`replications`/`materials`) carry only `{type, hidden}` and resolve from study data server-side; authored types (`abstract`/`narrative`/`article-link`/`custom`) carry `content`. Unknown types are filtered at resolve time (forward-compat, same as `dashboard_layout`). |
 | `published_at` | `timestamptz` null | Stamps the first public publish. |
+| `data_published` | `boolean` not null, default `false` | E2 (ADR-0056 amendment) — researcher opt-in to publish the response dataset. Default off. |
+| `data_table` | `jsonb` null | Immutable `{headers, rows}` snapshot built at publish from the Export Data view, with the owner's chosen columns (participant id excluded by default). Rendered on the public record only when `data_published` **and** `visibility = public`. |
 | `updated_at` | `timestamptz` not null, default `now()` | Touched on every composer save. |
 
 ## Invariants & boundaries

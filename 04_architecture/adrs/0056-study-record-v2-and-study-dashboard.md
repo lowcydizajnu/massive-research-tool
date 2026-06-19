@@ -72,3 +72,16 @@ Reasoning: the Record is a *publication*; researchers expect to control every wo
 - ADR-0054 (Finished + Record), ADR-0045 (dashboard customization), ADR-0044 (version lifecycle), ADR-0014 (PII boundary), ADR-0007 (vendor seams), ADR-0055 (discovery).
 - Wireframe `03_design/wireframes/study-record.md`; data-model `04_architecture/data-model/06-study-record.md`.
 - Crossref REST API: `https://api.crossref.org/works/{doi}` (public, no key, polite pool via a `mailto`).
+
+## Amendment 2026-06-19 — publishable dataset on the Record (E2)
+
+Owner decision: the **Data** section may publish the study's response table (the same table shown in the **Export Data** view), **researcher opt-in**, since ~99% of these studies are anonymous; the researcher can **mask columns** they don't want public. This **amends** the "public Data = aggregate only" line for the Record (ADR-0014's PII principles still govern the *Participants* destination + Panels).
+
+Safety rails (non-negotiable, because this is the one place raw participant rows can go public):
+- **Default OFF.** Nothing is published until the owner explicitly enables it and confirms.
+- **Snapshot at publish.** The composer (which already has workspace-scoped `getResults`) builds the export matrix client-side via `lib/export/dataset` and stores an **immutable snapshot** (`study_record.data_table`) — the public page renders the stored snapshot, so no public raw-data query path exists and the dataset doesn't silently change as stragglers complete.
+- **Per-column control.** The owner chooses which columns to include; the opaque participant id (`external_pid`) is **excluded by default** (re-identification risk — it's the payment-reconciliation handle, ADR-0014) and must be added back deliberately.
+- **Explicit consent.** Enabling shows a confirmation stating that participant-level rows will be public and the owner affirms the data is anonymous + consented.
+- Storage: `study_record.data_published` (bool), `data_masked_columns` (text[]), `data_table` (jsonb `{headers, rows}` snapshot). Migration 0026.
+
+Why snapshot-and-store over an on-demand public results builder: avoids exposing a cross-tenant raw-results query, makes the published dataset immutable + auditable, and reuses the exact Export Data computation the researcher already trusts.

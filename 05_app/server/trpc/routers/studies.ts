@@ -801,6 +801,8 @@ export type PublicStudyDetail = {
     articleUrl: string | null;
     articleDoi: string | null;
     publishedAt: string | null;
+    /** Researcher-published dataset snapshot (ADR-0056 E2) — null unless opted in. */
+    dataTable: { headers: string[]; rows: string[][] } | null;
     layout: {
       type: string;
       title?: string;
@@ -1284,6 +1286,8 @@ export const studiesRouter = router({
           articleUrl: studyRecord.articleUrl,
           articleDoi: studyRecord.articleDoi,
           publishedAt: studyRecord.publishedAt,
+          dataPublished: studyRecord.dataPublished,
+          dataTable: studyRecord.dataTable,
           layout: studyRecord.layout,
         })
         .from(studyRecord)
@@ -1296,6 +1300,7 @@ export const studiesRouter = router({
               articleUrl: recRow.articleUrl,
               articleDoi: recRow.articleDoi,
               publishedAt: recRow.publishedAt?.toISOString() ?? null,
+              dataTable: recRow.dataPublished ? recRow.dataTable ?? null : null,
               layout: sanitizeRecordLayout(recRow.layout ?? []),
             }
           : null;
