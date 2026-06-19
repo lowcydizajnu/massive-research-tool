@@ -3,8 +3,9 @@ import { and, count, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 
 import { citation } from "@/server/adapters/citation";
+import { registry } from "@/server/adapters/registry";
 import { db } from "@/server/db/client";
-import { experiment, experimentVersion, response, studyRecord } from "@/server/db/schema";
+import { experiment, experimentVersion, registryPush, response, studyRecord } from "@/server/db/schema";
 import {
   DEFAULT_LAYOUT,
   SECTION_TYPES,
@@ -68,6 +69,8 @@ export type StudyRecordForEdit = {
   availability: Record<string, boolean>;
   /** Whether this study is preregistered — frozes the preregistration section (ADR-0056). */
   hasPreregistration: boolean;
+  /** OSF project node from the push history — present = "Push update to OSF" available (E4b). */
+  osfNodeId: string | null;
   sectionTypes: typeof SECTION_TYPES;
 };
 
@@ -144,6 +147,21 @@ async function boundAvailability(studyId: string): Promise<Record<string, boolea
   };
 }
 
+/** The OSF project node id from this study's push history (E4b), or null. */
+async function osfProjectNode(studyId: string): Promise<string | null> {
+  const pushes = await db
+    .select({ resp: registryPush.responsePayload })
+    .from(registryPush)
+    .innerJoin(experimentVersion, eq(registryPush.experimentVersionId, experimentVersion.id))
+    .where(eq(experimentVersion.experimentId, studyId))
+    .orderBy(desc(registryPush.createdAt));
+  for (const p of pushes) {
+    const nodeId = (p.resp as { nodeId?: string } | null)?.nodeId;
+    if (nodeId) return nodeId;
+  }
+  return null;
+}
+
 export const studyRecordRouter = router({
   /** The composer's view: the saved (or default) layout + authored fields + availability. */
   getForEdit: writeProcedure
@@ -166,8 +184,44 @@ export const studyRecordRouter = router({
         layout: sanitizeLayout((rec.layout as RecordSection[]) ?? []),
         availability,
         hasPreregistration: availability.preregistration,
+        osfNodeId: await osfProjectNode(input.studyId),
         sectionTypes: SECTION_TYPES,
       };
+    }),
+
+  /**
+   * Push the Record summary (abstract + article link + record URL) to the study's
+   * OSF **project node** (ADR-0056 E4b) — a non-plan update, not an amendment
+   * (ADR-0056 E4a). Requires a prior preregistration push (so a project node
+   * exists) + an active OSF connection.
+   */
+  pushToOsf: writeProcedure
+    .input(z.object({ studyId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      await requireOwnStudy(input.studyId, ctx.workspace.id);
+      const rec = await ensureRecord(input.studyId);
+      const nodeId = await osfProjectNode(input.studyId);
+      if (!nodeId) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Push a preregistration to OSF first — there's no OSF project to update yet.",
+        });
+      }
+      const conn = await registry.getConnection(ctx.dbUser.id);
+      if (!conn.connected) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Connect OSF in Settings · Connections first." });
+      }
+
+      const appBase = process.env.NEXT_PUBLIC_APP_URL ?? "https://myresearchlab.app";
+      const parts: string[] = [];
+      if (rec.abstract?.trim()) parts.push(rec.abstract.trim());
+      if (rec.articleDoi?.trim()) parts.push(`Article DOI: https://doi.org/${rec.articleDoi.trim()}`);
+      else if (rec.articleUrl?.trim()) parts.push(`Article: ${rec.articleUrl.trim()}`);
+      parts.push(`Full study record: ${appBase}/browse/${input.studyId}`);
+      const summary = parts.join("\n\n").slice(0, 5000);
+
+      await registry.pushRecordSummary(ctx.dbUser.id, { nodeId, summary });
+      return { ok: true };
     }),
 
   /**

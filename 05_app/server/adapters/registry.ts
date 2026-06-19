@@ -100,6 +100,15 @@ export interface RegistryAdapter {
   getRegistrationStatus(userId: string, registrationId: string): Promise<RegistrationStatus>;
   /** Best-effort withdrawal of a pushed registration. */
   withdraw(userId: string, doi: string, reason: string): Promise<void>;
+  /**
+   * Push the Study Record summary to the MUTABLE project node (ADR-0056 E4b /
+   * ADR-0054 face-vs-archive). The registration is immutable; the parent project
+   * node is where the readable face lives, so a non-plan "update" (abstract +
+   * article link + record URL) PATCHes the node's `description` — the same field
+   * set at node creation. Not an amendment (ADR-0056 E4a). `nodeId` is the OSF
+   * project node from the original push (`registry_push.responsePayload.nodeId`).
+   */
+  pushRecordSummary(userId: string, input: { nodeId: string; summary: string }): Promise<void>;
 }
 
 // Active implementation. Switching registries is a one-line change here.

@@ -295,6 +295,18 @@ describe("studyRecord.publishDataset (ADR-0056 E2)", () => {
   });
 });
 
+describe("studyRecord.pushToOsf (ADR-0056 E4b)", () => {
+  it("refuses when the study was never pushed to OSF (no project node)", async () => {
+    await seed("hanna", "Hanna Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const { id } = await a.studies.create({ kind: "blank", title: "No OSF yet" });
+    // No preregistration push → no OSF project node → guarded before any adapter call.
+    await expect(a.studyRecord.pushToOsf({ studyId: id })).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+    // getForEdit reflects no OSF node, so the UI hides the push affordance.
+    expect((await a.studyRecord.getForEdit({ studyId: id })).osfNodeId).toBeNull();
+  });
+});
+
 describe("studyRecord tenant scoping", () => {
   it("is NOT_FOUND for a study in another workspace", async () => {
     await seed("hanna", "Hanna Lab");
