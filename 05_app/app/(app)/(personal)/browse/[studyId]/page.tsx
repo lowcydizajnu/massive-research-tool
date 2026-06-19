@@ -8,6 +8,7 @@ import { UseAsTemplateButton } from "@/components/feature/browse/use-as-template
 import { CiteShare } from "@/components/feature/study-record/cite-share";
 import { SaveButton } from "@/components/feature/study-record/save-button";
 import { HypothesisChips } from "@/components/feature/study-record/hypothesis-chips";
+import { PublicDataTable } from "@/components/feature/study-record/public-data-table";
 import { RecordMarkdown } from "@/components/feature/study-record/record-markdown";
 import { sectionType } from "@/lib/study-record/sections";
 import { getServerApi } from "@/server/trpc/server";
@@ -191,13 +192,25 @@ function ComposedRecord({ detail }: { detail: PublicStudyDetail }) {
               </Section>
             );
           case "results":
-          case "data":
             return (
               <Section key={key} title={title}>
                 {s.content ? <RecordMarkdown md={s.content} /> : null}
                 <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
                   Aggregate results are shared with replicators; raw participant data stays private (ADR-0014).
                 </p>
+              </Section>
+            );
+          case "data":
+            return (
+              <Section key={key} title={title}>
+                {s.content ? <RecordMarkdown md={s.content} /> : null}
+                {rec.dataTable ? (
+                  <PublicDataTable headers={rec.dataTable.headers} rows={rec.dataTable.rows} title={detail.title} />
+                ) : (
+                  <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                    Aggregate results are shared with replicators; the response dataset isn’t published for this study.
+                  </p>
+                )}
               </Section>
             );
           case "materials":

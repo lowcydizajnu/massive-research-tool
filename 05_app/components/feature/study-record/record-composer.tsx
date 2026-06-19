@@ -20,6 +20,7 @@ import { ChevronDown, ChevronUp, Eye, EyeOff, GripVertical, Lock, Plus, X } from
 import { useMemo, useState, type CSSProperties } from "react";
 import { ulid } from "ulid";
 
+import { DataPublishControl } from "@/components/feature/study-record/data-publish-control";
 import { HypothesisChips } from "@/components/feature/study-record/hypothesis-chips";
 import { MarkdownField } from "@/components/feature/study-record/markdown-field";
 import { RecordMarkdown } from "@/components/feature/study-record/record-markdown";
@@ -204,6 +205,8 @@ function Editor({ studyId, data, onSaved }: { studyId: string; data: StudyRecord
                   type={sectionType(s.type)}
                   available={data.availability[s.type] ?? true}
                   frozen={isFrozenSection(s.type, data.hasPreregistration)}
+                  studyId={studyId}
+                  dataState={{ published: data.dataPublished, columns: data.dataColumns, rowCount: data.dataRowCount }}
                   first={i === 0}
                   last={i === sections.length - 1}
                   abstract={abstract}
@@ -302,7 +305,7 @@ function Editor({ studyId, data, onSaved }: { studyId: string; data: StudyRecord
 }
 
 function SortableSection({
-  instance, type, available, frozen, first, last,
+  instance, type, available, frozen, first, last, studyId, dataState,
   abstract, articleUrl, articleDoi, onAbstract, onArticleUrl, onArticleDoi,
   onImportDoi, importPending, citeNote,
   onPatch, onToggleHidden, onRemove, onMove,
@@ -313,6 +316,8 @@ function SortableSection({
   frozen: boolean;
   first: boolean;
   last: boolean;
+  studyId: string;
+  dataState: { published: boolean; columns: string[]; rowCount: number };
   abstract: string;
   articleUrl: string;
   articleDoi: string;
@@ -414,6 +419,14 @@ function SortableSection({
               {available ? "Seeds automatically from your data. Add notes below to override or annotate." : "Nothing to show yet — auto-hidden on the public record until it has data."}
             </p>
             <MarkdownField value={instance.content} onChange={(v) => onPatch({ content: v })} rows={3} ariaLabel={`${label} notes`} placeholder="Optional notes shown above the auto-resolved content…" />
+            {instance.type === "data" ? (
+              <DataPublishControl
+                studyId={studyId}
+                initialPublished={dataState.published}
+                initialColumns={dataState.columns}
+                initialRowCount={dataState.rowCount}
+              />
+            ) : null}
           </div>
         ) : (
           <MarkdownField value={instance.content} onChange={(v) => onPatch({ content: v })} rows={instance.type === "narrative" ? 5 : 3} ariaLabel={label} placeholder="Write this section…" />

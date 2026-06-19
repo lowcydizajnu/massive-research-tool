@@ -59,6 +59,10 @@ export type StudyRecordForEdit = {
   articleUrl: string | null;
   articleDoi: string | null;
   publishedAt: string | null;
+  /** Publishable dataset state (ADR-0056 E2) — opt-in, snapshot at publish. */
+  dataPublished: boolean;
+  dataColumns: string[];
+  dataRowCount: number;
   layout: RecordSection[];
   /** Which bound sections have data to show (greyed in the palette otherwise). */
   availability: Record<string, boolean>;
@@ -156,6 +160,9 @@ export const studyRecordRouter = router({
         articleUrl: rec.articleUrl,
         articleDoi: rec.articleDoi,
         publishedAt: rec.publishedAt?.toISOString() ?? null,
+        dataPublished: rec.dataPublished,
+        dataColumns: rec.dataTable?.headers ?? [],
+        dataRowCount: rec.dataTable?.rows.length ?? 0,
         layout: sanitizeLayout((rec.layout as RecordSection[]) ?? []),
         availability,
         hasPreregistration: availability.preregistration,
@@ -262,5 +269,42 @@ export const studyRecordRouter = router({
         .where(eq(studyRecord.experimentId, input.studyId))
         .returning({ publishedAt: studyRecord.publishedAt });
       return { publishedAt: row?.publishedAt?.toISOString() ?? null };
+    }),
+
+  /**
+   * Publish a response-dataset snapshot on the Record (ADR-0056 amendment / E2).
+   * The composer builds the table client-side from the Export Data view (the
+   * researcher picks columns; the participant id is excluded by default) and
+   * sends the snapshot here — we store it immutably. Opt-in + owner-built, so the
+   * researcher owns the anonymity call. Capped to keep the row sane.
+   */
+  publishDataset: writeProcedure
+    .input(
+      z.object({
+        studyId: z.string().uuid(),
+        headers: z.array(z.string().max(200)).min(1).max(200),
+        rows: z.array(z.array(z.string().max(5000)).max(200)).max(20_000),
+      }),
+    )
+    .mutation(async ({ ctx, input }): Promise<{ ok: true; rows: number }> => {
+      await requireOwnStudy(input.studyId, ctx.workspace.id);
+      await ensureRecord(input.studyId);
+      await db
+        .update(studyRecord)
+        .set({ dataPublished: true, dataTable: { headers: input.headers, rows: input.rows }, updatedAt: new Date() })
+        .where(eq(studyRecord.experimentId, input.studyId));
+      return { ok: true, rows: input.rows.length };
+    }),
+
+  /** Withdraw the published dataset (clears the snapshot). */
+  unpublishDataset: writeProcedure
+    .input(z.object({ studyId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      await requireOwnStudy(input.studyId, ctx.workspace.id);
+      await db
+        .update(studyRecord)
+        .set({ dataPublished: false, dataTable: null, updatedAt: new Date() })
+        .where(eq(studyRecord.experimentId, input.studyId));
+      return { ok: true };
     }),
 });

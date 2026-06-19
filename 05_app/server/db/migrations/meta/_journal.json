@@ -183,6 +183,13 @@
       "when": 1781878038200,
       "tag": "0025_thin_norman_osborn",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1781881053677,
+      "tag": "0026_slimy_spencer_smythe",
+      "breakpoints": true
     }
   ]
 }
