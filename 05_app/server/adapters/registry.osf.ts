@@ -488,6 +488,30 @@ export const osfRegistry: RegistryAdapter = {
       throw new Error(`OSF withdrawal failed: ${res.status} ${(await res.text()).slice(0, 500)}`);
     }
   },
+
+  // Push the Record summary to the mutable project node (ADR-0056 E4b). PATCHes
+  // the node `description` — the same writable field set at node creation — so
+  // this is the verified node endpoint, not a new one. The frozen registration
+  // is never touched (that's what amendments are for, ADR-0056 E4a).
+  async pushRecordSummary(userId, { nodeId, summary }): Promise<void> {
+    const token = await osfAccessToken(userId);
+    const cfg = osfConfig();
+    const res = await fetch(`${cfg.apiBase}/nodes/${nodeId}/`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": JSON_API, Accept: JSON_API },
+      body: JSON.stringify({
+        data: { type: "nodes", id: nodeId, attributes: { description: summary } },
+      }),
+    });
+    if (res.status === 401) {
+      throw new OsfNotConnectedError(
+        "OSF rejected the stored token (it may have been revoked or regenerated) — reconnect in Settings · Connections.",
+      );
+    }
+    if (!res.ok) {
+      throw new Error(`OSF record push failed: ${res.status} ${(await res.text()).slice(0, 500)}`);
+    }
+  },
 };
 
 /** Derive the OSF registration GUID from a DOI like "10.17605/OSF.IO/RXZQA" (or a bare guid). */
