@@ -60,6 +60,7 @@ describe("first migration — forward apply", () => {
       "dashboard_layout",
       "workspace_dashboard_default",
       "study_record",
+      "saved_record",
     ]) {
       expect(tables).toContain(t);
     }

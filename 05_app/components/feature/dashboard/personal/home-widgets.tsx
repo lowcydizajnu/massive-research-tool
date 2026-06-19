@@ -1,11 +1,12 @@
 import type { Route } from "next";
-import { ArrowRight, FlaskConical } from "lucide-react";
+import { ArrowRight, BookmarkCheck, FlaskConical } from "lucide-react";
 import Link from "next/link";
 
 import { openStudyAction, switchWorkspaceAction } from "@/app/actions/switch-workspace";
 import { PaginatedList } from "@/components/feature/dashboard/paginated-list";
 import { NewStudyButton } from "@/components/feature/new-study/new-study-button";
 import type { FollowsFeedItem } from "@/server/trpc/routers/follows";
+import type { SavedStudy } from "@/server/trpc/routers/saved";
 import type { MeStats, RecentStudy, RecruitingStudy } from "@/server/trpc/routers/me";
 import type { NotificationDTO } from "@/server/trpc/routers/notifications";
 import type { WorkspaceListItem } from "@/server/trpc/routers/workspace";
@@ -326,6 +327,33 @@ function followText(f: FollowsFeedItem): string {
     default:
       return `${actor} updated ${title}`;
   }
+}
+
+export function SavedStudiesWidget({ studies }: { studies: SavedStudy[] }) {
+  return (
+    <Card title="Saved studies">
+      {studies.length === 0 ? (
+        <Empty>Nothing saved yet — bookmark a study from Browse to keep it here.</Empty>
+      ) : (
+        <PaginatedList>
+          {studies.map((s) => (
+            <li key={s.studyId}>
+              <Link
+                href={`/browse/${s.studyId}` as Route}
+                className="flex w-full items-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-2 text-left hover:bg-[var(--color-surface-subtle)]"
+              >
+                <BookmarkCheck className="size-3.5 shrink-0 text-[var(--color-primary)]" aria-hidden />
+                <span className="min-w-0 flex-1 truncate text-[length:var(--text-body)] text-[var(--color-text-primary)]">{s.title}</span>
+                {s.finishedAt ? (
+                  <span className="shrink-0 rounded-full bg-[var(--color-success-subtle)] px-1.5 py-0.5 text-[length:var(--text-small)] text-[var(--color-success-text-on-subtle)]">Finished</span>
+                ) : null}
+              </Link>
+            </li>
+          ))}
+        </PaginatedList>
+      )}
+    </Card>
+  );
 }
 
 export function FollowsFeedWidget({ items }: { items: FollowsFeedItem[] }) {

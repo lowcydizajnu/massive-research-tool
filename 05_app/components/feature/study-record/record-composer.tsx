@@ -97,7 +97,26 @@ function Editor({ studyId, data, onSaved }: { studyId: string; data: StudyRecord
   const saveLayout = api.studyRecord.saveLayout.useMutation();
   const saveAuthored = api.studyRecord.saveAuthored.useMutation();
   const setVisibility = api.studyRecord.setVisibility.useMutation();
+  const lookupCitation = api.studyRecord.lookupCitation.useMutation();
+  const [citeNote, setCiteNote] = useState<string | null>(null);
   const busy = saveLayout.isPending || saveAuthored.isPending || setVisibility.isPending;
+
+  const importDoi = async () => {
+    setError(null);
+    setCiteNote(null);
+    if (!articleDoi.trim()) {
+      setError("Enter a DOI to import.");
+      return;
+    }
+    const meta = await lookupCitation.mutateAsync({ doi: articleDoi });
+    if (!meta) {
+      setError("Couldn’t find that DOI — enter the details manually.");
+      return;
+    }
+    setArticleDoi(meta.doi);
+    if (meta.url) setArticleUrl(meta.url);
+    setCiteNote(meta.citation + (meta.citedByCount != null ? ` · cited by ${meta.citedByCount}` : ""));
+  };
 
   const patch = (id: string, p: Partial<Instance>) => setSections((arr) => arr.map((x) => (x.id === id ? { ...x, ...p } : x)));
   const move = (id: string, dir: -1 | 1) =>
@@ -193,6 +212,9 @@ function Editor({ studyId, data, onSaved }: { studyId: string; data: StudyRecord
                   onAbstract={setAbstract}
                   onArticleUrl={setArticleUrl}
                   onArticleDoi={setArticleDoi}
+                  onImportDoi={importDoi}
+                  importPending={lookupCitation.isPending}
+                  citeNote={citeNote}
                   onPatch={(p) => patch(s.id, p)}
                   onToggleHidden={() => patch(s.id, { hidden: !s.hidden })}
                   onRemove={() => setSections((arr) => arr.filter((x) => x.id !== s.id))}
@@ -282,6 +304,7 @@ function Editor({ studyId, data, onSaved }: { studyId: string; data: StudyRecord
 function SortableSection({
   instance, type, available, frozen, first, last,
   abstract, articleUrl, articleDoi, onAbstract, onArticleUrl, onArticleDoi,
+  onImportDoi, importPending, citeNote,
   onPatch, onToggleHidden, onRemove, onMove,
 }: {
   instance: Instance;
@@ -296,6 +319,9 @@ function SortableSection({
   onAbstract: (v: string) => void;
   onArticleUrl: (v: string) => void;
   onArticleDoi: (v: string) => void;
+  onImportDoi?: () => void;
+  importPending?: boolean;
+  citeNote?: string | null;
   onPatch: (p: Partial<Instance>) => void;
   onToggleHidden: () => void;
   onRemove: () => void;
@@ -347,10 +373,21 @@ function SortableSection({
         {instance.type === "abstract" ? (
           <div className="flex flex-col gap-2">
             <MarkdownField value={abstract} onChange={onAbstract} rows={4} ariaLabel="Abstract" placeholder="A plain-language summary of what you found. Required to publish a public record." />
-            <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <input value={articleUrl} onChange={(e) => onArticleUrl(e.target.value)} placeholder="Article URL (https://…)" className={inputCls} />
               <input value={articleDoi} onChange={(e) => onArticleDoi(e.target.value)} placeholder="DOI (10.…)" className={inputCls} />
+              <button
+                type="button"
+                onClick={onImportDoi}
+                disabled={importPending}
+                className="shrink-0 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-1.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)] disabled:opacity-60"
+              >
+                {importPending ? "Importing…" : "Import from DOI"}
+              </button>
             </div>
+            {citeNote ? (
+              <p className="rounded-[var(--radius-sm)] bg-[var(--color-surface-subtle)] px-2 py-1.5 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">{citeNote}</p>
+            ) : null}
           </div>
         ) : instance.type === "hypotheses" ? (
           <div className="flex flex-col gap-2">

@@ -1042,6 +1042,29 @@ export const studyRecord = pgTable("study_record", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/**
+ * Saved / bookmarked studies (ADR-0056) — a per-user reading list, distinct from
+ * Follow (which feeds the activity stream). One row per (user, study); surfaced
+ * on the personal dashboard. Cascades on user/study delete.
+ */
+export const savedRecord = pgTable(
+  "saved_record",
+  {
+    id: text("id").primaryKey(), // ULID
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    experimentId: uuid("experiment_id")
+      .notNull()
+      .references(() => experiment.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("saved_record_user_study_unique").on(t.userId, t.experimentId),
+    index("idx_saved_record_user").on(t.userId),
+  ],
+);
+
 /* ---------- inferred types ---------- */
 
 export type User = typeof user.$inferSelect;
@@ -1055,6 +1078,7 @@ export type Experiment = typeof experiment.$inferSelect;
 export type ExperimentVersion = typeof experimentVersion.$inferSelect;
 export type StudyRecord = typeof studyRecord.$inferSelect;
 export type NewStudyRecord = typeof studyRecord.$inferInsert;
+export type SavedRecord = typeof savedRecord.$inferSelect;
 export type Module = typeof moduleTable.$inferSelect;
 export type NewModule = typeof moduleTable.$inferInsert;
 export type ModuleVersion = typeof moduleVersion.$inferSelect;

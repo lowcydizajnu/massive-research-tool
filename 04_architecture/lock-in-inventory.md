@@ -146,3 +146,5 @@ The full migration discipline is in [ADR-0007 §migration-order](adrs/0007-path-
 | Cloudflare R2 (asset storage) | `server/adapters/storage.r2.ts` only (aws4fetch presigner; StorageAdapter interface) | Migrate to S3/MinIO: new impl file + one-line export switch; objects copyable via rclone |
 
 | Cloudflare Turnstile (bot/quality screen) | RESERVED, not shipped (ADR-0042) — no code, no secret provisioned | Chosen captcha vendor if bot pressure appears; swap = a captcha adapter behind an interface, or hCaptcha |
+
+| Crossref (citation lookup) | `server/adapters/citation.ts` (`CitationAdapter`) + `server/adapters/citation.crossref.ts` only — public REST, no SDK, no key (polite-pool `mailto`) | Swap to DataCite / OpenAlex / Semantic Scholar behind the same interface; a failed/absent lookup already degrades to manual entry, so the dependency is non-blocking |

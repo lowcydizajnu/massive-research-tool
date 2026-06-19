@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { and, count, eq } from "drizzle-orm";
 import { z } from "zod";
 
+import { citation } from "@/server/adapters/citation";
 import { db } from "@/server/db/client";
 import { experiment, experimentVersion, response, studyRecord } from "@/server/db/schema";
 import {
@@ -176,6 +177,17 @@ export const studyRecordRouter = router({
         .set({ layout: clean, updatedAt: new Date() })
         .where(eq(studyRecord.experimentId, input.studyId));
       return { ok: true };
+    }),
+
+  /**
+   * Look up an article by DOI via the CitationAdapter (Crossref) for the
+   * Abstract block's "Import from DOI" (ADR-0056). Returns null when unknown so
+   * the UI falls back to manual entry. Write-gated (composer-only caller).
+   */
+  lookupCitation: writeProcedure
+    .input(z.object({ doi: z.string().trim().min(3).max(200) }))
+    .mutation(async ({ input }) => {
+      return citation.lookupDoi(input.doi);
     }),
 
   /** Persist the column-backed authored fields (abstract + article link). */
