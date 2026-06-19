@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { StageTabs } from "@/components/chrome/stage-tabs";
 import { PreflightChecklist } from "@/components/feature/run/preflight-checklist";
 import { AmendButton } from "@/components/feature/preregister/amend-button";
+import { PushToOsfButton } from "@/components/feature/study-record/push-to-osf-button";
 import { PreregisterButton } from "@/components/feature/preregister/preregister-button";
 import { RefreshOsfStatus } from "@/components/feature/preregister/refresh-osf-status";
 import { PushStatusPoller } from "@/components/feature/preregister/push-status-poller";
@@ -219,6 +220,15 @@ export default async function PreregisterStagePage({
                 Amends v{pre.amends}
                 {pre.changeSummary ? ` — ${pre.changeSummary}` : ""}
               </p>
+            ) : null}
+
+            {/* Push a non-plan record update to the OSF project (ADR-0056 E4b) —
+                lives here too, since this is where OSF is managed. Self-hides
+                until there's an OSF project; never an amendment. */}
+            {!pre.withdrawn ? (
+              <div className="border-t border-[var(--color-border-subtle)] pt-3">
+                <PushToOsfButton studyId={study.id} />
+              </div>
             ) : null}
 
             {/* Amendment is for changes to the REGISTERED PLAN only (ADR-0056 E4a).
