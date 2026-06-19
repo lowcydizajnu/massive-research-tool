@@ -23,6 +23,7 @@ import { ulid } from "ulid";
 import { DataPublishControl } from "@/components/feature/study-record/data-publish-control";
 import { HypothesisChips } from "@/components/feature/study-record/hypothesis-chips";
 import { MarkdownField } from "@/components/feature/study-record/markdown-field";
+import { PushToOsfButton } from "@/components/feature/study-record/push-to-osf-button";
 import { RecordMarkdown } from "@/components/feature/study-record/record-markdown";
 import { PendingButton } from "@/components/ui/pending-button";
 import {
@@ -100,17 +101,6 @@ function Editor({ studyId, data, onSaved }: { studyId: string; data: StudyRecord
   const setVisibility = api.studyRecord.setVisibility.useMutation();
   const lookupCitation = api.studyRecord.lookupCitation.useMutation();
   const [citeNote, setCiteNote] = useState<string | null>(null);
-  const pushOsf = api.studyRecord.pushToOsf.useMutation();
-  const [osfNote, setOsfNote] = useState<string | null>(null);
-  const doPushOsf = async () => {
-    setOsfNote(null);
-    try {
-      await pushOsf.mutateAsync({ studyId });
-      setOsfNote("Pushed the record summary to your OSF project.");
-    } catch (e) {
-      setOsfNote(e instanceof Error ? e.message : "OSF push failed.");
-    }
-  };
   const busy = saveLayout.isPending || saveAuthored.isPending || setVisibility.isPending;
 
   const importDoi = async () => {
@@ -194,18 +184,8 @@ function Editor({ studyId, data, onSaved }: { studyId: string; data: StudyRecord
             Not finished yet — you can compose, but a public record reads best once results have landed.
           </p>
         )}
-        <div className="flex shrink-0 items-center gap-2">
-          {data.osfNodeId ? (
-            <PendingButton
-              variant="secondary"
-              pending={pushOsf.isPending}
-              idleLabel="Push update to OSF"
-              pendingLabel="Pushing…"
-              onClick={doPushOsf}
-              title="Update your OSF project with this record's summary + links (not an amendment)"
-              className="px-3 py-1.5 text-[length:var(--text-small)]"
-            />
-          ) : null}
+        <div className="flex shrink-0 items-start gap-2">
+          <PushToOsfButton studyId={studyId} />
           <button
             type="button"
             onClick={() => setPreview((v) => !v)}
@@ -215,9 +195,6 @@ function Editor({ studyId, data, onSaved }: { studyId: string; data: StudyRecord
           </button>
         </div>
       </div>
-      {osfNote ? (
-        <p role="status" className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">{osfNote}</p>
-      ) : null}
 
       {preview ? (
         <Preview sections={sections} data={data} abstract={abstract} articleUrl={articleUrl} articleDoi={articleDoi} />
