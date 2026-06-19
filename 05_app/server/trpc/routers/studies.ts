@@ -26,6 +26,7 @@ import {
   user,
 } from "@/server/db/schema";
 import { sanitizeLayout as sanitizeRecordLayout } from "@/lib/study-record/sections";
+import { extractMaterials } from "@/lib/study-record/materials";
 import {
   type CustomModuleDefinition,
   definitionToBlocks,
@@ -786,6 +787,8 @@ export type PublicStudyDetail = {
   overview: { abstract: string; sections: { heading: string; contentMd: string }[] };
   conditions: { name: string }[];
   blocks: VersionPreviewBlock[];
+  /** Researcher-uploaded stimuli for the Materials section (ADR-0056 E3) — ws/ assets only. */
+  materials: { label: string; url: string; kind: string }[];
   /**
    * The composed Study Record (ADR-0054 §41) when its owner has **published** it
    * (visibility=public) — the page renders sections in this order, honouring
@@ -1118,7 +1121,13 @@ export const studiesRouter = router({
         filters.push(ilike(user.displayName, `%${input.authorQuery}%`));
       }
       if (input.q) {
-        filters.push(ilike(experiment.title, `%${input.q}%`));
+        // Search title + the published record's abstract + tags (ADR-0055 1b).
+        const like = `%${input.q}%`;
+        filters.push(
+          sql`(${experiment.title} ilike ${like}
+            or exists (select 1 from ${studyRecord} sr where sr.experiment_id = ${experiment.id} and sr.visibility = 'public' and sr.abstract ilike ${like})
+            or exists (select 1 from unnest(${experiment.tags}) tg where tg ilike ${like}))`,
+        );
       }
       if (input.finished) {
         filters.push(isNotNull(experiment.finishedAt));
@@ -1308,6 +1317,7 @@ export const studiesRouter = router({
           const d = blockDisplay(b);
           return { instanceId: b.instanceId, name: d.name, ref: d.ref, complete: d.complete };
         }),
+        materials: extractMaterials(readBlocks(ver.snapshot)),
         record,
       };
     }),
@@ -4885,7 +4895,7 @@ export const studiesRouter = router({
     .input(z.object({ studyId: z.string().uuid(), finished: z.boolean() }))
     .mutation(async ({ ctx, input }): Promise<{ finishedAt: string | null }> => {
       const [exp] = await db
-        .select({ id: experiment.id })
+        .select({ id: experiment.id, title: experiment.title, ownerId: experiment.ownerId, tags: experiment.tags })
         .from(experiment)
         .where(and(eq(experiment.id, input.studyId), eq(experiment.tenantId, ctx.workspace.id)))
         .limit(1);
@@ -4920,7 +4930,19 @@ export const studiesRouter = router({
         )
         .where(and(eq(experiment.id, input.studyId), eq(experiment.tenantId, ctx.workspace.id)))
         .returning({ finishedAt: experiment.finishedAt });
-      // The study_finished activity event + the Study Record page land in the next Slice-1 commit.
+
+      // Follows-only activity event when a study becomes finished (ADR-0054/0056).
+      if (input.finished && row?.finishedAt) {
+        await emit({
+          type: "study_finished",
+          actorUserId: ctx.dbUser.id,
+          workspaceId: ctx.workspace.id,
+          targetType: "study",
+          targetId: input.studyId,
+          related: { authorUserId: exp.ownerId, studyId: input.studyId, tagSlugs: exp.tags ?? undefined },
+          data: { studyTitle: exp.title },
+        });
+      }
       return { finishedAt: row?.finishedAt?.toISOString() ?? null };
     }),
 });

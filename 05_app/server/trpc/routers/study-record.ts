@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { and, count, eq } from "drizzle-orm";
+import { and, count, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 
 import { citation } from "@/server/adapters/citation";
@@ -13,6 +13,8 @@ import {
   isFrozenSection,
   sanitizeLayout,
 } from "@/lib/study-record/sections";
+import { extractMaterials } from "@/lib/study-record/materials";
+import { readBlocks } from "@/server/modules/blocks";
 import { writeProcedure, router } from "@/server/trpc/trpc";
 
 /**
@@ -113,13 +115,28 @@ async function boundAvailability(studyId: string): Promise<Record<string, boolea
     .where(and(eq(experimentVersion.experimentId, studyId), eq(response.status, "completed")));
 
   const hasResponses = Number(done) > 0;
+
+  // Materials = researcher-uploaded stimuli in the latest frozen version (E3).
+  const [ver] = await db
+    .select({ snapshot: experimentVersion.definitionSnapshot })
+    .from(experimentVersion)
+    .where(
+      and(
+        eq(experimentVersion.experimentId, studyId),
+        inArray(experimentVersion.kind, ["published", "preregistered"]),
+      ),
+    )
+    .orderBy(desc(experimentVersion.versionNumber))
+    .limit(1);
+  const hasMaterials = ver ? extractMaterials(readBlocks(ver.snapshot)).length > 0 : false;
+
   return {
     method: true, // a study always has a protocol skeleton
     results: hasResponses,
     data: hasResponses,
     preregistration: !!prereg,
     replications: Number(reps) > 0,
-    materials: false, // media inventory resolver is deferred (greyed in the palette)
+    materials: hasMaterials,
   };
 }
 

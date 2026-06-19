@@ -235,6 +235,8 @@ function FollowRow({ f }: { f: FollowsFeedItem }) {
       ? `${actor} preregistered ${named}`
       : f.type === "new_named_version"
         ? `${actor} saved a new version of ${named}`
+        : f.type === "study_finished"
+          ? `${actor} finished ${named}`
         : f.type === "fork"
           ? `${actor} replicated ${named}`
           : f.type === "osf_push_complete"

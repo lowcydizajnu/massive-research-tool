@@ -84,8 +84,8 @@ export function BrowseExplorer() {
           type="search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Search studies…"
-          aria-label="Search public studies by title"
+          placeholder="Search title, abstract, tags…"
+          aria-label="Search public studies by title, abstract, and tags"
           className="w-48 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2.5 py-1.5 text-[length:var(--text-small)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
         />
 

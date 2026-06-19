@@ -320,6 +320,8 @@ function followText(f: FollowsFeedItem): string {
       return `${actor} preregistered ${title}`;
     case "new_named_version":
       return `${actor} saved a new version of ${title}`;
+    case "study_finished":
+      return `${actor} finished ${title}`;
     case "fork":
       return `${actor} replicated ${title}`;
     case "osf_push_complete":
