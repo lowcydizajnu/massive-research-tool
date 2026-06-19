@@ -25,6 +25,7 @@ export type WidgetKey =
   | "follows-feed"
   | "notifications"
   | "mentions-inbox"
+  | "saved-studies"
   // workspace dashboard (/dashboard)
   | "workspace-header"
   | "active-recruitment"
@@ -150,6 +151,16 @@ export const WIDGET_REGISTRY: Record<WidgetKey, WidgetMeta> = {
     size: "small",
     dashboard: "user",
   },
+  "saved-studies": {
+    key: "saved-studies",
+    name: "Saved studies",
+    description: "Studies you bookmarked from Browse (ADR-0056).",
+    category: "personal",
+    size: "medium",
+    dashboard: "user",
+    defaultInLayout: true,
+    settings: [ITEM_COUNT(6, [3, 6, 10])],
+  },
   // ---- workspace dashboard (/dashboard) ----
   "workspace-header": {
     key: "workspace-header",
@@ -230,6 +241,7 @@ export const USER_DASHBOARD_DEFAULT_LAYOUT: WidgetKey[] = [
   "recruiting-studies",
   "workspaces-card",
   "recent-studies",
+  "saved-studies",
   "quick-actions",
 ];
 

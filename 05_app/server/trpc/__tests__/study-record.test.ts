@@ -38,6 +38,7 @@ import {
   registryPush,
   response,
   responseItem,
+  savedRecord,
   studyRecord,
   user,
   workspace,
@@ -82,6 +83,7 @@ beforeEach(async () => {
   await db.delete(response);
   await db.delete(recruitmentSession);
   await db.delete(condition);
+  await db.delete(savedRecord);
   await db.delete(studyRecord);
   await db.delete(registryPush);
   await db.delete(registryConnection);
@@ -228,6 +230,41 @@ describe("getPublicStudy reflects the published record (ADR-0054 read path)", ()
     expect(after.record!.layout.map((s) => s.type)).toEqual(["abstract", "method", "narrative"]);
     expect(after.record!.layout[1].hidden).toBe(true);
     expect(after.record!.layout[2].content).toBe("Prose.");
+  });
+});
+
+describe("saved (bookmark) router — ADR-0056", () => {
+  it("toggles a save, reflects isSaved, and lists it", async () => {
+    await seed("hanna", "Hanna Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const { id } = await a.studies.create({ kind: "blank", title: "Bookmark me" });
+
+    expect(await a.saved.isSaved({ studyId: id })).toBe(false);
+    expect((await a.saved.toggle({ studyId: id })).saved).toBe(true);
+    expect(await a.saved.isSaved({ studyId: id })).toBe(true);
+    expect((await a.saved.list()).map((s) => s.studyId)).toContain(id);
+
+    expect((await a.saved.toggle({ studyId: id })).saved).toBe(false);
+    expect(await a.saved.list()).toHaveLength(0);
+  });
+});
+
+describe("studies.studyDashboard — ADR-0056", () => {
+  it("reports lifecycle + a next-action prompt; preregistering advances the spine", async () => {
+    await seed("hanna", "Hanna Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const { id } = await a.studies.create({ kind: "blank", title: "Lifecycle" });
+
+    const d0 = await a.studies.studyDashboard({ studyId: id });
+    expect(d0.currentStep).toBe("draft");
+    expect(d0.lifecycle.find((s) => s.key === "preregistered")!.done).toBe(false);
+    // A draft with no frozen version prompts to preregister/publish.
+    expect(d0.nextActions.some((x) => x.href.endsWith("/preregister"))).toBe(true);
+
+    await a.studies.preregister({ studyId: id });
+    const d1 = await a.studies.studyDashboard({ studyId: id });
+    expect(d1.lifecycle.find((s) => s.key === "preregistered")!.done).toBe(true);
+    expect(d1.currentStep).toBe("preregistered");
   });
 });
 

@@ -22,7 +22,15 @@
 - **Visibility gate:** flipping to `public` requires the experiment be public-replicable (same gate as Browse) + a non-empty `abstract`; otherwise the publish mutation rejects.
 - **Lifecycle:** the Record is independent of OSF — OSF is the archive, the Record is the face (ADR-0054); OSF sync rides the deferred OSF-OAuth work ([[osf-5-deferred]]).
 
+## `saved_record` (ADR-0056, migration 0025)
+
+A per-user **bookmark / reading list**, distinct from Follow (which feeds the activity stream). One row per `(user_id, experiment_id)` (unique index), `created_at`, cascade on user/study delete. Surfaced as the **Saved studies** widget on the personal dashboard; toggled from the public record's Save button. No PII; purely a pointer.
+
+## Section model v2 (ADR-0056)
+
+`study_record.layout` entries are extended (jsonb, migration-free) to `{ type, title?, content?, hidden?, fields? }`: bound sections accept a `title`/`content` **override** (preregistration stays frozen, ADR-0044); `fields` carries the **Hypotheses** structured data (effect / direction / statistic kind / value / analysis), all optional. Authored content is Markdown, sanitised client-side (`lib/study-record/record-markdown.ts`). The article DOI/URL fold into the Abstract section. Citation import is via the `CitationAdapter` (Crossref) — see the lock-in inventory.
+
 ## Related
 
 - [00-core-entities](00-core-entities.md) — `experiment` (`finished_at`/`finished_by_user_id`).
-- ADR-0054 (Finished state + Record), ADR-0045 (dashboard customization this reuses), ADR-0014 (PII boundary), ADR-0018 (public-replicable gate).
+- ADR-0054 (Finished state + Record), ADR-0056 (v2 + Study Dashboard), ADR-0045 (dashboard customization this reuses), ADR-0014 (PII boundary), ADR-0018 (public-replicable gate), ADR-0007 (CitationAdapter seam).

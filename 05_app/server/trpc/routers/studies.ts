@@ -8,6 +8,7 @@ import { registry } from "@/server/adapters/registry";
 import { db } from "@/server/db/client";
 import { emit } from "@/server/events/emit";
 import {
+  activityEvent,
   condition as conditionTable,
   changeProposal,
   comment,
@@ -667,6 +668,22 @@ export type RunInfo = {
   recruitment: { status: "open" | "paused" | "closed"; currentN: number } | null;
   /** Study marked Finished (ADR-0054) — the badge shows "Finished" consistently (ADR-0056). */
   finishedAt: string | null;
+};
+
+/** Per-study Dashboard (ADR-0056) — "where are we with this study". */
+export type StudyDashboardData = {
+  title: string;
+  /** Lifecycle steps in order, each with a reached flag; `current` is the furthest reached. */
+  lifecycle: { key: string; label: string; done: boolean }[];
+  currentStep: string;
+  recruitment: { status: "open" | "paused" | "closed" | null; currentN: number; targetN: number | null };
+  completedResponses: number;
+  conditionBalance: { name: string; n: number }[];
+  record: { visibility: "workspace" | "public"; hasAbstract: boolean; publishedAt: string | null } | null;
+  replicationCount: number;
+  /** Concrete prompts — what to do next / what's blocking. */
+  nextActions: { label: string; href: string; tone: "primary" | "warning" | "muted" }[];
+  activity: { id: string; type: string; at: string }[];
 };
 
 /** Per-condition + per-question results, plus per-response rows for CSV export. */
@@ -3379,6 +3396,127 @@ export const studiesRouter = router({
         divergedFromLive,
         recruitment: rs ? { status: rs.status, currentN: pooledN } : null,
         finishedAt: ver.finishedAt?.toISOString() ?? null,
+      };
+    }),
+
+  /**
+   * Per-study Dashboard (ADR-0056) — the first stage tab: a lifecycle tracker,
+   * recruitment/data at a glance, concrete next-actions, and a recent-activity
+   * timeline. Read-only aggregate over existing tables; no new data.
+   */
+  studyDashboard: workspaceProcedure
+    .input(z.object({ studyId: z.string().uuid() }))
+    .query(async ({ ctx, input }): Promise<StudyDashboardData> => {
+      const [exp] = await db
+        .select({ id: experiment.id, title: experiment.title, finishedAt: experiment.finishedAt })
+        .from(experiment)
+        .where(and(eq(experiment.id, input.studyId), eq(experiment.tenantId, ctx.workspace.id)))
+        .limit(1);
+      if (!exp) throw new TRPCError({ code: "NOT_FOUND", message: "Study not found." });
+
+      const versions = await db
+        .select({ kind: experimentVersion.kind })
+        .from(experimentVersion)
+        .where(eq(experimentVersion.experimentId, input.studyId));
+      const hasPrereg = versions.some((v) => v.kind === "preregistered");
+      const hasPublished = versions.some((v) => v.kind === "published");
+
+      const [rs] = await db
+        .select({ status: recruitmentSession.status, targetN: recruitmentSession.targetN })
+        .from(recruitmentSession)
+        .innerJoin(experimentVersion, eq(recruitmentSession.experimentVersionId, experimentVersion.id))
+        .where(eq(experimentVersion.experimentId, input.studyId))
+        .orderBy(desc(recruitmentSession.openedAt))
+        .limit(1);
+
+      const [{ done }] = await db
+        .select({ done: count() })
+        .from(responseTable)
+        .innerJoin(experimentVersion, eq(responseTable.experimentVersionId, experimentVersion.id))
+        .where(and(eq(experimentVersion.experimentId, input.studyId), eq(responseTable.status, "completed")));
+      const completedResponses = Number(done);
+
+      // Conditions live per version; pool by name across the study's versions.
+      const balanceRows = await db
+        .select({ name: condition.name, n: count(responseTable.id) })
+        .from(condition)
+        .innerJoin(experimentVersion, eq(condition.experimentVersionId, experimentVersion.id))
+        .leftJoin(
+          responseTable,
+          and(eq(responseTable.conditionId, condition.id), eq(responseTable.status, "completed")),
+        )
+        .where(eq(experimentVersion.experimentId, input.studyId))
+        .groupBy(condition.name);
+
+      const [recRow] = await db
+        .select({ visibility: studyRecord.visibility, abstract: studyRecord.abstract, publishedAt: studyRecord.publishedAt })
+        .from(studyRecord)
+        .where(eq(studyRecord.experimentId, input.studyId))
+        .limit(1);
+
+      const [reps] = await db
+        .select({ c: count() })
+        .from(experiment)
+        .where(eq(experiment.forkOfExperimentId, input.studyId));
+
+      const events = await db
+        .select({ id: activityEvent.id, type: activityEvent.type, createdAt: activityEvent.createdAt })
+        .from(activityEvent)
+        .where(eq(activityEvent.relatedStudyId, input.studyId))
+        .orderBy(desc(activityEvent.createdAt))
+        .limit(8);
+
+      const recordPublic = recRow?.visibility === "public";
+      const recruiting = rs?.status === "open";
+      const hasData = completedResponses > 0;
+      const finished = !!exp.finishedAt;
+
+      // Lifecycle spine (ADR-0056).
+      const lifecycle = [
+        { key: "draft", label: "Draft", done: true },
+        { key: "preregistered", label: "Preregistered", done: hasPrereg },
+        { key: "recruiting", label: "Recruiting", done: recruiting || hasData || finished },
+        { key: "data", label: "Data in", done: hasData },
+        { key: "finished", label: "Finished", done: finished },
+        { key: "published", label: "Record published", done: recordPublic },
+      ];
+      const currentStep = [...lifecycle].reverse().find((s) => s.done)?.key ?? "draft";
+
+      // Concrete next-actions / blockers.
+      const nextActions: StudyDashboardData["nextActions"] = [];
+      const base = `/studies/${input.studyId}`;
+      if (!hasPrereg && !hasPublished) {
+        nextActions.push({ label: "Preregister or publish to make it runnable", href: `${base}/preregister`, tone: "primary" });
+      } else if (!recruiting && !hasData) {
+        nextActions.push({ label: "Open recruitment to start collecting data", href: `${base}/run`, tone: "primary" });
+      }
+      if (rs?.status === "open" && rs.targetN != null && completedResponses >= rs.targetN) {
+        nextActions.push({ label: "Target reached — review and finish", href: `${base}/results`, tone: "warning" });
+      }
+      if (hasData && !finished) {
+        nextActions.push({ label: "Mark the study as finished", href: `${base}/results`, tone: "muted" });
+      }
+      if (finished && !recordPublic) {
+        nextActions.push({
+          label: recRow?.abstract ? "Publish your study record" : "Add an abstract, then publish your record",
+          href: `${base}/record`,
+          tone: "primary",
+        });
+      }
+
+      return {
+        title: exp.title,
+        lifecycle,
+        currentStep,
+        recruitment: { status: rs?.status ?? null, currentN: completedResponses, targetN: rs?.targetN ?? null },
+        completedResponses,
+        conditionBalance: balanceRows.map((r) => ({ name: r.name, n: Number(r.n) })),
+        record: recRow
+          ? { visibility: recRow.visibility === "public" ? "public" : "workspace", hasAbstract: !!recRow.abstract?.trim(), publishedAt: recRow.publishedAt?.toISOString() ?? null }
+          : null,
+        replicationCount: Number(reps?.c ?? 0),
+        nextActions,
+        activity: events.map((e) => ({ id: e.id, type: e.type, at: e.createdAt.toISOString() })),
       };
     }),
 

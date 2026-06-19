@@ -10,6 +10,7 @@ import {
   QuickActionsWidget,
   RecentStudiesWidget,
   RecruitingWidget,
+  SavedStudiesWidget,
   StatsStrip,
   WelcomeWidget,
   WidgetError,
@@ -47,9 +48,10 @@ export default async function HomePage() {
       api.me.stats(),
       api.follows.feed(),
       api.notifications.list(),
+      api.saved.list(),
     ]),
   ]);
-  const [active, workspaces, recent, recruiting, stats, follows, notifications] = settled;
+  const [active, workspaces, recent, recruiting, stats, follows, notifications, saved] = settled;
   const notifs = notifications.status === "fulfilled" ? notifications.value : [];
 
   const activeId = active.status === "fulfilled" ? active.value.id : null;
@@ -86,6 +88,12 @@ export default async function HomePage() {
         <WidgetError title="Your recent studies" />
       ),
     "quick-actions": <QuickActionsWidget />,
+    "saved-studies":
+      saved.status === "fulfilled" ? (
+        <SavedStudiesWidget studies={cap(saved.value, limitFor("saved-studies") ?? 6)} />
+      ) : (
+        <WidgetError title="Saved studies" />
+      ),
     "follows-feed":
       follows.status === "fulfilled" ? (
         <FollowsFeedWidget items={cap(follows.value, limitFor("follows-feed") ?? 6)} />

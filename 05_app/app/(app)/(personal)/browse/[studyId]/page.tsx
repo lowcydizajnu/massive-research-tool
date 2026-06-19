@@ -6,6 +6,7 @@ import { FollowButton } from "@/components/feature/follow/follow-button";
 import { ReplicateButton } from "@/components/feature/browse/replicate-button";
 import { UseAsTemplateButton } from "@/components/feature/browse/use-as-template-button";
 import { CiteShare } from "@/components/feature/study-record/cite-share";
+import { SaveButton } from "@/components/feature/study-record/save-button";
 import { HypothesisChips } from "@/components/feature/study-record/hypothesis-chips";
 import { RecordMarkdown } from "@/components/feature/study-record/record-markdown";
 import { sectionType } from "@/lib/study-record/sections";
@@ -103,6 +104,7 @@ export default async function StudyRecordPage({
             {/* Replicate = finished only (ADR-0054); Template always available. */}
             {finished ? <ReplicateButton studyId={detail.studyId} className="w-full justify-center px-4 py-2" /> : null}
             <UseAsTemplateButton studyId={detail.studyId} className="w-full justify-center px-4 py-2" />
+            <SaveButton studyId={detail.studyId} />
           </div>
           <div className="rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-4">
             <CiteShare
