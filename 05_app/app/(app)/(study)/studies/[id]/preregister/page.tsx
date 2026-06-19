@@ -72,9 +72,14 @@ export default async function PreregisterStagePage({
 
   let study: StudyDetail | null = null;
   let pre: PreregistrationStatus | null = null;
+  // Whether the editable draft actually diverges from the registered plan
+  // (ADR-0056 E4a) — gates the amendment affordance so non-plan updates (status,
+  // materials pushed to OSF, links) don't wrongly surface "file an amendment".
+  let planDiverged = false;
   try {
     study = await api.studies.get({ id });
     pre = await api.studies.getPreregistration({ studyId: id });
+    planDiverged = (await api.studies.getRunInfo({ studyId: id })).divergedFromLive;
   } catch {
     study = null;
   }
@@ -216,15 +221,26 @@ export default async function PreregisterStagePage({
               </p>
             ) : null}
 
-            {/* File a new amendment — freezes the current draft as a superseding
-                preregistered version (ADR-0004). Same pre-flight gate as preregister.
-                Hidden once withdrawn — there's nothing live to amend. */}
-            {!pre.withdrawn ? (
-              <div className="border-t border-[var(--color-border-subtle)] pt-3">
+            {/* Amendment is for changes to the REGISTERED PLAN only (ADR-0056 E4a).
+                It surfaces only when the editable draft actually diverges from the
+                live preregistered version — so non-plan updates (recruitment status,
+                materials, links, the study record) don't wrongly prompt an
+                amendment. Hidden once withdrawn — there's nothing live to amend. */}
+            {!pre.withdrawn && planDiverged ? (
+              <div className="flex flex-col gap-2 border-t border-[var(--color-border-subtle)] pt-3">
+                <p className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+                  Your draft changes the registered plan. To make those changes part of the record, file an amendment —
+                  it freezes the current draft as a superseding preregistered version and re-files it on OSF.
+                </p>
                 <PreflightChecklist studyId={study.id} mode="preregister">
                   <AmendButton studyId={study.id} />
                 </PreflightChecklist>
               </div>
+            ) : !pre.withdrawn ? (
+              <p className="border-t border-[var(--color-border-subtle)] pt-3 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                Your draft matches the preregistration. Non-plan updates — recruitment status, materials, links, the
+                study record — don’t need an amendment; only changes to the registered plan do.
+              </p>
             ) : null}
 
             {/* Withdraw (retract) the pushed registration on OSF (ADR-0005 am. 3).
