@@ -384,6 +384,33 @@ describe("studies.getRecordPreview (ADR-0056 C — preview parity)", () => {
   });
 });
 
+describe("studies.setVariants (ADR-0058)", () => {
+  it("round-trips factors + bindings via studies.get and prunes dangling bindings", async () => {
+    await seed("hanna", "Hanna Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const { id } = await a.studies.create({ kind: "blank", title: "Factorial" });
+    await a.studies.setVariants({
+      studyId: id,
+      factors: [{ id: "f1", name: "Social influence", levels: [{ id: "lo", name: "low" }, { id: "hi", name: "high" }] }],
+      variantBindings: [
+        { instanceId: "post", path: "likes", factorId: "f1", valuesByLevel: { lo: 12, hi: 9800 } },
+        { instanceId: "post", path: "x", factorId: "gone", valuesByLevel: {} }, // dangling → pruned
+      ],
+    });
+    const study = await a.studies.get({ id });
+    expect(study.factors).toHaveLength(1);
+    expect(study.factors[0].levels.map((l) => l.name)).toEqual(["low", "high"]);
+    expect(study.variantBindings).toHaveLength(1);
+    expect(study.variantBindings[0].valuesByLevel).toEqual({ lo: 12, hi: 9800 });
+
+    // Clearing all factors returns the study to single-variant (no residue).
+    await a.studies.setVariants({ studyId: id, factors: [], variantBindings: [] });
+    const cleared = await a.studies.get({ id });
+    expect(cleared.factors).toEqual([]);
+    expect(cleared.variantBindings).toEqual([]);
+  });
+});
+
 describe("studyRecord tenant scoping", () => {
   it("is NOT_FOUND for a study in another workspace", async () => {
     await seed("hanna", "Hanna Lab");

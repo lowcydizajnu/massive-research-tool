@@ -429,6 +429,8 @@ export const response = pgTable(
       .references(() => condition.id),
     /** Opaque external recruitment id (Prolific PID etc.) — never a key, never demographic-joined. */
     externalPid: text("external_pid"),
+    /** Factorial-variant cell assigned at start (ADR-0058) — {factorId: levelId}; null = no variants. */
+    variantCell: jsonb("variant_cell").$type<Record<string, string> | null>(),
     mode: responseMode("mode").notNull(),
     status: responseStatus("status").notNull().default("started"),
     currentQuestionIndex: integer("current_question_index").notNull().default(0),

@@ -69,6 +69,24 @@ export function readGroups(snapshot: unknown): StudyGroup[] {
   return [];
 }
 
+/** Factorial-variant factors out of a definition_snapshot (ADR-0058). */
+export function readFactors(snapshot: unknown): import("@/lib/variants/factorial").VariantFactor[] {
+  if (snapshot && typeof snapshot === "object" && "factors" in snapshot) {
+    const f = (snapshot as { factors?: unknown }).factors;
+    if (Array.isArray(f)) return f as import("@/lib/variants/factorial").VariantFactor[];
+  }
+  return [];
+}
+
+/** Field→factor variant bindings out of a definition_snapshot (ADR-0058). */
+export function readVariantBindings(snapshot: unknown): import("@/lib/variants/factorial").VariantBinding[] {
+  if (snapshot && typeof snapshot === "object" && "variantBindings" in snapshot) {
+    const b = (snapshot as { variantBindings?: unknown }).variantBindings;
+    if (Array.isArray(b)) return b as import("@/lib/variants/factorial").VariantBinding[];
+  }
+  return [];
+}
+
 /** Researcher-authored study documentation (V1.12 B1), stored in the snapshot. */
 export type OverviewSection = { id: string; heading: string; contentMd: string };
 export type StudyOverview = {
