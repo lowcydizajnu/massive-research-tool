@@ -1328,6 +1328,94 @@ export const studiesRouter = router({
     }),
 
   /**
+   * Owner preview of the composed Record (ADR-0056 C) — the SAME `PublicStudyDetail`
+   * shape the public read page renders, but tenant-gated and including the record
+   * regardless of visibility (so the composer Preview shows exactly what would
+   * publish). Tolerates a not-yet-frozen study (empty bound sections).
+   */
+  getRecordPreview: workspaceProcedure
+    .input(z.object({ studyId: z.string().uuid() }))
+    .query(async ({ ctx, input }): Promise<PublicStudyDetail> => {
+      const [exp] = await db
+        .select({
+          id: experiment.id,
+          title: experiment.title,
+          authorId: experiment.ownerId,
+          authorName: user.displayName,
+          tags: experiment.tags,
+          finishedAt: experiment.finishedAt,
+          createdAt: experiment.createdAt,
+        })
+        .from(experiment)
+        .innerJoin(user, eq(user.id, experiment.ownerId))
+        .where(and(eq(experiment.id, input.studyId), eq(experiment.tenantId, ctx.workspace.id)))
+        .limit(1);
+      if (!exp) throw new TRPCError({ code: "NOT_FOUND", message: "Study not found." });
+
+      const [ver] = await db
+        .select({ id: experimentVersion.id, kind: experimentVersion.kind, versionNumber: experimentVersion.versionNumber, snapshot: experimentVersion.definitionSnapshot })
+        .from(experimentVersion)
+        .where(and(eq(experimentVersion.experimentId, input.studyId), inArray(experimentVersion.kind, ["published", "preregistered"])))
+        .orderBy(desc(experimentVersion.versionNumber))
+        .limit(1);
+
+      const [reps] = await db
+        .select({ c: count() })
+        .from(experiment)
+        .where(eq(experiment.forkOfExperimentId, input.studyId));
+
+      const ov = ver ? readOverview(ver.snapshot) : { abstract: "", sections: [] };
+      const conditions = ver ? await conditionsForVersion(ver.id) : [];
+      const blocks = ver ? readBlocks(ver.snapshot) : [];
+
+      const [recRow] = await db
+        .select({
+          abstract: studyRecord.abstract,
+          articleUrl: studyRecord.articleUrl,
+          articleDoi: studyRecord.articleDoi,
+          publishedAt: studyRecord.publishedAt,
+          dataPublished: studyRecord.dataPublished,
+          dataTable: studyRecord.dataTable,
+          layout: studyRecord.layout,
+        })
+        .from(studyRecord)
+        .where(eq(studyRecord.experimentId, input.studyId))
+        .limit(1);
+
+      return {
+        studyId: exp.id,
+        title: exp.title,
+        authorId: exp.authorId,
+        authorName: exp.authorName ?? "",
+        tags: exp.tags ?? [],
+        latestKind: (ver?.kind as "published" | "preregistered") ?? "published",
+        latestVersionNumber: ver?.versionNumber ?? 0,
+        replicationCount: reps?.c ?? 0,
+        finishedAt: exp.finishedAt?.toISOString() ?? null,
+        createdAt: exp.createdAt.toISOString(),
+        overview: { abstract: ov.abstract, sections: ov.sections.map((s) => ({ heading: s.heading, contentMd: s.contentMd })) },
+        conditions: conditions.map((c) => ({ name: c.name })),
+        blocks: blocks.map((b) => {
+          const d = blockDisplay(b);
+          return { instanceId: b.instanceId, name: d.name, ref: d.ref, complete: d.complete };
+        }),
+        materials: extractMaterials(blocks),
+        // Preview includes the saved record regardless of visibility (so the owner
+        // sees the composed layout pre-publish); dataset shows if opted-in.
+        record: recRow
+          ? {
+              abstract: recRow.abstract,
+              articleUrl: recRow.articleUrl,
+              articleDoi: recRow.articleDoi,
+              publishedAt: recRow.publishedAt?.toISOString() ?? null,
+              dataTable: recRow.dataPublished ? recRow.dataTable ?? null : null,
+              layout: sanitizeRecordLayout(recRow.layout ?? []),
+            }
+          : null,
+      };
+    }),
+
+  /**
    * Tags (with usage counts) across the discoverable public set, for the Browse
    * filter sidebar's autocomplete. Optional prefix query `q`.
    */

@@ -307,6 +307,29 @@ describe("studyRecord.pushToOsf (ADR-0056 E4b)", () => {
   });
 });
 
+describe("studies.getRecordPreview (ADR-0056 C — preview parity)", () => {
+  it("returns the composed record for the owner even when visibility is workspace", async () => {
+    await seed("hanna", "Hanna Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const { id } = await a.studies.create({ kind: "blank", title: "Preview me" });
+    await a.studyRecord.saveAuthored({ studyId: id, abstract: "Composed abstract." });
+    // Not public — getPublicStudy would hide the record, but preview must show it.
+    const prev = await a.studies.getRecordPreview({ studyId: id });
+    expect(prev.record).not.toBeNull();
+    expect(prev.record!.abstract).toBe("Composed abstract.");
+    expect(prev.title).toBe("Preview me");
+  });
+
+  it("is NOT_FOUND for another workspace's study", async () => {
+    await seed("hanna", "Hanna Lab");
+    await seed("sofia", "Sofia Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const b = createCaller({ authUser: authUser("sofia") });
+    const { id } = await a.studies.create({ kind: "blank", title: "Hanna's" });
+    await expect(b.studies.getRecordPreview({ studyId: id })).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+});
+
 describe("studyRecord tenant scoping", () => {
   it("is NOT_FOUND for a study in another workspace", async () => {
     await seed("hanna", "Hanna Lab");
