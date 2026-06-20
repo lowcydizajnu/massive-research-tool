@@ -53,6 +53,20 @@ export type FlowEdge = { id: string; source: string; target: string; label?: str
 
 export type FlowGraph = { nodes: FlowNode[]; edges: FlowEdge[] };
 
+/** Categorical chip colours per condition (ADR-0057), cycled by condition index. */
+export const CONDITION_PALETTE: { bg: string; text: string }[] = [
+  { bg: "var(--color-cond-1)", text: "var(--color-cond-1-text)" },
+  { bg: "var(--color-cond-2)", text: "var(--color-cond-2-text)" },
+  { bg: "var(--color-cond-3)", text: "var(--color-cond-3-text)" },
+  { bg: "var(--color-cond-4)", text: "var(--color-cond-4-text)" },
+  { bg: "var(--color-cond-5)", text: "var(--color-cond-5-text)" },
+  { bg: "var(--color-cond-6)", text: "var(--color-cond-6-text)" },
+];
+export function conditionColor(index: number): { bg: string; text: string } {
+  const n = CONDITION_PALETTE.length;
+  return CONDITION_PALETTE[((index % n) + n) % n];
+}
+
 export type DeriveFlowInput = {
   blocks: BlockInstance[];
   groups: StudyGroup[];

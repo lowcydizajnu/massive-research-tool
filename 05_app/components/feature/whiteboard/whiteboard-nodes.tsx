@@ -87,22 +87,25 @@ export function ConditionNode({ data }: NodeProps<ConditionNodeType>) {
 
 const NODE_W = 240;
 
-/** Small arm chips shown on a screen ("all arms" when shared). */
-function ArmChips({ arms, allArms }: { arms?: string[]; allArms?: boolean }) {
-  if (allArms || !arms || arms.length === 0) {
+/** A colored condition chip (ADR-0057): label + its categorical palette colour. */
+export type ConditionChip = { label: string; bg: string; text: string };
+
+/** Condition chips for a screen ("all conditions" when shared), right-aligned for scanning. */
+function ConditionChips({ conditions, allConditions }: { conditions?: ConditionChip[]; allConditions?: boolean }) {
+  if (allConditions || !conditions || conditions.length === 0) {
     return (
-      <span className="rounded-full bg-[var(--color-surface-subtle)] px-1.5 py-0.5 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-        all arms
+      <span className="shrink-0 rounded-full bg-[var(--color-surface-subtle)] px-1.5 py-0.5 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+        all conditions
       </span>
     );
   }
-  const shown = arms.slice(0, 3);
-  const extra = arms.length - shown.length;
+  const shown = conditions.slice(0, 3);
+  const extra = conditions.length - shown.length;
   return (
-    <span className="flex flex-wrap items-center gap-1">
-      {shown.map((a) => (
-        <span key={a} className="rounded-full bg-[var(--color-primary-subtle)] px-1.5 py-0.5 text-[length:var(--text-small)] font-medium text-[var(--color-primary-text-on-subtle)]">
-          {a}
+    <span className="flex shrink-0 flex-wrap items-center justify-end gap-1">
+      {shown.map((c) => (
+        <span key={c.label} style={{ background: c.bg, color: c.text }} className="rounded-full px-1.5 py-0.5 text-[length:var(--text-small)] font-medium">
+          {c.label}
         </span>
       ))}
       {extra > 0 ? <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">+{extra}</span> : null}
@@ -125,7 +128,12 @@ export function FlowStartNode({ data }: NodeProps<FlowStartNode>) {
   );
 }
 
-export type FlowAssignData = { arms: string[] };
+export type FlowAssignData = {
+  conditions: { slug: string; label: string; bg: string; text: string }[];
+  /** Currently focused condition (switcher) — null = none. */
+  highlighted?: string | null;
+  onToggle?: (slug: string) => void;
+};
 export type FlowAssignNode = Node<FlowAssignData, "flowAssign">;
 export function FlowAssignNode({ data }: NodeProps<FlowAssignNode>) {
   return (
@@ -135,10 +143,24 @@ export function FlowAssignNode({ data }: NodeProps<FlowAssignNode>) {
         <Shuffle className="size-3.5" aria-hidden /> Random assignment
       </span>
       <span className="flex flex-wrap gap-1">
-        {data.arms.map((a) => (
-          <span key={a} className="rounded-full bg-[var(--color-surface-canvas)] px-1.5 py-0.5 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">{a}</span>
-        ))}
+        {data.conditions.map((c) => {
+          const dim = data.highlighted != null && data.highlighted !== c.slug;
+          return (
+            <button
+              key={c.slug}
+              type="button"
+              aria-pressed={data.highlighted === c.slug}
+              title={`Focus the “${c.label}” path`}
+              onClick={(e) => { e.stopPropagation(); data.onToggle?.(c.slug); }}
+              style={{ background: c.bg, color: c.text, opacity: dim ? 0.4 : 1 }}
+              className="rounded-full px-1.5 py-0.5 text-[length:var(--text-small)] font-medium ring-offset-1 hover:opacity-90 aria-pressed:ring-2 aria-pressed:ring-[var(--color-primary)]"
+            >
+              {c.label}
+            </button>
+          );
+        })}
       </span>
+      <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">Click a condition to focus its path</span>
       {outHandle}
     </div>
   );
@@ -147,11 +169,13 @@ export function FlowAssignNode({ data }: NodeProps<FlowAssignNode>) {
 export type FlowScreenData = {
   title: string;
   blockCount: number;
-  arms?: string[];
-  allArms?: boolean;
+  conditions?: ConditionChip[];
+  allConditions?: boolean;
   incomplete?: boolean;
   unreachable?: boolean;
-  /** Swimlane "repeat" marker — this screen is shared across arms (ADR-0057). */
+  /** Dimmed by the condition switcher (this screen isn't on the focused condition). */
+  dimmed?: boolean;
+  /** Swimlane "repeat" marker — this screen is shared across conditions (ADR-0057). */
   shared?: boolean;
   /** Editing affordances (chips view only); absent = read-only. */
   canEdit?: boolean;
@@ -187,7 +211,7 @@ export function FlowScreenNode({ data, selected }: NodeProps<FlowScreenNode>) {
         width: NODE_W,
         border: `${selected ? 2 : 1}px solid ${selected ? "var(--color-primary)" : "var(--color-border-subtle)"}`,
         boxShadow: "var(--shadow-sm)",
-        opacity: data.unreachable ? 0.5 : 1,
+        opacity: data.unreachable ? 0.5 : data.dimmed ? 0.4 : 1,
       }}
     >
       {data.canEdit ? (
@@ -199,11 +223,13 @@ export function FlowScreenNode({ data, selected }: NodeProps<FlowScreenNode>) {
         </NodeToolbar>
       ) : null}
       {inHandle}
-      <span className="font-serif text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">{data.title}</span>
-      <span className="flex flex-wrap items-center gap-1.5 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-        <span>{data.blockCount} block{data.blockCount === 1 ? "" : "s"}</span>
-        <ArmChips arms={data.arms} allArms={data.allArms} />
-        {data.shared ? <span className="text-[var(--color-text-muted)]">· shared</span> : null}
+      <div className="flex items-start justify-between gap-2">
+        <span className="min-w-0 flex-1 truncate font-serif text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">{data.title}</span>
+        <ConditionChips conditions={data.conditions} allConditions={data.allConditions} />
+      </div>
+      <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+        {data.blockCount} block{data.blockCount === 1 ? "" : "s"}
+        {data.shared ? " · shared" : ""}
       </span>
       {data.incomplete ? (
         <span className="self-start rounded-full bg-[var(--color-warning-subtle)] px-1.5 py-0.5 text-[length:var(--text-small)] text-[var(--color-warning-text-on-subtle)]">Needs setup</span>
@@ -218,7 +244,7 @@ export function FlowScreenNode({ data, selected }: NodeProps<FlowScreenNode>) {
   );
 }
 
-export type FlowBranchData = { summary: string; unreachable?: boolean };
+export type FlowBranchData = { summary: string; unreachable?: boolean; dimmed?: boolean };
 export type FlowBranchNode = Node<FlowBranchData, "flowBranch">;
 export function FlowBranchNode({ data, selected }: NodeProps<FlowBranchNode>) {
   return (
@@ -227,7 +253,7 @@ export function FlowBranchNode({ data, selected }: NodeProps<FlowBranchNode>) {
       style={{
         maxWidth: NODE_W,
         border: `${selected ? 2 : 1}px solid ${selected ? "var(--color-primary)" : "var(--color-border-subtle)"}`,
-        opacity: data.unreachable ? 0.5 : 1,
+        opacity: data.unreachable ? 0.5 : data.dimmed ? 0.4 : 1,
       }}
     >
       {inHandle}
@@ -238,7 +264,7 @@ export function FlowBranchNode({ data, selected }: NodeProps<FlowBranchNode>) {
   );
 }
 
-export type FlowTerminalData = { title: string; kind: "complete" | "early-exit"; redirectTo?: string | null; unreachable?: boolean };
+export type FlowTerminalData = { title: string; kind: "complete" | "early-exit"; redirectTo?: string | null; unreachable?: boolean; dimmed?: boolean };
 export type FlowTerminalNode = Node<FlowTerminalData, "flowTerminal">;
 export function FlowTerminalNode({ data }: NodeProps<FlowTerminalNode>) {
   const complete = data.kind === "complete";
@@ -248,7 +274,7 @@ export function FlowTerminalNode({ data }: NodeProps<FlowTerminalNode>) {
       style={{
         background: complete ? "var(--color-success-subtle)" : "var(--color-warning-subtle)",
         color: complete ? "var(--color-success-text-on-subtle)" : "var(--color-warning-text-on-subtle)",
-        opacity: data.unreachable ? 0.5 : 1,
+        opacity: data.unreachable ? 0.5 : data.dimmed ? 0.4 : 1,
         maxWidth: NODE_W,
       }}
     >

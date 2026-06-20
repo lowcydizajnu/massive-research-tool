@@ -14,10 +14,10 @@ import {
   useEdgesState,
   useNodesState,
 } from "@xyflow/react";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { api } from "@/lib/trpc/react";
-import { buildFlow, deriveSwimlaneFlow, type FlowNode } from "@/lib/whiteboard/flow";
+import { buildFlow, conditionColor, deriveSwimlaneFlow, type FlowNode } from "@/lib/whiteboard/flow";
 import type { BlockInstance } from "@/server/modules/blocks";
 import type { StudyDetail } from "@/server/trpc/routers/studies";
 
@@ -60,7 +60,7 @@ export function WhiteboardCanvas({
   conditions,
   selectedId = null,
   onSelectBlock,
-  armView = "chips",
+  armView = "swimlane",
   editable = true,
   onMoveScreen,
   onAddAfter,
@@ -69,7 +69,7 @@ export function WhiteboardCanvas({
   study: StudyDetail;
   conditions: WhiteboardCondition[];
   selectedId?: string | null;
-  /** "chips" = one spine with arm chips (default); "swimlane" = one lane per arm (read lens). */
+  /** "swimlane" = one lane per condition (default); "chips" = one combined spine with condition chips. */
   armView?: "chips" | "swimlane";
   /** Read-only when false (viewers): no on-canvas editing toolbar. */
   editable?: boolean;
@@ -85,6 +85,17 @@ export function WhiteboardCanvas({
     const m = new Map(conditions.map((c) => [c.slug, c.name]));
     return (slug: string) => m.get(slug) ?? slug;
   }, [conditions]);
+  const condColor = useMemo(() => {
+    const idx = new Map(conditions.map((c, i) => [c.slug, i]));
+    return (slug: string) => conditionColor(idx.get(slug) ?? 0);
+  }, [conditions]);
+
+  // Condition switcher (ADR-0057): click a condition in the assignment node to
+  // focus its path; everything not on that condition dims.
+  const [highlightCondition, setHighlightCondition] = useState<string | null>(null);
+  useEffect(() => {
+    if (highlightCondition && !conditions.some((c) => c.slug === highlightCondition)) setHighlightCondition(null);
+  }, [conditions, highlightCondition]);
 
   const graph = useMemo(() => {
     const incomplete = new Set(study.blocks.filter((b) => !b.complete).map((b) => b.instanceId));
@@ -119,7 +130,22 @@ export function WhiteboardCanvas({
     () => graph.nodes.filter((n) => n.kind === "screen" || (n.kind === "terminal" && n.terminalKind === "early-exit")).map((n) => n.refId).filter((r): r is string => !!r),
     [graph.nodes],
   );
-  const canEditScreens = editable && armView === "chips";
+  // Editing happens on the single spine: the Combined view, or any study with ≤1
+  // condition (where swimlane falls back to a spine anyway).
+  const canEditScreens = editable && (armView === "chips" || conditions.length <= 1);
+
+  // A node's condition slugs (for the dim switcher): swimlane lane id `L{n}:` → that
+  // condition; a chips screen → its own conditions; shared anchors → "all" (never dim).
+  const isDimmed = useCallback(
+    (n: FlowNode): boolean => {
+      if (!highlightCondition) return false;
+      const m = n.id.match(/^L(\d+):/);
+      if (m) return conditions[Number(m[1])]?.slug !== highlightCondition;
+      if (n.kind === "screen") return !n.allArms && !(n.arms ?? []).includes(highlightCondition);
+      return false;
+    },
+    [highlightCondition, conditions],
+  );
 
   // Map a flow node back to a selectable block instanceId for the config panel:
   // a single screen IS a block; a group screen / its branch selects its first member.
@@ -149,8 +175,9 @@ export function WhiteboardCanvas({
               ? {
                   title: n.title || "Untitled screen",
                   blockCount: n.blockCount ?? 0,
-                  arms: (n.arms ?? []).map(armName),
-                  allArms: n.allArms,
+                  conditions: (n.arms ?? []).map((s) => ({ label: armName(s), ...condColor(s) })),
+                  allConditions: n.allArms,
+                  dimmed: isDimmed(n),
                   shared: n.shared,
                   incomplete: n.incomplete,
                   unreachable: n.unreachable,
@@ -163,15 +190,19 @@ export function WhiteboardCanvas({
                   onDelete: n.refId ? () => onDeleteScreen?.(n.refId!) : undefined,
                 }
               : n.kind === "branch"
-                ? { summary: n.conditionSummary ?? "", unreachable: n.unreachable }
+                ? { summary: n.conditionSummary ?? "", unreachable: n.unreachable, dimmed: isDimmed(n) }
                 : n.kind === "terminal"
-                  ? { title: n.title ?? "Finish", kind: n.terminalKind ?? "complete", redirectTo: n.redirectTo, unreachable: n.unreachable }
+                  ? { title: n.title ?? "Finish", kind: n.terminalKind ?? "complete", redirectTo: n.redirectTo, unreachable: n.unreachable, dimmed: isDimmed(n) }
                   : n.kind === "assign"
-                    ? { arms: (n.assignArms ?? []).map((a) => a.name) }
+                    ? {
+                        conditions: (n.assignArms ?? []).map((a) => ({ slug: a.slug, label: a.name, ...condColor(a.slug) })),
+                        highlighted: highlightCondition,
+                        onToggle: (slug: string) => setHighlightCondition((p) => (p === slug ? null : slug)),
+                      }
                     : { label: n.title ?? "Start" },
         } as Node;
       }),
-    [graph.nodes, selectedId, selectableFor, armName, canEditScreens, screenOrder, onMoveScreen, onAddAfter, onDeleteScreen],
+    [graph.nodes, selectedId, selectableFor, armName, condColor, isDimmed, highlightCondition, canEditScreens, screenOrder, onMoveScreen, onAddAfter, onDeleteScreen],
   );
 
   const computedEdges = useMemo<Edge[]>(

@@ -52,6 +52,16 @@
   --color-info-subtle: #DDEFFB;
   --color-info-text-on-subtle: #0E5879;
 
+  /* Condition categorical palette (ADR-0057) — distinct hues per experimental
+     condition on the study flow diagram; cycled by condition index. Each is a
+     subtle chip background + a readable text colour. */
+  --color-cond-1: #E7E9FD; --color-cond-1-text: #312E81;
+  --color-cond-2: #D5F0EC; --color-cond-2-text: #115E59;
+  --color-cond-3: #FBEACB; --color-cond-3-text: #854D0E;
+  --color-cond-4: #FCE0EA; --color-cond-4-text: #9D174D;
+  --color-cond-5: #F1E4FB; --color-cond-5-text: #5B21B6;
+  --color-cond-6: #D9EEF8; --color-cond-6-text: #155E75;
+
   /* Borders — three tiers, vertical use restricted */
   --color-border-heavy: #1A1F2C;
   --color-border-medium: #94A0B5;
@@ -107,6 +117,14 @@
   --color-info: #38BDF8;
   --color-info-subtle: rgba(14, 165, 233, 0.22);
   --color-info-text-on-subtle: #92D5F0;
+
+  /* Condition categorical palette (ADR-0057) — dark-mode tints + readable text. */
+  --color-cond-1: rgba(99, 102, 241, 0.22); --color-cond-1-text: #C7C9F7;
+  --color-cond-2: rgba(20, 184, 166, 0.22); --color-cond-2-text: #8BE0D5;
+  --color-cond-3: rgba(245, 158, 11, 0.20); --color-cond-3-text: #FAD89A;
+  --color-cond-4: rgba(244, 63, 94, 0.20); --color-cond-4-text: #F7A8C0;
+  --color-cond-5: rgba(139, 92, 246, 0.22); --color-cond-5-text: #CBB2F2;
+  --color-cond-6: rgba(6, 182, 212, 0.22); --color-cond-6-text: #8ED6E8;
 
   /* Borders */
   --color-border-heavy: #F5F1E8;
