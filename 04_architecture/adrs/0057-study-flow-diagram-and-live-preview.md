@@ -1,6 +1,6 @@
 # ADR 0057 — Study flow diagram + live Builder preview
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-06-20
 - **Deciders:** Project owner, Claude
 - **Tags:** builder, whiteboard, runtime-visualization, ux
