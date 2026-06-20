@@ -176,13 +176,13 @@ function Editor({ studyId, data, onSaved }: { studyId: string; data: StudyRecord
 
   return (
     <div className="flex flex-col gap-4 pb-24">
-      <div className="flex items-center justify-between gap-2">
-        {data.finishedAt ? <span /> : (
+      <div className="flex flex-col gap-3">
+        {data.finishedAt ? null : (
           <p className="rounded-[var(--radius-md)] bg-[var(--color-warning-subtle)] px-3 py-1.5 text-[length:var(--text-small)] text-[var(--color-warning-text-on-subtle)]">
             Not finished yet — you can compose, but a public record reads best once results have landed.
           </p>
         )}
-        <div className="flex shrink-0 items-start gap-2">
+        <div className="flex flex-wrap items-start justify-end gap-2">
           <PushToOsfButton studyId={studyId} />
           <button
             type="button"

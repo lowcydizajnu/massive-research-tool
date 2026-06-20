@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { TRPCError } from "@trpc/server";
 import { and, count, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
@@ -71,6 +73,11 @@ export type StudyRecordForEdit = {
   hasPreregistration: boolean;
   /** OSF project node from the push history — present = "Push update to OSF" available (E4b). */
   osfNodeId: string | null;
+  /** Exactly what a push would write to the OSF project node, itemized (item 2). */
+  osfSummaryItems: OsfPushItem[];
+  /** When the current content was last pushed (null = never), and whether OSF is already up to date. */
+  osfPushedAt: string | null;
+  osfUpToDate: boolean;
   sectionTypes: typeof SECTION_TYPES;
 };
 
@@ -162,6 +169,33 @@ async function osfProjectNode(studyId: string): Promise<string | null> {
   return null;
 }
 
+export type OsfPushItem = { label: string; value: string };
+
+/**
+ * The exact, itemized content the OSF project-node push would write (ADR-0056 E4b
+ * / item 2). Single source of truth so the confirm modal, the up-to-date check,
+ * and the mutation all agree. The public record link is included ONLY when the
+ * record is public — a workspace-private record 404s on `/browse/[id]`, which is
+ * the bug the modal previously always showed.
+ */
+function osfRecordSummary(
+  rec: { abstract: string | null; articleUrl: string | null; articleDoi: string | null },
+  opts: { studyId: string; recordPublic: boolean },
+): { items: OsfPushItem[]; text: string; hash: string } {
+  const appBase = process.env.NEXT_PUBLIC_APP_URL ?? "https://myresearchlab.app";
+  const items: OsfPushItem[] = [];
+  if (rec.abstract?.trim()) items.push({ label: "Abstract", value: rec.abstract.trim() });
+  if (rec.articleDoi?.trim()) items.push({ label: "Article DOI", value: `https://doi.org/${rec.articleDoi.trim()}` });
+  else if (rec.articleUrl?.trim()) items.push({ label: "Article link", value: rec.articleUrl.trim() });
+  if (opts.recordPublic) items.push({ label: "Public record link", value: `${appBase}/browse/${opts.studyId}` });
+  const text = items
+    .map((i) => (i.label === "Abstract" ? i.value : `${i.label}: ${i.value}`))
+    .join("\n\n")
+    .slice(0, 5000);
+  const hash = createHash("sha256").update(text).digest("hex");
+  return { items, text, hash };
+}
+
 export const studyRecordRouter = router({
   /** The composer's view: the saved (or default) layout + authored fields + availability. */
   getForEdit: writeProcedure
@@ -170,10 +204,12 @@ export const studyRecordRouter = router({
       const exp = await requireOwnStudy(input.studyId, ctx.workspace.id);
       const rec = await ensureRecord(input.studyId);
       const availability = await boundAvailability(input.studyId);
+      const recordPublic = rec.visibility === "public";
+      const summary = osfRecordSummary(rec, { studyId: input.studyId, recordPublic });
       return {
         studyId: input.studyId,
         finishedAt: exp.finishedAt?.toISOString() ?? null,
-        visibility: rec.visibility === "public" ? "public" : "workspace",
+        visibility: recordPublic ? "public" : "workspace",
         abstract: rec.abstract,
         articleUrl: rec.articleUrl,
         articleDoi: rec.articleDoi,
@@ -185,6 +221,9 @@ export const studyRecordRouter = router({
         availability,
         hasPreregistration: availability.preregistration,
         osfNodeId: await osfProjectNode(input.studyId),
+        osfSummaryItems: summary.items,
+        osfPushedAt: rec.osfPushedAt?.toISOString() ?? null,
+        osfUpToDate: !!rec.osfPushedHash && rec.osfPushedHash === summary.hash,
         sectionTypes: SECTION_TYPES,
       };
     }),
@@ -212,15 +251,23 @@ export const studyRecordRouter = router({
         throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Connect OSF in Settings · Connections first." });
       }
 
-      const appBase = process.env.NEXT_PUBLIC_APP_URL ?? "https://myresearchlab.app";
-      const parts: string[] = [];
-      if (rec.abstract?.trim()) parts.push(rec.abstract.trim());
-      if (rec.articleDoi?.trim()) parts.push(`Article DOI: https://doi.org/${rec.articleDoi.trim()}`);
-      else if (rec.articleUrl?.trim()) parts.push(`Article: ${rec.articleUrl.trim()}`);
-      parts.push(`Full study record: ${appBase}/browse/${input.studyId}`);
-      const summary = parts.join("\n\n").slice(0, 5000);
+      const summary = osfRecordSummary(rec, {
+        studyId: input.studyId,
+        recordPublic: rec.visibility === "public",
+      });
+      if (!summary.text.trim()) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Nothing to push yet — add an abstract or article link, or publish the record.",
+        });
+      }
 
-      await registry.pushRecordSummary(ctx.dbUser.id, { nodeId, summary });
+      await registry.pushRecordSummary(ctx.dbUser.id, { nodeId, summary: summary.text });
+      // Record what we pushed so the composer can tell up-to-date from changed (item 2).
+      await db
+        .update(studyRecord)
+        .set({ osfPushedHash: summary.hash, osfPushedAt: new Date() })
+        .where(eq(studyRecord.experimentId, input.studyId));
       return { ok: true };
     }),
 
