@@ -51,6 +51,11 @@ export async function resolveRecipients(input: EmitInput): Promise<string[]> {
       recipients = asIds(data.userId ?? input.related?.authorUserId);
       break;
 
+    case "osf_registration_withdrawn":
+      // The study's author learns the watch sweep detected a withdrawal (E4c).
+      recipients = asIds(input.related?.authorUserId ?? data.userId);
+      break;
+
     case "proposal_open":
       // The upstream study's author receives the proposal (ADR-0036).
       recipients = asIds(data.targetAuthorId ?? input.related?.authorUserId);

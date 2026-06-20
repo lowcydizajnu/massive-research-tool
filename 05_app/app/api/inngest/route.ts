@@ -5,6 +5,7 @@ import type { JobCatalog } from "@/server/adapters/jobs";
 import { runRegistryPush } from "@/server/jobs/registry-push";
 import { runEmailDigest, runNotificationFanout } from "@/server/jobs/notification-fanout";
 import { runAutoApprove, runDetectQuality, runPollProviderStatus, runReconcileStudy } from "@/server/jobs/recruitment";
+import { runOsfWatch } from "@/server/jobs/osf-watch";
 
 /**
  * Inngest serve endpoint. Deliberate lock-in exception (ADR-0007,
@@ -83,6 +84,17 @@ const recruitmentAutoApprove = inngest.createFunction(
   },
 );
 
+// ADR-0056 E4c: OSF watch sweep — every 6 hours, sync registrationWithdrawn (+
+// DOI) from OSF so withdrawals/retractions made on osf.io reflect automatically.
+// runOsfWatch is best-effort per study, so a single retry is plenty.
+const osfWatch = inngest.createFunction(
+  { id: "osf-watch", retries: 1 },
+  { cron: "0 */6 * * *" },
+  async () => {
+    return runOsfWatch();
+  },
+);
+
 export const { GET, POST, PUT } = serve({
   client: inngest,
   functions: [
@@ -93,5 +105,6 @@ export const { GET, POST, PUT } = serve({
     recruitmentPollProviderStatus,
     recruitmentDetectQuality,
     recruitmentAutoApprove,
+    osfWatch,
   ],
 });
