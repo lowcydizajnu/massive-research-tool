@@ -19,6 +19,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 import { StageTabs } from "@/components/chrome/stage-tabs";
 import { LivePreviewPane } from "@/components/feature/builder/live-preview-pane";
+import { VariantsSection } from "@/components/feature/builder/variants-section";
 import { ConditionBuilder } from "@/components/feature/whiteboard/condition-builder";
 import { ModeToggle } from "./mode-toggle";
 import { EditableStudyTitle } from "@/components/feature/editable-study-title";
@@ -986,6 +987,8 @@ export function BuilderWorkspace({
               />
             ) : null}
           </section>
+
+          <VariantsSection study={study} canEdit={canEdit} />
         </div>
       </main>
 

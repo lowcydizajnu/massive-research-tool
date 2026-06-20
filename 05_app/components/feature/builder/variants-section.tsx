@@ -1,0 +1,205 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { Plus, Trash2 } from "lucide-react";
+
+import { api } from "@/lib/trpc/react";
+import { cellCount, type VariantBinding, type VariantFactor } from "@/lib/variants/factorial";
+import type { StudyDetail } from "@/server/trpc/routers/studies";
+import { READ_ONLY_TITLE } from "@/components/feature/workspace/role-gate";
+
+/**
+ * Factorial variants editor (ADR-0058). Define factors × levels and bind block
+ * fields to a factor (the field takes a value per level). Shared content stays in
+ * Blocks; here you only set what *varies*. Saves through `studies.setVariants`.
+ */
+const genId = () => globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2);
+const coerce = (s: string): unknown => {
+  const t = s.trim();
+  return t !== "" && !Number.isNaN(Number(t)) ? Number(t) : s;
+};
+
+export function VariantsSection({ study, canEdit }: { study: StudyDetail; canEdit: boolean }) {
+  const utils = api.useUtils();
+  const save = api.studies.setVariants.useMutation({ onSuccess: () => void utils.studies.get.invalidate({ id: study.id }) });
+  const [factors, setFactors] = useState<VariantFactor[]>(study.factors);
+  const [bindings, setBindings] = useState<VariantBinding[]>(study.variantBindings);
+  useEffect(() => {
+    setFactors(study.factors);
+    setBindings(study.variantBindings);
+  }, [study.factors, study.variantBindings]);
+
+  const commit = (f: VariantFactor[], b: VariantBinding[]) => {
+    setFactors(f);
+    setBindings(b);
+    if (canEdit) save.mutate({ studyId: study.id, factors: f, variantBindings: b });
+  };
+  const blockName = (id: string) => {
+    const blk = study.blocks.find((x) => x.instanceId === id);
+    return blk ? blk.title?.trim() || blk.name : id;
+  };
+  const factorName = (id: string) => factors.find((f) => f.id === id)?.name ?? id;
+
+  // --- factor / level ops (structural → commit immediately) ---
+  const addFactor = () =>
+    commit(
+      [...factors, { id: genId(), name: `Factor ${factors.length + 1}`, levels: [{ id: genId(), name: "A" }, { id: genId(), name: "B" }] }],
+      bindings,
+    );
+  const removeFactor = (fid: string) => commit(factors.filter((f) => f.id !== fid), bindings.filter((b) => b.factorId !== fid));
+  const addLevel = (fid: string) =>
+    commit(factors.map((f) => (f.id === fid ? { ...f, levels: [...f.levels, { id: genId(), name: `Level ${f.levels.length + 1}` }] } : f)), bindings);
+  const removeLevel = (fid: string, lid: string) =>
+    commit(factors.map((f) => (f.id === fid ? { ...f, levels: f.levels.filter((l) => l.id !== lid) } : f)), bindings);
+  // --- text edits (commit on blur via the current local state) ---
+  const renameFactor = (fid: string, name: string) => setFactors((fs) => fs.map((f) => (f.id === fid ? { ...f, name } : f)));
+  const renameLevel = (fid: string, lid: string, name: string) =>
+    setFactors((fs) => fs.map((f) => (f.id === fid ? { ...f, levels: f.levels.map((l) => (l.id === lid ? { ...l, name } : l)) } : f)));
+
+  // --- bindings ---
+  const [newBlock, setNewBlock] = useState("");
+  const [newPath, setNewPath] = useState("");
+  const [newFactor, setNewFactor] = useState("");
+  const addBinding = () => {
+    if (!newBlock || !newPath.trim() || !newFactor) return;
+    commit(factors, [...bindings, { instanceId: newBlock, path: newPath.trim(), factorId: newFactor, valuesByLevel: {} }]);
+    setNewPath("");
+  };
+  const removeBinding = (i: number) => commit(factors, bindings.filter((_, j) => j !== i));
+  const setBindingValue = (i: number, levelId: string, value: string) =>
+    setBindings((bs) => bs.map((b, j) => (j === i ? { ...b, valuesByLevel: { ...b.valuesByLevel, [levelId]: coerce(value) } } : b)));
+
+  const cells = cellCount(factors);
+  const editable = canEdit;
+
+  return (
+    <section className="flex flex-col gap-3">
+      <div className="flex items-center justify-between border-b border-[var(--color-border-subtle)] pb-1">
+        <h2 className="font-serif text-[17px] font-medium text-[var(--color-text-primary)]">Variants</h2>
+        <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+          {factors.length === 0 ? "Single variant" : `${cells} cell${cells === 1 ? "" : "s"}`}
+          {cells > 12 ? " — large; consider fewer levels" : ""}
+        </span>
+      </div>
+      <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+        A/B &amp; factorial designs: each participant is randomly assigned one cell. Define factors and bind the fields that vary —
+        everything else stays shared (edit it in Blocks).
+      </p>
+
+      {/* Factors */}
+      <div className="flex flex-col gap-2">
+        {factors.map((f) => (
+          <div key={f.id} className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-3">
+            <div className="flex items-center gap-2">
+              <input
+                value={f.name}
+                disabled={!editable}
+                onChange={(e) => renameFactor(f.id, e.target.value)}
+                onBlur={() => commit(factors, bindings)}
+                className="min-w-0 flex-1 rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-1 text-[length:var(--text-small)] font-medium text-[var(--color-text-primary)]"
+              />
+              <button type="button" aria-label="Remove factor" title="Remove factor" disabled={!editable} onClick={() => removeFactor(f.id)} className="rounded-[var(--radius-sm)] p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)] disabled:opacity-40">
+                <Trash2 className="size-3.5" aria-hidden />
+              </button>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {f.levels.map((l) => (
+                <span key={l.id} className="flex items-center gap-1 rounded-full bg-[var(--color-surface-subtle)] py-0.5 pl-2 pr-1">
+                  <input
+                    value={l.name}
+                    disabled={!editable}
+                    onChange={(e) => renameLevel(f.id, l.id, e.target.value)}
+                    onBlur={() => commit(factors, bindings)}
+                    className="w-16 bg-transparent text-[length:var(--text-small)] text-[var(--color-text-secondary)] focus:outline-none"
+                  />
+                  <button type="button" aria-label="Remove level" disabled={!editable || f.levels.length <= 1} onClick={() => removeLevel(f.id, l.id)} className="rounded-full p-0.5 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-canvas)] disabled:opacity-30">
+                    <Trash2 className="size-3" aria-hidden />
+                  </button>
+                </span>
+              ))}
+              <button type="button" disabled={!editable} onClick={() => addLevel(f.id)} className="inline-flex items-center gap-1 rounded-full border border-dashed border-[var(--color-border-subtle)] px-2 py-0.5 text-[length:var(--text-small)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)] disabled:opacity-40">
+                <Plus className="size-3" aria-hidden /> Level
+              </button>
+            </div>
+          </div>
+        ))}
+        <button type="button" disabled={!editable} title={editable ? undefined : READ_ONLY_TITLE} onClick={addFactor} className="inline-flex w-fit items-center gap-1 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-2.5 py-1 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)] disabled:opacity-40">
+          <Plus className="size-4" aria-hidden /> Add a variant factor (A/B, 2×2 …)
+        </button>
+      </div>
+
+      {/* Bindings — the fields that vary */}
+      {factors.length > 0 ? (
+        <div className="flex flex-col gap-2">
+          <h3 className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">Varying fields</h3>
+          {bindings.map((b, i) => {
+            const f = factors.find((x) => x.id === b.factorId);
+            return (
+              <div key={`${b.instanceId}-${b.path}-${i}`} className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+                    <span className="font-medium text-[var(--color-text-primary)]">{blockName(b.instanceId)}</span>
+                    {" · "}
+                    <span className="font-mono">{b.path}</span>
+                    {" varies by "}
+                    <span className="font-medium">{factorName(b.factorId)}</span>
+                  </span>
+                  <button type="button" aria-label="Remove varying field" disabled={!editable} onClick={() => removeBinding(i)} className="rounded-[var(--radius-sm)] p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)] disabled:opacity-40">
+                    <Trash2 className="size-3.5" aria-hidden />
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {(f?.levels ?? []).map((l) => (
+                    <label key={l.id} className="flex items-center gap-1 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                      <span className="w-16 truncate">{l.name}</span>
+                      <input
+                        defaultValue={b.valuesByLevel[l.id] != null ? String(b.valuesByLevel[l.id]) : ""}
+                        disabled={!editable}
+                        placeholder="value"
+                        onChange={(e) => setBindingValue(i, l.id, e.target.value)}
+                        onBlur={() => commit(factors, bindings)}
+                        className="w-28 rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-1 text-[var(--color-text-primary)]"
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Add a binding */}
+          <div className="flex flex-wrap items-end gap-2 rounded-[var(--radius-md)] border border-dashed border-[var(--color-border-subtle)] p-3">
+            <label className="flex flex-col gap-0.5 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+              Block
+              <select value={newBlock} disabled={!editable} onChange={(e) => setNewBlock(e.target.value)} className="rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-1 text-[var(--color-text-primary)]">
+                <option value="">Choose…</option>
+                {study.blocks.map((blk) => (
+                  <option key={blk.instanceId} value={blk.instanceId}>{blk.title?.trim() || blk.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-0.5 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+              Field path
+              <input value={newPath} disabled={!editable} onChange={(e) => setNewPath(e.target.value)} placeholder="e.g. likes" className="w-32 rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-1 font-mono text-[var(--color-text-primary)]" />
+            </label>
+            <label className="flex flex-col gap-0.5 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+              Varies by
+              <select value={newFactor} disabled={!editable} onChange={(e) => setNewFactor(e.target.value)} className="rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-1 text-[var(--color-text-primary)]">
+                <option value="">Choose…</option>
+                {factors.map((f) => (
+                  <option key={f.id} value={f.id}>{f.name}</option>
+                ))}
+              </select>
+            </label>
+            <button type="button" disabled={!editable || !newBlock || !newPath.trim() || !newFactor} onClick={addBinding} className="inline-flex items-center gap-1 rounded-[var(--radius-md)] bg-[var(--color-primary)] px-2.5 py-1 text-[length:var(--text-small)] font-medium text-[var(--color-on-primary)] hover:opacity-90 disabled:opacity-40">
+              <Plus className="size-4" aria-hidden /> Add field
+            </button>
+          </div>
+          <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+            The field path is a key in the block&rsquo;s configuration (dot-notation for nesting, e.g. <span className="font-mono">metrics.likes</span>). Numeric values are stored as numbers.
+          </p>
+        </div>
+      ) : null}
+    </section>
+  );
+}
