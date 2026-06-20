@@ -26,8 +26,9 @@ export function BrowseCard({
   // creating silently; the server enforces the same finished rule on fork.
   const finished = !!card.finishedAt;
 
-  const marker =
-    card.latestKind === "preregistered"
+  const marker = card.registrationWithdrawn
+    ? `Preregistration v${card.latestVersionNumber} (withdrawn)`
+    : card.latestKind === "preregistered"
       ? `Preregistration v${card.latestVersionNumber}`
       : `Published v${card.latestVersionNumber}`;
   const reps =

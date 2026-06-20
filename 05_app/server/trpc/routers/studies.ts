@@ -761,6 +761,8 @@ export type BrowseStudyCard = {
   /** Latest discoverable (frozen) version's kind + number. */
   latestKind: "published" | "preregistered";
   latestVersionNumber: number;
+  /** ADR-0005 am. 3 — true when that latest frozen version is a withdrawn preregistration. */
+  registrationWithdrawn: boolean;
   replicationCount: number;
   /** Finished (ADR-0054) — gates Replicate vs Template on the card. */
   finishedAt: string | null;
@@ -778,6 +780,8 @@ export type PublicStudyDetail = {
   tags: string[];
   latestKind: "published" | "preregistered";
   latestVersionNumber: number;
+  /** ADR-0005 am. 3 — true once this study's preregistration was withdrawn/retracted on OSF. */
+  registrationWithdrawn: boolean;
   replicationCount: number;
   /** Finished (ADR-0054) — Record reads as a finished artifact vs "preliminary". */
   finishedAt: string | null;
@@ -1107,6 +1111,7 @@ export const studiesRouter = router({
       const repCount = sql<number>`(select count(*)::int from ${experiment} c where c.fork_of_experiment_id = ${experiment.id})`;
       const latestNum = sql<number>`(select max(v.version_number) from ${experimentVersion} v where v.experiment_id = ${experiment.id} and v.kind in ('published','preregistered'))`;
       const latestKind = sql<"published" | "preregistered">`(select v.kind from ${experimentVersion} v where v.experiment_id = ${experiment.id} and v.kind in ('published','preregistered') order by v.version_number desc limit 1)`;
+      const latestWithdrawn = sql<boolean>`coalesce((select v.registration_withdrawn from ${experimentVersion} v where v.experiment_id = ${experiment.id} and v.kind in ('published','preregistered') order by v.version_number desc limit 1), false)`;
 
       const filters = [
         eq(experiment.forkableBy, "public"),
@@ -1183,6 +1188,7 @@ export const studiesRouter = router({
           replicationCount: repCount,
           latestVersionNumber: latestNum,
           latestKind: latestKind,
+          latestWithdrawn: latestWithdrawn,
         })
         .from(experiment)
         .innerJoin(user, eq(user.id, experiment.ownerId))
@@ -1212,6 +1218,7 @@ export const studiesRouter = router({
           tags: r.tags ?? [],
           latestKind: r.latestKind,
           latestVersionNumber: Number(r.latestVersionNumber),
+          registrationWithdrawn: r.latestKind === "preregistered" && !!r.latestWithdrawn,
           replicationCount: Number(r.replicationCount),
           finishedAt: r.finishedAt?.toISOString() ?? null,
           createdAt: r.createdAt.toISOString(),
@@ -1258,6 +1265,7 @@ export const studiesRouter = router({
           kind: experimentVersion.kind,
           versionNumber: experimentVersion.versionNumber,
           snapshot: experimentVersion.definitionSnapshot,
+          withdrawn: experimentVersion.registrationWithdrawn,
         })
         .from(experimentVersion)
         .where(
@@ -1313,6 +1321,7 @@ export const studiesRouter = router({
         tags: exp.tags ?? [],
         latestKind: ver.kind as "published" | "preregistered",
         latestVersionNumber: ver.versionNumber,
+        registrationWithdrawn: ver.kind === "preregistered" && !!ver.withdrawn,
         replicationCount: reps?.c ?? 0,
         finishedAt: exp.finishedAt?.toISOString() ?? null,
         createdAt: exp.createdAt.toISOString(),
@@ -1353,7 +1362,7 @@ export const studiesRouter = router({
       if (!exp) throw new TRPCError({ code: "NOT_FOUND", message: "Study not found." });
 
       const [ver] = await db
-        .select({ id: experimentVersion.id, kind: experimentVersion.kind, versionNumber: experimentVersion.versionNumber, snapshot: experimentVersion.definitionSnapshot })
+        .select({ id: experimentVersion.id, kind: experimentVersion.kind, versionNumber: experimentVersion.versionNumber, snapshot: experimentVersion.definitionSnapshot, withdrawn: experimentVersion.registrationWithdrawn })
         .from(experimentVersion)
         .where(and(eq(experimentVersion.experimentId, input.studyId), inArray(experimentVersion.kind, ["published", "preregistered"])))
         .orderBy(desc(experimentVersion.versionNumber))
@@ -1390,6 +1399,7 @@ export const studiesRouter = router({
         tags: exp.tags ?? [],
         latestKind: (ver?.kind as "published" | "preregistered") ?? "published",
         latestVersionNumber: ver?.versionNumber ?? 0,
+        registrationWithdrawn: ver?.kind === "preregistered" && !!ver?.withdrawn,
         replicationCount: reps?.c ?? 0,
         finishedAt: exp.finishedAt?.toISOString() ?? null,
         createdAt: exp.createdAt.toISOString(),
@@ -1479,14 +1489,17 @@ export const studiesRouter = router({
       const expIds = rows.map((r) => r.experiment.id);
       const kindRows = expIds.length
         ? await db
-            .select({ experimentId: experimentVersion.experimentId, kind: experimentVersion.kind })
+            .select({ experimentId: experimentVersion.experimentId, kind: experimentVersion.kind, withdrawn: experimentVersion.registrationWithdrawn })
             .from(experimentVersion)
             .where(inArray(experimentVersion.experimentId, expIds))
         : [];
       const stageByExp = new Map<string, StudyStage>();
       const rank: Record<StudyStage, number> = { draft: 0, preregistered: 1, published: 2 };
-      for (const { experimentId, kind } of kindRows) {
-        const s = stageFromKind(kind);
+      for (const { experimentId, kind, withdrawn } of kindRows) {
+        // A withdrawn preregistration no longer counts as "preregistered" — its
+        // plan is no longer frozen on the registry (item 3). It falls back to a
+        // draft stage unless a published version carries the study further.
+        const s = kind === "preregistered" && withdrawn ? "draft" : stageFromKind(kind);
         const cur = stageByExp.get(experimentId) ?? "draft";
         if (rank[s] >= rank[cur]) stageByExp.set(experimentId, s);
       }
@@ -3518,10 +3531,13 @@ export const studiesRouter = router({
       if (!exp) throw new TRPCError({ code: "NOT_FOUND", message: "Study not found." });
 
       const versions = await db
-        .select({ kind: experimentVersion.kind })
+        .select({ kind: experimentVersion.kind, withdrawn: experimentVersion.registrationWithdrawn })
         .from(experimentVersion)
         .where(eq(experimentVersion.experimentId, input.studyId));
-      const hasPrereg = versions.some((v) => v.kind === "preregistered");
+      // A withdrawn registration no longer counts as "preregistered" anywhere in
+      // the app (item 3): the plan is no longer frozen on the registry.
+      const hasPrereg = versions.some((v) => v.kind === "preregistered" && !v.withdrawn);
+      const wasWithdrawn = versions.some((v) => v.kind === "preregistered" && v.withdrawn);
       const hasPublished = versions.some((v) => v.kind === "published");
 
       const [rs] = await db
@@ -3577,7 +3593,7 @@ export const studiesRouter = router({
       // Lifecycle spine (ADR-0056).
       const lifecycle = [
         { key: "draft", label: "Draft", done: true },
-        { key: "preregistered", label: "Preregistered", done: hasPrereg },
+        { key: "preregistered", label: wasWithdrawn && !hasPrereg ? "Preregistration withdrawn" : "Preregistered", done: hasPrereg },
         { key: "recruiting", label: "Recruiting", done: recruiting || hasData || finished },
         { key: "data", label: "Data in", done: hasData },
         { key: "finished", label: "Finished", done: finished },
@@ -3588,10 +3604,17 @@ export const studiesRouter = router({
       // Concrete next-actions / blockers.
       const nextActions: StudyDashboardData["nextActions"] = [];
       const base = `/studies/${input.studyId}`;
-      if (!hasPrereg && !hasPublished) {
+      // Only prompt to "make it runnable" before the study is actually running —
+      // not once it's recruiting or already has responses (item 5).
+      if (!hasPrereg && !hasPublished && !recruiting && !hasData) {
         nextActions.push({ label: "Preregister or publish to make it runnable", href: `${base}/preregister`, tone: "primary" });
       } else if (!recruiting && !hasData) {
         nextActions.push({ label: "Open recruitment to start collecting data", href: `${base}/run`, tone: "primary" });
+      }
+      // Surface a withdrawn registration explicitly rather than silently dropping
+      // the "Preregistered" step (item 3).
+      if (wasWithdrawn && !hasPrereg) {
+        nextActions.push({ label: "Registration withdrawn — re-register to restore the frozen plan", href: `${base}/preregister`, tone: "warning" });
       }
       if (rs?.status === "open" && rs.targetN != null && completedResponses >= rs.targetN) {
         nextActions.push({ label: "Target reached — review and finish", href: `${base}/results`, tone: "warning" });
