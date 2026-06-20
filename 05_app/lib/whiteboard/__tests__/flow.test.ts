@@ -79,6 +79,13 @@ describe("deriveFlow (ADR-0057)", () => {
     expect(g.nodes.find((n) => n.id === "finish")!.unreachable).toBe(true);
   });
 
+  it("inserts a pinned Consent node first when consent is on (before assignment)", () => {
+    const g = deriveFlow({ blocks: [block("a")], groups, conditions: arms("x", "y"), consent: true });
+    expect(g.nodes.map((n) => n.id)).toEqual(["start", "consent", "assign", "screen:a", "finish"]);
+    expect(g.edges.some((e) => e.source === "start" && e.target === "consent")).toBe(true);
+    expect(g.edges.some((e) => e.source === "consent" && e.target === "assign")).toBe(true);
+  });
+
   it("empty study: just Start → Finish", () => {
     const g = deriveFlow({ blocks: [], groups, conditions: arms() });
     expect(ids(g)).toEqual(["start", "finish"]);

@@ -24,6 +24,7 @@ import type { StudyDetail } from "@/server/trpc/routers/studies";
 import {
   FlowAssignNode,
   FlowBranchNode,
+  FlowConsentNode,
   FlowScreenNode,
   FlowStartNode,
   FlowTerminalNode,
@@ -31,6 +32,7 @@ import {
 
 const nodeTypes = {
   flowStart: FlowStartNode,
+  flowConsent: FlowConsentNode,
   flowAssign: FlowAssignNode,
   flowScreen: FlowScreenNode,
   flowBranch: FlowBranchNode,
@@ -38,6 +40,7 @@ const nodeTypes = {
 };
 const RF_TYPE: Record<FlowNode["kind"], keyof typeof nodeTypes> = {
   start: "flowStart",
+  consent: "flowConsent",
   assign: "flowAssign",
   screen: "flowScreen",
   branch: "flowBranch",
@@ -121,6 +124,7 @@ export function WhiteboardCanvas({
       conditions: conditions.map((c) => ({ slug: c.slug, name: c.name })),
       nameOf,
       isIncomplete: (blk: BlockInstance) => incomplete.has(blk.instanceId),
+      consent: true, // every study shows the pinned consent screen first (ADR-0035)
     };
     return armView === "swimlane" ? deriveSwimlaneFlow(args) : buildFlow(args);
   }, [study.blocks, study.groups, conditions, armView]);

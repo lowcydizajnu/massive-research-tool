@@ -11,7 +11,7 @@ import {
   type Node,
   type NodeProps,
 } from "@xyflow/react";
-import { AlertTriangle, ArrowDown, ArrowUp, Flag, GitBranch, LogOut, Plus, Settings2, Shuffle, SquareCheckBig, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, Flag, GitBranch, LogOut, Plus, Settings2, ShieldCheck, Shuffle, SquareCheckBig, Trash2 } from "lucide-react";
 
 /**
  * Custom React Flow nodes for the Whiteboard (ADR-0020). Block nodes mirror the
@@ -123,6 +123,20 @@ export function FlowStartNode({ data }: NodeProps<FlowStartNode>) {
     <div className="flex items-center gap-1.5 rounded-full border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-3 py-1.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)]" style={{ boxShadow: "var(--shadow-sm)" }}>
       <Flag className="size-3.5 text-[var(--color-primary)]" aria-hidden />
       {data.label}
+      {outHandle}
+    </div>
+  );
+}
+
+export type FlowConsentData = { label: string };
+export type FlowConsentNode = Node<FlowConsentData, "flowConsent">;
+export function FlowConsentNode({ data }: NodeProps<FlowConsentNode>) {
+  return (
+    <div className="flex items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-3 py-1.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)]" style={{ boxShadow: "var(--shadow-sm)" }}>
+      {inHandle}
+      <ShieldCheck className="size-3.5 text-[var(--color-primary)]" aria-hidden />
+      {data.label}
+      <span className="text-[length:var(--text-small)] font-normal text-[var(--color-text-muted)]">· shown first</span>
       {outHandle}
     </div>
   );

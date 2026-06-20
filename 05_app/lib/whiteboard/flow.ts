@@ -15,7 +15,7 @@ import { summarizeCondition } from "@/lib/whiteboard/conditions";
  * point of the rethink (vs the old free-placement wiring board).
  */
 
-export type FlowNodeKind = "start" | "assign" | "screen" | "branch" | "terminal";
+export type FlowNodeKind = "start" | "consent" | "assign" | "screen" | "branch" | "terminal";
 
 export type FlowArm = { slug: string; name: string };
 
@@ -76,6 +76,8 @@ export type DeriveFlowInput = {
   nameOf?: (instanceId: string) => string;
   /** Optional completeness check (drives the "needs setup" badge). */
   isIncomplete?: (block: BlockInstance) => boolean;
+  /** Show the pinned Consent screen first (ADR-0035) — always true for real studies. */
+  consent?: boolean;
 };
 
 const TERMINAL_KEY = "end-redirect";
@@ -134,9 +136,14 @@ export function deriveFlow(input: DeriveFlowInput): FlowGraph {
 
   push({ id: "start", kind: "start", title: "Start" });
   let entry = "start"; // the node the next trunk step connects from
+  if (input.consent) {
+    push({ id: "consent", kind: "consent", title: "Consent" });
+    link(entry, "consent");
+    entry = "consent";
+  }
   if (conditions.length > 1) {
     push({ id: "assign", kind: "assign", title: "Random assignment", assignArms: conditions });
-    link("start", "assign");
+    link(entry, "assign");
     entry = "assign";
   }
 
@@ -320,10 +327,19 @@ export function deriveSwimlaneFlow(input: DeriveFlowInput): FlowGraph {
     edges.push({ id: `${source}->${target}:${kind}`, source, target, kind, label });
 
   at({ id: "start", kind: "start", title: "Start" }, centerX, 0, 0);
-  at({ id: "assign", kind: "assign", title: "Random assignment", assignArms: conditions }, centerX, SWIMLANE.rowY, 0);
-  link("start", "assign");
+  let headRow = 1;
+  let headPrev = "start";
+  if (input.consent) {
+    at({ id: "consent", kind: "consent", title: "Consent" }, centerX, headRow * SWIMLANE.rowY, 0);
+    link(headPrev, "consent");
+    headPrev = "consent";
+    headRow += 1;
+  }
+  at({ id: "assign", kind: "assign", title: "Random assignment", assignArms: conditions }, centerX, headRow * SWIMLANE.rowY, 0);
+  link(headPrev, "assign");
+  const laneStartRow = headRow + 1;
 
-  let maxRow = 2;
+  let maxRow = laneStartRow;
   const finishId = "finish";
 
   conditions.forEach((arm, lane) => {
@@ -333,7 +349,7 @@ export function deriveSwimlaneFlow(input: DeriveFlowInput): FlowGraph {
       return allArms || arms.includes(arm.slug);
     });
     let entry = "assign";
-    let row = 2;
+    let row = laneStartRow;
     const pfx = `L${lane}:`;
     type Step = { entryId: string; exitId: string | null };
     const steps: Step[] = [];

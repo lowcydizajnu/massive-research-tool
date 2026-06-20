@@ -119,6 +119,7 @@ export function BuilderWorkspace({
   }, []);
   // Work-surface ↔ context-panel divider is draggable too (owner request, M2 follow-up).
   const panelPane = usePaneWidth("mrt-builder-panel-width", 250, 220, 480);
+  const previewPane = usePaneWidth("mrt-builder-preview-width", 400, 320, 680);
   // Live side-by-side preview (ADR-0057). Default on; remembered per-browser.
   const [previewOpen, setPreviewOpen] = useState(false);
   useEffect(() => {
@@ -570,8 +571,8 @@ export function BuilderWorkspace({
         <ReadOnlyBanner role={study.viewerRole} />
 
         <div className="flex flex-1 flex-col gap-5 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6">
-          {/* Title row */}
-          <div className="flex items-start justify-between gap-3">
+          {/* Toolbar row on top, title below it (owner request). */}
+          <div className="flex flex-col gap-3">
             <div className="min-w-0">
               <fieldset disabled={!canEdit} className="contents">
                 <EditableStudyTitle studyId={study.id} initialTitle={study.title} />
@@ -587,7 +588,7 @@ export function BuilderWorkspace({
                 · Edited {formatEdited(study.lastEditedAt)}
               </p>
             </div>
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="order-first flex flex-wrap items-center justify-end gap-2">
               <button
                 type="button"
                 onClick={undo}
@@ -991,8 +992,9 @@ export function BuilderWorkspace({
       {/* Live participant preview, beside the blocks (ADR-0057). Hidden on narrow
           viewports where three columns won't fit. */}
       {previewOpen ? (
-        <div className="hidden xl:flex">
-          <LivePreviewPane studyId={study.id} revision={study.lastEditedAt} onClose={togglePreview} />
+        <div className="hidden items-stretch xl:flex">
+          <PaneHandle pane={previewPane} dir={-1} label="Resize live preview" />
+          <LivePreviewPane studyId={study.id} revision={study.lastEditedAt} width={previewPane.width} onClose={togglePreview} />
         </div>
       ) : null}
 

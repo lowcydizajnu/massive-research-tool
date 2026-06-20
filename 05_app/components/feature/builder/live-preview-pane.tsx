@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
+import type { Route } from "next";
 import { useEffect, useRef, useState } from "react";
-import { Monitor, RotateCcw, Smartphone, Tablet, X } from "lucide-react";
+import { Maximize2, Monitor, RotateCcw, Smartphone, Tablet, X } from "lucide-react";
 
 import { api } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
@@ -23,11 +25,14 @@ type Device = keyof typeof DEVICES;
 export function LivePreviewPane({
   studyId,
   revision,
+  width,
   onClose,
 }: {
   studyId: string;
   /** Changes whenever the draft is edited (e.g. `study.lastEditedAt`) → triggers a refresh. */
   revision: string;
+  /** Pane width in px (resizable from the Builder); falls back to a clamp. */
+  width?: number;
   onClose: () => void;
 }) {
   const [device, setDevice] = useState<Device>("Mobile");
@@ -73,10 +78,13 @@ export function LivePreviewPane({
     begin({ studyId });
   };
 
-  const width = DEVICES[device].width;
+  const frameWidth = DEVICES[device].width;
 
   return (
-    <aside className="flex w-[clamp(320px,32vw,480px)] shrink-0 flex-col gap-2 self-start rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-panel)] p-3">
+    <aside
+      style={width ? { width } : undefined}
+      className="flex shrink-0 flex-col gap-2 self-start rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-panel)] p-3 [&:not([style])]:w-[clamp(320px,32vw,480px)]"
+    >
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5">
           <span className="text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)]">Live preview</span>
@@ -115,6 +123,9 @@ export function LivePreviewPane({
           <button type="button" aria-label="Restart preview" title="Restart from the first screen" onClick={restart} className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-1 text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]">
             <RotateCcw className="size-3.5" aria-hidden />
           </button>
+          <Link href={`/studies/${studyId}/preview` as Route} aria-label="Open full-screen preview" title="Open full-screen preview" className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-1 text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]">
+            <Maximize2 className="size-3.5" aria-hidden />
+          </Link>
           <button type="button" aria-label="Hide live preview" title="Hide live preview" onClick={onClose} className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-1 text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]">
             <X className="size-3.5" aria-hidden />
           </button>
@@ -127,14 +138,14 @@ export function LivePreviewPane({
             ref={iframeRef}
             title="Live participant preview"
             src={`/take/${studyId}/${responseId}/0`}
-            style={{ width, height: "70vh", border: "0" }}
+            style={{ width: frameWidth, height: "70vh", border: "0" }}
             className="rounded-[var(--radius-sm)] bg-white"
           />
         ) : (
           <div className="flex h-[70vh] items-center justify-center text-[length:var(--text-small)] text-[var(--color-text-muted)]">Starting preview…</div>
         )}
       </div>
-      <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">Edits refresh here automatically — your place is kept.</p>
+      <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">Participants see the consent screen first; the preview starts after it. Edits refresh here — your place is kept.</p>
     </aside>
   );
 }
