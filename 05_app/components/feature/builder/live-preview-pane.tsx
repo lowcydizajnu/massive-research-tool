@@ -7,6 +7,7 @@ import { Maximize2, Monitor, RotateCcw, Smartphone, Tablet, X } from "lucide-rea
 
 import { api } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
+import { cellKey, cellLabel, enumerateCells, type VariantFactor } from "@/lib/variants/factorial";
 
 /**
  * Live participant preview beside the Builder (ADR-0057 / builder-live-preview).
@@ -26,6 +27,7 @@ export function LivePreviewPane({
   studyId,
   revision,
   width,
+  factors,
   onClose,
 }: {
   studyId: string;
@@ -33,16 +35,25 @@ export function LivePreviewPane({
   revision: string;
   /** Pane width in px (resizable from the Builder); falls back to a clamp. */
   width?: number;
+  /** Factorial variants (ADR-0058) — enables a "previewing cell" selector. */
+  factors?: VariantFactor[];
   onClose: () => void;
 }) {
   const [device, setDevice] = useState<Device>("Mobile");
   const [responseId, setResponseId] = useState<string | null>(null);
   const [updating, setUpdating] = useState(false);
+  const [cellSel, setCellSel] = useState(""); // "" = random
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const firstRevision = useRef(true);
 
+  const cells = factors && factors.length ? enumerateCells(factors) : [];
   const start = api.studies.startPreview.useMutation({ onSuccess: (r) => setResponseId(r.responseId) });
   const begin = start.mutate;
+  const launch = (key: string) => {
+    setResponseId(null);
+    const cell = key ? cells.find((c) => cellKey(c) === key) : undefined;
+    begin({ studyId, ...(cell ? { variantCell: cell } : {}) });
+  };
 
   // Start an ephemeral preview response on mount.
   useEffect(() => {
@@ -73,10 +84,7 @@ export function LivePreviewPane({
     return () => clearTimeout(t);
   }, [revision, responseId, studyId]);
 
-  const restart = () => {
-    setResponseId(null);
-    begin({ studyId });
-  };
+  const restart = () => launch(cellSel);
 
   const frameWidth = DEVICES[device].width;
 
@@ -131,6 +139,22 @@ export function LivePreviewPane({
           </button>
         </div>
       </div>
+
+      {cells.length > 0 && factors ? (
+        <label className="flex items-center gap-1.5 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+          Previewing cell
+          <select
+            value={cellSel}
+            onChange={(e) => { setCellSel(e.target.value); launch(e.target.value); }}
+            className="min-w-0 flex-1 rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-1 text-[var(--color-text-primary)]"
+          >
+            <option value="">Random</option>
+            {cells.map((c) => (
+              <option key={cellKey(c)} value={cellKey(c)}>{cellLabel(c, factors)}</option>
+            ))}
+          </select>
+        </label>
+      ) : null}
 
       <div className="flex max-h-[72vh] justify-center overflow-auto rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-2">
         {responseId ? (

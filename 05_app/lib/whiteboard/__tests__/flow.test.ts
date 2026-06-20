@@ -86,6 +86,18 @@ describe("deriveFlow (ADR-0057)", () => {
     expect(g.edges.some((e) => e.source === "consent" && e.target === "assign")).toBe(true);
   });
 
+  it("inserts an 'assign variant cell' node when the study has factors (ADR-0058)", () => {
+    const g = deriveFlow({
+      blocks: [block("a")],
+      groups,
+      conditions: arms(),
+      consent: true,
+      factors: [{ id: "f1", name: "Social", levels: [{ id: "lo", name: "low" }, { id: "hi", name: "high" }] }],
+    });
+    expect(g.nodes.map((n) => n.id)).toEqual(["start", "consent", "assignCell", "screen:a", "finish"]);
+    expect(g.nodes.find((n) => n.id === "assignCell")!.variantSummary).toEqual({ factors: ["Social"], cells: 2 });
+  });
+
   it("empty study: just Start → Finish", () => {
     const g = deriveFlow({ blocks: [], groups, conditions: arms() });
     expect(ids(g)).toEqual(["start", "finish"]);

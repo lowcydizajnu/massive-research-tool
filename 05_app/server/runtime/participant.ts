@@ -332,6 +332,8 @@ export async function startResponse(input: {
   externalPid?: string | null;
   /** Declared URL params captured into response.clientMetadata.embedded (ADR-0042). */
   embedded?: Record<string, string>;
+  /** Preview-only: force a specific variant cell instead of random (ADR-0058). */
+  variantCell?: VariantCell | null;
 }): Promise<{ responseId: string } | { error: "closed" | "not_found" }> {
   const [rs] = await db
     .select()
@@ -364,7 +366,8 @@ export async function startResponse(input: {
     .where(eq(experimentVersion.id, rs.experimentVersionId))
     .limit(1);
   const factors = readFactors(verRow?.snapshot);
-  const variantCell = factors.length ? pickCell(factors) : null;
+  // Preview can force a cell (the live-preview selector); real runs always randomize.
+  const variantCell = input.variantCell !== undefined ? input.variantCell : factors.length ? pickCell(factors) : null;
   const id = ulid();
   await db.insert(response).values({
     id,

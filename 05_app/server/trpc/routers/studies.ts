@@ -2666,11 +2666,17 @@ export const studiesRouter = router({
    * it's just the participant view, and preview responses never reach results.
    */
   startPreview: workspaceProcedure
-    .input(z.object({ studyId: z.string().uuid() }))
+    .input(z.object({ studyId: z.string().uuid(), variantCell: z.record(z.string(), z.string()).nullish() }))
     .mutation(async ({ ctx, input }): Promise<{ responseId: string }> => {
       const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
       const rec = await runtimeOpenRecruitment(tip.version.id);
-      const res = await runtimeStartResponse({ recruitmentSessionId: rec.id, mode: "preview" });
+      // A chosen cell (the live-preview selector, ADR-0058) forces that variant;
+      // omitted → random like a real participant.
+      const res = await runtimeStartResponse({
+        recruitmentSessionId: rec.id,
+        mode: "preview",
+        ...(input.variantCell !== undefined ? { variantCell: input.variantCell } : {}),
+      });
       if ("error" in res) throw new TRPCError({ code: "BAD_REQUEST", message: res.error });
       return { responseId: res.responseId };
     }),

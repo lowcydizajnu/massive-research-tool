@@ -11,7 +11,7 @@ import {
   type Node,
   type NodeProps,
 } from "@xyflow/react";
-import { AlertTriangle, ArrowDown, ArrowUp, Flag, GitBranch, LogOut, Plus, Settings2, ShieldCheck, Shuffle, SquareCheckBig, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, Flag, GitBranch, Grid2x2, LogOut, Plus, Settings2, ShieldCheck, Shuffle, SquareCheckBig, Trash2 } from "lucide-react";
 
 /**
  * Custom React Flow nodes for the Whiteboard (ADR-0020). Block nodes mirror the
@@ -137,6 +137,23 @@ export function FlowConsentNode({ data }: NodeProps<FlowConsentNode>) {
       <ShieldCheck className="size-3.5 text-[var(--color-primary)]" aria-hidden />
       {data.label}
       <span className="text-[length:var(--text-small)] font-normal text-[var(--color-text-muted)]">· shown first</span>
+      {outHandle}
+    </div>
+  );
+}
+
+export type FlowAssignCellData = { factors: string[]; cells: number };
+export type FlowAssignCellNode = Node<FlowAssignCellData, "flowAssignCell">;
+export function FlowAssignCellNode({ data }: NodeProps<FlowAssignCellNode>) {
+  return (
+    <div className="flex flex-col gap-1 rounded-[var(--radius-md)] border border-dashed border-[var(--color-accent)] bg-[var(--color-accent-subtle)] px-3 py-2" style={{ width: NODE_W }}>
+      {inHandle}
+      <span className="flex items-center gap-1.5 text-[length:var(--text-small)] font-medium text-[var(--color-accent-text-on-subtle)]">
+        <Grid2x2 className="size-3.5" aria-hidden /> Assign variant cell
+      </span>
+      <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+        {data.cells} cell{data.cells === 1 ? "" : "s"} · {data.factors.join(" × ") || "no factors"}
+      </span>
       {outHandle}
     </div>
   );
