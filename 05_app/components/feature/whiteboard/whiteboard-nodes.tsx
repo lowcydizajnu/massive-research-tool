@@ -5,12 +5,13 @@ import {
   EdgeLabelRenderer,
   getBezierPath,
   Handle,
+  NodeToolbar,
   Position,
   type EdgeProps,
   type Node,
   type NodeProps,
 } from "@xyflow/react";
-import { AlertTriangle, Flag, GitBranch, LogOut, Settings2, Shuffle, SquareCheckBig } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, Flag, GitBranch, LogOut, Plus, Settings2, Shuffle, SquareCheckBig, Trash2 } from "lucide-react";
 
 /**
  * Custom React Flow nodes for the Whiteboard (ADR-0020). Block nodes mirror the
@@ -152,8 +153,32 @@ export type FlowScreenData = {
   unreachable?: boolean;
   /** Swimlane "repeat" marker — this screen is shared across arms (ADR-0057). */
   shared?: boolean;
+  /** Editing affordances (chips view only); absent = read-only. */
+  canEdit?: boolean;
+  isFirst?: boolean;
+  isLast?: boolean;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+  onAddAfter?: () => void;
+  onDelete?: () => void;
 };
 export type FlowScreenNode = Node<FlowScreenData, "flowScreen">;
+
+function ToolbarButton({ label, onClick, disabled, children }: { label: string; onClick?: () => void; disabled?: boolean; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      disabled={disabled || !onClick}
+      onClick={(e) => { e.stopPropagation(); onClick?.(); }}
+      className="rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-1 text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)] disabled:opacity-40"
+    >
+      {children}
+    </button>
+  );
+}
+
 export function FlowScreenNode({ data, selected }: NodeProps<FlowScreenNode>) {
   return (
     <div
@@ -165,6 +190,14 @@ export function FlowScreenNode({ data, selected }: NodeProps<FlowScreenNode>) {
         opacity: data.unreachable ? 0.5 : 1,
       }}
     >
+      {data.canEdit ? (
+        <NodeToolbar isVisible={selected} position={Position.Top} className="flex items-center gap-1">
+          <ToolbarButton label="Move up" onClick={data.onMoveUp} disabled={data.isFirst}><ArrowUp className="size-3.5" aria-hidden /></ToolbarButton>
+          <ToolbarButton label="Move down" onClick={data.onMoveDown} disabled={data.isLast}><ArrowDown className="size-3.5" aria-hidden /></ToolbarButton>
+          <ToolbarButton label="Add a step after this" onClick={data.onAddAfter}><Plus className="size-3.5" aria-hidden /></ToolbarButton>
+          <ToolbarButton label="Delete this screen" onClick={data.onDelete}><Trash2 className="size-3.5" aria-hidden /></ToolbarButton>
+        </NodeToolbar>
+      ) : null}
       {inHandle}
       <span className="font-serif text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">{data.title}</span>
       <span className="flex flex-wrap items-center gap-1.5 text-[length:var(--text-small)] text-[var(--color-text-muted)]">

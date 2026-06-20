@@ -44,7 +44,10 @@ test.describe("Whiteboard mode (V1.8 Stream A)", () => {
     await page.getByRole("link", { name: "Whiteboard" }).click();
     await page.waitForURL(/\/build\/whiteboard$/);
 
-    // Canvas shows block nodes (React Flow renders them as articles/group nodes).
+    // Canvas is now the derived execution-flow diagram (ADR-0057): a Start anchor,
+    // the study's screens in order, and a Finish terminal.
+    await expect(page.getByText("Start", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("Finish", { exact: true }).first()).toBeVisible();
     await expect(page.getByText("Manipulation check", { exact: false }).first()).toBeVisible();
 
     // Accessible List fallback toggle.

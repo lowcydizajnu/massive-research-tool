@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildFlow, deriveFlow } from "@/lib/whiteboard/flow";
+import { buildFlow, deriveFlow, deriveSwimlaneFlow } from "@/lib/whiteboard/flow";
 import type { BlockInstance, StudyGroup } from "@/server/modules/blocks";
 import type { ConditionGroup } from "@/lib/whiteboard/conditions";
 
@@ -83,6 +83,36 @@ describe("deriveFlow (ADR-0057)", () => {
     const g = deriveFlow({ blocks: [], groups, conditions: arms() });
     expect(ids(g)).toEqual(["start", "finish"]);
     expect(g.edges).toEqual([{ id: "start->finish:default", source: "start", target: "finish", kind: "default", label: undefined }]);
+  });
+});
+
+describe("deriveSwimlaneFlow (ADR-0057)", () => {
+  it("with ≤1 arm falls back to the single spine", () => {
+    const g = deriveSwimlaneFlow({ blocks: [block("a")], groups, conditions: arms("only") });
+    expect(g.nodes.map((n) => n.id)).toEqual(["start", "screen:a", "finish"]);
+  });
+
+  it("splits into one lane per arm; a shared screen is repeated (tagged) in each lane", () => {
+    const g = deriveSwimlaneFlow({
+      blocks: [block("shared"), block("onlyA", { visibility: { showIfCondition: ["a"] } }), block("onlyB", { visibility: { showIfCondition: ["b"] } })],
+      groups,
+      conditions: arms("a", "b"),
+    });
+    const has = (id: string) => g.nodes.some((n) => n.id === id);
+    // Shared screen repeated in both lanes, each flagged shared.
+    expect(has("L0:screen:shared")).toBe(true);
+    expect(has("L1:screen:shared")).toBe(true);
+    expect(g.nodes.find((n) => n.id === "L0:screen:shared")!.shared).toBe(true);
+    // Arm-only screens live only in their lane.
+    expect(has("L0:screen:onlyA")).toBe(true);
+    expect(has("L1:screen:onlyA")).toBe(false);
+    expect(has("L1:screen:onlyB")).toBe(true);
+    // Shared anchors + assignment fan-out.
+    expect(has("start") && has("assign") && has("finish")).toBe(true);
+    expect(g.edges.some((e) => e.source === "assign" && e.target === "L0:screen:shared")).toBe(true);
+    expect(g.edges.some((e) => e.source === "assign" && e.target === "L1:screen:shared")).toBe(true);
+    // Lanes occupy distinct x columns.
+    expect(g.nodes.find((n) => n.id === "L0:screen:onlyA")!.x).not.toBe(g.nodes.find((n) => n.id === "L1:screen:onlyB")!.x);
   });
 });
 
