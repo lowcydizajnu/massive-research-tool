@@ -18,6 +18,7 @@ import {
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 import { StageTabs } from "@/components/chrome/stage-tabs";
+import { LivePreviewPane } from "@/components/feature/builder/live-preview-pane";
 import { ConditionBuilder } from "@/components/feature/whiteboard/condition-builder";
 import { ModeToggle } from "./mode-toggle";
 import { EditableStudyTitle } from "@/components/feature/editable-study-title";
@@ -118,6 +119,18 @@ export function BuilderWorkspace({
   }, []);
   // Work-surface ↔ context-panel divider is draggable too (owner request, M2 follow-up).
   const panelPane = usePaneWidth("mrt-builder-panel-width", 250, 220, 480);
+  // Live side-by-side preview (ADR-0057). Default on; remembered per-browser.
+  const [previewOpen, setPreviewOpen] = useState(false);
+  useEffect(() => {
+    setPreviewOpen(window.localStorage.getItem("mrt-builder-live-preview") !== "off");
+  }, []);
+  const togglePreview = () =>
+    setPreviewOpen((v) => {
+      const next = !v;
+      window.localStorage.setItem("mrt-builder-live-preview", next ? "on" : "off");
+      return next;
+    });
+
   const [pickerOpen, setPickerOpen] = useState(false);
   // The pinned Consent card is selected (its editor replaces the context panel).
   // Selecting any block wins over it (the aside renders the editor only while
@@ -595,6 +608,15 @@ export function BuilderWorkspace({
               >
                 <Redo2 className="size-4" aria-hidden />
               </button>
+              <button
+                type="button"
+                onClick={togglePreview}
+                aria-pressed={previewOpen}
+                title="Toggle the live participant preview"
+                className={`rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-1.5 text-[length:var(--text-small)] font-medium hover:bg-[var(--color-surface-subtle)] ${previewOpen ? "bg-[var(--color-primary-subtle)] text-[var(--color-primary-text-on-subtle)]" : "text-[var(--color-text-secondary)]"}`}
+              >
+                {previewOpen ? "Hide preview" : "Live preview"}
+              </button>
               <Link
                 href={`/studies/${study.id}/build/whiteboard/compare` as Route}
                 className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-1.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
@@ -965,6 +987,14 @@ export function BuilderWorkspace({
           </section>
         </div>
       </main>
+
+      {/* Live participant preview, beside the blocks (ADR-0057). Hidden on narrow
+          viewports where three columns won't fit. */}
+      {previewOpen ? (
+        <div className="hidden xl:flex">
+          <LivePreviewPane studyId={study.id} revision={study.lastEditedAt} onClose={togglePreview} />
+        </div>
+      ) : null}
 
       {/* Right context panel (or left, per the Settings preference) */}
       {panelSide === "right" ? (
