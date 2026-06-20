@@ -1214,6 +1214,9 @@
   ],
   "recentActivity": [
     {
+      "text": "feat(whiteboard): study flow-diagram BUILT (ADR-0057, A1-A3+B). The whiteboard is now a DERIVED execution-flow diagram, not free-placed boxes/pills: Start -> Random assignment -> ordered screen spine (arm chips) -> inline answer-branches that rejoin -> terminals (Finish + early-exit end-redirects). Derived from deriveScreens + arm visibility + showIf so it can't drift from the runtime; auto-layout, no free placement. Chips/By-arm (swimlane, shared screens repeated) toggle. On-canvas screen toolbar (move up/down, add-after, delete) + click-to-configure via the existing right panel, all reusing existing mutations. 12 flow unit tests; tsc+lint+build green. Commits 64bedb5, 4140dac, af0d488. Not deployed. Next: the Builder live side-by-side preview (improvement #1)."
+    },
+    {
       "text": "docs(gate): study flow-diagram + live Builder preview (ADR-0057). Owner wants (1) a side-by-side live preview in the block Builder and (2) the whiteboard fixed into a true execution-flow diagram (Start -> ordered screens -> inline branches -> terminals), not free-placed boxes/pills wired for visibility. Decisions: arm chips on one spine by default + swimlane toggle; full editor; auto-layout; multiple terminals (Finish + early-exit via end-redirect); diagram is a two-way-synced view of the same study. Drafted before code: user-flow build-study-as-a-flow, ADR-0057 (supersedes ADR-0020 free-placement; flow derived from deriveScreens+arms+showIf so it can't drift), wireframes study-flow-diagram + builder-live-preview. Validator clean (178). No code/migration/deploy — design for review."
     },
     {
