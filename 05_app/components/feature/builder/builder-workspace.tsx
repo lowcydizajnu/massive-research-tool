@@ -997,7 +997,7 @@ export function BuilderWorkspace({
       {previewOpen ? (
         <div className="hidden items-stretch xl:flex">
           <PaneHandle pane={previewPane} dir={-1} label="Resize live preview" />
-          <LivePreviewPane studyId={study.id} revision={study.lastEditedAt} width={previewPane.width} onClose={togglePreview} />
+          <LivePreviewPane studyId={study.id} revision={study.lastEditedAt} width={previewPane.width} factors={study.factors} onClose={togglePreview} />
         </div>
       ) : null}
 

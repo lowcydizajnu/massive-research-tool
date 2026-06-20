@@ -22,6 +22,7 @@ import type { BlockInstance } from "@/server/modules/blocks";
 import type { StudyDetail } from "@/server/trpc/routers/studies";
 
 import {
+  FlowAssignCellNode,
   FlowAssignNode,
   FlowBranchNode,
   FlowConsentNode,
@@ -33,6 +34,7 @@ import {
 const nodeTypes = {
   flowStart: FlowStartNode,
   flowConsent: FlowConsentNode,
+  flowAssignCell: FlowAssignCellNode,
   flowAssign: FlowAssignNode,
   flowScreen: FlowScreenNode,
   flowBranch: FlowBranchNode,
@@ -41,6 +43,7 @@ const nodeTypes = {
 const RF_TYPE: Record<FlowNode["kind"], keyof typeof nodeTypes> = {
   start: "flowStart",
   consent: "flowConsent",
+  assignCell: "flowAssignCell",
   assign: "flowAssign",
   screen: "flowScreen",
   branch: "flowBranch",
@@ -125,9 +128,10 @@ export function WhiteboardCanvas({
       nameOf,
       isIncomplete: (blk: BlockInstance) => incomplete.has(blk.instanceId),
       consent: true, // every study shows the pinned consent screen first (ADR-0035)
+      factors: study.factors, // ADR-0058 — shows an "assign variant cell" node
     };
     return armView === "swimlane" ? deriveSwimlaneFlow(args) : buildFlow(args);
-  }, [study.blocks, study.groups, conditions, armView]);
+  }, [study.blocks, study.groups, study.factors, conditions, armView]);
 
   // Screen order (chips view) for enabling/disabling move up/down.
   const screenOrder = useMemo(
@@ -203,7 +207,9 @@ export function WhiteboardCanvas({
                         highlighted: highlightCondition,
                         onToggle: (slug: string) => setHighlightCondition((p) => (p === slug ? null : slug)),
                       }
-                    : { label: n.title ?? "Start" },
+                    : n.kind === "assignCell"
+                      ? { factors: n.variantSummary?.factors ?? [], cells: n.variantSummary?.cells ?? 1 }
+                      : { label: n.title ?? "Start" },
         } as Node;
       }),
     [graph.nodes, selectedId, selectableFor, armName, condColor, isDimmed, highlightCondition, canEditScreens, screenOrder, onMoveScreen, onAddAfter, onDeleteScreen],

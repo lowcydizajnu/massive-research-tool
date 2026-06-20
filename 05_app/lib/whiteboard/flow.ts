@@ -1,6 +1,7 @@
 import type { BlockInstance, StudyGroup } from "@/server/modules/blocks";
 import { deriveScreens, type Screen } from "@/lib/whiteboard/screens";
 import { summarizeCondition } from "@/lib/whiteboard/conditions";
+import { cellCount, type VariantFactor } from "@/lib/variants/factorial";
 
 /**
  * Study flow-graph derivation (ADR-0057). Turns the real study structure —
@@ -15,7 +16,7 @@ import { summarizeCondition } from "@/lib/whiteboard/conditions";
  * point of the rethink (vs the old free-placement wiring board).
  */
 
-export type FlowNodeKind = "start" | "consent" | "assign" | "screen" | "branch" | "terminal";
+export type FlowNodeKind = "start" | "consent" | "assignCell" | "assign" | "screen" | "branch" | "terminal";
 
 export type FlowArm = { slug: string; name: string };
 
@@ -42,6 +43,8 @@ export type FlowNode = {
   unreachable?: boolean;
   /** assign: the arms + weights to show. */
   assignArms?: FlowArm[];
+  /** assignCell: factorial-variant summary (ADR-0058). */
+  variantSummary?: { factors: string[]; cells: number };
   /** Layout (filled by layoutFlow). */
   x: number;
   y: number;
@@ -78,6 +81,8 @@ export type DeriveFlowInput = {
   isIncomplete?: (block: BlockInstance) => boolean;
   /** Show the pinned Consent screen first (ADR-0035) — always true for real studies. */
   consent?: boolean;
+  /** Factorial variants (ADR-0058) — when present, an "assign variant cell" node is shown. */
+  factors?: VariantFactor[];
 };
 
 const TERMINAL_KEY = "end-redirect";
@@ -140,6 +145,11 @@ export function deriveFlow(input: DeriveFlowInput): FlowGraph {
     push({ id: "consent", kind: "consent", title: "Consent" });
     link(entry, "consent");
     entry = "consent";
+  }
+  if (input.factors && input.factors.length > 0) {
+    push({ id: "assignCell", kind: "assignCell", title: "Assign variant cell", variantSummary: { factors: input.factors.map((f) => f.name), cells: cellCount(input.factors) } });
+    link(entry, "assignCell");
+    entry = "assignCell";
   }
   if (conditions.length > 1) {
     push({ id: "assign", kind: "assign", title: "Random assignment", assignArms: conditions });
@@ -333,6 +343,12 @@ export function deriveSwimlaneFlow(input: DeriveFlowInput): FlowGraph {
     at({ id: "consent", kind: "consent", title: "Consent" }, centerX, headRow * SWIMLANE.rowY, 0);
     link(headPrev, "consent");
     headPrev = "consent";
+    headRow += 1;
+  }
+  if (input.factors && input.factors.length > 0) {
+    at({ id: "assignCell", kind: "assignCell", title: "Assign variant cell", variantSummary: { factors: input.factors.map((f) => f.name), cells: cellCount(input.factors) } }, centerX, headRow * SWIMLANE.rowY, 0);
+    link(headPrev, "assignCell");
+    headPrev = "assignCell";
     headRow += 1;
   }
   at({ id: "assign", kind: "assign", title: "Random assignment", assignArms: conditions }, centerX, headRow * SWIMLANE.rowY, 0);
