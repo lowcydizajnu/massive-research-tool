@@ -352,6 +352,8 @@ function describe(n: NotificationDTO): {
       const doiUrl = typeof p.url === "string" ? p.url : undefined;
       return { text: `Your preregistration for ${named} is live`, href: studyHref, doi, doiUrl };
     }
+    case "osf_registration_withdrawn":
+      return { text: `The OSF registration for ${named} was withdrawn`, href: studyHref };
     default:
       return { text: `${actor} updated ${named}`, href: studyHref };
   }

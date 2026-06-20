@@ -11,6 +11,7 @@ export type EventType =
   | "comment_resolved" // your comment was marked resolved
   | "fork" // someone forked your study
   | "osf_push_complete" // your preregistration's OSF push completed
+  | "osf_registration_withdrawn" // your OSF registration was withdrawn/retracted (detected by the watch sweep, ADR-0056 E4c)
   | "review_request" // someone hit "Save & request review" mentioning you
   | "preregister_complete" // a study (yours or one you follow) was preregistered
   | "new_named_version" // a study you follow saved a new named version
@@ -24,6 +25,7 @@ export const EVENT_TYPES: EventType[] = [
   "comment_resolved",
   "fork",
   "osf_push_complete",
+  "osf_registration_withdrawn",
   "review_request",
   "preregister_complete",
   "new_named_version",
