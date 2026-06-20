@@ -49,9 +49,12 @@ import {
   readBlocks,
   readOverview,
   readGroups,
+  readFactors,
+  readVariantBindings,
   summarizeConfigDiff,
   validateConfig,
 } from "@/server/modules/blocks";
+import { pruneBindings, type VariantBinding, type VariantFactor } from "@/lib/variants/factorial";
 import { changelogBetween, initialVersionSummary } from "@/server/modules/changelog";
 import { readConsent, type StudyConsent } from "@/server/modules/consent";
 import { runPreflight, type PreflightCheck } from "@/server/modules/preflight";
@@ -522,6 +525,9 @@ export type StudyDetail = {
   archivedAt: string | null;
   /** Question groups (ADR-0028); members reference these by `block.groupId`. */
   groups: import("@/server/modules/blocks").StudyGroup[];
+  /** Factorial variants (ADR-0058) — factors/levels + field→factor bindings; empty = single-variant. */
+  factors: import("@/lib/variants/factorial").VariantFactor[];
+  variantBindings: import("@/lib/variants/factorial").VariantBinding[];
   /** Participant-facing theme (ADR-0024); Academic defaults when never set. */
   theme: import("@/lib/themes/themes").StudyTheme;
   /** The caller's role in the owning workspace — drives client-side write gating (mirrors writeProcedure: viewers are read-only). */
@@ -1599,6 +1605,8 @@ export const studiesRouter = router({
         consent: readConsent(row.version?.definitionSnapshot),
         archivedAt: row.experiment.archivedAt?.toISOString() ?? null,
         groups: readGroups(row.version?.definitionSnapshot),
+        factors: readFactors(row.version?.definitionSnapshot),
+        variantBindings: readVariantBindings(row.version?.definitionSnapshot),
         theme: readTheme(row.version?.definitionSnapshot),
         viewerRole: ctx.role as MemberRole,
       };
@@ -2291,6 +2299,52 @@ export const studiesRouter = router({
    * Persist question groups (ADR-0028) — writes the blocks (with their `groupId`)
    * and the `groups[]` metadata together into the snapshot, preserving overview.
    */
+  /**
+   * Set factorial variants (ADR-0058): factors/levels + field→factor bindings,
+   * written additively into the snapshot. Bindings whose factor was removed are
+   * pruned. Clearing all factors returns the study to a plain single-variant one.
+   */
+  setVariants: writeProcedure
+    .input(
+      z.object({
+        studyId: z.string().uuid(),
+        factors: z
+          .array(
+            z.object({
+              id: z.string(),
+              name: z.string().max(80),
+              levels: z.array(z.object({ id: z.string(), name: z.string().max(80) })).max(8),
+            }),
+          )
+          .max(6),
+        variantBindings: z
+          .array(
+            z.object({
+              instanceId: z.string(),
+              path: z.string().min(1).max(120),
+              factorId: z.string(),
+              valuesByLevel: z.record(z.string(), z.unknown()),
+            }),
+          )
+          .max(100),
+      }),
+    )
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+      const factors = input.factors as VariantFactor[];
+      const variantBindings = pruneBindings(factors, input.variantBindings as VariantBinding[]);
+      const snap =
+        tip.version.definitionSnapshot && typeof tip.version.definitionSnapshot === "object"
+          ? (tip.version.definitionSnapshot as Record<string, unknown>)
+          : {};
+      await db
+        .update(experimentVersion)
+        .set({ definitionSnapshot: { ...snap, factors, variantBindings } })
+        .where(eq(experimentVersion.id, tip.version.id));
+      await db.update(experiment).set({ updatedAt: new Date() }).where(eq(experiment.id, input.studyId));
+      return { ok: true };
+    }),
+
   setGroups: writeProcedure
     .input(
       z.object({
