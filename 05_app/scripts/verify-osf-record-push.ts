@@ -14,6 +14,8 @@
  * the node. <nodeId> is the 5-char OSF guid of a PROJECT node (e.g. the parent
  * of a sacrificial registration), NOT a registration id.
  */
+export {}; // module scope — keep these top-level consts off the global script namespace
+
 const API_BASE = process.env.OSF_API_BASE ?? "https://api.osf.io/v2";
 const JSON_API = "application/vnd.api+json";
 

@@ -13,6 +13,8 @@
  * registration. WARNING: withdrawal is irreversible — only run against a
  * registration you intend to retract.
  */
+export {}; // module scope — keep these top-level consts off the global script namespace
+
 const API_BASE = process.env.OSF_API_BASE ?? "https://api.osf.io/v2";
 const JSON_API = "application/vnd.api+json";
 
