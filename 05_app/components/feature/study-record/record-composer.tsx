@@ -21,15 +21,13 @@ import { useMemo, useState, type CSSProperties } from "react";
 import { ulid } from "ulid";
 
 import { DataPublishControl } from "@/components/feature/study-record/data-publish-control";
-import { HypothesisChips } from "@/components/feature/study-record/hypothesis-chips";
 import { MarkdownField } from "@/components/feature/study-record/markdown-field";
 import { PushToOsfButton } from "@/components/feature/study-record/push-to-osf-button";
-import { RecordMarkdown } from "@/components/feature/study-record/record-markdown";
+import { RecordSections } from "@/components/feature/study-record/record-sections";
 import { PendingButton } from "@/components/ui/pending-button";
 import {
   type HypothesisFields,
   type SectionType,
-  carriesAuthoredContent,
   isFrozenSection,
   sectionType,
 } from "@/lib/study-record/sections";
@@ -188,16 +186,27 @@ function Editor({ studyId, data, onSaved }: { studyId: string; data: StudyRecord
           <PushToOsfButton studyId={studyId} />
           <button
             type="button"
-            onClick={() => setPreview((v) => !v)}
-            className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-1.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
+            disabled={saveLayout.isPending || saveAuthored.isPending}
+            onClick={async () => {
+              if (preview) { setPreview(false); return; }
+              // Save first so the preview reflects exactly what would publish (ADR-0056 C).
+              setError(null);
+              try {
+                await persist();
+                setPreview(true);
+              } catch (e) {
+                setError(e instanceof Error ? e.message : "Couldn’t save before preview.");
+              }
+            }}
+            className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-1.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)] disabled:opacity-60"
           >
-            {preview ? "← Back to editing" : "Preview"}
+            {preview ? "← Back to editing" : "Save & preview"}
           </button>
         </div>
       </div>
 
       {preview ? (
-        <Preview sections={sections} data={data} abstract={abstract} articleUrl={articleUrl} articleDoi={articleDoi} />
+        <RecordPreviewPane studyId={studyId} />
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
           <SortableContext items={sections.map((s) => s.id)} strategy={verticalListSortingStrategy}>
@@ -440,63 +449,27 @@ function SortableSection({
   );
 }
 
-/** Read-only inline preview of the current edit state (ADR-0056 — preview before publish). */
-function Preview({
-  sections, data, abstract, articleUrl, articleDoi,
-}: {
-  sections: Instance[];
-  data: StudyRecordForEdit;
-  abstract: string;
-  articleUrl: string;
-  articleDoi: string;
-}) {
-  const visible = sections.filter((s) => !s.hidden);
+/**
+ * Faithful preview (ADR-0056 C): fetches the owner record-preview and renders it
+ * through the SAME `<RecordSections>` the public page uses, so preview === what
+ * publishes. The toggle saves first, so this reflects the saved state.
+ */
+function RecordPreviewPane({ studyId }: { studyId: string }) {
+  const preview = api.studies.getRecordPreview.useQuery({ studyId });
+  if (preview.isLoading) {
+    return <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">Loading preview…</p>;
+  }
+  if (preview.isError || !preview.data) {
+    return (
+      <p role="alert" className="text-[length:var(--text-small)] text-[var(--color-danger-text-on-subtle)]">
+        Couldn’t load the preview. {preview.error?.message}
+      </p>
+    );
+  }
   return (
     <div className="flex flex-col gap-5 rounded-[var(--radius-lg)] border border-dashed border-[var(--color-border-subtle)] p-5">
-      <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">Preview — how the public record will read.</p>
-      {visible.map((s) => {
-        const heading = s.title?.trim() || sectionType(s.type)?.label || s.type;
-        if (s.type === "abstract") {
-          return (
-            <PreviewSection key={s.id} title={heading}>
-              <RecordMarkdown md={abstract} />
-              {articleUrl || articleDoi ? (
-                <p className="mt-1 text-[length:var(--text-small)]">
-                  {articleUrl ? <a href={articleUrl} target="_blank" rel="noreferrer" className="text-[var(--color-primary)] hover:opacity-90">{articleUrl}</a> : null}
-                  {articleDoi ? <span className="ml-2 text-[var(--color-text-secondary)]">DOI: {articleDoi}</span> : null}
-                </p>
-              ) : null}
-            </PreviewSection>
-          );
-        }
-        if (s.type === "hypotheses") {
-          return (
-            <PreviewSection key={s.id} title={heading}>
-              <HypothesisChips fields={s.fields} />
-              <RecordMarkdown md={s.content} />
-            </PreviewSection>
-          );
-        }
-        if (carriesAuthoredContent(s.type)) {
-          return <PreviewSection key={s.id} title={heading}><RecordMarkdown md={s.content} /></PreviewSection>;
-        }
-        // Bound: show the override note + a "from your data" placeholder.
-        return (
-          <PreviewSection key={s.id} title={heading}>
-            <RecordMarkdown md={s.content} />
-            <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">{(data.availability[s.type] ?? true) ? "Renders from your data on the public record." : "Auto-hidden until it has data."}</p>
-          </PreviewSection>
-        );
-      })}
+      <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">Preview — exactly how the public record will read.</p>
+      <RecordSections detail={preview.data} />
     </div>
-  );
-}
-
-function PreviewSection({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="flex flex-col gap-1.5 border-t border-[var(--color-border-subtle)] pt-3 first:border-t-0 first:pt-0">
-      <h2 className="font-serif text-[17px] font-medium text-[var(--color-text-primary)]">{title}</h2>
-      {children}
-    </section>
   );
 }
