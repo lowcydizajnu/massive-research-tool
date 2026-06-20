@@ -13,7 +13,8 @@ import {
 } from "@/server/db/schema";
 import { conditionWithSources, evaluateCondition, normalizeCondition } from "@/lib/whiteboard/conditions";
 import { deriveScreens, type Screen } from "@/lib/whiteboard/screens";
-import { readBlocks, readGroups, type BlockInstance } from "@/server/modules/blocks";
+import { readBlocks, readGroups, readFactors, readVariantBindings, type BlockInstance } from "@/server/modules/blocks";
+import { pickCell, resolveConfigForCell, type VariantBinding, type VariantCell } from "@/lib/variants/factorial";
 import { readTheme, type StudyTheme } from "@/lib/themes/themes";
 import { getModuleDef } from "@/server/modules/registry";
 
@@ -42,6 +43,14 @@ function isVisible(block: RuntimeBlock, conditionSlug: string): boolean {
 /** Flow blocks (ADR-0042) are not participant screens — they act at start
  *  (embedded-data) or on completion (end-redirect). */
 const NON_SCREEN_KEYS = new Set(["embedded-data", "end-redirect"]);
+
+/** Apply the participant's assigned variant cell to a block's config (ADR-0058).
+ *  No-op when the study has no variant bindings or the block has none. */
+function applyCell<T extends BlockInstance>(block: T, cell: VariantCell, bindings: VariantBinding[]): T {
+  if (bindings.length === 0) return block;
+  const cfg = resolveConfigForCell(block.instanceId, block.config, cell, bindings);
+  return cfg === block.config ? block : { ...block, config: cfg };
+}
 
 export function visibleBlocks(snapshot: unknown, conditionSlug: string): RuntimeBlock[] {
   return (readBlocks(snapshot) as RuntimeBlock[]).filter((b) => isVisible(b, conditionSlug) && !NON_SCREEN_KEYS.has(b.key));
@@ -347,12 +356,22 @@ export async function startResponse(input: {
 
   const conditions = await ensureConditions(rs.experimentVersionId);
   const chosen = pickCondition(conditions);
+  // Factorial variants (ADR-0058): assign a cell once, immutably (uniform random
+  // across cells, between-subjects). Null when the study declares no factors.
+  const [verRow] = await db
+    .select({ snapshot: experimentVersion.definitionSnapshot })
+    .from(experimentVersion)
+    .where(eq(experimentVersion.id, rs.experimentVersionId))
+    .limit(1);
+  const factors = readFactors(verRow?.snapshot);
+  const variantCell = factors.length ? pickCell(factors) : null;
   const id = ulid();
   await db.insert(response).values({
     id,
     recruitmentSessionId: rs.id,
     experimentVersionId: rs.experimentVersionId,
     conditionId: chosen.id,
+    variantCell,
     externalPid: pid,
     mode: input.mode,
     status: "started",
@@ -409,11 +428,13 @@ export async function getRuntimeQuestion(input: {
   if (input.questionIndex >= blocks.length) return { done: true };
   if (input.questionIndex < 0) return { error: "not_found" };
 
+  const bindings = readVariantBindings(row.snapshot);
+  const cell = (row.resp.variantCell ?? {}) as VariantCell;
   return {
     studyTitle: row.title,
     mode: row.resp.mode as ResponseMode,
     conditionSlug: row.conditionSlug,
-    block: blocks[input.questionIndex],
+    block: applyCell(blocks[input.questionIndex], cell, bindings),
     position: input.questionIndex,
     total: blocks.length,
     currentQuestionIndex: row.resp.currentQuestionIndex,
@@ -566,8 +587,14 @@ export async function getRuntimeScreen(input: {
   if (input.screenIndex < 0) return { error: "not_found" };
   if (input.screenIndex >= screens.length) return { done: true };
 
-  const screen = screens[input.screenIndex];
+  const rawScreen = screens[input.screenIndex];
   const isLastKnown = input.screenIndex + 1 >= screens.length;
+  // Resolve this screen's blocks for the participant's assigned variant cell.
+  const bindings = readVariantBindings(row.snapshot);
+  const cell = (row.resp.variantCell ?? {}) as VariantCell;
+  const screen = bindings.length
+    ? { ...rawScreen, blocks: rawScreen.blocks.map((b) => applyCell(b, cell, bindings)) }
+    : rawScreen;
   return {
     studyTitle: row.title,
     theme: readTheme(row.snapshot),
