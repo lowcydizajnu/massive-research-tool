@@ -1214,6 +1214,9 @@
   ],
   "recentActivity": [
     {
+      "text": "feat(variants): A/B & factorial CORE built (ADR-0058, A1-A4). Factor x level matrix on one study, between-subjects. A1 pure model + cell resolution (lib/variants/factorial, 8 tests). A2 data layer: snapshot readers + studies.setVariants + StudyDetail.factors/variantBindings + nullable response.variant_cell (migration 0028). A3 runtime: startResponse assigns a cell once; getRuntimeScreen/Question resolve each block's config for that cell (shared content identical). A4 Builder Variants section (factors/levels + per-level field bindings, numeric coercion, reverts cleanly). 610 vitest green; tsc+lint+build clean. Run db:migrate:prod (0028) before deploy. Remaining: A5 diagram cell viz + preview cell selector, A6 results/export by cell. Committed, not deployed."
+    },
+    {
       "text": "docs(gate): A/B & factorial variants (ADR-0058). Owner-chosen model: factor x level matrix on ONE study, between-subjects (one recruitment, each participant randomized to a cell), built reversibly (additive + flag-gated). Factors/levels + field-level variant bindings live in the snapshot; cells = cross-product; shared content is the source of truth, cells store only per-level overrides; nullable additive response.variant_cell; results/export gain a cell dimension. Distinct from within-study conditions (which can live inside a cell). Drafted user-flow run-a-factorial-study + ADR-0058 + wireframe variant-matrix. Validator clean (181). No code — design for review. Next: cowork/playground gate docs."
     },
     {
