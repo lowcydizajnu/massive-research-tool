@@ -1214,6 +1214,9 @@
   ],
   "recentActivity": [
     {
+      "text": "docs(gate): A/B & factorial variants (ADR-0058). Owner-chosen model: factor x level matrix on ONE study, between-subjects (one recruitment, each participant randomized to a cell), built reversibly (additive + flag-gated). Factors/levels + field-level variant bindings live in the snapshot; cells = cross-product; shared content is the source of truth, cells store only per-level overrides; nullable additive response.variant_cell; results/export gain a cell dimension. Distinct from within-study conditions (which can live inside a cell). Drafted user-flow run-a-factorial-study + ADR-0058 + wireframe variant-matrix. Validator clean (181). No code — design for review. Next: cowork/playground gate docs."
+    },
+    {
       "text": "fix(builder): consent node + header/title reflow + resizable/expandable preview (8c56b58). The flow diagram now shows the pinned Consent screen first (both views); the Builder header puts the toolbar row on top with the title below; the live preview pane is resizable (drag handle) and has a full-screen expand button. Preview still starts after consent (follow-up). Committed, awaiting deploy. NEXT (design-first): A/B + factorial variants, and a workspace cowork/playground."
     },
     {
