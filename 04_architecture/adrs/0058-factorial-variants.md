@@ -1,6 +1,6 @@
 # ADR 0058 — Factorial variants (A/B, 2×2, …)
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-06-20
 - **Deciders:** Project owner, Claude
 - **Tags:** study-model, runtime, builder, experimental-design

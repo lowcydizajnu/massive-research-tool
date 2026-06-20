@@ -1214,6 +1214,9 @@
   ],
   "recentActivity": [
     {
+      "text": "feat(variants): A/B & factorial COMPLETE (ADR-0058, A1-A6). Added A5 (flow-diagram 'Assign variant cell' node + live-preview 'Previewing cell' selector) and A6 (results + export gain a variant_cell column, so a factorial run is analyzable by cell). Full feature: define factors/levels + bind fields, participants randomized to a cell with resolved configs, diagram + preview show the split, results split by cell. 612 vitest green; tsc+lint+build clean. Run db:migrate:prod (0028) before deploy. Commits 2b609b9..8779d93. Next: cowork/playground gate docs."
+    },
+    {
       "text": "feat(variants): A/B & factorial CORE built (ADR-0058, A1-A4). Factor x level matrix on one study, between-subjects. A1 pure model + cell resolution (lib/variants/factorial, 8 tests). A2 data layer: snapshot readers + studies.setVariants + StudyDetail.factors/variantBindings + nullable response.variant_cell (migration 0028). A3 runtime: startResponse assigns a cell once; getRuntimeScreen/Question resolve each block's config for that cell (shared content identical). A4 Builder Variants section (factors/levels + per-level field bindings, numeric coercion, reverts cleanly). 610 vitest green; tsc+lint+build clean. Run db:migrate:prod (0028) before deploy. Remaining: A5 diagram cell viz + preview cell selector, A6 results/export by cell. Committed, not deployed."
     },
     {
