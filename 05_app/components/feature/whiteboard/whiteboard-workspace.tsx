@@ -12,14 +12,9 @@ import { ModeToggle } from "@/components/feature/builder/mode-toggle";
 import { BlockLibraryModal } from "@/components/feature/builder/block-library-modal";
 import { api } from "@/lib/trpc/react";
 import type { StudyBlock, StudyDetail } from "@/server/trpc/routers/studies";
-import { regroupAfterMove, setBlockGroup } from "@/lib/whiteboard/screens";
+import { regroupAfterMove } from "@/lib/whiteboard/screens";
 
-import {
-  isConditionSource,
-  newlyBrokenByReorder,
-  normalizeCondition,
-  summarizeClause,
-} from "@/lib/whiteboard/conditions";
+import { newlyBrokenByReorder, summarizeClause } from "@/lib/whiteboard/conditions";
 import { useBlockHistory } from "@/lib/whiteboard/use-block-history";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
@@ -88,46 +83,6 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
     const b = study.blocks.find((x) => x.instanceId === id);
     return b ? b.title?.trim() || b.name : id;
   };
-  // Drag a block into a group container (groupId) or out of one (null) on the
-  // canvas → set membership + re-make groups contiguous, then persist (ADR-0028).
-  const regroupOnCanvas = (blockId: string, groupId: string | null) => {
-    const byId = new Map(study.blocks.map((b) => [b.instanceId, b]));
-    const normalized = setBlockGroup(
-      study.blocks.map((b) => ({ instanceId: b.instanceId, groupId: b.groupId })),
-      blockId,
-      groupId,
-    );
-    const blocks = normalized.map((r) => toInstance(byId.get(r.instanceId)!, r.groupId));
-    const usedIds = new Set(blocks.map((b) => b.groupId).filter(Boolean) as string[]);
-    const groups = study.groups.filter((g) => usedIds.has(g.id));
-    setGroupsMut.mutate({ studyId: study.id, blocks, groups });
-  };
-  // Gate a whole group by an arm (ADR-0028): wiring a Condition node → a group
-  // container sets/clears that arm on EVERY member block (runtime already filters
-  // by arm at the block level, so the group screen only shows for that arm).
-  const persistGroupArm = (groupId: string, armOf: (b: StudyBlock) => string[]) => {
-    const blocks = study.blocks.map((b) => {
-      const arms = b.groupId === groupId ? armOf(b) : b.showIfCondition;
-      return {
-        instanceId: b.instanceId,
-        source: b.source,
-        key: b.key,
-        version: b.version,
-        config: b.config,
-        ...(b.title ? { title: b.title } : {}),
-        ...(arms.length ? { visibility: { showIfCondition: arms } } : {}),
-        ...(b.branchRules.length ? { branchRules: b.branchRules } : {}),
-        ...(b.showIf ? { showIf: b.showIf } : {}),
-        ...(b.groupId ? { groupId: b.groupId } : {}),
-      };
-    });
-    const usedIds = new Set(blocks.map((b) => b.groupId).filter(Boolean) as string[]);
-    setGroupsMut.mutate({ studyId: study.id, blocks, groups: study.groups.filter((g) => usedIds.has(g.id)) });
-  };
-  const connectGroupArm = (groupId: string, slug: string) =>
-    persistGroupArm(groupId, (b) => (b.showIfCondition.includes(slug) ? b.showIfCondition : [...b.showIfCondition, slug]));
-  const disconnectGroupArm = (groupId: string, slug: string) =>
-    persistGroupArm(groupId, (b) => b.showIfCondition.filter((s) => s !== slug));
   const requestReorder = (order: string[], movedId: string) => {
     if (!canEdit) return; // viewers can view the list but not reorder
     const byId = new Map(study.blocks.map((b) => [b.instanceId, b]));
@@ -155,51 +110,9 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
     setGroupsMut.mutate({ studyId: study.id, blocks: snap.blocks, groups: snap.groups }),
   );
 
-  // Conditions drive the canvas wires (drag a Condition node → a block to gate it).
+  // Experimental arms (conditions) feed the diagram's arm chips + the assignment
+  // node; arm-visibility itself is edited in the selected block's panel below.
   const conditions = api.studies.listConditions.useQuery({ studyId: study.id });
-  const setVisibility = api.studies.setBlockVisibility.useMutation({ onSuccess: () => void invalidate() });
-  const setBlockConditions = (instanceId: string, showIfCondition: string[]) =>
-    setVisibility.mutate({ studyId: study.id, instanceId, showIfCondition });
-  const connectCondition = (blockId: string, slug: string) => {
-    const b = study.blocks.find((x) => x.instanceId === blockId);
-    if (!b || b.showIfCondition.includes(slug)) return;
-    setBlockConditions(blockId, [...b.showIfCondition, slug]);
-  };
-  const disconnectCondition = (blockId: string, slug: string) => {
-    const b = study.blocks.find((x) => x.instanceId === blockId);
-    if (!b) return;
-    setBlockConditions(blockId, b.showIfCondition.filter((s) => s !== slug));
-  };
-
-  // Block→block wire (ADR-0021 amendment): create a FLAT connection (no modal) —
-  // "answered" links the source to the target unconditionally. Refine it to a
-  // real condition (operator + value) in the right-panel ConditionBuilder. A
-  // block may have multiple incoming wires (multiple sources → OR by default).
-  const connectBranch = (targetId: string, sourceId: string) => {
-    const target = study.blocks.find((x) => x.instanceId === targetId);
-    const source = study.blocks.find((x) => x.instanceId === sourceId);
-    if (!target || !source) return;
-    setSelectedId(targetId); // open the target's panel to refine
-    if (!isConditionSource(source.key)) return; // a stimulus has no answer to gate on
-    const existing = normalizeCondition(target.showIf, target.branchRules);
-    if (existing?.clauses.some((c) => c.fromInstanceId === sourceId)) return; // already wired
-    const clauses = [
-      ...(existing?.clauses ?? []),
-      { fromInstanceId: sourceId, operator: "answered" as const, value: [] },
-    ];
-    setCondition.mutate({ studyId: study.id, instanceId: targetId, showIf: { op: existing?.op ?? "or", clauses } });
-  };
-  const disconnectBranch = (targetId: string, sourceId: string) => {
-    const target = study.blocks.find((x) => x.instanceId === targetId);
-    if (!target) return;
-    const existing = normalizeCondition(target.showIf, target.branchRules);
-    const clauses = (existing?.clauses ?? []).filter((c) => c.fromInstanceId !== sourceId);
-    setCondition.mutate({
-      studyId: study.id,
-      instanceId: targetId,
-      showIf: clauses.length ? { op: existing?.op ?? "and", clauses } : null,
-    });
-  };
 
   const selected = study.blocks.find((b) => b.instanceId === selectedId) ?? null;
 
@@ -301,18 +214,11 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
                 conditions={(conditions.data ?? []).map((c) => ({ slug: c.slug, name: c.name }))}
                 selectedId={selectedId}
                 onSelectBlock={setSelectedId}
-                onConnectCondition={connectCondition}
-                onDisconnectCondition={disconnectCondition}
-                onConnectBranch={connectBranch}
-                onDisconnectBranch={disconnectBranch}
-                onRegroup={regroupOnCanvas}
-                onConnectGroupArm={connectGroupArm}
-                onDisconnectGroupArm={disconnectGroupArm}
               />
               <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-                {"Drag a wire from one block to another to branch on its answer; or from a Condition node to a block (or a group box) to gate it by arm. Drag a block into a group box to add it to that screen, or out to remove it; drag a group box to move the whole group. Select a wire and press Delete to remove it."}
+                {"The diagram shows the exact flow a participant follows — Start, each screen in order, branches where answer logic skips a screen, and where it ends. Click a screen to configure it; edit conditions and arm-visibility in its panel."}
                 {(conditions.data ?? []).length === 0
-                  ? " Add conditions in Builder’s Conditions section to wire arm-visibility too."
+                  ? " Add conditions in Builder’s Conditions section to split the flow by arm."
                   : ""}
               </p>
             </>
