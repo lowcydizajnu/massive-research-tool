@@ -4,7 +4,7 @@
  * publish (visibility=public) gate, bound-section availability, tenant scoping.
  * Real migrated PGlite, no network.
  */
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/server/db/client", async () => {
@@ -18,6 +18,12 @@ vi.mock("@/server/db/client", async () => {
   return { db, schema };
 });
 vi.mock("@/server/adapters/jobs", () => ({ jobs: { enqueue: vi.fn() } }));
+vi.mock("@/server/adapters/registry", () => ({
+  registry: {
+    getConnection: vi.fn(async () => ({ connected: true })),
+    pushRecordSummary: vi.fn(async () => ({ ok: true })),
+  },
+}));
 
 import type { AuthUser } from "@/server/adapters/auth";
 import { db } from "@/server/db/client";
@@ -304,6 +310,54 @@ describe("studyRecord.pushToOsf (ADR-0056 E4b)", () => {
     await expect(a.studyRecord.pushToOsf({ studyId: id })).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
     // getForEdit reflects no OSF node, so the UI hides the push affordance.
     expect((await a.studyRecord.getForEdit({ studyId: id })).osfNodeId).toBeNull();
+  });
+
+  it("itemizes the push, gates the public link on visibility (no 404), and tracks up-to-date (item 2)", async () => {
+    await seed("hanna", "Hanna Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const { id } = await a.studies.create({ kind: "blank", title: "OSF push study" });
+    await a.studies.preregister({ studyId: id });
+
+    // Wire an OSF project node into the push history (as a preregistration push would).
+    const [ver] = await db
+      .select()
+      .from(experimentVersion)
+      .where(and(eq(experimentVersion.experimentId, id), eq(experimentVersion.kind, "preregistered")));
+    await db.insert(registry).values({ id: "reg-osf", key: "osf", name: "OSF" });
+    await db.insert(registryPush).values({
+      id: "push-1",
+      experimentVersionId: ver.id,
+      registryId: "reg-osf",
+      status: "pushed",
+      requestPayload: {},
+      responsePayload: { nodeId: "NODE-1" },
+    });
+
+    await a.studyRecord.saveAuthored({ studyId: id, abstract: "Key finding.", articleDoi: "10.1/x" });
+
+    // Workspace-private record: abstract + DOI itemized, but NOT the /browse link (would 404).
+    let rec = await a.studyRecord.getForEdit({ studyId: id });
+    expect(rec.osfNodeId).toBe("NODE-1");
+    expect(rec.osfSummaryItems.map((i) => i.label)).toEqual(["Abstract", "Article DOI"]);
+    expect(rec.osfUpToDate).toBe(false);
+    expect(rec.osfPushedAt).toBeNull();
+
+    // Publish → the public record link is now safe to include.
+    await a.studies.setForkable({ studyId: id, forkableBy: "public" });
+    await a.studyRecord.setVisibility({ studyId: id, visibility: "public" });
+    rec = await a.studyRecord.getForEdit({ studyId: id });
+    expect(rec.osfSummaryItems.map((i) => i.label)).toContain("Public record link");
+
+    // Push → up to date.
+    await a.studyRecord.pushToOsf({ studyId: id });
+    rec = await a.studyRecord.getForEdit({ studyId: id });
+    expect(rec.osfUpToDate).toBe(true);
+    expect(rec.osfPushedAt).not.toBeNull();
+
+    // Editing the content flips it back to "changes to push".
+    await a.studyRecord.saveAuthored({ studyId: id, abstract: "Revised finding.", articleDoi: "10.1/x" });
+    rec = await a.studyRecord.getForEdit({ studyId: id });
+    expect(rec.osfUpToDate).toBe(false);
   });
 });
 

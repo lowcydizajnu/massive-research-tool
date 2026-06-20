@@ -1044,6 +1044,11 @@ export const studyRecord = pgTable("study_record", {
   // the Export Data view, with the owner's chosen columns (PID excluded by default).
   dataPublished: boolean("data_published").notNull().default(false),
   dataTable: jsonb("data_table").$type<{ headers: string[]; rows: string[][] } | null>(),
+  // OSF push state (ADR-0056 E4b / item 2): the sha256 of the summary text last
+  // pushed to the project node + when. Lets the composer say "up to date on OSF"
+  // vs "changes to push" instead of pushing blind every click.
+  osfPushedHash: text("osf_pushed_hash"),
+  osfPushedAt: timestamp("osf_pushed_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
