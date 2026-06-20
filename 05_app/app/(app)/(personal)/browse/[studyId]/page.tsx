@@ -35,8 +35,9 @@ export default async function StudyRecordPage({
   }
 
   const finished = !!detail.finishedAt;
-  const marker =
-    detail.latestKind === "preregistered"
+  const marker = detail.registrationWithdrawn
+    ? `Preregistration v${detail.latestVersionNumber} (withdrawn)`
+    : detail.latestKind === "preregistered"
       ? `Preregistration v${detail.latestVersionNumber}`
       : `Published v${detail.latestVersionNumber}`;
 

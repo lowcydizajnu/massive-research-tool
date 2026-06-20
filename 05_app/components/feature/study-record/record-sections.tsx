@@ -67,6 +67,15 @@ function ComposedRecord({ detail }: { detail: PublicStudyDetail }) {
           case "method":
             return <MethodSection key={key} detail={detail} title={title} override={s.content} />;
           case "preregistration":
+            if (detail.registrationWithdrawn) {
+              return (
+                <Section key={key} title={title}>
+                  <p className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+                    This study&rsquo;s preregistration (v{detail.latestVersionNumber}) was <strong>withdrawn</strong> — its plan is no longer frozen on the registry.
+                  </p>
+                </Section>
+              );
+            }
             return detail.latestKind === "preregistered" ? (
               <Section key={key} title={title}>
                 <p className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
