@@ -1214,6 +1214,9 @@
   ],
   "recentActivity": [
     {
+      "text": "docs(gate): study flow-diagram + live Builder preview (ADR-0057). Owner wants (1) a side-by-side live preview in the block Builder and (2) the whiteboard fixed into a true execution-flow diagram (Start -> ordered screens -> inline branches -> terminals), not free-placed boxes/pills wired for visibility. Decisions: arm chips on one spine by default + swimlane toggle; full editor; auto-layout; multiple terminals (Finish + early-exit via end-redirect); diagram is a two-way-synced view of the same study. Drafted before code: user-flow build-study-as-a-flow, ADR-0057 (supersedes ADR-0020 free-placement; flow derived from deriveScreens+arms+showIf so it can't drift), wireframes study-flow-diagram + builder-live-preview. Validator clean (178). No code/migration/deploy — design for review."
+    },
+    {
       "text": "feat(study-record): E4c — OSF watch sweep. A 6-hourly Inngest cron (runOsfWatch) polls every pushed-but-not-withdrawn registration and flips registrationWithdrawn (+ backfills DOI) straight from OSF, so a withdrawal made on osf.io reflects automatically. Best-effort per study; new osf_registration_withdrawn activity event notifies the author. 590 vitest green; tsc+lint+build clean; migration-free. [db6c1ea]"
     },
     {
