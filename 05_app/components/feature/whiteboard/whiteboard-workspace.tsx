@@ -42,7 +42,7 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
   const [view, setView] = useState<"canvas" | "list">("canvas");
   // Arm representation on the canvas: chips on one spine (default) or one lane per
   // arm (ADR-0057). Insert index for "add a step after" from a node's toolbar.
-  const [armView, setArmView] = useState<"chips" | "swimlane">("chips");
+  const [armView, setArmView] = useState<"chips" | "swimlane">("swimlane");
   const [insertIndex, setInsertIndex] = useState<number | undefined>(undefined);
   // Viewers are read-only (mirrors writeProcedure) — same gate as the Builder.
   const canEdit = canWriteRole(study.viewerRole);
@@ -235,8 +235,8 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
                 ))}
               </div>
               {view === "canvas" && (conditions.data ?? []).length > 1 ? (
-                <div role="group" aria-label="Arm view" className="flex items-center gap-1 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-0.5 text-[length:var(--text-small)]">
-                  {([["chips", "Chips"], ["swimlane", "By arm"]] as const).map(([v, label]) => (
+                <div role="group" aria-label="Condition view" className="flex items-center gap-1 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-0.5 text-[length:var(--text-small)]">
+                  {([["swimlane", "By condition"], ["chips", "Combined"]] as const).map(([v, label]) => (
                     <button
                       key={v}
                       type="button"
@@ -299,7 +299,7 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
               <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
                 {"The diagram shows the exact flow a participant follows — Start, each screen in order, branches where answer logic skips a screen, and where it ends. Click a screen to configure it; edit conditions and arm-visibility in its panel."}
                 {(conditions.data ?? []).length === 0
-                  ? " Add conditions in Builder’s Conditions section to split the flow by arm."
+                  ? " Add conditions in Builder’s Conditions section to split the flow by condition."
                   : ""}
               </p>
             </>

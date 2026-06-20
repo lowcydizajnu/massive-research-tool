@@ -61,6 +61,8 @@ Hover state: 90% opacity over the base OR a 6% black overlay. No third hue.
 | `color.info` | `#0EA5E9` | `#38BDF8` | Informational notes (uses accent directly). |
 | `color.info.subtle` | `#DDEFFB` | `rgba(14,165,233,0.22)` | Info badge background. |
 | `color.info.text-on-subtle` | `#0E5879` | `#92D5F0` | Text on info badge. |
+| `color.cond.1`…`color.cond.6` | indigo/teal/amber/rose/violet/cyan subtle | dark tints | Categorical chip backgrounds for experimental **conditions** on the study flow diagram (ADR-0057); cycled by condition index. |
+| `color.cond.1-text`…`color.cond.6-text` | readable hues | light hues | Text on the matching condition chip. |
 
 **Pairing rule:** vivid full tokens only on icons, dots, text, focus rings. Bigger surfaces use the `.subtle` pale wash with the dark text on top. The `.subtle` washes were nudged warm in Light to sit on parchment without reading as cool islands.
 
