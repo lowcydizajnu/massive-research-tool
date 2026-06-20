@@ -54,7 +54,7 @@ import {
   summarizeConfigDiff,
   validateConfig,
 } from "@/server/modules/blocks";
-import { pruneBindings, type VariantBinding, type VariantFactor } from "@/lib/variants/factorial";
+import { cellLabel, pruneBindings, type VariantBinding, type VariantFactor } from "@/lib/variants/factorial";
 import { changelogBetween, initialVersionSummary } from "@/server/modules/changelog";
 import { readConsent, type StudyConsent } from "@/server/modules/consent";
 import { runPreflight, type PreflightCheck } from "@/server/modules/preflight";
@@ -746,6 +746,8 @@ export type ResultsSummary = {
   rows: {
     responseId: string;
     conditionSlug: string;
+    /** Factorial-variant cell label (ADR-0058), e.g. "low · gain"; null = no variants. */
+    cell: string | null;
     externalPid: string | null;
     /** Which runnable version this respondent took (ADR-0044) — the export
      *  `version` column; lets a pooled dataset be split by version. */
@@ -4088,6 +4090,7 @@ export const studiesRouter = router({
           id: responseTable.id,
           conditionId: responseTable.conditionId,
           externalPid: responseTable.externalPid,
+          variantCell: responseTable.variantCell,
           startedAt: responseTable.startedAt,
           completedAt: responseTable.completedAt,
           experimentVersionId: responseTable.experimentVersionId,
@@ -4160,11 +4163,18 @@ export const studiesRouter = router({
       // Per-respondent identity for spatial exploration (ADR-0041 amendment):
       // condition slug + external PID keyed by responseId. Derived from the
       // already-loaded `completed` rows — no extra query, no migration.
+      // Factors per scoped version → label each response's variant cell (ADR-0058).
+      const factorsByVersion = new Map(scopeVersions.map((v) => [v.id, readFactors(v.snapshot)]));
+      const labelCell = (versionId: string, cell: Record<string, string> | null): string | null => {
+        if (!cell || Object.keys(cell).length === 0) return null;
+        return cellLabel(cell, factorsByVersion.get(versionId) ?? []);
+      };
       const respMeta = new Map(
         completed.map((r) => [
           r.id,
           {
             conditionSlug: condById.get(r.conditionId)?.slug ?? "?",
+            cell: labelCell(r.experimentVersionId, r.variantCell),
             externalPid: r.externalPid,
             versionNumber: verNumById.get(r.experimentVersionId) ?? latest.n,
           },
@@ -4394,6 +4404,7 @@ export const studiesRouter = router({
         rows: completed.map((r) => ({
           responseId: r.id,
           conditionSlug: condById.get(r.conditionId)?.slug ?? "?",
+          cell: labelCell(r.experimentVersionId, r.variantCell),
           externalPid: r.externalPid,
           versionNumber: verNumById.get(r.experimentVersionId) ?? latest.n,
           startedAt: r.startedAt.toISOString(),

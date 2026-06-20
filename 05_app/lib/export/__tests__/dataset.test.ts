@@ -15,8 +15,8 @@ const results: ResultsSummary = {
     { instanceId: "q2", prompt: "Why, in your words?", moduleKey: "free-text", n: 2, kind: "text", mean: null, optionCounts: [] },
   ],
   rows: [
-    { responseId: "r1", conditionSlug: "control", externalPid: null, versionNumber: 1, startedAt: "2026-06-08T10:00:00Z", completedAt: "2026-06-08T10:05:00Z", answers: { q1: "5", q2: "Looks legit, has a source" } },
-    { responseId: "r2", conditionSlug: "control", externalPid: "PID9", versionNumber: 1, startedAt: "2026-06-08T11:00:00Z", completedAt: "2026-06-08T11:04:00Z", answers: { q1: "3", q2: 'She said "maybe", unsure' } },
+    { responseId: "r1", conditionSlug: "control", cell: null, externalPid: null, versionNumber: 1, startedAt: "2026-06-08T10:00:00Z", completedAt: "2026-06-08T10:05:00Z", answers: { q1: "5", q2: "Looks legit, has a source" } },
+    { responseId: "r2", conditionSlug: "control", cell: null, externalPid: "PID9", versionNumber: 1, startedAt: "2026-06-08T11:00:00Z", completedAt: "2026-06-08T11:04:00Z", answers: { q1: "3", q2: 'She said "maybe", unsure' } },
   ],
 };
 
@@ -31,6 +31,21 @@ describe("export dataset (V1.12 D)", () => {
     expect(cols.map((c) => c.key)).toEqual(["responseId", "conditionSlug", "versionNumber", "externalPid", "startedAt", "completedAt", "q1", "q2"]);
     expect(cols.find((c) => c.key === "q1")?.label).toBe("how_credible");
     expect(cols.find((c) => c.key === "versionNumber")?.label).toBe("version");
+  });
+
+  it("adds a variant_cell column only when rows carry a cell (ADR-0058)", () => {
+    expect(baseColumns(results).some((c) => c.key === "cell")).toBe(false);
+    const withCells = {
+      ...results,
+      rows: results.rows.map((r, i) => ({ ...r, cell: i === 0 ? "low · gain" : "high · loss" })),
+    };
+    const cols = baseColumns(withCells);
+    const cell = cols.find((c) => c.key === "cell");
+    expect(cell?.label).toBe("variant_cell");
+    // Sits right after the condition column.
+    expect(cols.map((c) => c.key).indexOf("cell")).toBe(cols.map((c) => c.key).indexOf("conditionSlug") + 1);
+    const m = buildMatrix(withCells, cols.filter((c) => c.key === "cell"));
+    expect(m.rows).toEqual([["low · gain"], ["high · loss"]]);
   });
 
   it("buildMatrix respects visibility + order", () => {
