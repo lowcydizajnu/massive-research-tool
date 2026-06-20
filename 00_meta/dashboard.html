@@ -1214,6 +1214,12 @@
   ],
   "recentActivity": [
     {
+      "text": "feat(builder): live side-by-side participant preview (ADR-0057 #1, f5e3f7c). A device-framed preview pane beside the blocks runs the real runtime in preview mode, refreshes on debounced edits and re-seeks to the screen it was on (no leave-look-return). Toggled from the header, remembered per-browser, third column on wide viewports. Both owner Builder asks (flow diagram + live preview) now complete. tsc+lint+build green. Committed, awaiting deploy."
+    },
+    {
+      "text": "feat(whiteboard): condition-first diagram polish (ADR-0057, 42d033a). 'By condition' lanes are the default view; 'arm' renamed to 'condition' everywhere; condition chips moved to each screen box's top-right; a 6-hue categorical palette (--color-cond-1..6) colours each condition; the conditions in the Random-assignment node are a clickable switcher that focuses one condition's path and dims the rest. Committed, awaiting deploy."
+    },
+    {
       "text": "feat(whiteboard): study flow-diagram BUILT (ADR-0057, A1-A3+B). The whiteboard is now a DERIVED execution-flow diagram, not free-placed boxes/pills: Start -> Random assignment -> ordered screen spine (arm chips) -> inline answer-branches that rejoin -> terminals (Finish + early-exit end-redirects). Derived from deriveScreens + arm visibility + showIf so it can't drift from the runtime; auto-layout, no free placement. Chips/By-arm (swimlane, shared screens repeated) toggle. On-canvas screen toolbar (move up/down, add-after, delete) + click-to-configure via the existing right panel, all reusing existing mutations. 12 flow unit tests; tsc+lint+build green. Commits 64bedb5, 4140dac, af0d488. Not deployed. Next: the Builder live side-by-side preview (improvement #1)."
     },
     {
