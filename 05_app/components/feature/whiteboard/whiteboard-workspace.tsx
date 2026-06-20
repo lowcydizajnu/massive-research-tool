@@ -12,7 +12,7 @@ import { ModeToggle } from "@/components/feature/builder/mode-toggle";
 import { BlockLibraryModal } from "@/components/feature/builder/block-library-modal";
 import { api } from "@/lib/trpc/react";
 import type { StudyBlock, StudyDetail } from "@/server/trpc/routers/studies";
-import { regroupAfterMove } from "@/lib/whiteboard/screens";
+import { deriveScreens, regroupAfterMove } from "@/lib/whiteboard/screens";
 
 import { newlyBrokenByReorder, summarizeClause } from "@/lib/whiteboard/conditions";
 import { useBlockHistory } from "@/lib/whiteboard/use-block-history";
@@ -40,6 +40,10 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [view, setView] = useState<"canvas" | "list">("canvas");
+  // Arm representation on the canvas: chips on one spine (default) or one lane per
+  // arm (ADR-0057). Insert index for "add a step after" from a node's toolbar.
+  const [armView, setArmView] = useState<"chips" | "swimlane">("chips");
+  const [insertIndex, setInsertIndex] = useState<number | undefined>(undefined);
   // Viewers are read-only (mirrors writeProcedure) — same gate as the Builder.
   const canEdit = canWriteRole(study.viewerRole);
 
@@ -105,6 +109,59 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
       items: broken.map((b) => `"${nameOfBlock(b.targetId)}": ${summarizeClause(b.clause, nameOfBlock)}`),
     });
   };
+  // ----- on-canvas screen editing (ADR-0057 B) — reuse the same mutations -----
+  const screensNow = () => deriveScreens(study.blocks.map((b) => toInstance(b, b.groupId)), study.groups);
+  // Move a whole screen (single block or group) up/down the spine. Screens are
+  // contiguous block runs, so swapping two screens = swapping two runs.
+  const moveScreen = (screenId: string, dir: "up" | "down") => {
+    if (!canEdit) return;
+    const screens = screensNow();
+    const idx = screens.findIndex((s) => s.id === screenId);
+    const t = dir === "up" ? idx - 1 : idx + 1;
+    if (idx < 0 || t < 0 || t >= screens.length) return;
+    const reordered = [...screens];
+    [reordered[idx], reordered[t]] = [reordered[t], reordered[idx]];
+    // The screen blocks ARE toInstance() results (screensNow built them); deriveScreens
+    // just widens the type back to BlockInstance, so this cast is sound.
+    const blocks = reordered.flatMap((s) => s.blocks) as ReturnType<typeof toInstance>[];
+    const byId = new Map(study.blocks.map((b) => [b.instanceId, b]));
+    const nextStudyBlocks = blocks.map((bi) => byId.get(bi.instanceId)!);
+    const broken = newlyBrokenByReorder(study.blocks, nextStudyBlocks);
+    const usedIds = new Set(blocks.map((b) => b.groupId).filter(Boolean) as string[]);
+    const groups = study.groups.filter((g) => usedIds.has(g.id));
+    if (broken.length === 0) {
+      setGroupsMut.mutate({ studyId: study.id, blocks, groups });
+      return;
+    }
+    setPendingReorder({ blocks, groups, items: broken.map((b) => `"${nameOfBlock(b.targetId)}": ${summarizeClause(b.clause, nameOfBlock)}`) });
+  };
+  // Open the block library to insert a new screen right after this one.
+  const addStepAfter = (screenId: string) => {
+    if (!canEdit) return;
+    const screens = screensNow();
+    const s = screens.find((x) => x.id === screenId);
+    const lastId = s?.blocks[s.blocks.length - 1]?.instanceId;
+    const at = study.blocks.findIndex((b) => b.instanceId === lastId);
+    setInsertIndex(at >= 0 ? at + 1 : undefined);
+    setPickerOpen(true);
+  };
+  // Delete an entire screen — a single block, or every member of a group.
+  const deleteScreen = (screenId: string) => {
+    if (!canEdit) return;
+    const screens = screensNow();
+    const s = screens.find((x) => x.id === screenId);
+    if (!s) return;
+    if (selectedId && s.blocks.some((b) => b.instanceId === selectedId)) setSelectedId(null);
+    if (s.kind === "single") {
+      removeBlock.mutate({ studyId: study.id, instanceId: s.blocks[0].instanceId });
+      return;
+    }
+    const memberIds = new Set(s.blocks.map((b) => b.instanceId));
+    const blocks = study.blocks.filter((b) => !memberIds.has(b.instanceId)).map((b) => toInstance(b, b.groupId));
+    const usedIds = new Set(blocks.map((b) => b.groupId).filter(Boolean) as string[]);
+    setGroupsMut.mutate({ studyId: study.id, blocks, groups: study.groups.filter((g) => usedIds.has(g.id)) });
+  };
+
   const setCondition = api.studies.setBlockCondition.useMutation({ onSuccess: () => void invalidate() });
   const { canUndo, canRedo, undo, redo } = useBlockHistory(study.id, study.blocks, study.groups, (snap) =>
     setGroupsMut.mutate({ studyId: study.id, blocks: snap.blocks, groups: snap.groups }),
@@ -177,6 +234,26 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
                   </button>
                 ))}
               </div>
+              {view === "canvas" && (conditions.data ?? []).length > 1 ? (
+                <div role="group" aria-label="Arm view" className="flex items-center gap-1 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-0.5 text-[length:var(--text-small)]">
+                  {([["chips", "Chips"], ["swimlane", "By arm"]] as const).map(([v, label]) => (
+                    <button
+                      key={v}
+                      type="button"
+                      aria-pressed={armView === v}
+                      onClick={() => setArmView(v)}
+                      className={cn(
+                        "rounded-[var(--radius-sm)] px-2 py-1 font-medium",
+                        armView === v
+                          ? "bg-[var(--color-primary-subtle)] text-[var(--color-primary-text-on-subtle)]"
+                          : "text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]",
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
               <div className="relative">
                 <button
                   type="button"
@@ -191,8 +268,8 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
                 {pickerOpen ? (
                   <BlockLibraryModal
                     pending={addBlock.isPending}
-                    onClose={() => setPickerOpen(false)}
-                    onInsert={(m) => addBlock.mutate({ studyId: study.id, ...m })}
+                    onClose={() => { setPickerOpen(false); setInsertIndex(undefined); }}
+                    onInsert={(m) => addBlock.mutate({ studyId: study.id, ...m, ...(insertIndex != null ? { atIndex: insertIndex } : {}) })}
                   />
                 ) : null}
               </div>
@@ -211,9 +288,13 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
               <WhiteboardCanvas
                 study={study}
                 editable={canEdit}
+                armView={armView}
                 conditions={(conditions.data ?? []).map((c) => ({ slug: c.slug, name: c.name }))}
                 selectedId={selectedId}
                 onSelectBlock={setSelectedId}
+                onMoveScreen={moveScreen}
+                onAddAfter={addStepAfter}
+                onDeleteScreen={deleteScreen}
               />
               <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
                 {"The diagram shows the exact flow a participant follows — Start, each screen in order, branches where answer logic skips a screen, and where it ends. Click a screen to configure it; edit conditions and arm-visibility in its panel."}

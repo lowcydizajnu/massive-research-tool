@@ -17,7 +17,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { api } from "@/lib/trpc/react";
-import { buildFlow, type FlowNode } from "@/lib/whiteboard/flow";
+import { buildFlow, deriveSwimlaneFlow, type FlowNode } from "@/lib/whiteboard/flow";
 import type { BlockInstance } from "@/server/modules/blocks";
 import type { StudyDetail } from "@/server/trpc/routers/studies";
 
@@ -60,13 +60,26 @@ export function WhiteboardCanvas({
   conditions,
   selectedId = null,
   onSelectBlock,
+  armView = "chips",
+  editable = true,
+  onMoveScreen,
+  onAddAfter,
+  onDeleteScreen,
 }: {
   study: StudyDetail;
   conditions: WhiteboardCondition[];
   selectedId?: string | null;
-  /** Accepted for parity with the workspace call; structural edits are gated upstream. */
+  /** "chips" = one spine with arm chips (default); "swimlane" = one lane per arm (read lens). */
+  armView?: "chips" | "swimlane";
+  /** Read-only when false (viewers): no on-canvas editing toolbar. */
   editable?: boolean;
   onSelectBlock?: (instanceId: string | null) => void;
+  /** Reorder a screen (by its screen id) up/down the spine. */
+  onMoveScreen?: (screenId: string, dir: "up" | "down") => void;
+  /** Open the block picker to insert a step after this screen. */
+  onAddAfter?: (screenId: string) => void;
+  /** Remove this screen (all its blocks). */
+  onDeleteScreen?: (screenId: string) => void;
 }) {
   const armName = useMemo(() => {
     const m = new Map(conditions.map((c) => [c.slug, c.name]));
@@ -91,14 +104,22 @@ export function WhiteboardCanvas({
       const b = study.blocks.find((x) => x.instanceId === id);
       return b ? b.title?.trim() || b.name : id;
     };
-    return buildFlow({
+    const args = {
       blocks,
       groups: study.groups,
       conditions: conditions.map((c) => ({ slug: c.slug, name: c.name })),
       nameOf,
-      isIncomplete: (blk) => incomplete.has(blk.instanceId),
-    });
-  }, [study.blocks, study.groups, conditions]);
+      isIncomplete: (blk: BlockInstance) => incomplete.has(blk.instanceId),
+    };
+    return armView === "swimlane" ? deriveSwimlaneFlow(args) : buildFlow(args);
+  }, [study.blocks, study.groups, conditions, armView]);
+
+  // Screen order (chips view) for enabling/disabling move up/down.
+  const screenOrder = useMemo(
+    () => graph.nodes.filter((n) => n.kind === "screen" || (n.kind === "terminal" && n.terminalKind === "early-exit")).map((n) => n.refId).filter((r): r is string => !!r),
+    [graph.nodes],
+  );
+  const canEditScreens = editable && armView === "chips";
 
   // Map a flow node back to a selectable block instanceId for the config panel:
   // a single screen IS a block; a group screen / its branch selects its first member.
@@ -130,8 +151,16 @@ export function WhiteboardCanvas({
                   blockCount: n.blockCount ?? 0,
                   arms: (n.arms ?? []).map(armName),
                   allArms: n.allArms,
+                  shared: n.shared,
                   incomplete: n.incomplete,
                   unreachable: n.unreachable,
+                  canEdit: canEditScreens && n.refId != null,
+                  isFirst: n.refId === screenOrder[0],
+                  isLast: n.refId === screenOrder[screenOrder.length - 1],
+                  onMoveUp: n.refId ? () => onMoveScreen?.(n.refId!, "up") : undefined,
+                  onMoveDown: n.refId ? () => onMoveScreen?.(n.refId!, "down") : undefined,
+                  onAddAfter: n.refId ? () => onAddAfter?.(n.refId!) : undefined,
+                  onDelete: n.refId ? () => onDeleteScreen?.(n.refId!) : undefined,
                 }
               : n.kind === "branch"
                 ? { summary: n.conditionSummary ?? "", unreachable: n.unreachable }
@@ -142,7 +171,7 @@ export function WhiteboardCanvas({
                     : { label: n.title ?? "Start" },
         } as Node;
       }),
-    [graph.nodes, selectedId, selectableFor, armName],
+    [graph.nodes, selectedId, selectableFor, armName, canEditScreens, screenOrder, onMoveScreen, onAddAfter, onDeleteScreen],
   );
 
   const computedEdges = useMemo<Edge[]>(

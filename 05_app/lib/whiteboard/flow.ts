@@ -29,6 +29,8 @@ export type FlowNode = {
   blockCount?: number;
   arms?: string[];
   allArms?: boolean;
+  /** Swimlane view: this screen is shared across arms (repeated per lane). */
+  shared?: boolean;
   incomplete?: boolean;
   /** Branch: a one-line summary of the `showIf` condition. */
   conditionSummary?: string;
@@ -89,6 +91,13 @@ function redirectTarget(screen: Screen): string | null {
   return typeof url === "string" && url ? url : null;
 }
 
+/** A screen's display title: the group/screen title, else the first block's name. */
+function screenTitle(screen: Screen, nameOf: (id: string) => string): string {
+  if (screen.title?.trim()) return screen.title.trim();
+  const first = screen.blocks[0];
+  return first ? nameOf(first.instanceId) : "Screen";
+}
+
 /**
  * Derive the flow graph (positions zeroed; call `layoutFlow` to place nodes).
  * Default representation = one spine with arm chips (the swimlane view is a
@@ -136,7 +145,7 @@ export function deriveFlow(input: DeriveFlowInput): FlowGraph {
         id: termId,
         kind: "terminal",
         refId: screen.id,
-        title: screen.title ?? "Early exit",
+        title: screenTitle(screen, nameOf),
         terminalKind: "early-exit",
         redirectTo: redirectTarget(screen),
         unreachable,
@@ -159,7 +168,7 @@ export function deriveFlow(input: DeriveFlowInput): FlowGraph {
       id: scrId,
       kind: "screen",
       refId: screen.id,
-      title: screen.title ?? undefined,
+      title: screenTitle(screen, nameOf),
       blockCount: screen.blocks.length,
       arms,
       allArms,
@@ -260,4 +269,110 @@ export function layoutFlow(graph: FlowGraph): FlowGraph {
 /** Convenience: derive + layout in one call. */
 export function buildFlow(input: DeriveFlowInput): FlowGraph {
   return layoutFlow(deriveFlow(input));
+}
+
+/* ---------- swimlane view: one lane per arm (ADR-0057) ---------- */
+
+const SWIMLANE = { laneX: 300, rowY: 110 } as const;
+
+/**
+ * The "by arm" reading: a separate top-to-bottom lane per experimental arm, each
+ * showing exactly the screens that arm sees (in order, with its branches), so you
+ * can trace one arm's literal path. Shared screens are REPEATED in each lane that
+ * sees them (tagged "shared") — chosen over span-lanes so each lane stays a clean,
+ * traceable column. Start / Random assignment / Finish are shared anchors.
+ * Positions are set here (no separate layout pass).
+ */
+export function deriveSwimlaneFlow(input: DeriveFlowInput): FlowGraph {
+  const { blocks, groups, conditions } = input;
+  const nameOf = input.nameOf ?? ((id: string) => id);
+  const allSlugs = conditions.map((c) => c.slug);
+  if (allSlugs.length <= 1) return buildFlow(input); // no lanes to split
+
+  const screens = deriveScreens(blocks, groups);
+  const seenByMany = (s: Screen) => {
+    const { arms, allArms } = screenArms(s, allSlugs);
+    return allArms || arms.length > 1;
+  };
+
+  const nodes: FlowNode[] = [];
+  const edges: FlowEdge[] = [];
+  const centerX = ((conditions.length - 1) * SWIMLANE.laneX) / 2;
+  const at = (n: Omit<FlowNode, "x" | "y" | "lane">, x: number, y: number, lane: number) => {
+    nodes.push({ ...n, x, y, lane });
+    return n.id;
+  };
+  const link = (source: string, target: string, kind: FlowEdgeKind = "default", label?: string) =>
+    edges.push({ id: `${source}->${target}:${kind}`, source, target, kind, label });
+
+  at({ id: "start", kind: "start", title: "Start" }, centerX, 0, 0);
+  at({ id: "assign", kind: "assign", title: "Random assignment", assignArms: conditions }, centerX, SWIMLANE.rowY, 0);
+  link("start", "assign");
+
+  let maxRow = 2;
+  const finishId = "finish";
+
+  conditions.forEach((arm, lane) => {
+    const laneX = lane * SWIMLANE.laneX;
+    const armScreens = screens.filter((s) => {
+      const { arms, allArms } = screenArms(s, allSlugs);
+      return allArms || arms.includes(arm.slug);
+    });
+    let entry = "assign";
+    let row = 2;
+    const pfx = `L${lane}:`;
+    type Step = { entryId: string; exitId: string | null };
+    const steps: Step[] = [];
+
+    for (const screen of armScreens) {
+      const cond = summarizeCondition(screen.showIf, nameOf);
+      const incomplete = input.isIncomplete ? screen.blocks.some((b) => input.isIncomplete!(b)) : undefined;
+      const terminal = isTerminalScreen(screen);
+      if (terminal) {
+        const termId = `${pfx}term:${screen.id}`;
+        at({ id: termId, kind: "terminal", refId: screen.id, title: screenTitle(screen, nameOf), terminalKind: "early-exit", redirectTo: redirectTarget(screen) }, laneX, row * SWIMLANE.rowY, lane);
+        if (cond) {
+          const brId = `${pfx}branch:${screen.id}`;
+          at({ id: brId, kind: "branch", refId: screen.id, conditionSummary: cond }, laneX, row * SWIMLANE.rowY, lane);
+          link(brId, termId, "yes", "if");
+          steps.push({ entryId: brId, exitId: brId });
+          row += 1;
+        } else {
+          steps.push({ entryId: termId, exitId: null });
+        }
+        continue;
+      }
+      const scrId = `${pfx}screen:${screen.id}`;
+      at(
+        { id: scrId, kind: "screen", refId: screen.id, title: screen.title ?? undefined, blockCount: screen.blocks.length, arms: [arm.slug], allArms: false, shared: seenByMany(screen), incomplete },
+        laneX,
+        row * SWIMLANE.rowY,
+        lane,
+      );
+      if (cond) {
+        const brId = `${pfx}branch:${screen.id}`;
+        at({ id: brId, kind: "branch", refId: screen.id, conditionSummary: cond }, laneX, row * SWIMLANE.rowY, lane);
+        link(brId, scrId, "yes", "if");
+        steps.push({ entryId: brId, exitId: scrId });
+        row += 2;
+      } else {
+        steps.push({ entryId: scrId, exitId: scrId });
+        row += 1;
+      }
+    }
+
+    for (let i = 0; i < steps.length; i += 1) {
+      const step = steps[i];
+      const nextEntry = i + 1 < steps.length ? steps[i + 1].entryId : finishId;
+      link(entry, step.entryId);
+      if (step.entryId.includes("branch:")) link(step.entryId, nextEntry, "no", "else");
+      entry = step.exitId === null ? nextEntry : step.exitId;
+    }
+    if (steps.length === 0) link("assign", finishId);
+    maxRow = Math.max(maxRow, row);
+  });
+
+  at({ id: finishId, kind: "terminal", title: "Finish", terminalKind: "complete" }, centerX, (maxRow + 1) * SWIMLANE.rowY, 0);
+  markUnreachable(nodes, edges);
+  return { nodes, edges };
 }
