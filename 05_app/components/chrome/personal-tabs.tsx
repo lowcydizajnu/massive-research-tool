@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 const TABS: { label: string; href: Route }[] = [
   { label: "Your Dashboard", href: "/home" as Route },
   { label: "Browse Entire App", href: "/browse" as Route },
+  { label: "Saved", href: "/saved" as Route },
 ];
 
 export function PersonalTabs() {
