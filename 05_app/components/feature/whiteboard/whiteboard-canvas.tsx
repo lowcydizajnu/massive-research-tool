@@ -6,7 +6,6 @@ import "./whiteboard-theme.css";
 import {
   Background,
   Controls,
-  type Connection,
   type Edge,
   type Node,
   MarkerType,
@@ -18,214 +17,151 @@ import {
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { api } from "@/lib/trpc/react";
-import { conditionNodeId } from "@/lib/whiteboard/graph";
-import { OPERATOR_LABELS, conditionWithSources } from "@/lib/whiteboard/conditions";
+import { buildFlow, type FlowNode } from "@/lib/whiteboard/flow";
+import type { BlockInstance } from "@/server/modules/blocks";
 import type { StudyDetail } from "@/server/trpc/routers/studies";
 
-import { BlockNode, ConditionEdge, ConditionNode, GroupNode } from "./whiteboard-nodes";
+import {
+  FlowAssignNode,
+  FlowBranchNode,
+  FlowScreenNode,
+  FlowStartNode,
+  FlowTerminalNode,
+} from "./whiteboard-nodes";
 
-const nodeTypes = { block: BlockNode, condition: ConditionNode, group: GroupNode };
-const edgeTypes = { condition: ConditionEdge };
-const COND_PREFIX = "cond:";
-const GROUP_PREFIX = "group:";
-// Canvas layout (ADR-0028 amendment): NW/NH = block node box; PAD/HEADER = group
-// container insets; GAP/VGAP = vertical rhythm; COLX = block column x.
-const NW = 280, NH = 76, PAD = 16, HEADER = 26, GAP = 92, COLX = 320, VGAP = 40;
+const nodeTypes = {
+  flowStart: FlowStartNode,
+  flowAssign: FlowAssignNode,
+  flowScreen: FlowScreenNode,
+  flowBranch: FlowBranchNode,
+  flowTerminal: FlowTerminalNode,
+};
+const RF_TYPE: Record<FlowNode["kind"], keyof typeof nodeTypes> = {
+  start: "flowStart",
+  assign: "flowAssign",
+  screen: "flowScreen",
+  branch: "flowBranch",
+  terminal: "flowTerminal",
+};
 
 export type WhiteboardCondition = { slug: string; name: string };
 
 /**
- * Whiteboard canvas (ADR-0020). Blocks as nodes, visibility rules as wires.
- * Nodes are draggable (positions persist to whiteboard_viewport.nodePositions);
- * dragging a wire from a Condition node to a block adds that condition to the
- * block's visibility (`setBlockVisibility`); deleting a wire removes it. Block
- * structure round-trips through the Builder mutations (the parent owns those).
+ * Whiteboard canvas (ADR-0057) — the study rendered as a DERIVED execution-flow
+ * diagram: Start → optional Random assignment → the ordered spine of screens
+ * (with inline answer-branches that rejoin) → one or more terminals (Finish +
+ * early-exit end-redirects). Auto-laid-out from the real structure (no free
+ * placement); selecting a node opens its config in the parent's right panel.
+ * Pan/zoom persist to `whiteboard_viewport.{x,y,zoom}`; node positions are
+ * derived, never stored.
  */
 export function WhiteboardCanvas({
   study,
   conditions,
   selectedId = null,
   onSelectBlock,
-  onConnectCondition,
-  onDisconnectCondition,
-  onConnectBranch,
-  onDisconnectBranch,
-  onRegroup,
-  onConnectGroupArm,
-  onDisconnectGroupArm,
-  editable = true,
 }: {
   study: StudyDetail;
   conditions: WhiteboardCondition[];
   selectedId?: string | null;
-  /** Read-only when false (viewers): no node drag, no wiring, no deletion — selection still works. */
+  /** Accepted for parity with the workspace call; structural edits are gated upstream. */
   editable?: boolean;
   onSelectBlock?: (instanceId: string | null) => void;
-  onConnectCondition?: (blockId: string, slug: string) => void;
-  onDisconnectCondition?: (blockId: string, slug: string) => void;
-  /** Wire block→block: show `targetId` only if `sourceId`'s answer matches (ADR-0021). */
-  onConnectBranch?: (targetId: string, sourceId: string) => void;
-  onDisconnectBranch?: (targetId: string, sourceId: string) => void;
-  /** Drag a block into a group container (groupId) or out (null) — ADR-0028. */
-  onRegroup?: (blockId: string, groupId: string | null) => void;
-  /** Wire a Condition (arm) to a group container → gate the whole group by it. */
-  onConnectGroupArm?: (groupId: string, slug: string) => void;
-  onDisconnectGroupArm?: (groupId: string, slug: string) => void;
 }) {
-  const saved = study.whiteboardViewport.nodePositions ?? {};
-  const condName = useMemo(() => {
+  const armName = useMemo(() => {
     const m = new Map(conditions.map((c) => [c.slug, c.name]));
     return (slug: string) => m.get(slug) ?? slug;
   }, [conditions]);
 
-  // Build nodes: all conditions (so you can wire from any) + all blocks.
-  const computedNodes = useMemo<Node[]>(() => {
-    const slugs: string[] = [];
-    for (const c of conditions) if (!slugs.includes(c.slug)) slugs.push(c.slug);
-    for (const b of study.blocks)
-      for (const s of b.showIfCondition) if (!slugs.includes(s)) slugs.push(s);
-
-    const condNodes: Node[] = slugs.map((slug, i) => {
-      const id = conditionNodeId(slug);
-      return {
-        id,
-        type: "condition",
-        position: saved[id] ?? { x: 0, y: i * 110 },
-        data: { label: `Condition: ${condName(slug)}` },
-      };
+  const graph = useMemo(() => {
+    const incomplete = new Set(study.blocks.filter((b) => !b.complete).map((b) => b.instanceId));
+    const blocks: BlockInstance[] = study.blocks.map((b) => ({
+      instanceId: b.instanceId,
+      source: b.source,
+      key: b.key,
+      version: b.version,
+      config: b.config,
+      ...(b.title ? { title: b.title } : {}),
+      ...(b.showIfCondition.length ? { visibility: { showIfCondition: b.showIfCondition } } : {}),
+      ...(b.branchRules.length ? { branchRules: b.branchRules } : {}),
+      ...(b.showIf ? { showIf: b.showIf } : {}),
+      ...(b.groupId ? { groupId: b.groupId } : {}),
+    }));
+    const nameOf = (id: string) => {
+      const b = study.blocks.find((x) => x.instanceId === id);
+      return b ? b.title?.trim() || b.name : id;
+    };
+    return buildFlow({
+      blocks,
+      groups: study.groups,
+      conditions: conditions.map((c) => ({ slug: c.slug, name: c.name })),
+      nameOf,
+      isIncomplete: (blk) => incomplete.has(blk.instanceId),
     });
-    // Groups render as real React Flow container (parent) nodes with member
-    // blocks as children (ADR-0028 amendment): native nesting + group-as-unit
-    // drag. Children carry relative positions; containers + ungrouped blocks are
-    // absolute. Default layout stacks top-level items (a group or a lone block)
-    // vertically; the parent MUST precede its children in the array.
-    const blockData = (b: (typeof study.blocks)[number]) => ({
-      label: b.title?.trim() || b.name,
-      ref: `${b.key} · ${b.version}`,
-      complete: b.complete,
-    });
+  }, [study.blocks, study.groups, conditions]);
 
-    const groupNodes: Node[] = [];
-    const childNodes: Node[] = [];
-    const ungroupedNodes: Node[] = [];
-    const seenGroup = new Set<string>();
-    let y = 0;
-    for (const b of study.blocks) {
-      if (b.groupId) {
-        if (seenGroup.has(b.groupId)) continue;
-        seenGroup.add(b.groupId);
-        const g = study.groups.find((x) => x.id === b.groupId);
-        const members = study.blocks.filter((x) => x.groupId === b.groupId);
-        const containerId = `group:${b.groupId}`;
-        const height = HEADER + members.length * GAP + PAD;
-        groupNodes.push({
-          id: containerId,
-          type: "group",
-          position: saved[containerId] ?? { x: COLX, y },
-          draggable: true,
-          selectable: false,
-          zIndex: 0,
-          data: { label: g?.title ?? "Group" },
-          style: { width: NW + 2 * PAD, height },
-        } as Node);
-        members.forEach((m, mi) =>
-          childNodes.push({
-            id: m.instanceId,
-            type: "block",
-            parentId: containerId,
-            // No `extent: "parent"` — a child must be draggable OUT of the box to
-            // ungroup. Children auto-stack (relative position, never persisted),
-            // so re-parenting on drop is unambiguous (ADR-0028 amendment).
-            position: { x: PAD, y: HEADER + mi * GAP },
-            selected: m.instanceId === selectedId,
-            zIndex: 1,
-            data: blockData(m),
-          } as Node),
-        );
-        y += height + VGAP;
-      } else {
-        ungroupedNodes.push({
-          id: b.instanceId,
-          type: "block",
-          position: saved[b.instanceId] ?? { x: COLX, y },
-          selected: b.instanceId === selectedId,
-          zIndex: 1,
-          data: blockData(b),
-        });
-        y += NH + VGAP;
-      }
-    }
+  // Map a flow node back to a selectable block instanceId for the config panel:
+  // a single screen IS a block; a group screen / its branch selects its first member.
+  const selectableFor = useCallback(
+    (n: FlowNode): string | null => {
+      if (!n.refId) return null;
+      if (study.blocks.some((b) => b.instanceId === n.refId)) return n.refId;
+      const first = study.blocks.find((b) => b.groupId === n.refId);
+      return first?.instanceId ?? null;
+    },
+    [study.blocks],
+  );
 
-    // Parent (group) nodes before their children; conditions + ungrouped after.
-    return [...groupNodes, ...childNodes, ...condNodes, ...ungroupedNodes];
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [study.blocks, study.groups, conditions, selectedId, JSON.stringify(saved), condName]);
+  const computedNodes = useMemo<Node[]>(
+    () =>
+      graph.nodes.map((n) => {
+        const sel = (n.kind === "screen" || n.kind === "branch") && selectableFor(n) === selectedId && selectedId != null;
+        return {
+          id: n.id,
+          type: RF_TYPE[n.kind],
+          position: { x: n.x, y: n.y },
+          selectable: n.kind !== "start",
+          draggable: false,
+          selected: sel,
+          data:
+            n.kind === "screen"
+              ? {
+                  title: n.title || "Untitled screen",
+                  blockCount: n.blockCount ?? 0,
+                  arms: (n.arms ?? []).map(armName),
+                  allArms: n.allArms,
+                  incomplete: n.incomplete,
+                  unreachable: n.unreachable,
+                }
+              : n.kind === "branch"
+                ? { summary: n.conditionSummary ?? "", unreachable: n.unreachable }
+                : n.kind === "terminal"
+                  ? { title: n.title ?? "Finish", kind: n.terminalKind ?? "complete", redirectTo: n.redirectTo, unreachable: n.unreachable }
+                  : n.kind === "assign"
+                    ? { arms: (n.assignArms ?? []).map((a) => a.name) }
+                    : { label: n.title ?? "Start" },
+        } as Node;
+      }),
+    [graph.nodes, selectedId, selectableFor, armName],
+  );
 
   const computedEdges = useMemo<Edge[]>(
-    () => [
-      // Condition-arm wires (Condition node → block) — but NOT arms that gate the
-      // whole group (those draw once to the group container below, ADR-0028).
-      ...study.blocks.flatMap((b) => {
-        const groupArms = b.groupId
-          ? (() => {
-              const members = study.blocks.filter((x) => x.groupId === b.groupId);
-              return members[0].showIfCondition.filter((s) => members.every((m) => m.showIfCondition.includes(s)));
-            })()
-          : [];
-        return b.showIfCondition
-          .filter((slug) => !groupArms.includes(slug))
-          .map((slug) => ({
-            id: `e:${slug}->${b.instanceId}`,
-            source: conditionNodeId(slug),
-            target: b.instanceId,
-            markerEnd: { type: MarkerType.ArrowClosed },
-          }));
-      }),
-      // Answer-based condition wires (block → block) from the effective condition,
-      // one per clause, labelled op + value. Only clauses from EARLIER blocks are
-      // valid (a forward clause left by a reorder is ignored — stays consistent).
-      ...study.blocks.flatMap((b, bi) => {
-        const earlier = new Set(study.blocks.slice(0, bi).map((x) => x.instanceId));
-        const cond = conditionWithSources(b.showIf, b.branchRules, earlier);
-        return (cond?.clauses ?? []).map((c, i) => ({
-          id: `b:${c.fromInstanceId}->${b.instanceId}:${i}`,
-          source: c.fromInstanceId,
-          target: b.instanceId,
-          type: "condition",
-          // Flat ("answered") wires show just the gear; conditioned wires label it.
-          // The gear opens the target block's condition editor (right panel).
-          data: {
-            label: c.operator === "answered" ? "" : `${OPERATOR_LABELS[c.operator]} ${c.value.join("/")}`.trim(),
-            onEdit: () => onSelectBlock?.(b.instanceId),
-          },
-          markerEnd: { type: MarkerType.ArrowClosed },
-          style: { stroke: "var(--color-primary)" },
-        }));
-      }),
-      // Group arm wires (Condition node → group container): a group is gated by an
-      // arm when EVERY member block carries that arm (ADR-0028). One edge per such slug.
-      ...study.groups.flatMap((g) => {
-        const members = study.blocks.filter((b) => b.groupId === g.id);
-        if (members.length === 0) return [];
-        const shared = members[0].showIfCondition.filter((slug) =>
-          members.every((m) => m.showIfCondition.includes(slug)),
-        );
-        return shared.map((slug) => ({
-          id: `g:${slug}->${GROUP_PREFIX}${g.id}`,
-          source: conditionNodeId(slug),
-          target: `${GROUP_PREFIX}${g.id}`,
-          markerEnd: { type: MarkerType.ArrowClosed },
-          style: { stroke: "var(--color-primary)" },
-        }));
-      }),
-    ],
-    [study.blocks, study.groups, onSelectBlock],
+    () =>
+      graph.edges.map((e) => ({
+        id: e.id,
+        source: e.source,
+        target: e.target,
+        label: e.kind === "yes" ? "if" : e.kind === "no" ? "else" : undefined,
+        markerEnd: { type: MarkerType.ArrowClosed },
+        style: { stroke: e.kind === "no" ? "var(--color-text-muted)" : e.kind === "yes" ? "var(--color-primary)" : "var(--color-border-subtle)" },
+        labelStyle: { fill: "var(--color-text-muted)", fontSize: 11 },
+        labelBgStyle: { fill: "var(--color-surface-canvas)" },
+      })),
+    [graph.edges],
   );
 
   const [nodes, setNodes, onNodesChange] = useNodesState(computedNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(computedEdges);
-
-  // Re-sync when the study/conditions/selection change (add/remove/connect).
   useEffect(() => setNodes(computedNodes), [computedNodes, setNodes]);
   useEffect(() => setEdges(computedEdges), [computedEdges, setEdges]);
 
@@ -238,88 +174,13 @@ export function WhiteboardCanvas({
     },
     [save, study.id],
   );
-  const onNodeDragStop = useCallback(
+
+  const onNodeClick = useCallback(
     (_: unknown, node: Node) => {
-      // Group container moved as a unit → just persist its position.
-      if (node.type === "group") {
-        save.mutate({ studyId: study.id, nodePositions: { [node.id]: node.position } });
-        return;
-      }
-      if (node.type !== "block") return;
-
-      // Absolute centre of the dropped block (child positions are parent-relative).
-      const parent = node.parentId ? nodes.find((n) => n.id === node.parentId) : null;
-      const cx = (parent?.position.x ?? 0) + node.position.x + NW / 2;
-      const cy = (parent?.position.y ?? 0) + node.position.y + NH / 2;
-
-      // Which group container (if any) is under the drop point?
-      const container = nodes.find((n) => {
-        if (n.type !== "group") return false;
-        const w = Number(n.style?.width) || 0;
-        const h = Number(n.style?.height) || 0;
-        return cx >= n.position.x && cx <= n.position.x + w && cy >= n.position.y && cy <= n.position.y + h;
-      });
-      const targetGroup = container ? container.id.slice(GROUP_PREFIX.length) : null;
-      const currentGroup = study.blocks.find((b) => b.instanceId === node.id)?.groupId ?? null;
-
-      if (targetGroup !== currentGroup) {
-        onRegroup?.(node.id, targetGroup);
-        // Leaving a group: keep the block where it was dropped (absolute).
-        if (targetGroup === null) {
-          save.mutate({ studyId: study.id, nodePositions: { [node.id]: { x: cx - NW / 2, y: cy - NH / 2 } } });
-        }
-        return; // joining/moving group → re-layout (don't persist a stale position)
-      }
-      // Same group: persist free moves of ungrouped blocks; grouped members re-stack.
-      if (currentGroup === null) {
-        save.mutate({ studyId: study.id, nodePositions: { [node.id]: node.position } });
-      }
+      const fn = graph.nodes.find((n) => n.id === node.id);
+      onSelectBlock?.(fn ? selectableFor(fn) : null);
     },
-    [save, study.id, nodes, study.blocks, onRegroup],
-  );
-
-  const isValidConnection = useCallback(
-    (c: Connection | Edge) =>
-      typeof c.source === "string" &&
-      typeof c.target === "string" &&
-      // Target is always a block; source is a Condition (arm) or another block (branch).
-      !c.target.startsWith(COND_PREFIX) &&
-      c.source !== c.target,
-    [],
-  );
-  const onConnect = useCallback(
-    (c: Connection) => {
-      if (!c.source || !c.target || c.target.startsWith(COND_PREFIX)) return;
-      // Condition → group container: gate the whole group by that arm (ADR-0028).
-      if (c.target.startsWith(GROUP_PREFIX)) {
-        if (c.source.startsWith(COND_PREFIX)) {
-          onConnectGroupArm?.(c.target.slice(GROUP_PREFIX.length), c.source.slice(COND_PREFIX.length));
-        }
-        return;
-      }
-      if (c.source.startsWith(COND_PREFIX)) {
-        onConnectCondition?.(c.target, c.source.slice(COND_PREFIX.length));
-      } else if (c.source !== c.target) {
-        onConnectBranch?.(c.target, c.source); // block → block
-      }
-    },
-    [onConnectCondition, onConnectBranch, onConnectGroupArm],
-  );
-  const onEdgesDelete = useCallback(
-    (deleted: Edge[]) => {
-      for (const e of deleted) {
-        if (e.target.startsWith(GROUP_PREFIX)) {
-          if (e.source.startsWith(COND_PREFIX)) {
-            onDisconnectGroupArm?.(e.target.slice(GROUP_PREFIX.length), e.source.slice(COND_PREFIX.length));
-          }
-        } else if (e.source.startsWith(COND_PREFIX)) {
-          onDisconnectCondition?.(e.target, e.source.slice(COND_PREFIX.length));
-        } else {
-          onDisconnectBranch?.(e.target, e.source); // block → block branch wire
-        }
-      }
-    },
-    [onDisconnectCondition, onDisconnectBranch, onDisconnectGroupArm],
+    [graph.nodes, onSelectBlock, selectableFor],
   );
 
   const vp = study.whiteboardViewport;
@@ -328,38 +189,23 @@ export function WhiteboardCanvas({
       ? { x: vp.x, y: vp.y, zoom: vp.zoom }
       : undefined;
 
-  if (study.blocks.length === 0) {
-    return (
-      <div className="flex h-[70vh] w-full items-center justify-center rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)]">
-        <p className="text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
-          No blocks yet — add some and they’ll appear here as a graph.
-        </p>
-      </div>
-    );
-  }
-
   return (
     <div className="wb-canvas h-[70vh] w-full overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)]">
       <ReactFlow
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
-        onNodeDragStop={onNodeDragStop}
-        onConnect={onConnect}
-        onEdgesDelete={onEdgesDelete}
-        isValidConnection={isValidConnection}
         defaultViewport={defaultViewport}
         fitView={!defaultViewport}
         onMoveEnd={onMoveEnd}
-        onNodeClick={(_, node) => onSelectBlock?.(node.type === "block" ? node.id : null)}
+        onNodeClick={onNodeClick}
         onPaneClick={() => onSelectBlock?.(null)}
-        nodesConnectable={editable}
-        nodesDraggable={editable}
-        edgesFocusable={editable}
-        deleteKeyCode={editable ? undefined : null}
+        nodesConnectable={false}
+        nodesDraggable={false}
+        elementsSelectable
+        deleteKeyCode={null}
         proOptions={{ hideAttribution: true }}
         minZoom={0.2}
         maxZoom={2}
