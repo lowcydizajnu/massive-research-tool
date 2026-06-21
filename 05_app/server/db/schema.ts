@@ -820,11 +820,11 @@ export const comment = pgTable(
     workspaceId: uuid("workspace_id")
       .notNull()
       .references(() => workspace.id),
-    targetType: text("target_type").notNull(), // 'study' | 'block_instance'
-    targetId: text("target_id").notNull(), // experiment.id (as text) OR block instanceId — polymorphic, no FK
-    experimentId: uuid("experiment_id")
-      .notNull()
-      .references(() => experiment.id),
+    targetType: text("target_type").notNull(), // 'study' | 'block_instance' | 'playground_card'
+    targetId: text("target_id").notNull(), // experiment.id (as text) OR block instanceId OR playground_card.id — polymorphic, no FK
+    // Nullable since ADR-0059: playground-card comments have no study (experimentId IS NULL).
+    // Study/block comments always set it; the index below still serves study threads.
+    experimentId: uuid("experiment_id").references(() => experiment.id),
     authorUserId: uuid("author_user_id")
       .notNull()
       .references(() => user.id),
@@ -837,7 +837,10 @@ export const comment = pgTable(
     editedAt: timestamp("edited_at", { withTimezone: true }),
   },
   (t) => [
-    check("comment_target_type", sql`${t.targetType} IN ('study', 'block_instance')`),
+    check(
+      "comment_target_type",
+      sql`${t.targetType} IN ('study', 'block_instance', 'playground_card')`,
+    ),
     check("comment_status", sql`${t.status} IN ('open', 'resolved')`),
     index("idx_comment_target").on(t.targetType, t.targetId, t.createdAt.desc()),
     index("idx_comment_experiment").on(t.experimentId, t.createdAt.desc()),
@@ -858,6 +861,54 @@ export const mention = pgTable(
     notifiedAt: timestamp("notified_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("mention_comment_user_unique").on(t.commentId, t.mentionedUserId)],
+);
+
+/**
+ * Playground / Cowork board card (ADR-0059). One owned primitive: a typed,
+ * orderable card that lives *before* a study exists. Everything else is reused —
+ * comments via `comment` (targetType 'playground_card'), images/files via the
+ * `/api/media` gateway (`mediaKey`), references via the Crossref adapter (`refDoi`),
+ * conversion via `studies.create` (`convertedStudyId` records the linkage).
+ *
+ * Phase 1 kinds: link | note | image | file | reference. Phase 2 adds todo | poll
+ * and turns on `assigneeUserId` / `done` (left null/false until then). The whole
+ * table is additive — a workspace with no cards behaves exactly as today.
+ */
+export const playgroundCard = pgTable(
+  "playground_card",
+  {
+    id: text("id").primaryKey(), // ULID (matches comment.id convention)
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspace.id),
+    kind: text("kind").notNull(), // 'link'|'note'|'image'|'file'|'reference'|'todo'|'poll'
+    title: text("title"),
+    body: text("body"), // markdown (note/question)
+    url: text("url"), // link cards
+    mediaKey: text("media_key"), // image/file cards — /api/media key
+    refDoi: text("ref_doi"), // reference cards — resolved via Crossref
+    // Phase 2 (todo) — present but unused in Phase 1.
+    assigneeUserId: uuid("assignee_user_id").references(() => user.id),
+    done: boolean("done").notNull().default(false),
+    // Board ordering (drag-to-reorder); fractional so inserts don't renumber.
+    position: numeric("position").notNull().default("0"),
+    // Non-destructive convert-to-study linkage (ADR-0059): set, source kept.
+    convertedStudyId: uuid("converted_study_id").references(() => experiment.id),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    createdByUserId: uuid("created_by_user_id")
+      .notNull()
+      .references(() => user.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check(
+      "playground_card_kind",
+      sql`${t.kind} IN ('link', 'note', 'image', 'file', 'reference', 'todo', 'poll')`,
+    ),
+    // The board query: a workspace's live cards in board order.
+    index("idx_playground_card_board").on(t.workspaceId, t.position),
+  ],
 );
 
 // One row per recipient × event — the Yours feed + unread counts.
@@ -1112,6 +1163,8 @@ export type Comment = typeof comment.$inferSelect;
 export type NewComment = typeof comment.$inferInsert;
 export type Mention = typeof mention.$inferSelect;
 export type NewMention = typeof mention.$inferInsert;
+export type PlaygroundCard = typeof playgroundCard.$inferSelect;
+export type NewPlaygroundCard = typeof playgroundCard.$inferInsert;
 export type Notification = typeof notification.$inferSelect;
 export type NewNotification = typeof notification.$inferInsert;
 export type ActivityEvent = typeof activityEvent.$inferSelect;
