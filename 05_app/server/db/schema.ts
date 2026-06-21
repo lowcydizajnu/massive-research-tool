@@ -887,7 +887,9 @@ export const playgroundCard = pgTable(
     url: text("url"), // link cards
     mediaKey: text("media_key"), // image/file cards — /api/media key
     refDoi: text("ref_doi"), // reference cards — resolved via Crossref
-    // Phase 2 (todo) — present but unused in Phase 1.
+    // Phase 2 (poll) — the choices; null for non-poll kinds.
+    pollOptions: jsonb("poll_options").$type<{ id: string; label: string }[] | null>(),
+    // Phase 2 (todo).
     assigneeUserId: uuid("assignee_user_id").references(() => user.id),
     done: boolean("done").notNull().default(false),
     // Board ordering (drag-to-reorder); fractional so inserts don't renumber.
@@ -908,6 +910,32 @@ export const playgroundCard = pgTable(
     ),
     // The board query: a workspace's live cards in board order.
     index("idx_playground_card_board").on(t.workspaceId, t.position),
+  ],
+);
+
+/**
+ * One member's vote on a poll card (ADR-0059 Phase 2). Single-choice: a unique
+ * (card, user) means a member has at most one vote per card; re-voting updates
+ * `optionId`. `optionId` refers to an entry in `playground_card.poll_options`.
+ * No generic reaction primitive existed at build time, so this is the minimal
+ * dedicated table the ADR anticipated.
+ */
+export const playgroundCardVote = pgTable(
+  "playground_card_vote",
+  {
+    id: text("id").primaryKey(), // ULID
+    cardId: text("card_id")
+      .notNull()
+      .references(() => playgroundCard.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id),
+    optionId: text("option_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("playground_card_vote_card_user_unique").on(t.cardId, t.userId),
+    index("idx_playground_card_vote_card").on(t.cardId),
   ],
 );
 
@@ -1165,6 +1193,8 @@ export type Mention = typeof mention.$inferSelect;
 export type NewMention = typeof mention.$inferInsert;
 export type PlaygroundCard = typeof playgroundCard.$inferSelect;
 export type NewPlaygroundCard = typeof playgroundCard.$inferInsert;
+export type PlaygroundCardVote = typeof playgroundCardVote.$inferSelect;
+export type NewPlaygroundCardVote = typeof playgroundCardVote.$inferInsert;
 export type Notification = typeof notification.$inferSelect;
 export type NewNotification = typeof notification.$inferInsert;
 export type ActivityEvent = typeof activityEvent.$inferSelect;
