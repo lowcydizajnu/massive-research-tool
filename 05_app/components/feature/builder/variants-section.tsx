@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { HelpCircle, Plus, Trash2, X } from "lucide-react";
 
 import { api } from "@/lib/trpc/react";
 import { cellCount, type VariantBinding, type VariantFactor } from "@/lib/variants/factorial";
@@ -18,6 +18,23 @@ const coerce = (s: string): unknown => {
   const t = s.trim();
   return t !== "" && !Number.isNaN(Number(t)) ? Number(t) : s;
 };
+
+/** Bindable field keys from a block's config — top-level keys, plus one level of
+ *  nesting as dot-paths (so `metrics.likes` is selectable). Arrays/objects of
+ *  arrays are offered as a whole key. */
+function configFieldKeys(config: Record<string, unknown> | undefined): string[] {
+  const out: string[] = [];
+  for (const [k, v] of Object.entries(config ?? {})) {
+    if (v !== null && typeof v === "object" && !Array.isArray(v)) {
+      const children = Object.keys(v as Record<string, unknown>);
+      if (children.length) for (const ck of children) out.push(`${k}.${ck}`);
+      else out.push(k);
+    } else {
+      out.push(k);
+    }
+  }
+  return out;
+}
 
 export function VariantsSection({ study, canEdit }: { study: StudyDetail; canEdit: boolean }) {
   const utils = api.useUtils();
@@ -60,6 +77,8 @@ export function VariantsSection({ study, canEdit }: { study: StudyDetail; canEdi
   const [newBlock, setNewBlock] = useState("");
   const [newPath, setNewPath] = useState("");
   const [newFactor, setNewFactor] = useState("");
+  const [helpOpen, setHelpOpen] = useState(false);
+  const newBlockFields = configFieldKeys(study.blocks.find((b) => b.instanceId === newBlock)?.config);
   const addBinding = () => {
     if (!newBlock || !newPath.trim() || !newFactor) return;
     commit(factors, [...bindings, { instanceId: newBlock, path: newPath.trim(), factorId: newFactor, valuesByLevel: {} }]);
@@ -75,7 +94,18 @@ export function VariantsSection({ study, canEdit }: { study: StudyDetail; canEdi
   return (
     <section className="flex flex-col gap-3">
       <div className="flex items-center justify-between border-b border-[var(--color-border-subtle)] pb-1">
-        <h2 className="font-serif text-[17px] font-medium text-[var(--color-text-primary)]">Variants</h2>
+        <div className="flex items-center gap-1.5">
+          <h2 className="font-serif text-[17px] font-medium text-[var(--color-text-primary)]">Variants</h2>
+          <button
+            type="button"
+            aria-label="What are variants? Help"
+            title="What are variants?"
+            onClick={() => setHelpOpen(true)}
+            className="rounded-full p-0.5 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)] hover:text-[var(--color-text-secondary)]"
+          >
+            <HelpCircle className="size-4" aria-hidden />
+          </button>
+        </div>
         <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
           {factors.length === 0 ? "Single variant" : `${cells} cell${cells === 1 ? "" : "s"}`}
           {cells > 12 ? " — large; consider fewer levels" : ""}
@@ -171,7 +201,7 @@ export function VariantsSection({ study, canEdit }: { study: StudyDetail; canEdi
           <div className="flex flex-wrap items-end gap-2 rounded-[var(--radius-md)] border border-dashed border-[var(--color-border-subtle)] p-3">
             <label className="flex flex-col gap-0.5 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
               Block
-              <select value={newBlock} disabled={!editable} onChange={(e) => setNewBlock(e.target.value)} className="rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-1 text-[var(--color-text-primary)]">
+              <select value={newBlock} disabled={!editable} onChange={(e) => { setNewBlock(e.target.value); setNewPath(""); }} className="rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-1 text-[var(--color-text-primary)]">
                 <option value="">Choose…</option>
                 {study.blocks.map((blk) => (
                   <option key={blk.instanceId} value={blk.instanceId}>{blk.title?.trim() || blk.name}</option>
@@ -179,8 +209,13 @@ export function VariantsSection({ study, canEdit }: { study: StudyDetail; canEdi
               </select>
             </label>
             <label className="flex flex-col gap-0.5 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-              Field path
-              <input value={newPath} disabled={!editable} onChange={(e) => setNewPath(e.target.value)} placeholder="e.g. likes" className="w-32 rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-1 font-mono text-[var(--color-text-primary)]" />
+              Field
+              <select value={newPath} disabled={!editable || !newBlock} onChange={(e) => setNewPath(e.target.value)} className="rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-1 font-mono text-[var(--color-text-primary)] disabled:opacity-50">
+                <option value="">{!newBlock ? "Pick a block first" : newBlockFields.length ? "Choose…" : "No fields — configure the block"}</option>
+                {newBlockFields.map((f) => (
+                  <option key={f} value={f}>{f}</option>
+                ))}
+              </select>
             </label>
             <label className="flex flex-col gap-0.5 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
               Varies by
@@ -196,8 +231,37 @@ export function VariantsSection({ study, canEdit }: { study: StudyDetail; canEdi
             </button>
           </div>
           <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-            The field path is a key in the block&rsquo;s configuration (dot-notation for nesting, e.g. <span className="font-mono">metrics.likes</span>). Numeric values are stored as numbers.
+            Pick the field that should differ between levels (the list comes from that block&rsquo;s settings). Numeric values are stored as numbers.
           </p>
+        </div>
+      ) : null}
+
+      {helpOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+          onMouseDown={(e) => { if (e.target === e.currentTarget) setHelpOpen(false); }}
+        >
+          <div role="dialog" aria-modal="true" aria-label="About variants" className="flex max-h-[80vh] w-full max-w-[560px] flex-col gap-3 overflow-auto rounded-[var(--radius-lg)] bg-[var(--color-surface-raised)] p-5 text-left" style={{ boxShadow: "var(--shadow-md)" }}>
+            <div className="flex items-center justify-between">
+              <h3 className="font-serif text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">Variants — A/B & factorial designs</h3>
+              <button type="button" aria-label="Close" onClick={() => setHelpOpen(false)} className="rounded-[var(--radius-md)] p-1 text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"><X className="size-4" aria-hidden /></button>
+            </div>
+            <div className="flex flex-col gap-2 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+              <p>Run the <strong>same study</strong> in a few versions that differ only in some data — and have each participant randomly see one of them.</p>
+              <ul className="ml-4 flex list-disc flex-col gap-1.5">
+                <li><strong>Factor</strong> — the thing you vary, e.g. <em>Social influence</em>.</li>
+                <li><strong>Levels</strong> — the values that factor can take, e.g. <em>low</em> and <em>high</em> (these start as <span className="font-mono">A</span>/<span className="font-mono">B</span> — rename them to whatever you&rsquo;re testing).</li>
+                <li><strong>Cell</strong> — one combination of levels. One factor with 2 levels = 2 cells (A/B); two 2-level factors = 2×2 = <strong>4 cells</strong>.</li>
+                <li><strong>Varying field</strong> — pick a block + the field that changes (e.g. a post&rsquo;s <em>likes</em>), then give it a value per level. Everything else is <strong>shared</strong> — edit it once in Blocks and it applies to every cell.</li>
+              </ul>
+              <p className="rounded-[var(--radius-md)] bg-[var(--color-surface-subtle)] p-2">
+                <strong>Example.</strong> Factor &ldquo;Social influence&rdquo; with levels low/high → bind the post&rsquo;s <span className="font-mono">likes</span> field → low = 12, high = 9,800. Each participant is randomly shown the low or the high version; results + export include a <span className="font-mono">variant_cell</span> column so you can compare.</p>
+              <p className="text-[var(--color-text-muted)]">Not the same as <strong>conditions</strong> (randomised arms inside a study) — conditions can still live inside a variant. Removing all factors returns a plain single-version study.</p>
+            </div>
+            <div className="flex justify-end">
+              <button type="button" onClick={() => setHelpOpen(false)} className="rounded-[var(--radius-md)] bg-[var(--color-primary)] px-3 py-1.5 text-[length:var(--text-small)] font-medium text-[var(--color-on-primary)] hover:opacity-90">Got it</button>
+            </div>
+          </div>
         </div>
       ) : null}
     </section>
