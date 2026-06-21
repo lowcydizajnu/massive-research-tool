@@ -139,6 +139,27 @@ export default async function ResultsStagePage({
               </ul>
             </section>
 
+            {results.combinations.length > 0 ? (
+              <section className="flex flex-col gap-2">
+                <h2 className="font-serif text-[17px] font-medium text-[var(--color-text-primary)]">
+                  By combination
+                </h2>
+                <ul className="flex flex-col gap-1">
+                  {results.combinations.map((c) => (
+                    <li
+                      key={c.label}
+                      className="flex items-center justify-between rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-2 text-[length:var(--text-body)]"
+                    >
+                      <span className="text-[var(--color-text-primary)]">{c.label}</span>
+                      <span className="text-[var(--color-text-secondary)]">
+                        {c.completed} completed
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
+
             <section className="flex flex-col gap-2">
               <h2 className="font-serif text-[17px] font-medium text-[var(--color-text-primary)]">
                 By question

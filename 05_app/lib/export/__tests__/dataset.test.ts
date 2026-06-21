@@ -10,6 +10,7 @@ const results: ResultsSummary = {
   totalCompleted: 2,
   includesPreview: false,
   conditions: [{ slug: "control", name: "Control", completed: 2 }],
+  combinations: [],
   questions: [
     { instanceId: "q1", prompt: "How credible?", moduleKey: "likert-7", n: 2, kind: "numeric", mean: 4, optionCounts: [] },
     { instanceId: "q2", prompt: "Why, in your words?", moduleKey: "free-text", n: 2, kind: "text", mean: null, optionCounts: [] },
@@ -33,7 +34,7 @@ describe("export dataset (V1.12 D)", () => {
     expect(cols.find((c) => c.key === "versionNumber")?.label).toBe("version");
   });
 
-  it("adds a variant_cell column only when rows carry a cell (ADR-0058)", () => {
+  it("adds a variant_combination column only when rows carry a combination (ADR-0058)", () => {
     expect(baseColumns(results).some((c) => c.key === "cell")).toBe(false);
     const withCells = {
       ...results,
@@ -41,7 +42,7 @@ describe("export dataset (V1.12 D)", () => {
     };
     const cols = baseColumns(withCells);
     const cell = cols.find((c) => c.key === "cell");
-    expect(cell?.label).toBe("variant_cell");
+    expect(cell?.label).toBe("variant_combination");
     // Sits right after the condition column.
     expect(cols.map((c) => c.key).indexOf("cell")).toBe(cols.map((c) => c.key).indexOf("conditionSlug") + 1);
     const m = buildMatrix(withCells, cols.filter((c) => c.key === "cell"));
