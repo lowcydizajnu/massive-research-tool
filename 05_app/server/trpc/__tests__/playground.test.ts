@@ -25,6 +25,7 @@ import {
   mention,
   notification,
   playgroundCard,
+  playgroundCardVote,
   user,
   workspace,
 } from "@/server/db/schema";
@@ -57,6 +58,7 @@ beforeEach(async () => {
   await db.delete(activityEvent);
   await db.delete(mention);
   await db.delete(comment);
+  await db.delete(playgroundCardVote);
   await db.delete(playgroundCard);
   await db.update(experiment).set({ currentVersionId: null });
   await db.delete(experimentVersion);
@@ -82,11 +84,77 @@ describe("playground.create / list", () => {
     expect(board[0].commentCount).toBe(0);
   });
 
-  it("rejects a Phase-2 kind (todo/poll) at the input boundary", async () => {
+  it("rejects a poll card with fewer than two options", async () => {
     await seedOwner("hanna", "Lab");
     const caller = createCaller({ authUser: authUser("hanna") });
-    // @ts-expect-error — 'todo' is not in the Phase-1 enum.
-    await expect(caller.playground.create({ kind: "todo" })).rejects.toBeTruthy();
+    await expect(
+      caller.playground.create({ kind: "poll", title: "Pick", pollOptions: ["only one"] }),
+    ).rejects.toBeTruthy();
+  });
+});
+
+describe("playground Phase 2 — todo + poll", () => {
+  it("creates a todo, toggles done, and assigns it", async () => {
+    const { workspace: ws } = await seedOwner("hanna", "Lab");
+    const maya = await addMember(ws.id, "maya");
+    const caller = createCaller({ authUser: authUser("hanna") });
+    const { id } = await caller.playground.create({ kind: "todo", title: "Pilot the survey" });
+
+    await caller.playground.update({ id, done: true, assigneeUserId: maya.id });
+    const [board] = await caller.playground.list();
+    expect(board.kind).toBe("todo");
+    expect(board.done).toBe(true);
+    expect(board.assigneeUserId).toBe(maya.id);
+    expect(board.assigneeName).toBe("maya");
+  });
+
+  it("runs a poll: members vote, tallies + myVote reflect it, re-vote moves the count", async () => {
+    const { workspace: ws } = await seedOwner("hanna", "Lab");
+    const maya = await addMember(ws.id, "maya");
+    const hanna = createCaller({ authUser: authUser("hanna") });
+    const mayaCaller = createCaller({ authUser: authUser("maya") });
+    expect(maya.id).toBeTruthy();
+    const { id } = await hanna.playground.create({
+      kind: "poll",
+      title: "Which framing?",
+      pollOptions: ["gain", "loss"],
+    });
+
+    const opts = (await hanna.playground.list())[0].pollOptions!;
+    const gain = opts.find((o) => o.label === "gain")!.id;
+    const loss = opts.find((o) => o.label === "loss")!.id;
+
+    await hanna.playground.vote({ cardId: id, optionId: gain });
+    await mayaCaller.playground.vote({ cardId: id, optionId: gain });
+    let card = (await hanna.playground.list())[0];
+    expect(card.votes[gain]).toBe(2);
+    expect(card.myVote).toBe(gain);
+
+    // Hanna changes her mind → gain loses one, loss gains one (single-choice upsert).
+    await hanna.playground.vote({ cardId: id, optionId: loss });
+    card = (await hanna.playground.list())[0];
+    expect(card.votes[gain]).toBe(1);
+    expect(card.votes[loss]).toBe(1);
+    expect(card.myVote).toBe(loss);
+
+    // Clearing removes her vote entirely.
+    await hanna.playground.vote({ cardId: id, optionId: null });
+    card = (await hanna.playground.list())[0];
+    expect(card.votes[loss] ?? 0).toBe(0);
+    expect(card.myVote).toBeNull();
+  });
+
+  it("rejects a vote on a non-poll card and an unknown option", async () => {
+    await seedOwner("hanna", "Lab");
+    const caller = createCaller({ authUser: authUser("hanna") });
+    const note = await caller.playground.create({ kind: "note", body: "x" });
+    await expect(caller.playground.vote({ cardId: note.id, optionId: "whatever" })).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+    });
+    const poll = await caller.playground.create({ kind: "poll", title: "P", pollOptions: ["a", "b"] });
+    await expect(caller.playground.vote({ cardId: poll.id, optionId: "nope" })).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+    });
   });
 });
 

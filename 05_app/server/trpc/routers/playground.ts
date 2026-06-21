@@ -1,5 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { ulid } from "ulid";
 import { z } from "zod";
 
@@ -11,6 +12,7 @@ import {
   member,
   mention,
   playgroundCard,
+  playgroundCardVote,
   user,
 } from "@/server/db/schema";
 import { emit } from "@/server/events/emit";
@@ -26,12 +28,15 @@ import { router, workspaceProcedure, writeProcedure } from "@/server/trpc/trpc";
  * the resolved `title`/`body` + `refDoi` on the card), and convert-to-study via
  * the same insert path as `studies.create`.
  *
- * Phase 1 card kinds: link | note | image | file | reference. Phase 2 (todo |
- * poll) turns on `assigneeUserId`/`done`/votes — left untouched here.
+ * Card kinds: link | note | image | file | reference (Phase 1) + todo | poll
+ * (Phase 2 — todo uses `assigneeUserId`/`done`; poll uses `pollOptions` + the
+ * `playground_card_vote` table).
  */
-const PHASE1_KINDS = ["link", "note", "image", "file", "reference"] as const;
+const CARD_KINDS = ["link", "note", "image", "file", "reference", "todo", "poll"] as const;
 
 const PLAYGROUND_TARGET = "playground_card";
+
+export type PollOption = { id: string; label: string };
 
 export type PlaygroundCardDTO = {
   id: string;
@@ -41,6 +46,15 @@ export type PlaygroundCardDTO = {
   url: string | null;
   mediaKey: string | null;
   refDoi: string | null;
+  pollOptions: PollOption[] | null;
+  /** poll: votes per optionId. */
+  votes: Record<string, number>;
+  /** poll: the caller's chosen optionId, or null. */
+  myVote: string | null;
+  /** todo. */
+  assigneeUserId: string | null;
+  assigneeName: string | null;
+  done: boolean;
   position: number;
   convertedStudyId: string | null;
   createdByUserId: string;
@@ -94,12 +108,14 @@ async function activeMemberIds(workspaceId: string): Promise<Set<string>> {
 }
 
 export const playgroundRouter = router({
-  /** The workspace board: live cards in board order, with author + comment count. */
+  /** The workspace board: live cards in board order, with author + comment count + (poll) votes. */
   list: workspaceProcedure.query(async ({ ctx }): Promise<PlaygroundCardDTO[]> => {
+    const assignee = alias(user, "assignee");
     const rows = await db
-      .select({ card: playgroundCard, authorName: user.displayName })
+      .select({ card: playgroundCard, authorName: user.displayName, assigneeName: assignee.displayName })
       .from(playgroundCard)
       .innerJoin(user, eq(playgroundCard.createdByUserId, user.id))
+      .leftJoin(assignee, eq(playgroundCard.assigneeUserId, assignee.id))
       .where(
         and(
           eq(playgroundCard.workspaceId, ctx.workspace.id),
@@ -124,7 +140,21 @@ export const playgroundRouter = router({
       .groupBy(comment.targetId);
     const countByCard = new Map(counts.map((c) => [c.targetId, Number(c.n)]));
 
-    return rows.map(({ card, authorName }) => ({
+    // Poll votes: per-card tallies by option + the caller's own choice.
+    const voteRows = await db
+      .select({ cardId: playgroundCardVote.cardId, optionId: playgroundCardVote.optionId, userId: playgroundCardVote.userId })
+      .from(playgroundCardVote)
+      .where(inArray(playgroundCardVote.cardId, ids));
+    const tallies = new Map<string, Record<string, number>>();
+    const myVotes = new Map<string, string>();
+    for (const v of voteRows) {
+      const t = tallies.get(v.cardId) ?? {};
+      t[v.optionId] = (t[v.optionId] ?? 0) + 1;
+      tallies.set(v.cardId, t);
+      if (v.userId === ctx.dbUser.id) myVotes.set(v.cardId, v.optionId);
+    }
+
+    return rows.map(({ card, authorName, assigneeName }) => ({
       id: card.id,
       kind: card.kind,
       title: card.title,
@@ -132,6 +162,12 @@ export const playgroundRouter = router({
       url: card.url,
       mediaKey: card.mediaKey,
       refDoi: card.refDoi,
+      pollOptions: card.pollOptions ?? null,
+      votes: tallies.get(card.id) ?? {},
+      myVote: myVotes.get(card.id) ?? null,
+      assigneeUserId: card.assigneeUserId,
+      assigneeName: assigneeName ?? null,
+      done: card.done,
       position: Number(card.position),
       convertedStudyId: card.convertedStudyId,
       createdByUserId: card.createdByUserId,
@@ -142,19 +178,24 @@ export const playgroundRouter = router({
     }));
   }),
 
-  /** Add a card to the board (appended to the end). */
+  /** Add a card to the board (appended to the end). Poll cards carry their options. */
   create: writeProcedure
     .input(
       z.object({
-        kind: z.enum(PHASE1_KINDS),
+        kind: z.enum(CARD_KINDS),
         title: z.string().trim().max(280).nullish(),
         body: z.string().trim().max(10_000).nullish(),
         url: z.string().trim().url().max(2_000).nullish(),
         mediaKey: z.string().trim().max(500).nullish(),
         refDoi: z.string().trim().max(255).nullish(),
+        pollOptions: z.array(z.string().trim().min(1).max(200)).min(2).max(12).optional(),
+        assigneeUserId: z.string().uuid().nullish(),
       }),
     )
     .mutation(async ({ ctx, input }): Promise<{ id: string }> => {
+      if (input.kind === "poll" && (!input.pollOptions || input.pollOptions.length < 2)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "A poll needs at least two options." });
+      }
       // Append: one past the current max position (fractional inserts handled by reorder).
       const [{ max }] = await db
         .select({ max: sql<number>`coalesce(max(${playgroundCard.position}), 0)::float` })
@@ -170,6 +211,11 @@ export const playgroundRouter = router({
         url: input.url?.trim() || null,
         mediaKey: input.mediaKey?.trim() || null,
         refDoi: input.refDoi?.trim() || null,
+        pollOptions:
+          input.kind === "poll" && input.pollOptions
+            ? input.pollOptions.map((label) => ({ id: ulid(), label }))
+            : null,
+        assigneeUserId: input.assigneeUserId ?? null,
         position: String(Number(max) + 1),
         createdByUserId: ctx.dbUser.id,
       });
@@ -186,6 +232,9 @@ export const playgroundRouter = router({
         url: z.string().trim().url().max(2_000).nullish(),
         mediaKey: z.string().trim().max(500).nullish(),
         refDoi: z.string().trim().max(255).nullish(),
+        // todo
+        assigneeUserId: z.string().uuid().nullish(),
+        done: z.boolean().optional(),
       }),
     )
     .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
@@ -196,7 +245,37 @@ export const playgroundRouter = router({
       if (input.url !== undefined) patch.url = input.url?.trim() || null;
       if (input.mediaKey !== undefined) patch.mediaKey = input.mediaKey?.trim() || null;
       if (input.refDoi !== undefined) patch.refDoi = input.refDoi?.trim() || null;
+      if (input.assigneeUserId !== undefined) patch.assigneeUserId = input.assigneeUserId ?? null;
+      if (input.done !== undefined) patch.done = input.done;
       await db.update(playgroundCard).set(patch).where(eq(playgroundCard.id, input.id));
+      return { ok: true };
+    }),
+
+  /** Cast / change / clear the caller's vote on a poll card (single-choice). */
+  vote: writeProcedure
+    .input(z.object({ cardId: z.string().min(1), optionId: z.string().nullable() }))
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      const card = await cardInWorkspace(input.cardId, ctx.workspace.id);
+      if (card.kind !== "poll") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Not a poll card." });
+      }
+      // Clear → delete the caller's vote.
+      if (input.optionId === null) {
+        await db
+          .delete(playgroundCardVote)
+          .where(and(eq(playgroundCardVote.cardId, card.id), eq(playgroundCardVote.userId, ctx.dbUser.id)));
+        return { ok: true };
+      }
+      const valid = (card.pollOptions ?? []).some((o) => o.id === input.optionId);
+      if (!valid) throw new TRPCError({ code: "BAD_REQUEST", message: "Unknown poll option." });
+      // Upsert: one vote per (card, member); re-voting changes the option.
+      await db
+        .insert(playgroundCardVote)
+        .values({ id: ulid(), cardId: card.id, userId: ctx.dbUser.id, optionId: input.optionId })
+        .onConflictDoUpdate({
+          target: [playgroundCardVote.cardId, playgroundCardVote.userId],
+          set: { optionId: input.optionId, createdAt: new Date() },
+        });
       return { ok: true };
     }),
 
