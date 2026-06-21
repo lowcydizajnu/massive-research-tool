@@ -1019,6 +1019,38 @@ describe("studies.getResults (end-to-end)", () => {
     expect(await caller.studies.getResults({ studyId: id })).toBeNull();
   });
 
+  it("surfaces the factorial variant combination in results + on each row (ADR-0058)", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    await caller.studies.addBlock({ studyId: id, source: "core", key: "likert-7", version: "1.0.0" });
+    // Declare a factor BEFORE freezing so the runnable snapshot carries it.
+    await caller.studies.setVariants({
+      studyId: id,
+      factors: [{ id: "f1", name: "Social", levels: [{ id: "lo", name: "low" }, { id: "hi", name: "high" }] }],
+      variantBindings: [],
+    });
+    await caller.studies.preregister({ studyId: id });
+    await caller.studies.openRecruitment({ studyId: id });
+
+    const open = await resolveOpenRecruitment(id);
+    const started = await startResponse({
+      recruitmentSessionId: open!.recruitmentSessionId,
+      mode: "run",
+      externalPid: "P1",
+    });
+    const responseId = (started as { responseId: string }).responseId;
+    await recordAnswer({ responseId, questionIndex: 0, answer: { value: 6 } });
+
+    const results = (await caller.studies.getResults({ studyId: id }))!;
+    // One participant → exactly one combination, count 1, label one of the levels.
+    expect(results.combinations).toHaveLength(1);
+    expect(results.combinations[0].completed).toBe(1);
+    expect(["low", "high"]).toContain(results.combinations[0].label);
+    // The row carries the same combination label (this feeds the export column).
+    expect(results.rows[0].cell).toBe(results.combinations[0].label);
+  });
+
   it("summarizes a multiple-choice question as per-option counts + a stringified CSV cell", async () => {
     await seedUserWithWorkspace("ext_a", "Alpha");
     const caller = createCaller({ authUser: authUser("ext_a") });

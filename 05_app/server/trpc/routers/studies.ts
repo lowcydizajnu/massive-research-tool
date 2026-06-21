@@ -705,6 +705,8 @@ export type ResultsSummary = {
   totalCompleted: number;
   includesPreview: boolean;
   conditions: { slug: string; name: string; completed: number }[];
+  /** Per-variant-combination completed counts (ADR-0058); empty unless factorial. */
+  combinations: { label: string; completed: number }[];
   questions: {
     instanceId: string;
     prompt: string;
@@ -4399,6 +4401,19 @@ export const studiesRouter = router({
         .sort((a, b) => a.position - b.position)
         .map(({ slug, name, completed }) => ({ slug, name, completed }));
 
+      // Per-combination aggregate (ADR-0058): count completed responses by their
+      // factorial variant-combination label (e.g. "low · gain"). Empty when the
+      // study declares no factors — so the Results UI only shows it for factorial
+      // designs. Labelled off each response's run-version factors.
+      const combAgg = new Map<string, number>();
+      for (const r of completed) {
+        const label = labelCell(r.experimentVersionId, r.variantCell);
+        if (label) combAgg.set(label, (combAgg.get(label) ?? 0) + 1);
+      }
+      const combinations = [...combAgg.entries()]
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([label, count]) => ({ label, completed: count }));
+
       return {
         versionNumber: latest.n,
         selectedVersion: selected ? selected.n : null,
@@ -4406,6 +4421,7 @@ export const studiesRouter = router({
         totalCompleted: completed.length,
         includesPreview: input.includePreview,
         conditions,
+        combinations,
         questions,
         rows: completed.map((r) => ({
           responseId: r.id,

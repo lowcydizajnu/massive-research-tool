@@ -149,10 +149,10 @@ export function FlowAssignCellNode({ data }: NodeProps<FlowAssignCellNode>) {
     <div className="flex flex-col gap-1 rounded-[var(--radius-md)] border border-dashed border-[var(--color-accent)] bg-[var(--color-accent-subtle)] px-3 py-2" style={{ width: NODE_W }}>
       {inHandle}
       <span className="flex items-center gap-1.5 text-[length:var(--text-small)] font-medium text-[var(--color-accent-text-on-subtle)]">
-        <Grid2x2 className="size-3.5" aria-hidden /> Assign variant cell
+        <Grid2x2 className="size-3.5" aria-hidden /> Assign combination
       </span>
       <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
-        {data.cells} cell{data.cells === 1 ? "" : "s"} · {data.factors.join(" × ") || "no factors"}
+        {data.cells} combination{data.cells === 1 ? "" : "s"} · {data.factors.join(" × ") || "no factors"}
       </span>
       {outHandle}
     </div>

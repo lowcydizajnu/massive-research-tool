@@ -142,7 +142,7 @@ export function LivePreviewPane({
 
       {cells.length > 0 && factors ? (
         <label className="flex items-center gap-1.5 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-          Previewing cell
+          Previewing combination
           <select
             value={cellSel}
             onChange={(e) => { setCellSel(e.target.value); launch(e.target.value); }}

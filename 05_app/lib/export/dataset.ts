@@ -53,10 +53,10 @@ const VIZ_PREFIX = "viz:";
  *  per-respondent Explore-link column per spatial block (ADR-0041 amendment). */
 export function baseColumns(results: ResultsSummary): ExportColumn[] {
   const meta = META.map((m) => ({ key: m.key, source: m.source, type: "meta" as const, label: m.label, hidden: false }));
-  // Factorial-variant cell column (ADR-0058) — only when the dataset has variants.
+  // Factorial-variant combination column (ADR-0058) — only when the dataset has variants.
   if (results.rows.some((r) => r.cell != null)) {
     const at = meta.findIndex((m) => m.key === "conditionSlug");
-    meta.splice(at + 1, 0, { key: "cell", source: "Variant cell", type: "meta" as const, label: "variant_cell", hidden: false });
+    meta.splice(at + 1, 0, { key: "cell", source: "Variant combination", type: "meta" as const, label: "variant_combination", hidden: false });
   }
   const seen = new Map<string, number>();
   const dedupe = (base: string): string => {

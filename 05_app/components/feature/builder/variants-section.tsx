@@ -107,12 +107,12 @@ export function VariantsSection({ study, canEdit }: { study: StudyDetail; canEdi
           </button>
         </div>
         <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-          {factors.length === 0 ? "Single variant" : `${cells} cell${cells === 1 ? "" : "s"}`}
+          {factors.length === 0 ? "Single variant" : `${cells} combination${cells === 1 ? "" : "s"}`}
           {cells > 12 ? " — large; consider fewer levels" : ""}
         </span>
       </div>
       <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-        A/B &amp; factorial designs: each participant is randomly assigned one cell. Define factors and bind the fields that vary —
+        A/B &amp; factorial designs: each participant is randomly assigned one combination. Define factors and bind the fields that vary —
         everything else stays shared (edit it in Blocks).
       </p>
 
@@ -251,11 +251,11 @@ export function VariantsSection({ study, canEdit }: { study: StudyDetail; canEdi
               <ul className="ml-4 flex list-disc flex-col gap-1.5">
                 <li><strong>Factor</strong> — the thing you vary, e.g. <em>Social influence</em>.</li>
                 <li><strong>Levels</strong> — the values that factor can take, e.g. <em>low</em> and <em>high</em> (these start as <span className="font-mono">A</span>/<span className="font-mono">B</span> — rename them to whatever you&rsquo;re testing).</li>
-                <li><strong>Cell</strong> — one combination of levels. One factor with 2 levels = 2 cells (A/B); two 2-level factors = 2×2 = <strong>4 cells</strong>.</li>
-                <li><strong>Varying field</strong> — pick a block + the field that changes (e.g. a post&rsquo;s <em>likes</em>), then give it a value per level. Everything else is <strong>shared</strong> — edit it once in Blocks and it applies to every cell.</li>
+                <li><strong>Combination</strong> — one pairing of levels. One factor with 2 levels = 2 combinations (A/B); two 2-level factors = 2×2 = <strong>4 combinations</strong>.</li>
+                <li><strong>Varying field</strong> — pick a block + the field that changes (e.g. a post&rsquo;s <em>likes</em>), then give it a value per level. Everything else is <strong>shared</strong> — edit it once in Blocks and it applies to every combination.</li>
               </ul>
               <p className="rounded-[var(--radius-md)] bg-[var(--color-surface-subtle)] p-2">
-                <strong>Example.</strong> Factor &ldquo;Social influence&rdquo; with levels low/high → bind the post&rsquo;s <span className="font-mono">likes</span> field → low = 12, high = 9,800. Each participant is randomly shown the low or the high version; results + export include a <span className="font-mono">variant_cell</span> column so you can compare.</p>
+                <strong>Example.</strong> Factor &ldquo;Social influence&rdquo; with levels low/high → bind the post&rsquo;s <span className="font-mono">likes</span> field → low = 12, high = 9,800. Each participant is randomly shown the low or the high version; results + export include a <span className="font-mono">variant_combination</span> column so you can compare.</p>
               <p className="text-[var(--color-text-muted)]">Not the same as <strong>conditions</strong> (randomised arms inside a study) — conditions can still live inside a variant. Removing all factors returns a plain single-version study.</p>
             </div>
             <div className="flex justify-end">
