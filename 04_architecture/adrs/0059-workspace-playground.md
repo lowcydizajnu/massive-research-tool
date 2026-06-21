@@ -1,6 +1,6 @@
 # ADR 0059 — Workspace Playground / Cowork
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-06-21
 - **Deciders:** Project owner, Claude
 - **Tags:** data-model, workspace-destination, collaboration, reuse
