@@ -438,8 +438,8 @@
   "project": "Massive Research Tool",
   "tagline": "Multi-tenant SaaS for psychological experiments",
   "lastUpdated": "2026-06-21",
-  "currentFocus": "Playground/Cowork Phase 1 DEPLOYED (v1.16.0-a23, e21ebef, migration 0029). Factorial follow-ups built (awaiting deploy, no migration): Results page gained a 'By combination' breakdown (variants were invisible there — only 'By condition'); renamed researcher-facing 'cell'→'combination' (export column variant_combination, Variants help + preview selector, flow node) while keeping internal variant_cell/VariantCell per the dev-vs-researcher vocabulary rule. 623 tests green; commit 6b786ac.",
-  "currentFocusPrev": "Playground/Cowork Phase 1 BUILT (ADR-0059, accepted) — new playground_card table + thin playground tRPC router (list/create/update/remove/reorder/convertToStudy + card comments) + board UI + new /playground left-rail destination. Reuses the shared comment table (targetType 'playground_card'; migration 0029 drops comment.experiment_id NOT NULL + widens the CHECK), /api/media, Crossref lookupCitation, and studies.create. 10 new router tests; full suite 622 green; typecheck + lint clean. Committed (b750628 data, d4f7b61 UI); awaiting `deploy` (migration 0029 runs first). Pointer drag-reorder + P2 (to-do + poll/vote) deferred.",
+  "currentFocus": "Playground/Cowork Phase 2 built (to-do + poll/vote, ADR-0059) — awaiting deploy (migration 0030 runs first). Phase 1 + factorial follow-ups already live (v1.16.0-a23/a24). P2: migration 0030 (poll_options jsonb + playground_card_vote table), router vote + todo done/assignee + poll tallies/myVote in list, UI to-do cards (done + assignee) and poll cards (vote bars, click-to-vote/clear). 626 tests green; commits 81f3a4a + 7046d2e.",
+  "currentFocusPrev": "Playground/Cowork Phase 1 DEPLOYED (v1.16.0-a23, e21ebef, migration 0029). Factorial follow-ups built (awaiting deploy, no migration): Results page gained a 'By combination' breakdown (variants were invisible there — only 'By condition'); renamed researcher-facing 'cell'→'combination' (export column variant_combination, Variants help + preview selector, flow node) while keeping internal variant_cell/VariantCell per the dev-vs-researcher vocabulary rule. 623 tests green; commit 6b786ac.",
   "phases": [
     {
       "id": "foundation",
@@ -1212,6 +1212,9 @@
     }
   ],
   "recentActivity": [
+    {
+      "text": "feat(playground): Phase 2 — to-do + poll/vote (ADR-0059). Migration 0030 (poll_options + vote table); router vote/todo; UI cards. 626 green. Commits 81f3a4a + 7046d2e. Awaiting deploy."
+    },
     {
       "text": "feat(results): By-combination breakdown on the Results page + rename researcher-facing cell→combination (export/Variants/flow). Fixes 'variants don't show in export/results' (ADR-0058). 623 green. Commit 6b786ac. Awaiting deploy."
     },
