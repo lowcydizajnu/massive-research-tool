@@ -5,6 +5,7 @@ import { frameworksRouter } from "@/server/trpc/routers/frameworks";
 import { meRouter } from "@/server/trpc/routers/me";
 import { modulesRouter } from "@/server/trpc/routers/modules";
 import { panelsRouter } from "@/server/trpc/routers/panels";
+import { playgroundRouter } from "@/server/trpc/routers/playground";
 import { proposalsRouter } from "@/server/trpc/routers/proposals";
 import { notificationsRouter } from "@/server/trpc/routers/notifications";
 import { previewTokensRouter } from "@/server/trpc/routers/preview-tokens";
@@ -23,6 +24,7 @@ export const appRouter = router({
   team: teamRouter,
   recruitment: recruitmentRouter,
   panels: panelsRouter,
+  playground: playgroundRouter,
   studies: studiesRouter,
   studyRecord: studyRecordRouter,
   saved: savedRouter,
