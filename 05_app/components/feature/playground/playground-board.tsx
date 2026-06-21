@@ -3,12 +3,17 @@
 import {
   ArrowDown,
   ArrowUp,
+  BarChart3,
+  CheckSquare,
   ExternalLink,
   FileText,
   Image as ImageIcon,
   Lightbulb,
   Link as LinkIcon,
+  ListChecks,
   MessageSquare,
+  Plus,
+  Square,
   StickyNote,
   Trash2,
   Wand2,
@@ -30,7 +35,7 @@ import type { PlaygroundCardDTO } from "@/server/trpc/routers/playground";
  * Phase 1 kinds: link · note · image/file · reference. Reorder is keyboard-first
  * (move up/down) — native pointer drag is a Phase-2 refinement.
  */
-type Kind = "link" | "note" | "image" | "file" | "reference";
+type Kind = "link" | "note" | "image" | "file" | "reference" | "todo" | "poll";
 
 const KIND_META: Record<Kind, { label: string; icon: typeof LinkIcon; chip: string }> = {
   link: { label: "Link", icon: LinkIcon, chip: "primary" },
@@ -38,6 +43,8 @@ const KIND_META: Record<Kind, { label: string; icon: typeof LinkIcon; chip: stri
   image: { label: "Image", icon: ImageIcon, chip: "cond-3" },
   file: { label: "File", icon: FileText, chip: "cond-5" },
   reference: { label: "Reference", icon: Lightbulb, chip: "success" },
+  todo: { label: "To-do", icon: ListChecks, chip: "cond-2" },
+  poll: { label: "Poll", icon: BarChart3, chip: "cond-4" },
 };
 
 const chipClass = cn(
@@ -219,6 +226,9 @@ function PlaygroundCardView({
 
       <CardContent card={card} />
 
+      {card.kind === "todo" ? <TodoControls card={card} canEdit={canEdit} /> : null}
+      {card.kind === "poll" ? <PollControls card={card} canEdit={canEdit} /> : null}
+
       <div className="mt-auto flex items-center justify-between gap-2 pt-2">
         <div className="flex items-center gap-3 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
           <button
@@ -320,6 +330,94 @@ function CardContent({ card }: { card: CardDTO }) {
   return null;
 }
 
+function TodoControls({ card, canEdit }: { card: CardDTO; canEdit: boolean }) {
+  const utils = api.useUtils();
+  const members = api.workspace.members.useQuery();
+  const update = api.playground.update.useMutation({ onSuccess: () => utils.playground.list.invalidate() });
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-[length:var(--text-small)]">
+      <button
+        type="button"
+        disabled={!canEdit || update.isPending}
+        onClick={() => update.mutate({ id: card.id, done: !card.done })}
+        className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] px-1 py-0.5 text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)] disabled:opacity-60"
+      >
+        {card.done ? (
+          <CheckSquare className="size-4 text-[var(--color-success)]" aria-hidden />
+        ) : (
+          <Square className="size-4" aria-hidden />
+        )}
+        <span className={card.done ? "text-[var(--color-text-muted)] line-through" : ""}>Done</span>
+      </button>
+      {canEdit ? (
+        <select
+          value={card.assigneeUserId ?? ""}
+          onChange={(e) => update.mutate({ id: card.id, assigneeUserId: e.target.value || null })}
+          className="rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-1 text-[var(--color-text-secondary)]"
+          aria-label="Assignee"
+        >
+          <option value="">Unassigned</option>
+          {(members.data ?? []).map((m) => (
+            <option key={m.userId} value={m.userId}>
+              {m.displayName}
+            </option>
+          ))}
+        </select>
+      ) : card.assigneeName ? (
+        <span className="text-[var(--color-text-secondary)]">→ {card.assigneeName}</span>
+      ) : null}
+    </div>
+  );
+}
+
+function PollControls({ card, canEdit }: { card: CardDTO; canEdit: boolean }) {
+  const utils = api.useUtils();
+  const vote = api.playground.vote.useMutation({ onSuccess: () => utils.playground.list.invalidate() });
+  const options = card.pollOptions ?? [];
+  const total = Object.values(card.votes).reduce((a, b) => a + b, 0);
+
+  return (
+    <ul className="flex flex-col gap-1.5">
+      {options.map((o) => {
+        const n = card.votes[o.id] ?? 0;
+        const pct = total ? Math.round((n / total) * 100) : 0;
+        const mine = card.myVote === o.id;
+        return (
+          <li key={o.id}>
+            <button
+              type="button"
+              disabled={!canEdit || vote.isPending}
+              onClick={() => vote.mutate({ cardId: card.id, optionId: mine ? null : o.id })}
+              aria-pressed={mine}
+              className={cn(
+                "relative w-full overflow-hidden rounded-[var(--radius-sm)] border px-2.5 py-1.5 text-left text-[length:var(--text-small)] transition-colors disabled:opacity-70",
+                mine
+                  ? "border-[var(--color-primary)] text-[var(--color-text-primary)]"
+                  : "border-[var(--color-border-subtle)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]",
+              )}
+            >
+              <span
+                className="absolute inset-y-0 left-0 bg-[var(--color-primary-subtle)]"
+                style={{ width: `${pct}%` }}
+                aria-hidden
+              />
+              <span className="relative flex items-center justify-between gap-2">
+                <span className="truncate">{o.label}</span>
+                <span className="shrink-0 tabular-nums">{n}</span>
+              </span>
+            </button>
+          </li>
+        );
+      })}
+      <li className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+        {total} vote{total === 1 ? "" : "s"}
+        {card.myVote ? " · tap your choice again to clear" : ""}
+      </li>
+    </ul>
+  );
+}
+
 function IconBtn({
   label,
   onClick,
@@ -363,6 +461,7 @@ function AddCardForm({
   const [url, setUrl] = useState("");
   const [mediaKey, setMediaKey] = useState("");
   const [doi, setDoi] = useState("");
+  const [pollOptions, setPollOptions] = useState<string[]>(["", ""]);
   const [error, setError] = useState<string | null>(null);
   const meta = KIND_META[kind];
 
@@ -395,6 +494,14 @@ function AddCardForm({
           // Lookup failed — still store the DOI so the card exists; mark unresolved.
           await create.mutateAsync({ kind, refDoi: doi.trim(), title: refTitle || undefined });
         }
+      } else if (kind === "todo") {
+        if (!title.trim()) return setError("Name the task.");
+        await create.mutateAsync({ kind, title: title.trim() });
+      } else if (kind === "poll") {
+        if (!title.trim()) return setError("Write the question.");
+        const opts = pollOptions.map((o) => o.trim()).filter(Boolean);
+        if (opts.length < 2) return setError("Add at least two options.");
+        await create.mutateAsync({ kind, title: title.trim(), pollOptions: opts });
       }
       onSaved();
     } catch (e) {
@@ -459,8 +566,53 @@ function AddCardForm({
         </Field>
       )}
       {kind !== "note" && (
-        <Field label="Title (optional)">
-          <input value={title} onChange={(e) => setTitle(e.target.value)} className={inputCls} />
+        <Field
+          label={
+            kind === "todo" ? "Task" : kind === "poll" ? "Question" : "Title (optional)"
+          }
+        >
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder={kind === "poll" ? "What should we decide?" : kind === "todo" ? "What needs doing?" : ""}
+            className={inputCls}
+          />
+        </Field>
+      )}
+
+      {kind === "poll" && (
+        <Field label="Options">
+          <div className="flex flex-col gap-1.5">
+            {pollOptions.map((opt, i) => (
+              <div key={i} className="flex items-center gap-1.5">
+                <input
+                  value={opt}
+                  onChange={(e) =>
+                    setPollOptions((prev) => prev.map((o, j) => (j === i ? e.target.value : o)))
+                  }
+                  placeholder={`Option ${i + 1}`}
+                  className={inputCls}
+                />
+                {pollOptions.length > 2 && (
+                  <IconBtn
+                    label={`Remove option ${i + 1}`}
+                    onClick={() => setPollOptions((prev) => prev.filter((_, j) => j !== i))}
+                  >
+                    <X className="size-4" />
+                  </IconBtn>
+                )}
+              </div>
+            ))}
+            {pollOptions.length < 12 && (
+              <button
+                type="button"
+                onClick={() => setPollOptions((prev) => [...prev, ""])}
+                className="inline-flex items-center gap-1 self-start text-[length:var(--text-small)] text-[var(--color-primary)] hover:underline"
+              >
+                <Plus className="size-3.5" aria-hidden /> Add option
+              </button>
+            )}
+          </div>
         </Field>
       )}
 
