@@ -1214,6 +1214,12 @@
   ],
   "recentActivity": [
     {
+      "text": "docs(gate): Playground/Cowork (ADR-0059) drafted. A workspace 'Playground' destination — a board of cards (link/note/image-file/reference/to-do/poll) with comments on each + convert-card-to-study, to collect inspiration before a study exists. One new playground_card table behind a playground tRPC router; reuse comments (ADR-0015) + media upload + Crossref + studies.create; PII-safe (ADR-0014, researcher content only). Phased: P1 cards+comments+convert, P2 to-do+poll. Artifacts: user-flow collect-inspiration-in-playground, ADR-0059, wireframe workspace-playground. Validator clean (184). No code — design for review."
+    },
+    {
+      "text": "feat(variants): A/B field dropdown + '?' help modal; deployed v1.16.0-a22 (38875fe). The varying-field picker is now a dropdown of the block's actual fields (no dot-notation typing); a '?' by the Variants title opens a help modal explaining factors/levels (A/B are renameable)/cells/varying-fields with a worked example. Open Q: best word for a factor-level combination ('cell' vs 'combination')."
+    },
+    {
       "text": "feat(variants): A/B & factorial COMPLETE (ADR-0058, A1-A6). Added A5 (flow-diagram 'Assign variant cell' node + live-preview 'Previewing cell' selector) and A6 (results + export gain a variant_cell column, so a factorial run is analyzable by cell). Full feature: define factors/levels + bind fields, participants randomized to a cell with resolved configs, diagram + preview show the split, results split by cell. 612 vitest green; tsc+lint+build clean. Run db:migrate:prod (0028) before deploy. Commits 2b609b9..8779d93. Next: cowork/playground gate docs."
     },
     {
