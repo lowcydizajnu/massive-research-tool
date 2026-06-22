@@ -1,6 +1,7 @@
 import type { Route } from "next";
 import Link from "next/link";
 
+import { MaterialsLibrary } from "@/components/feature/library/materials-library";
 import { ModuleLibrary } from "@/components/feature/library/module-library";
 import { TemplateLibrary } from "@/components/feature/library/template-library";
 import { cn } from "@/lib/utils";
@@ -26,9 +27,8 @@ const TABS = [
 
 type TabKey = (typeof TABS)[number]["key"];
 
-const COMING_SOON: Record<Exclude<TabKey, "modules" | "templates">, string> = {
+const COMING_SOON: Record<Exclude<TabKey, "modules" | "templates" | "materials">, string> = {
   themes: "Saved visual themes will live here once per-study theming ships.",
-  materials: "Uploaded images, audio, and video will live here once asset upload ships.",
   imports: "Studies imported from other tools will live here once the import sandbox ships.",
 };
 
@@ -82,13 +82,15 @@ export default async function LibraryPage({
         <ModuleLibrary modules={modules} />
       ) : tab === "templates" ? (
         <TemplateLibrary />
+      ) : tab === "materials" ? (
+        <MaterialsLibrary />
       ) : (
         <div className="flex flex-col items-start gap-2 rounded-[var(--radius-md)] bg-[var(--color-surface-subtle)] p-8">
           <p className="font-serif text-[length:var(--text-heading-1)] font-medium text-[var(--color-text-primary)]">
             {TABS.find((t) => t.key === tab)!.label} — coming soon
           </p>
           <p className="max-w-prose text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
-            {COMING_SOON[tab as Exclude<TabKey, "modules" | "templates">]}
+            {COMING_SOON[tab as Exclude<TabKey, "modules" | "templates" | "materials">]}
           </p>
         </div>
       )}
