@@ -1213,6 +1213,9 @@
   ],
   "recentActivity": [
     {
+      "text": "docs(gate): Library L3 Materials — ADR-0064 + user flow + 2 wireframes. workspace_material table over the R2 ws/<workspace>/materials/ namespace; blocks reference the R2 KEY (not the material id) so deleting a material never breaks a study and frozen versions don't mutate. Locked: ws/ public namespace (researcher stimuli, not PII), soft-delete, copy-on-promote, and the owner-pinned acceptance (upload-to-Materials-tab + Pick-from-Materials-into-a-block, e2e-covered). Rejected reference-by-id (dangling FKs). Flow reuse-workspace-materials + wireframes (materials-tab / pick-from-materials-modal). Validator clean (197). Build next: data layer -> Materials tab -> Pick-from-Materials."
+    },
+    {
       "text": "refactor(library): L2 — Frameworks removed; Templates is the successor (ADR-0063). Deleted /frameworks route + FRAMEWORK_REGISTRY + frameworks router; studies.create is blank-only (curated starts = Templates); framework removed as a follow target (legacy rows filtered). New-study 'From a Framework' -> 'From a Template' (-> /library?tab=templates). Chrome/copy cleaned (left rail, ⌘K, breadcrumb, Activity/Home). IA v0.8 (one fewer destination). Owner-simplified: no migration, no is_starter column, no redirect shim; /frameworks 404s. Audit log filed. Migration-free; 669 vitest green; tsc+build clean."
     },
     {
