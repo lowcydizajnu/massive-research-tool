@@ -12,8 +12,7 @@ import { getServerApi } from "@/server/trpc/server";
  * surface); this is the thin client entry point.
  */
 export async function createStudyAction(input: {
-  kind: "blank" | "framework";
-  frameworkKey?: string;
+  kind: "blank";
   title?: string;
 }): Promise<{ id: string }> {
   const api = await getServerApi();

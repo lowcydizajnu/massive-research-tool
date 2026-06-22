@@ -5,7 +5,6 @@ import { z } from "zod";
 
 import { db } from "@/server/db/client";
 import { activityEvent, experiment, follow, user } from "@/server/db/schema";
-import { getFrameworkDef } from "@/server/frameworks/registry";
 import { protectedProcedure, router } from "@/server/trpc/trpc";
 
 /**
@@ -20,7 +19,7 @@ import { protectedProcedure, router } from "@/server/trpc/trpc";
 // so a module follow is a stored subscription that produces no feed rows until
 // they do (the feed partition below intentionally omits it) — recording the
 // intent now keeps the data ready for module-update events later.
-export const FOLLOW_TARGET_TYPES = ["tag", "author", "framework", "study", "module"] as const;
+export const FOLLOW_TARGET_TYPES = ["tag", "author", "study", "module"] as const;
 export type FollowTargetType = (typeof FOLLOW_TARGET_TYPES)[number];
 
 export type MyFollow = { targetType: FollowTargetType; targetId: string };
@@ -101,11 +100,14 @@ export const followsRouter = router({
    * framework, and module labels need no DB lookup.
    */
   list: protectedProcedure.query(async ({ ctx }): Promise<FollowListItem[]> => {
-    const rows = await db
-      .select({ targetType: follow.targetType, targetId: follow.targetId })
-      .from(follow)
-      .where(eq(follow.userId, ctx.dbUser.id))
-      .orderBy(desc(follow.createdAt));
+    const known = new Set<string>(FOLLOW_TARGET_TYPES);
+    const rows = (
+      await db
+        .select({ targetType: follow.targetType, targetId: follow.targetId })
+        .from(follow)
+        .where(eq(follow.userId, ctx.dbUser.id))
+        .orderBy(desc(follow.createdAt))
+    ).filter((r) => known.has(r.targetType)); // drop retired types (e.g. legacy 'framework' rows)
     if (rows.length === 0) return [];
 
     const authorIds = rows.filter((r) => r.targetType === "author").map((r) => r.targetId);
@@ -136,8 +138,6 @@ export const followsRouter = router({
           return { targetType, targetId, label: `#${targetId}`, href: "/browse" };
         case "author":
           return { targetType, targetId, label: authorNames.get(targetId) ?? "Unknown researcher", href: null };
-        case "framework":
-          return { targetType, targetId, label: getFrameworkDef(targetId)?.name ?? targetId, href: "/frameworks" };
         case "study":
           return { targetType, targetId, label: studyTitles.get(targetId) ?? "A study", href: `/studies/${targetId}/build` };
         case "module":
@@ -167,13 +167,11 @@ export const followsRouter = router({
 
       const tags = follows.filter((f) => f.targetType === "tag").map((f) => f.targetId);
       const authors = follows.filter((f) => f.targetType === "author").map((f) => f.targetId);
-      const frameworks = follows.filter((f) => f.targetType === "framework").map((f) => f.targetId);
       const studies = follows.filter((f) => f.targetType === "study").map((f) => f.targetId);
 
       const matchers: SQL[] = [];
       if (authors.length) matchers.push(inArray(activityEvent.relatedAuthorUserId, authors));
       if (studies.length) matchers.push(inArray(activityEvent.relatedStudyId, studies));
-      if (frameworks.length) matchers.push(inArray(activityEvent.relatedFrameworkId, frameworks));
       // text[] overlap — the event's tags intersect the followed tags.
       if (tags.length) matchers.push(arrayOverlaps(activityEvent.relatedTagSlugs, tags));
       if (matchers.length === 0) return [];
@@ -205,13 +203,12 @@ export const followsRouter = router({
 
       const tagSet = new Set(tags);
       const authorSet = new Set(authors);
-      const frameworkSet = new Set(frameworks);
       const studySet = new Set(studies);
 
       return rows.map((r) => {
         const payload = (r.payload ?? {}) as Record<string, unknown>;
         const studyTitle = typeof payload.studyTitle === "string" ? payload.studyTitle : null;
-        // "Why you see this" — first matching follow (author > study > framework > tag).
+        // "Why you see this" — first matching follow (author > study > tag).
         let reason: FollowsFeedItem["reason"] = null;
         let reasonLabel: string | null = null;
         if (r.relatedAuthorUserId && authorSet.has(r.relatedAuthorUserId)) {
@@ -221,9 +218,6 @@ export const followsRouter = router({
         } else if (r.relatedStudyId && studySet.has(r.relatedStudyId)) {
           reason = { type: "study", value: r.relatedStudyId };
           reasonLabel = studyTitle ?? "a study you follow";
-        } else if (r.relatedFrameworkId && frameworkSet.has(r.relatedFrameworkId)) {
-          reason = { type: "framework", value: r.relatedFrameworkId };
-          reasonLabel = getFrameworkDef(r.relatedFrameworkId)?.name ?? "a Framework you follow";
         } else {
           const hit = (r.relatedTagSlugs ?? []).find((t) => tagSet.has(t));
           if (hit) {

@@ -378,7 +378,7 @@ export function FollowsFeedWidget({ items }: { items: FollowsFeedItem[] }) {
     <Card title="Following">
       {items.length === 0 ? (
         <Empty>
-          Follow a tag, author, framework, or study (look for <strong className="font-medium">+ Follow</strong>) to
+          Follow a tag, author, or study (look for <strong className="font-medium">+ Follow</strong>) to
           see their updates here.
         </Empty>
       ) : (

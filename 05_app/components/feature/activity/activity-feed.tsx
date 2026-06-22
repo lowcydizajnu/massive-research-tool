@@ -122,7 +122,6 @@ function YoursStream() {
 const FOLLOW_TYPE_LABEL: Record<string, string> = {
   tag: "Tag",
   author: "Researcher",
-  framework: "Framework",
   study: "Study",
   module: "Module",
 };
@@ -208,7 +207,7 @@ function FollowsFeed({ hasFollows }: { hasFollows: boolean }) {
           "No recent activity from the things you follow yet — new versions, replications, and OSF registrations will show up here. (Modules don’t post updates yet.)"
         ) : (
           <>
-            Your Follows feed is empty. Follow a tag, an author, a Framework, a study, or a module — look for
+            Your Follows feed is empty. Follow a tag, an author, a study, or a module — look for
             <strong className="font-medium"> + Follow</strong> on tags, bylines, details panels, and the Library.
           </>
         )}

@@ -38,7 +38,7 @@ export function Breadcrumb() {
   // Don't repeat a top-level destination here — the left rail already shows
   // (and highlights) it. Only surface the section label for routes the rail
   // doesn't cover. (Study routes use the focused top bar, not this breadcrumb.)
-  const RAIL = new Set(["dashboard", "studies", "library", "frameworks", "participants", "activity", "team", "settings"]);
+  const RAIL = new Set(["dashboard", "studies", "library", "participants", "activity", "team", "settings"]);
   const showSection = !!section && !RAIL.has(segments[0] ?? "");
 
   return (
