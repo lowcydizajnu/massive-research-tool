@@ -864,6 +864,32 @@ export const mention = pgTable(
 );
 
 /**
+ * Live-cooperation presence (ADR-0060). One ephemeral row per (study, user):
+ * a heartbeat that records which block a collaborator is focused on. Read by
+ * others on a short poll to render avatars + a per-block "who's editing" border.
+ * Non-authoritative + non-PII (no participant data) — edits still flow through
+ * the normal mutations under last-write-wins (ADR-0012). The V1 transport is
+ * this table + polling, behind the RealtimeAdapter seam (Liveblocks/Yjs later).
+ */
+export const studyPresence = pgTable(
+  "study_presence",
+  {
+    studyId: uuid("study_id")
+      .notNull()
+      .references(() => experiment.id),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id),
+    blockId: text("block_id"), // the focused block instanceId, or null
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("study_presence_study_user_unique").on(t.studyId, t.userId),
+    index("idx_study_presence_study").on(t.studyId, t.updatedAt.desc()),
+  ],
+);
+
+/**
  * Playground / Cowork board card (ADR-0059). One owned primitive: a typed,
  * orderable card that lives *before* a study exists. Everything else is reused —
  * comments via `comment` (targetType 'playground_card'), images/files via the
@@ -1200,6 +1226,8 @@ export type PlaygroundCard = typeof playgroundCard.$inferSelect;
 export type NewPlaygroundCard = typeof playgroundCard.$inferInsert;
 export type PlaygroundCardVote = typeof playgroundCardVote.$inferSelect;
 export type NewPlaygroundCardVote = typeof playgroundCardVote.$inferInsert;
+export type StudyPresence = typeof studyPresence.$inferSelect;
+export type NewStudyPresence = typeof studyPresence.$inferInsert;
 export type Notification = typeof notification.$inferSelect;
 export type NewNotification = typeof notification.$inferInsert;
 export type ActivityEvent = typeof activityEvent.$inferSelect;

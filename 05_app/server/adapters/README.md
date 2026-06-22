@@ -14,7 +14,7 @@ This is what makes ADR-0007's cost-ceiling triggers feasible in 2 weeks instead 
 | --- | --- | --- |
 | `AuthAdapter` | `auth.clerk.ts` (Clerk v7) | Clerk → Better Auth |
 | `HostingShape` | (implicit — Next.js + Vercel patterns) | Vercel → Node container |
-| `RealtimeAdapter` | (stub only) | Liveblocks → Yjs |
+| `RealtimeAdapter` | `realtime.local.ts` (DB-heartbeat presence + polling, ADR-0060) | local → Liveblocks → Yjs |
 | `BackgroundJobAdapter` | `jobs.inngest.ts` (Inngest; serve route at `app/api/inngest`) | Inngest → BullMQ |
 | `RegistryAdapter` | `registry.osf.ts` (OSF; OAuth + push — PR-1c) | OSF → AsPredicted / ClinicalTrials.gov |
 | `StorageAdapter` | `storage.r2.ts` (Cloudflare R2 via aws4fetch; presign-only) | R2 → S3 / MinIO |

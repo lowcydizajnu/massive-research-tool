@@ -225,6 +225,13 @@
       "when": 1782107235338,
       "tag": "0031_stale_red_wolf",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1782113685261,
+      "tag": "0032_freezing_groot",
+      "breakpoints": true
     }
   ]
 }
