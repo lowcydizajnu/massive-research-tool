@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { HelpCircle, Plus, Trash2, X } from "lucide-react";
+import { AlertTriangle, HelpCircle, Plus, Trash2, X } from "lucide-react";
 
 import { api } from "@/lib/trpc/react";
 import { cellCount, type VariantBinding, type VariantFactor } from "@/lib/variants/factorial";
@@ -115,6 +115,20 @@ export function VariantsSection({ study, canEdit }: { study: StudyDetail; canEdi
         A/B &amp; factorial designs: each participant is randomly assigned one combination. Define factors and bind the fields that vary —
         everything else stays shared (edit it in Blocks).
       </p>
+
+      {study.variantsNeedPublish && (
+        <p
+          role="status"
+          className="flex items-start gap-2 rounded-[var(--radius-md)] border border-[var(--color-warning)] bg-[var(--color-warning-subtle)] px-3 py-2 text-[length:var(--text-small)] text-[var(--color-warning-text-on-subtle)]"
+        >
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
+          <span>
+            These variants aren&rsquo;t in your running version yet. Participants won&rsquo;t be assigned a
+            combination — and results won&rsquo;t split by it — until you publish these edits
+            (<strong>Run → Make these edits live</strong>, or re-preregister).
+          </span>
+        </p>
+      )}
 
       {/* Factors */}
       <div className="flex flex-col gap-2">
