@@ -1213,6 +1213,9 @@
   ],
   "recentActivity": [
     {
+      "text": "fix(builder): Replicate gated to frozen studies, not drafts (ADR-0018). The Replicate button in the Builder Details panel showed on any study incl. a brand-new draft (you could 'replicate' a plan / self-replicate a draft). Now renders only when study.stage != 'draft'; on a draft it shows 'Replicate unlocks once a version is frozen' and reuse-a-draft is Save-as-template. UI-only, migration-free; tsc+lint+build clean. (Stale 'Replicating' banners on pre-fix template-clones are leftover forkOf* — delete+re-use the template; no safe bulk scrub.)"
+    },
+    {
       "text": "fix(studies): study delete failed silently — comprehensive FK cleanup. Real root cause: study_presence (ADR-0060) — the row for whoever has the study OPEN in the Builder FK-references it (no on-delete), so 'Delete forever' always threw; and the mutation had no onError, so the UI showed nothing. Audited every inbound FK into experiment/experiment_version; delete now clears study_presence, study_record, saved_record, comments+mentions (by experimentId), quality_flag->payout_record->provider_submission (before sessions), and nulls panel_member + playground_card pointers. Added onError alert. +1 regression test; 677 vitest green; migration-free."
     },
     {
