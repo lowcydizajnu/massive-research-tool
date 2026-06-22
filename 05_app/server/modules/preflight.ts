@@ -199,6 +199,23 @@ export function runPreflight(opts: {
     }
   }
 
+  // ai-conversation — informational: flag the non-deterministic step (ADR-0061
+  // amendment 1). Not a warning — researcher autonomy — but the registration
+  // must disclose it, which we do automatically (see osf-recipe.ts).
+  const aiBlocks = blocks.filter((b) => b.key === "ai-chat");
+  if (aiBlocks.length > 0) {
+    out.push({
+      id: "ai-nondeterministic",
+      status: "pass",
+      title: `${aiBlocks.length} AI conversation${aiBlocks.length === 1 ? "" : "s"} — non-deterministic`,
+      detail:
+        mode === "preregister"
+          ? "The AI's wording varies per participant, so this step isn't reproducible like a fixed questionnaire. Your preregistration automatically notes this; the saved transcript (not a script) is the record."
+          : "The AI's wording varies per participant; each transcript is saved as that block's answer.",
+      blocks: aiBlocks.map((b) => ({ instanceId: b.instanceId, name: nameOf(b) })),
+    });
+  }
+
   // consent — informational: the consent step always exists (ADR-0035).
   out.push(
     hasCustomConsent(snapshot)

@@ -11,6 +11,25 @@ import { protocolText } from "@/server/modules/protocol-text";
 export const RECIPE_SCHEMA_NAME = "Replication Recipe (Brandt et al., 2014): Pre-Registration";
 
 /**
+ * Standard AI non-determinism disclosure (ADR-0061 amendment 1). Auto-appended
+ * to the registration body when the study contains an AI conversation block, so
+ * the registered plan states that the AI step isn't reproducible like a fixed
+ * questionnaire. Returns undefined when there's no AI block.
+ */
+export function aiNonDeterminismDisclosure(snapshot: unknown): string | undefined {
+  const n = readBlocks(snapshot).filter((b) => b.key === "ai-chat").length;
+  if (n === 0) return undefined;
+  return (
+    `AI CONVERSATION — NON-DETERMINISM DISCLOSURE\n` +
+    `This study includes ${n} AI conversation step${n === 1 ? "" : "s"} in which the participant ` +
+    `talks with a large language model given a researcher-defined role and context. The AI's ` +
+    `wording varies between participants, so this step is not reproducible in the way a fixed ` +
+    `questionnaire is. The plan fixes the AI's role, context, model, and turn limit; the record ` +
+    `for each participant is the saved transcript itself, not a predetermined script.`
+  );
+}
+
+/**
  * Human-readable design for the default Open-Ended OSF summary (audit step 3):
  * abstract + numbered hypotheses + the clean protocol, so OSF shows real app
  * content above the machine JSON. Returns undefined when there's nothing to say.
@@ -23,6 +42,8 @@ export function buildOpenEndedBody(snapshot: unknown): string | undefined {
   if (hyps.length) parts.push(`HYPOTHESES\n${hyps.map((h, i) => `${i + 1}. ${h.trim()}`).join("\n")}`);
   const protocol = protocolText(snapshot);
   if (protocol.length) parts.push(`PROTOCOL\n${protocol.join("\n")}`);
+  const ai = aiNonDeterminismDisclosure(snapshot);
+  if (ai) parts.push(ai);
   return parts.length ? parts.join("\n\n") : undefined;
 }
 
