@@ -186,6 +186,20 @@ describe("templates visibility (cross-workspace)", () => {
   });
 });
 
+describe("deleting a template's source study", () => {
+  it("succeeds and removes the template (FK cleanup — bug fix 2026-06-22)", async () => {
+    const { workspace: ws, user: u } = await seedOwner("hanna", "Lab");
+    const { studyId } = await seedStudy(ws.id, u.id, ["free-text"]);
+    const caller = createCaller({ authUser: authUser("hanna") });
+    const { id: templateId } = await caller.templates.create({ studyId, name: "From-source", shareScope: "workspace" });
+
+    // Before the fix, the workspace_template FK blocked this delete.
+    await expect(caller.studies.delete({ studyId })).resolves.toMatchObject({ ok: true });
+    expect((await db.select().from(workspaceTemplate).where(eq(workspaceTemplate.id, templateId)))).toHaveLength(0);
+    expect((await db.select().from(experiment).where(eq(experiment.id, studyId)))).toHaveLength(0);
+  });
+});
+
 describe("templates.delete", () => {
   it("soft-deletes (hidden + get NOT_FOUND) but leaves cloned studies intact", async () => {
     const { workspace: ws, user: u } = await seedOwner("hanna", "Lab");
