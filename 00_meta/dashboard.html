@@ -1213,6 +1213,9 @@
   ],
   "recentActivity": [
     {
+      "text": "fix(take): AI conversation block now renders in the shared preview. block-view only showed the AI chat when a responseId was present (the live take flow); the shared-preview/no-session path has none, so the block fell through to '(This question type isn't available.)'. Added a preview branch: chat-window chrome + opening message + a disabled composer + 'Live AI conversation — the preview doesn't connect to the model' (the live chat needs a recorded response + the workspace AI key). UI-only, migration-free; 677 vitest green; tsc+lint+build clean."
+    },
+    {
       "text": "fix(builder): Replicate gated to frozen studies, not drafts (ADR-0018). The Replicate button in the Builder Details panel showed on any study incl. a brand-new draft (you could 'replicate' a plan / self-replicate a draft). Now renders only when study.stage != 'draft'; on a draft it shows 'Replicate unlocks once a version is frozen' and reuse-a-draft is Save-as-template. UI-only, migration-free; tsc+lint+build clean. (Stale 'Replicating' banners on pre-fix template-clones are leftover forkOf* — delete+re-use the template; no safe bulk scrub.)"
     },
     {
