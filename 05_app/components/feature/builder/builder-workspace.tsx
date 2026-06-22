@@ -1281,7 +1281,17 @@ export function BuilderWorkspace({
                 {currentUserId === study.ownerId ? (
                   <ForkableControl studyId={study.id} value={study.forkableBy} frozen={study.stage !== "draft"} />
                 ) : null}
-                <ReplicateButton studyId={study.id} />
+                {/* Replicate is for a finding, not a plan (ADR-0018): only once the
+                    study has a frozen version (preregistered/published/finished) —
+                    never on a brand-new draft. To reuse a draft's design, use
+                    "Save as template" instead. */}
+                {study.stage !== "draft" ? (
+                  <ReplicateButton studyId={study.id} />
+                ) : (
+                  <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                    Replicate unlocks once a version is frozen (preregister or publish).
+                  </span>
+                )}
               </div>
             </DetailRow>
 
