@@ -1,5 +1,6 @@
 "use client";
 
+import { Upload } from "lucide-react";
 import { useState } from "react";
 
 import type { StudyBlock } from "@/server/trpc/routers/studies";
@@ -16,6 +17,47 @@ const MODELS: { value: string; label: string }[] = [
   { value: "claude-opus-4-8", label: "Claude Opus 4.8 (most capable)" },
   { value: "claude-haiku-4-5-20251001", label: "Claude Haiku 4.5 (fastest / cheapest)" },
 ];
+
+const MAX_DOC_CHARS = 100_000;
+
+/**
+ * Upload a TEXT document (.txt/.md/.csv/.json) — read client-side and appended to
+ * the context. Text-only for now (PDF/Word extraction is a follow-up behind the
+ * AI Task substrate, ADR-0006). Nothing is uploaded to storage; we only keep the
+ * text the AI needs.
+ */
+function ContextDocUpload({ onText }: { onText: (text: string, name: string) => void }) {
+  const [err, setErr] = useState<string | null>(null);
+  return (
+    <span className="flex flex-col gap-1">
+      <label className="inline-flex w-fit cursor-pointer items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-2.5 py-1 text-[length:var(--text-small)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]">
+        <Upload className="size-3.5" aria-hidden /> Upload a text document
+        <input
+          type="file"
+          accept=".txt,.md,.markdown,.csv,.tsv,.json,text/plain"
+          className="hidden"
+          onChange={async (e) => {
+            const file = e.target.files?.[0];
+            e.target.value = "";
+            if (!file) return;
+            setErr(null);
+            if (file.size > 2_000_000) return setErr("File too large (max ~2 MB of text).");
+            try {
+              const raw = await file.text();
+              onText(raw.slice(0, MAX_DOC_CHARS), file.name);
+            } catch {
+              setErr("Couldn’t read that file. Plain-text files (.txt, .md, .csv) work best.");
+            }
+          }}
+        />
+      </label>
+      <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+        Text files only for now (.txt, .md, .csv). PDF/Word extraction is coming.
+      </span>
+      {err && <span className="text-[length:var(--text-small)] text-[var(--color-danger-text-on-subtle)]">{err}</span>}
+    </span>
+  );
+}
 
 const labelCls = "text-[length:var(--text-label)] uppercase tracking-wide text-[var(--color-text-muted)]";
 const fieldCls =
@@ -84,8 +126,13 @@ export function AiChatConfig({
           rows={4}
           value={cfg.context}
           onChange={(e) => set({ context: e.target.value })}
-          placeholder="Paste the scenario, stimulus, or facts the AI should reference. (Document upload coming soon.)"
+          placeholder="Paste the scenario, stimulus, or facts the AI should reference — or upload a text document below."
           className={fieldCls}
+        />
+        <ContextDocUpload
+          onText={(text, name) =>
+            set({ context: cfg.context.trim() ? `${cfg.context.trim()}\n\n--- ${name} ---\n${text}` : text })
+          }
         />
       </label>
 
