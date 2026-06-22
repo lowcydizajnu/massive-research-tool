@@ -3,6 +3,7 @@
 import { Upload } from "lucide-react";
 import { useState } from "react";
 
+import { PRICES_AS_OF, estimateChatCostUsd, formatUsd } from "@/lib/ai-pricing";
 import type { StudyBlock } from "@/server/trpc/routers/studies";
 
 /**
@@ -219,6 +220,23 @@ export function AiChatConfig({
       <p className="-mt-2 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
         Max replies = how many turns the participant gets (the x/8 counter). Time limit: 0 = no limit.
       </p>
+
+      {(() => {
+        const est = estimateChatCostUsd({
+          model: cfg.model,
+          contextChars: cfg.context.length,
+          roleChars: cfg.role.length,
+          maxTurns: cfg.maxTurns,
+        });
+        if (est === null) return null;
+        return (
+          <p className="rounded-[var(--radius-md)] bg-[var(--color-surface-subtle)] p-2 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+            Est. <strong>≈ {formatUsd(est)} per participant</strong> (up to {cfg.maxTurns} repl
+            {cfg.maxTurns === 1 ? "y" : "ies"}). Advisory only — rough token estimate at list prices
+            ({PRICES_AS_OF}); actual spend is on your Anthropic bill and varies.
+          </p>
+        );
+      })()}
 
       <p className="rounded-[var(--radius-md)] bg-[var(--color-surface-subtle)] p-2 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
         Uses your workspace&rsquo;s Anthropic key (Settings → AI provider). Each participant&rsquo;s

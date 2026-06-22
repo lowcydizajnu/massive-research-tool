@@ -75,4 +75,20 @@ describe("runPreflight (ADR-0034)", () => {
     expect(preflightSummary(checks).warns).toBeGreaterThan(0);
     expect(preflightSummary(checks).fails).toBe(0);
   });
+
+  it("flags an AI conversation as non-deterministic (informational, never failing)", () => {
+    const noAi = runPreflight({ snapshot: snap([likert()]), conditions: noConditions, mode: "preregister" });
+    expect(noAi.find((c) => c.id === "ai-nondeterministic")).toBeUndefined();
+
+    const ai = runPreflight({
+      snapshot: snap([{ instanceId: "ai1", source: "core", key: "ai-chat", version: "1.0.0", config: { role: "Interviewer" } }]),
+      conditions: noConditions,
+      mode: "preregister",
+    });
+    const check = get(ai, "ai-nondeterministic");
+    expect(check.status).toBe("pass"); // informational — researcher autonomy
+    expect(check.title).toContain("non-deterministic");
+    expect(check.detail).toContain("preregistration");
+    expect(check.blocks?.[0].instanceId).toBe("ai1");
+  });
 });

@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { buildOpenEndedBody, buildRecipeResponses, RECIPE_SCHEMA_NAME } from "@/server/modules/osf-recipe";
+import {
+  aiNonDeterminismDisclosure,
+  buildOpenEndedBody,
+  buildRecipeResponses,
+  RECIPE_SCHEMA_NAME,
+} from "@/server/modules/osf-recipe";
 
 const snapshot = {
   blocks: [
@@ -60,5 +65,28 @@ describe("buildOpenEndedBody (audit step 3 — real OSF summary, not just a JSON
     expect(body).toContain("PROTOCOL"); // protocolText always emits the protocol section
     expect(body).not.toContain("ABSTRACT");
     expect(body).not.toContain("HYPOTHESES");
+  });
+});
+
+describe("aiNonDeterminismDisclosure (ADR-0061 amendment 1)", () => {
+  const withAi = {
+    blocks: [{ instanceId: "a1", source: "core", key: "ai-chat", version: "1.0.0", config: { role: "Interviewer" } }],
+    overview: { abstract: "A", hypotheses: [], sections: [] },
+  };
+
+  it("is undefined when there is no ai-chat block", () => {
+    expect(aiNonDeterminismDisclosure(snapshot)).toBeUndefined();
+  });
+
+  it("discloses non-determinism (and the count) when ai-chat is present", () => {
+    const d = aiNonDeterminismDisclosure(withAi)!;
+    expect(d).toContain("NON-DETERMINISM");
+    expect(d).toContain("1 AI conversation step");
+    expect(d).toContain("transcript");
+  });
+
+  it("auto-appends the disclosure to the Open-Ended registration body", () => {
+    expect(buildOpenEndedBody(withAi)).toContain("NON-DETERMINISM DISCLOSURE");
+    expect(buildOpenEndedBody(snapshot)).not.toContain("NON-DETERMINISM"); // no AI block → no note
   });
 });
