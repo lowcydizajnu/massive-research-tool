@@ -1213,6 +1213,9 @@
   ],
   "recentActivity": [
     {
+      "text": "docs(handoff): Library completion written. Fills 4 empty Library tabs (Themes / Materials / Templates / 3-format Imports) + removes Frameworks + migrates Misinformation Research Framework content to a starter Template. Owner-locked: themes opt-in per-study only; materials explicit-promote via Save-to-Materials; imports ships all 3 formats (JSON paste + OSF + Qualtrics .qsf); Misinformation framework migrates to starter=TRUE template in an is_starter=TRUE system workspace. 6 PR streams; 7 ADRs queued; 19 wireframes. ~9.5 weeks Code-tab. Frameworks /frameworks gets 90-day redirect shim. OSF importer is scaffold-only (not block-rehydration). Qualtrics importer covers basic questions + display logic + embedded data; skips quotas/JS/loops with warnings. 04_architecture/handoffs/code-tab-library-completion.md."
+    },
+    {
       "text": "feat(ai): PDF/Word context extraction + non-determinism disclosure + cost estimate (v1.16.0-a35). ADR-0062 + ADR-0061 am.1. Extraction: unpdf+mammoth in server/extract/document.ts (swap seam) behind an authed, rate-limited, 10 MB-capped /api/extract-document; ContextDocUpload now takes PDF/.docx (file never stored). Preflight item + auto-appended OSF disclosure paragraph when a study has an ai-chat block. Advisory cost estimate (lib/ai-pricing.ts, dated price table) in Configure. +21 tests (665); build clean; migration-free."
     },
     {
