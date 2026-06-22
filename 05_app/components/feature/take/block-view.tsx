@@ -11,6 +11,7 @@ import { GraphicSliderInput } from "@/components/feature/take/graphic-slider-inp
 import { SignatureInput } from "@/components/feature/take/signature-input";
 import { FileUploadInput } from "@/components/feature/take/file-upload-input";
 import { VideoRecordInput } from "@/components/feature/take/video-record-input";
+import { AiChatInput } from "@/components/feature/take/ai-chat-input";
 import type { RuntimeBlock } from "@/server/runtime/participant";
 
 /**
@@ -25,15 +26,21 @@ export function BlockView({
   seed,
   namePrefix = "",
   presetKey,
+  responseId,
 }: {
   block: RuntimeBlock;
   seed?: string;
   namePrefix?: string;
   /** Active theme preset (ADR-0024) — mimicking presets may override a block's renderer. */
   presetKey?: string;
+  /** The live response id — needed by interactive server-mediated blocks (ai-chat). */
+  responseId?: string;
 }) {
   const c = block.config;
   const np = namePrefix;
+  if (block.key === "ai-chat" && responseId) {
+    return <AiChatInput config={c} responseId={responseId} blockInstanceId={block.instanceId} np={np} />;
+  }
   // v1 social-post blocks don't record interactions — render them inert.
   const interactive = block.key !== "social-post" || block.version !== "1.0.0";
   const Override = getBlockOverride(presetKey, block.key);

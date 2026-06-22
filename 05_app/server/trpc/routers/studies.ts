@@ -362,6 +362,13 @@ function stringifyAnswer(answer: unknown): string {
       return sel;
     }
     if (Array.isArray(a.order)) return a.order.map(String).join(" > ");
+    if (Array.isArray(a.messages)) {
+      // ai-chat transcript (ADR-0061): "Participant: … ⏎ AI: …".
+      return (a.messages as Array<{ role?: unknown; content?: unknown }>)
+        .filter((m) => typeof m?.content === "string")
+        .map((m) => `${m.role === "user" ? "Participant" : "AI"}: ${m.content as string}`)
+        .join("\n");
+    }
     if (typeof a.text === "string") return a.text;
     if (Array.isArray(a.points)) return `${(a.points as unknown[]).length} point(s)`; // heat-map
     if (typeof a.r2Key === "string") {
