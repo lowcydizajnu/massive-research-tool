@@ -2,6 +2,7 @@ import { aiRouter } from "@/server/trpc/routers/ai";
 import { commentsRouter } from "@/server/trpc/routers/comments";
 import { dashboardRouter } from "@/server/trpc/routers/dashboard";
 import { followsRouter } from "@/server/trpc/routers/follows";
+import { materialsRouter } from "@/server/trpc/routers/materials";
 import { meRouter } from "@/server/trpc/routers/me";
 import { modulesRouter } from "@/server/trpc/routers/modules";
 import { panelsRouter } from "@/server/trpc/routers/panels";
@@ -36,6 +37,7 @@ export const appRouter = router({
   modules: modulesRouter,
   proposals: proposalsRouter,
   templates: templatesRouter,
+  materials: materialsRouter,
   comments: commentsRouter,
   notifications: notificationsRouter,
   follows: followsRouter,

@@ -1213,6 +1213,9 @@
   ],
   "recentActivity": [
     {
+      "text": "feat(materials): Library L3.1 — workspace_material data layer + materials router (ADR-0064). Migration 0035 (kind/name/tags/r2_key/mime/size/use_count/source_kind; CHECKs; soft-delete). materials router: list (kind/search/sort), get, upload (registers an already-presigned ws/<workspace>/ key; rejects out-of-namespace keys), touch (use metering), update, delete (soft), usage (snapshot scan -> 'used in N studies'). Blocks reference the R2 key (orphan-safe). +6 router tests; 675 vitest green; tsc+lint+build clean. ⚠️ migration 0035 not on prod. Next: Materials tab + Pick-from-Materials picker -> deploy L3 end-to-end."
+    },
+    {
       "text": "docs(gate): Library L3 Materials — ADR-0064 + user flow + 2 wireframes. workspace_material table over the R2 ws/<workspace>/materials/ namespace; blocks reference the R2 KEY (not the material id) so deleting a material never breaks a study and frozen versions don't mutate. Locked: ws/ public namespace (researcher stimuli, not PII), soft-delete, copy-on-promote, and the owner-pinned acceptance (upload-to-Materials-tab + Pick-from-Materials-into-a-block, e2e-covered). Rejected reference-by-id (dangling FKs). Flow reuse-workspace-materials + wireframes (materials-tab / pick-from-materials-modal). Validator clean (197). Build next: data layer -> Materials tab -> Pick-from-Materials."
     },
     {
