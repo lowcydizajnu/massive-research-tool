@@ -31,6 +31,12 @@ export function StudyActionsMenu({ studyId }: { studyId: string }) {
   });
   const del = api.studies.delete.useMutation({
     onSuccess: () => router.push("/studies"),
+    // Never fail silently — a swallowed error read as "nothing happened" (the
+    // study_presence/template FK bugs, 2026-06-22).
+    onError: (e) => {
+      setConfirmingDelete(false);
+      window.alert(`Couldn't delete this study: ${e.message}`);
+    },
   });
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 

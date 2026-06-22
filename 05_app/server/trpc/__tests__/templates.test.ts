@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { ulid } from "ulid";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/server/db/client", async () => {
@@ -18,11 +19,13 @@ import type { AuthUser } from "@/server/adapters/auth";
 import { db } from "@/server/db/client";
 import {
   activityEvent,
+  comment,
   condition,
   experiment,
   experimentVersion,
   member,
   notification,
+  studyPresence,
   user,
   workspace,
   workspaceTemplate,
@@ -78,6 +81,8 @@ beforeEach(async () => {
   vi.clearAllMocks();
   await db.delete(notification);
   await db.delete(activityEvent);
+  await db.delete(comment);
+  await db.delete(studyPresence);
   await db.delete(workspaceTemplate);
   await db.delete(condition);
   // Null every experiment->version FK (currentVersionId + fork lineage) before
@@ -197,6 +202,42 @@ describe("deleting a template's source study", () => {
     await expect(caller.studies.delete({ studyId })).resolves.toMatchObject({ ok: true });
     expect((await db.select().from(workspaceTemplate).where(eq(workspaceTemplate.id, templateId)))).toHaveLength(0);
     expect((await db.select().from(experiment).where(eq(experiment.id, studyId)))).toHaveLength(0);
+  });
+});
+
+describe("deleting a template CLONE that has legacy fork lineage", () => {
+  it("succeeds (the clone was created before the duplicate fix and still carries forkOf*)", async () => {
+    const { workspace: ws, user: u } = await seedOwner("hanna", "Lab");
+    const { studyId: sourceId } = await seedStudy(ws.id, u.id, ["free-text"], "ChitChat");
+    const caller = createCaller({ authUser: authUser("hanna") });
+    const { id: templateId } = await caller.templates.create({ studyId: sourceId, name: "ChitChat", shareScope: "workspace" });
+    const [tpl] = await db.select().from(workspaceTemplate).where(eq(workspaceTemplate.id, templateId));
+
+    // Simulate a PRE-FIX clone: useTemplate used to set forkOf* to the source.
+    const [clone] = await db
+      .insert(experiment)
+      .values({
+        tenantId: ws.id,
+        ownerId: u.id,
+        title: "ChitChat",
+        forkOfExperimentId: tpl.sourceExperimentId,
+        forkOfVersionId: tpl.sourceVersionId,
+      })
+      .returning();
+    const [cv] = await db
+      .insert(experimentVersion)
+      .values({ experimentId: clone.id, versionNumber: 0, kind: "autosave", definitionSnapshot: { blocks: [] }, moduleVersionLocks: [], createdBy: u.id })
+      .returning();
+    await db.update(experiment).set({ currentVersionId: cv.id }).where(eq(experiment.id, clone.id));
+    // The actual blocker: a live-cooperation presence row (you're viewing it) +
+    // a block-instance comment both FK-reference the study with no on-delete.
+    await db.insert(studyPresence).values({ studyId: clone.id, userId: u.id, blockId: null });
+    await db.insert(comment).values({ id: ulid(), workspaceId: ws.id, targetType: "block_instance", targetId: "b0", experimentId: clone.id, authorUserId: u.id, bodyMd: "note" });
+
+    await expect(caller.studies.delete({ studyId: clone.id })).resolves.toMatchObject({ ok: true });
+    expect((await db.select().from(experiment).where(eq(experiment.id, clone.id)))).toHaveLength(0);
+    // The source + its template are untouched by deleting the clone.
+    expect((await db.select().from(experiment).where(eq(experiment.id, sourceId)))).toHaveLength(1);
   });
 });
 

@@ -17,11 +17,19 @@ import {
   experiment,
   experimentVersion,
   member,
+  mention,
+  panelMember,
+  payoutRecord,
+  playgroundCard,
   previewToken,
+  providerSubmission,
+  qualityFlag,
   recruitmentSession,
   registryPush,
   response as responseTable,
   responseItem,
+  savedRecord,
+  studyPresence,
   studyRecord,
   user,
   workspaceTemplate,
@@ -4967,6 +4975,31 @@ export const studiesRouter = router({
       if (!exp) throw new TRPCError({ code: "NOT_FOUND" });
 
       await db.transaction(async (tx) => {
+        // Clear every row that FK-references this study (or its versions) before
+        // dropping the versions/experiment, else the delete is blocked and the UI
+        // silently no-ops. Order matters where tables chain (quality_flag ->
+        // response/provider_submission; payout_record -> provider_submission;
+        // provider_submission -> recruitment_session), so these run first.
+        // Comments (study + block-instance) + their mentions.
+        const commentIds = (
+          await tx.select({ id: comment.id }).from(comment).where(eq(comment.experimentId, exp.id))
+        ).map((c) => c.id);
+        if (commentIds.length) await tx.delete(mention).where(inArray(mention.commentId, commentIds));
+        await tx.delete(comment).where(eq(comment.experimentId, exp.id));
+        // Live-cooperation presence (ADR-0060) — the row for whoever has the study
+        // open is what was blocking "Delete forever" from the Builder.
+        await tx.delete(studyPresence).where(eq(studyPresence.studyId, exp.id));
+        await tx.delete(studyRecord).where(eq(studyRecord.experimentId, exp.id));
+        await tx.delete(savedRecord).where(eq(savedRecord.experimentId, exp.id));
+        // Recruitment subsystem (empty for drafts). quality_flag/payout_record
+        // reference provider_submission + responses, so go before both.
+        await tx.delete(qualityFlag).where(eq(qualityFlag.experimentId, exp.id));
+        await tx.delete(payoutRecord).where(eq(payoutRecord.experimentId, exp.id));
+        await tx.delete(providerSubmission).where(eq(providerSubmission.experimentId, exp.id));
+        // Keep these rows; just drop their pointer to this study.
+        await tx.update(panelMember).set({ sourceExperimentId: null }).where(eq(panelMember.sourceExperimentId, exp.id));
+        await tx.update(playgroundCard).set({ convertedStudyId: null }).where(eq(playgroundCard.convertedStudyId, exp.id));
+
         const versionIds = (
           await tx
             .select({ id: experimentVersion.id })
@@ -5001,8 +5034,7 @@ export const studiesRouter = router({
         await tx
           .delete(changeProposal)
           .where(or(eq(changeProposal.sourceExperimentId, exp.id), eq(changeProposal.targetExperimentId, exp.id)));
-        // The study's own comment thread (block-instance threads die with it).
-        await tx.delete(comment).where(and(eq(comment.targetType, "study"), eq(comment.targetId, exp.id)));
+        // (Comments + mentions already cleared above, keyed by experimentId.)
         // Forks are their own studies — keep them, drop the lineage pointers.
         await tx
           .update(experiment)
