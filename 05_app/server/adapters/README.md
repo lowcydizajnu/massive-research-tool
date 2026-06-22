@@ -18,7 +18,7 @@ This is what makes ADR-0007's cost-ceiling triggers feasible in 2 weeks instead 
 | `BackgroundJobAdapter` | `jobs.inngest.ts` (Inngest; serve route at `app/api/inngest`) | Inngest → BullMQ |
 | `RegistryAdapter` | `registry.osf.ts` (OSF; OAuth + push — PR-1c) | OSF → AsPredicted / ClinicalTrials.gov |
 | `StorageAdapter` | `storage.r2.ts` (Cloudflare R2 via aws4fetch; presign-only) | R2 → S3 / MinIO |
-| `AIProviderAdapter` | (none — V1 ships substrate only per ADR-0006) | per-provider |
+| `AIProviderAdapter` | `ai.anthropic.ts` (Claude via HTTP, BYO workspace key — ADR-0061) | Anthropic → OpenAI / local |
 
 ## How to add a new adapter
 

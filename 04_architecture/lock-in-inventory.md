@@ -94,9 +94,9 @@ For each vendor:
 
 | | |
 | --- | --- |
-| **What we use it for** | V1 ships substrate only — interface + audit log + cost metering. No AI features in MVP. Future: extraction tasks (procedure + materials from uploaded papers), schema validation assistance, summarization. |
-| **Behind an adapter** | `AIProviderAdapter` interface per ADR-0006. All OpenAI / Anthropic / etc. SDK imports limited to `05_app/server/adapters/ai.<vendor>.ts`. Per-tenant routing with sensitivity tags. |
-| **Deliberate exceptions** | (none — substrate only, no provider wired in V1.) |
+| **What we use it for** | First AI feature wired (ADR-0061): the AI conversation block, via **Anthropic (Claude)** with a **bring-your-own, per-workspace key** (encrypted at rest; `ai_provider_connection`). Future: extraction tasks, schema validation assistance, summarization. |
+| **Behind an adapter** | `AIProviderAdapter` (`server/adapters/ai.ts`); impl `ai.anthropic.ts` (Claude over HTTP — `validateKey` + `chat`). All Anthropic/OpenAI calls confined to `ai.<vendor>.ts`; feature code never imports a vendor. The BYO key is decrypted + passed per call. |
+| **Deliberate exceptions** | (none — no vendor SDK imported; the Anthropic HTTP calls are confined to `ai.anthropic.ts`.) |
 | **Migration target** | Per-tenant or per-task. Multiple providers can be active simultaneously. |
 | **Cost-ceiling trigger** | Cost-per-invocation tracked in `TenantAIMeter`; trigger when monthly cost > $50/tenant OR when token consumption pattern suggests caching gaps. |
 

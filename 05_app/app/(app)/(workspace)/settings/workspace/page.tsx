@@ -1,4 +1,5 @@
 import { ActivityFilterSettings } from "@/components/feature/settings/activity-filter-settings";
+import { AiProviderSettings } from "@/components/feature/settings/ai-provider-settings";
 import { DemoContentToggle } from "@/components/feature/settings/demo-content-toggle";
 import { getServerApi } from "@/server/trpc/server";
 
@@ -33,6 +34,12 @@ export default async function WorkspaceSettingsPage() {
         <DemoContentToggle />
         <div className="mt-2 border-t border-[var(--color-border-subtle)] pt-4">
           <ActivityFilterSettings />
+        </div>
+        <div className="mt-2 border-t border-[var(--color-border-subtle)] pt-4">
+          <h3 className="mb-2 text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">
+            AI provider
+          </h3>
+          <AiProviderSettings />
         </div>
       </section>
     </main>
