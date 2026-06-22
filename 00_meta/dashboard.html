@@ -438,8 +438,8 @@
   "project": "Massive Research Tool",
   "tagline": "Multi-tenant SaaS for psychological experiments",
   "lastUpdated": "2026-06-21",
-  "currentFocus": "Playground/Cowork Phase 2 built (to-do + poll/vote, ADR-0059) — awaiting deploy (migration 0030 runs first). Phase 1 + factorial follow-ups already live (v1.16.0-a23/a24). P2: migration 0030 (poll_options jsonb + playground_card_vote table), router vote + todo done/assignee + poll tallies/myVote in list, UI to-do cards (done + assignee) and poll cards (vote bars, click-to-vote/clear). 626 tests green; commits 81f3a4a + 7046d2e.",
-  "currentFocusPrev": "Playground/Cowork Phase 1 DEPLOYED (v1.16.0-a23, e21ebef, migration 0029). Factorial follow-ups built (awaiting deploy, no migration): Results page gained a 'By combination' breakdown (variants were invisible there — only 'By condition'); renamed researcher-facing 'cell'→'combination' (export column variant_combination, Variants help + preview selector, flow node) while keeping internal variant_cell/VariantCell per the dev-vs-researcher vocabulary rule. 623 tests green; commit 6b786ac.",
+  "currentFocus": "Playground Phase 3 built — multi-item to-do checklists, assignee + card-added notifications (every card, incl. poll), inline edit, drag-to-reorder. Awaiting deploy (migration 0031, additive todo_items jsonb). P1/P2 live (v1.16.0-a23–a25). 629 tests green; commits 4fa9453 + b6d8e6a. Next obvious fix: a 'variants not in your published version' warning in the Variants editor.",
+  "currentFocusPrev": "Playground/Cowork Phase 2 built (to-do + poll/vote, ADR-0059) — awaiting deploy (migration 0030 runs first). Phase 1 + factorial follow-ups already live (v1.16.0-a23/a24). P2: migration 0030 (poll_options jsonb + playground_card_vote table), router vote + todo done/assignee + poll tallies/myVote in list, UI to-do cards (done + assignee) and poll cards (vote bars, click-to-vote/clear). 626 tests green; commits 81f3a4a + 7046d2e.",
   "phases": [
     {
       "id": "foundation",
@@ -1212,6 +1212,9 @@
     }
   ],
   "recentActivity": [
+    {
+      "text": "feat(playground): Phase 3 — multi-item to-do, assignment + card-added notifications, inline edit, drag-to-reorder (ADR-0059). Migration 0031. 629 green. Commits 4fa9453 + b6d8e6a. Awaiting deploy."
+    },
     {
       "text": "feat(playground): Phase 2 — to-do + poll/vote (ADR-0059). Migration 0030 (poll_options + vote table); router vote/todo; UI cards. 626 green. Commits 81f3a4a + 7046d2e. Awaiting deploy."
     },
