@@ -528,9 +528,6 @@ export type StudyDetail = {
   /** Factorial variants (ADR-0058) — factors/levels + field→factor bindings; empty = single-variant. */
   factors: import("@/lib/variants/factorial").VariantFactor[];
   variantBindings: import("@/lib/variants/factorial").VariantBinding[];
-  /** Draft has variants that aren't in the running (published) version yet — runs
-   *  won't be assigned a combination until the edits are made live (ADR-0058/0059). */
-  variantsNeedPublish: boolean;
   /** Participant-facing theme (ADR-0024); Academic defaults when never set. */
   theme: import("@/lib/themes/themes").StudyTheme;
   /** The caller's role in the owning workspace — drives client-side write gating (mirrors writeProcedure: viewers are read-only). */
@@ -1571,30 +1568,6 @@ export const studiesRouter = router({
 
       if (!row) throw new TRPCError({ code: "NOT_FOUND" });
 
-      // Variants live only once frozen into a runnable version (ADR-0058): if the
-      // Draft declares factors that the latest runnable version doesn't carry,
-      // runs won't be assigned a combination until the edits are made live.
-      const draftFactors = readFactors(row.version?.definitionSnapshot);
-      let variantsNeedPublish = false;
-      if (draftFactors.length > 0) {
-        const [latestRunnable] = await db
-          .select({ snapshot: experimentVersion.definitionSnapshot })
-          .from(experimentVersion)
-          .where(
-            and(
-              eq(experimentVersion.experimentId, input.id),
-              inArray(experimentVersion.kind, RUNNABLE_KINDS),
-            ),
-          )
-          .orderBy(desc(experimentVersion.versionNumber))
-          .limit(1);
-        if (latestRunnable) {
-          const sig = (fs: ReturnType<typeof readFactors>) =>
-            JSON.stringify(fs.map((f) => [f.id, f.levels.map((l) => l.id)]));
-          variantsNeedPublish = sig(readFactors(latestRunnable.snapshot)) !== sig(draftFactors);
-        }
-      }
-
       const blocks: StudyBlock[] = readBlocks(row.version?.definitionSnapshot).map((b) => {
         const d = blockDisplay(b);
         // Merge the module's CURRENT defaults under the saved config so fields
@@ -1636,9 +1609,8 @@ export const studiesRouter = router({
         consent: readConsent(row.version?.definitionSnapshot),
         archivedAt: row.experiment.archivedAt?.toISOString() ?? null,
         groups: readGroups(row.version?.definitionSnapshot),
-        factors: draftFactors,
+        factors: readFactors(row.version?.definitionSnapshot),
         variantBindings: readVariantBindings(row.version?.definitionSnapshot),
-        variantsNeedPublish,
         theme: readTheme(row.version?.definitionSnapshot),
         viewerRole: ctx.role as MemberRole,
       };
