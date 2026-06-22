@@ -17,7 +17,9 @@ export type EventType =
   | "new_named_version" // a study you follow saved a new named version
   | "study_finished" // a study (yours or one you follow) was marked finished (ADR-0054)
   | "proposal_open" // someone proposed changes to your study (ADR-0036)
-  | "proposal_decided"; // your proposal was accepted/declined
+  | "proposal_decided" // your proposal was accepted/declined
+  | "playground_assigned" // a Playground to-do was assigned to you (ADR-0059 P3)
+  | "playground_card_added"; // a card was added to a Playground board you're in (ADR-0059 P3)
 
 export const EVENT_TYPES: EventType[] = [
   "mention",
@@ -32,6 +34,8 @@ export const EVENT_TYPES: EventType[] = [
   "study_finished",
   "proposal_open",
   "proposal_decided",
+  "playground_assigned",
+  "playground_card_added",
 ];
 
 /**

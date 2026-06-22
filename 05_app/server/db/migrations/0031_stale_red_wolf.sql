@@ -1,0 +1,1 @@
+ALTER TABLE "playground_card" ADD COLUMN "todo_items" jsonb;

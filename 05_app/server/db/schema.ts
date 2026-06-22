@@ -889,9 +889,11 @@ export const playgroundCard = pgTable(
     refDoi: text("ref_doi"), // reference cards — resolved via Crossref
     // Phase 2 (poll) — the choices; null for non-poll kinds.
     pollOptions: jsonb("poll_options").$type<{ id: string; label: string }[] | null>(),
-    // Phase 2 (todo).
-    assigneeUserId: uuid("assignee_user_id").references(() => user.id),
-    done: boolean("done").notNull().default(false),
+    // Phase 2/3 (todo).
+    assigneeUserId: uuid("assignee_user_id").references(() => user.id), // card-level assignee (notified)
+    done: boolean("done").notNull().default(false), // legacy single-item flag; multi-item lives in todoItems
+    // Phase 3 (todo) — the checklist; null for non-todo kinds.
+    todoItems: jsonb("todo_items").$type<{ id: string; label: string; done: boolean }[] | null>(),
     // Board ordering (drag-to-reorder); fractional so inserts don't renumber.
     position: numeric("position").notNull().default("0"),
     // Non-destructive convert-to-study linkage (ADR-0059): set, source kept.

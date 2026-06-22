@@ -354,6 +354,17 @@ function describe(n: NotificationDTO): {
     }
     case "osf_registration_withdrawn":
       return { text: `The OSF registration for ${named} was withdrawn`, href: studyHref };
+    case "playground_assigned": {
+      const ct = typeof p.cardTitle === "string" && p.cardTitle ? `“${p.cardTitle}”` : "a to-do";
+      return { text: `${actor} assigned ${ct} to you`, href: "/playground" as Route };
+    }
+    case "playground_card_added": {
+      const kindLabel =
+        typeof p.cardKind === "string"
+          ? { link: "a link", note: "a note", image: "an image", file: "a file", reference: "a reference", todo: "a to-do", poll: "a poll" }[p.cardKind] ?? "a card"
+          : "a card";
+      return { text: `${actor} added ${kindLabel} to the Playground`, href: "/playground" as Route };
+    }
     default:
       return { text: `${actor} updated ${named}`, href: studyHref };
   }
