@@ -148,18 +148,23 @@ export function AiChatConfig({
         />
       </label>
 
-      <div className="flex gap-3">
-        <label className="flex flex-1 flex-col gap-1">
-          <span className={labelCls}>Model</span>
-          <select value={cfg.model} onChange={(e) => set({ model: e.target.value })} className={fieldCls}>
-            {MODELS.map((m) => (
-              <option key={m.value} value={m.value}>
-                {m.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex w-28 flex-col gap-1">
+      <label className="flex min-w-0 flex-col gap-1">
+        <span className={labelCls}>Model</span>
+        <select
+          value={cfg.model}
+          onChange={(e) => set({ model: e.target.value })}
+          className={`${fieldCls} w-full min-w-0`}
+        >
+          {MODELS.map((m) => (
+            <option key={m.value} value={m.value}>
+              {m.label}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <div className="flex flex-wrap gap-3">
+        <label className="flex w-24 flex-col gap-1">
           <span className={labelCls}>Max replies</span>
           <input
             type="number"
@@ -167,25 +172,27 @@ export function AiChatConfig({
             max={50}
             value={cfg.maxTurns}
             onChange={(e) => set({ maxTurns: Math.max(1, Math.min(50, Number(e.target.value) || 1)) })}
-            className={fieldCls}
+            className={`${fieldCls} w-full`}
+          />
+        </label>
+        <label className="flex w-24 flex-col gap-1">
+          <span className={labelCls}>Time limit (min)</span>
+          <input
+            type="number"
+            min={0}
+            max={60}
+            step={1}
+            value={Math.round(cfg.timeLimitSec / 60)}
+            onChange={(e) =>
+              set({ timeLimitSec: Math.max(0, Math.min(60, Number(e.target.value) || 0)) * 60 })
+            }
+            className={`${fieldCls} w-full`}
           />
         </label>
       </div>
-
-      <label className="flex w-fit flex-col gap-1">
-        <span className={labelCls}>Time limit (minutes — 0 = no limit)</span>
-        <input
-          type="number"
-          min={0}
-          max={60}
-          step={1}
-          value={Math.round(cfg.timeLimitSec / 60)}
-          onChange={(e) =>
-            set({ timeLimitSec: Math.max(0, Math.min(60, Number(e.target.value) || 0)) * 60 })
-          }
-          className={`${fieldCls} w-28`}
-        />
-      </label>
+      <p className="-mt-2 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+        Max replies = how many turns the participant gets (the x/8 counter). Time limit: 0 = no limit.
+      </p>
 
       <p className="rounded-[var(--radius-md)] bg-[var(--color-surface-subtle)] p-2 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
         Uses your workspace&rsquo;s Anthropic key (Settings → AI provider). Each participant&rsquo;s
