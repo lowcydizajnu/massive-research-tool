@@ -144,6 +144,10 @@ describe("templates.useTemplate", () => {
     const [newExp] = await db.select().from(experiment).where(eq(experiment.id, newStudyId));
     expect(newExp.tenantId).toBe(ws.id);
     expect(newExp.ownerId).toBe(u.id);
+    // A template clone is a DUPLICATE, not a replication — no fork lineage, so the
+    // Builder must NOT show a "Replicating X" banner (bug fix 2026-06-22).
+    expect(newExp.forkOfExperimentId).toBeNull();
+    expect(newExp.forkOfVersionId).toBeNull();
     const [newVer] = await db.select().from(experimentVersion).where(eq(experimentVersion.id, newExp.currentVersionId!));
     expect((newVer.definitionSnapshot as { blocks: { key: string }[] }).blocks.map((b) => b.key)).toEqual(["free-text", "likert-7"]);
 
