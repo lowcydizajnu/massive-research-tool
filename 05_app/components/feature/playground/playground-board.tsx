@@ -7,11 +7,13 @@ import {
   CheckSquare,
   ExternalLink,
   FileText,
+  GripVertical,
   Image as ImageIcon,
   Lightbulb,
   Link as LinkIcon,
   ListChecks,
   MessageSquare,
+  Pencil,
   Plus,
   Square,
   StickyNote,
@@ -70,6 +72,7 @@ export function PlaygroundBoard() {
 
   const [adding, setAdding] = useState<Kind | null>(null);
   const [openComments, setOpenComments] = useState<string | null>(null);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
 
   const invalidate = () => utils.playground.list.invalidate();
 
@@ -78,13 +81,14 @@ export function PlaygroundBoard() {
 
   const cards = board.data ?? [];
 
-  function move(index: number, dir: -1 | 1) {
-    const next = index + dir;
-    if (next < 0 || next >= cards.length) return;
+  function reorderTo(from: number, to: number) {
+    if (from === to || from < 0 || to < 0 || from >= cards.length || to >= cards.length) return;
     const ids = cards.map((c) => c.id);
-    [ids[index], ids[next]] = [ids[next], ids[index]];
+    const [moved] = ids.splice(from, 1);
+    ids.splice(to, 0, moved);
     reorder.mutate({ orderedIds: ids });
   }
+  const move = (index: number, dir: -1 | 1) => reorderTo(index, index + dir);
 
   return (
     <div className="flex flex-col gap-4">
@@ -142,12 +146,28 @@ export function PlaygroundBoard() {
       ) : (
         <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-label="Playground cards">
           {cards.map((card, i) => (
-            <li key={card.id}>
+            <li
+              key={card.id}
+              onDragOver={canEdit ? (e) => e.preventDefault() : undefined}
+              onDrop={
+                canEdit
+                  ? (e) => {
+                      e.preventDefault();
+                      if (dragIndex !== null) reorderTo(dragIndex, i);
+                      setDragIndex(null);
+                    }
+                  : undefined
+              }
+              className={cn(dragIndex === i && "opacity-50")}
+            >
               <PlaygroundCardView
                 card={card}
                 index={i}
                 count={cards.length}
                 canEdit={canEdit}
+                draggable={canEdit}
+                onDragStart={() => setDragIndex(i)}
+                onDragEnd={() => setDragIndex(null)}
                 onMove={move}
                 onRemove={(id) => remove.mutate({ id })}
                 onOpenComments={() => setOpenComments(card.id)}
@@ -173,6 +193,9 @@ function PlaygroundCardView({
   index,
   count,
   canEdit,
+  draggable,
+  onDragStart,
+  onDragEnd,
   onMove,
   onRemove,
   onOpenComments,
@@ -181,6 +204,9 @@ function PlaygroundCardView({
   index: number;
   count: number;
   canEdit: boolean;
+  draggable?: boolean;
+  onDragStart?: () => void;
+  onDragEnd?: () => void;
   onMove: (index: number, dir: -1 | 1) => void;
   onRemove: (id: string) => void;
   onOpenComments: () => void;
@@ -188,6 +214,7 @@ function PlaygroundCardView({
   const router = useRouter();
   const utils = api.useUtils();
   const convert = api.playground.convertToStudy.useMutation();
+  const [editing, setEditing] = useState(false);
   const meta = KIND_META[(card.kind as Kind) ?? "note"] ?? KIND_META.note;
   const Icon = meta.icon;
 
@@ -198,13 +225,29 @@ function PlaygroundCardView({
   }
 
   return (
-    <article className="flex h-full flex-col gap-3 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-4 shadow-[var(--shadow-sm)]">
+    <article
+      draggable={draggable}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      className="flex h-full flex-col gap-3 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-4 shadow-[var(--shadow-sm)]"
+    >
       <div className="flex items-center justify-between gap-2">
-        <span className={chipClass} style={chipStyle(meta.chip)}>
-          <Icon className="size-3.5" aria-hidden /> {meta.label}
+        <span className="flex items-center gap-1.5">
+          {canEdit && (
+            <GripVertical
+              className="size-4 cursor-grab text-[var(--color-text-muted)]"
+              aria-hidden
+            />
+          )}
+          <span className={chipClass} style={chipStyle(meta.chip)}>
+            <Icon className="size-3.5" aria-hidden /> {meta.label}
+          </span>
         </span>
         {canEdit && (
           <div className="flex items-center gap-0.5">
+            <IconBtn label="Edit card" onClick={() => setEditing((v) => !v)}>
+              <Pencil className="size-4" />
+            </IconBtn>
             <IconBtn label="Move up" disabled={index === 0} onClick={() => onMove(index, -1)}>
               <ArrowUp className="size-4" />
             </IconBtn>
@@ -218,13 +261,18 @@ function PlaygroundCardView({
         )}
       </div>
 
-      {card.title && (
-        <h3 className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">
-          {card.title}
-        </h3>
+      {editing ? (
+        <EditCardForm card={card} onClose={() => setEditing(false)} />
+      ) : (
+        <>
+          {card.title && (
+            <h3 className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">
+              {card.title}
+            </h3>
+          )}
+          <CardContent card={card} />
+        </>
       )}
-
-      <CardContent card={card} />
 
       {card.kind === "todo" ? <TodoControls card={card} canEdit={canEdit} /> : null}
       {card.kind === "poll" ? <PollControls card={card} canEdit={canEdit} /> : null}
@@ -334,39 +382,99 @@ function TodoControls({ card, canEdit }: { card: CardDTO; canEdit: boolean }) {
   const utils = api.useUtils();
   const members = api.workspace.members.useQuery();
   const update = api.playground.update.useMutation({ onSuccess: () => utils.playground.list.invalidate() });
+  const [newItem, setNewItem] = useState("");
+  const items = card.todoItems ?? [];
+
+  const setItems = (next: { id: string; label: string; done: boolean }[]) =>
+    update.mutate({ id: card.id, todoItems: next });
+  const toggle = (id: string) =>
+    setItems(items.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
+  const remove = (id: string) => setItems(items.filter((t) => t.id !== id));
+  const add = () => {
+    if (!newItem.trim()) return;
+    setItems([...items, { id: `ti_${newItem.length}_${items.length}_${Date.now() % 100000}`, label: newItem.trim(), done: false }]);
+    setNewItem("");
+  };
+
+  const doneCount = items.filter((t) => t.done).length;
 
   return (
-    <div className="flex flex-wrap items-center gap-2 text-[length:var(--text-small)]">
-      <button
-        type="button"
-        disabled={!canEdit || update.isPending}
-        onClick={() => update.mutate({ id: card.id, done: !card.done })}
-        className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] px-1 py-0.5 text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)] disabled:opacity-60"
-      >
-        {card.done ? (
-          <CheckSquare className="size-4 text-[var(--color-success)]" aria-hidden />
-        ) : (
-          <Square className="size-4" aria-hidden />
-        )}
-        <span className={card.done ? "text-[var(--color-text-muted)] line-through" : ""}>Done</span>
-      </button>
-      {canEdit ? (
-        <select
-          value={card.assigneeUserId ?? ""}
-          onChange={(e) => update.mutate({ id: card.id, assigneeUserId: e.target.value || null })}
-          className="rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-1 text-[var(--color-text-secondary)]"
-          aria-label="Assignee"
-        >
-          <option value="">Unassigned</option>
-          {(members.data ?? []).map((m) => (
-            <option key={m.userId} value={m.userId}>
-              {m.displayName}
-            </option>
+    <div className="flex flex-col gap-2 text-[length:var(--text-small)]">
+      {items.length > 0 && (
+        <ul className="flex flex-col gap-1">
+          {items.map((t) => (
+            <li key={t.id} className="flex items-center gap-1.5">
+              <button
+                type="button"
+                disabled={!canEdit || update.isPending}
+                onClick={() => toggle(t.id)}
+                className="inline-flex items-center gap-1.5 text-left text-[var(--color-text-secondary)] disabled:opacity-60"
+                aria-pressed={t.done}
+              >
+                {t.done ? (
+                  <CheckSquare className="size-4 shrink-0 text-[var(--color-success)]" aria-hidden />
+                ) : (
+                  <Square className="size-4 shrink-0" aria-hidden />
+                )}
+                <span className={t.done ? "text-[var(--color-text-muted)] line-through" : ""}>{t.label}</span>
+              </button>
+              {canEdit && (
+                <button
+                  type="button"
+                  aria-label={`Remove ${t.label}`}
+                  onClick={() => remove(t.id)}
+                  className="ml-auto text-[var(--color-text-muted)] hover:text-[var(--color-danger)]"
+                >
+                  <X className="size-3.5" />
+                </button>
+              )}
+            </li>
           ))}
-        </select>
-      ) : card.assigneeName ? (
-        <span className="text-[var(--color-text-secondary)]">→ {card.assigneeName}</span>
-      ) : null}
+        </ul>
+      )}
+      {canEdit && (
+        <div className="flex items-center gap-1.5">
+          <input
+            value={newItem}
+            onChange={(e) => setNewItem(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                add();
+              }
+            }}
+            placeholder="Add an item…"
+            className="min-w-0 flex-1 rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-1 text-[var(--color-text-primary)]"
+          />
+          <IconBtn label="Add item" onClick={add} disabled={!newItem.trim()}>
+            <Plus className="size-4" />
+          </IconBtn>
+        </div>
+      )}
+      <div className="flex flex-wrap items-center gap-2 text-[var(--color-text-muted)]">
+        {items.length > 0 && (
+          <span>
+            {doneCount}/{items.length} done
+          </span>
+        )}
+        {canEdit ? (
+          <select
+            value={card.assigneeUserId ?? ""}
+            onChange={(e) => update.mutate({ id: card.id, assigneeUserId: e.target.value || null })}
+            className="rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-1 text-[var(--color-text-secondary)]"
+            aria-label="Assignee"
+          >
+            <option value="">Unassigned</option>
+            {(members.data ?? []).map((m) => (
+              <option key={m.userId} value={m.userId}>
+                {m.displayName}
+              </option>
+            ))}
+          </select>
+        ) : card.assigneeName ? (
+          <span>→ {card.assigneeName}</span>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -418,6 +526,64 @@ function PollControls({ card, canEdit }: { card: CardDTO; canEdit: boolean }) {
   );
 }
 
+function EditCardForm({ card, onClose }: { card: CardDTO; onClose: () => void }) {
+  const utils = api.useUtils();
+  const update = api.playground.update.useMutation({
+    onSuccess: () => {
+      utils.playground.list.invalidate();
+      onClose();
+    },
+  });
+  const [title, setTitle] = useState(card.title ?? "");
+  const [body, setBody] = useState(card.body ?? "");
+  const [url, setUrl] = useState(card.url ?? "");
+  const showBody = card.kind === "note" || card.kind === "reference";
+  const showUrl = card.kind === "link";
+
+  function save() {
+    update.mutate({
+      id: card.id,
+      title: title.trim() || null,
+      ...(showBody ? { body: body.trim() || null } : {}),
+      ...(showUrl ? { url: url.trim() || null } : {}),
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <Field label={card.kind === "poll" ? "Question" : card.kind === "todo" ? "Task" : "Title"}>
+        <input value={title} onChange={(e) => setTitle(e.target.value)} className={inputCls} />
+      </Field>
+      {showUrl && (
+        <Field label="URL">
+          <input type="url" value={url} onChange={(e) => setUrl(e.target.value)} className={inputCls} />
+        </Field>
+      )}
+      {showBody && (
+        <Field label="Body">
+          <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={3} className={inputCls} />
+        </Field>
+      )}
+      <div className="flex items-center gap-2">
+        <PendingButton
+          pending={update.isPending}
+          onClick={save}
+          idleLabel="Save"
+          pendingLabel="Saving…"
+          className="px-3 py-1.5 text-[length:var(--text-small)]"
+        />
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-[length:var(--text-small)] text-[var(--color-text-secondary)] hover:underline"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function IconBtn({
   label,
   onClick,
@@ -462,6 +628,7 @@ function AddCardForm({
   const [mediaKey, setMediaKey] = useState("");
   const [doi, setDoi] = useState("");
   const [pollOptions, setPollOptions] = useState<string[]>(["", ""]);
+  const [todoItems, setTodoItems] = useState<string[]>([""]);
   const [error, setError] = useState<string | null>(null);
   const meta = KIND_META[kind];
 
@@ -496,7 +663,8 @@ function AddCardForm({
         }
       } else if (kind === "todo") {
         if (!title.trim()) return setError("Name the task.");
-        await create.mutateAsync({ kind, title: title.trim() });
+        const items = todoItems.map((t) => t.trim()).filter(Boolean);
+        await create.mutateAsync({ kind, title: title.trim(), ...(items.length ? { todoItems: items } : {}) });
       } else if (kind === "poll") {
         if (!title.trim()) return setError("Write the question.");
         const opts = pollOptions.map((o) => o.trim()).filter(Boolean);
@@ -610,6 +778,42 @@ function AddCardForm({
                 className="inline-flex items-center gap-1 self-start text-[length:var(--text-small)] text-[var(--color-primary)] hover:underline"
               >
                 <Plus className="size-3.5" aria-hidden /> Add option
+              </button>
+            )}
+          </div>
+        </Field>
+      )}
+
+      {kind === "todo" && (
+        <Field label="Checklist items (optional)">
+          <div className="flex flex-col gap-1.5">
+            {todoItems.map((item, i) => (
+              <div key={i} className="flex items-center gap-1.5">
+                <input
+                  value={item}
+                  onChange={(e) =>
+                    setTodoItems((prev) => prev.map((o, j) => (j === i ? e.target.value : o)))
+                  }
+                  placeholder={`Item ${i + 1}`}
+                  className={inputCls}
+                />
+                {todoItems.length > 1 && (
+                  <IconBtn
+                    label={`Remove item ${i + 1}`}
+                    onClick={() => setTodoItems((prev) => prev.filter((_, j) => j !== i))}
+                  >
+                    <X className="size-4" />
+                  </IconBtn>
+                )}
+              </div>
+            ))}
+            {todoItems.length < 50 && (
+              <button
+                type="button"
+                onClick={() => setTodoItems((prev) => [...prev, ""])}
+                className="inline-flex items-center gap-1 self-start text-[length:var(--text-small)] text-[var(--color-primary)] hover:underline"
+              >
+                <Plus className="size-3.5" aria-hidden /> Add item
               </button>
             )}
           </div>
