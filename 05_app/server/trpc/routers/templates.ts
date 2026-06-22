@@ -289,8 +289,11 @@ export const templatesRouter = router({
             ownerId: ctx.dbUser.id,
             title: t.name,
             tags: t.tags.length ? t.tags : null,
-            forkOfExperimentId: t.sourceExperimentId,
-            forkOfVersionId: t.sourceVersionId,
+            // NO fork lineage: using a template is a DUPLICATE of the frozen
+            // snapshot into a fresh, independent study — not a replication of the
+            // source study (Replicate/forkOf* is for finished studies, ADR-0018).
+            // Setting forkOf* here made the new study show a false "Replicating X"
+            // banner (bug, 2026-06-22).
           })
           .returning();
         const [version] = await tx
