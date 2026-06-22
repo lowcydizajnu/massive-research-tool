@@ -1328,3 +1328,52 @@ export const workspaceTemplate = pgTable(
 
 export type WorkspaceTemplate = typeof workspaceTemplate.$inferSelect;
 export type NewWorkspaceTemplate = typeof workspaceTemplate.$inferInsert;
+
+/**
+ * Workspace Materials (ADR-0064, Library L3). A reusable stimulus-media library
+ * at the workspace level: the row is curated metadata over an asset stored in the
+ * R2 `ws/<workspace>/materials/` namespace. Blocks reference the `r2_key` (NOT
+ * this row's id) so deleting a material never breaks a study and frozen versions
+ * don't mutate. Researcher stimuli, not participant PII (ADR-0014). Soft-deleted.
+ */
+export const workspaceMaterial = pgTable(
+  "workspace_material",
+  {
+    id: text("id").primaryKey(), // ULID
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspace.id),
+    kind: text("kind").notNull(), // 'image' | 'audio' | 'video' | 'document'
+    name: text("name").notNull(),
+    description: text("description"),
+    tags: text("tags").array().notNull().default(sql`'{}'`),
+    /** The durable reference — blocks point at this key, never the row id. */
+    r2Key: text("r2_key").notNull(),
+    mimeType: text("mime_type").notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    width: integer("width"),
+    height: integer("height"),
+    durationMs: integer("duration_ms"),
+    uploadedByUserId: uuid("uploaded_by_user_id")
+      .notNull()
+      .references(() => user.id),
+    /** Provenance (ADR-0064): how the asset entered the library. */
+    sourceKind: text("source_kind").notNull().default("upload"),
+    useCount: integer("use_count").notNull().default(0),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  },
+  (t) => [
+    check("workspace_material_kind", sql`${t.kind} IN ('image', 'audio', 'video', 'document')`),
+    check(
+      "workspace_material_source_kind",
+      sql`${t.sourceKind} IN ('upload', 'study-block-promote', 'playground-promote', 'tts-cache')`,
+    ),
+    index("idx_workspace_material_ws").on(t.workspaceId, t.kind, t.createdAt),
+  ],
+);
+
+export type WorkspaceMaterial = typeof workspaceMaterial.$inferSelect;
+export type NewWorkspaceMaterial = typeof workspaceMaterial.$inferInsert;
