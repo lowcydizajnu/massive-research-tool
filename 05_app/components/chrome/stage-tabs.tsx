@@ -17,7 +17,8 @@ function hrefFor(stage: Stage, studyId: string): Route | null {
   if (stage === "Overview") return `/studies/${studyId}/overview` as Route;
   if (stage === "Build") return `/studies/${studyId}/build` as Route;
   if (stage === "Design") return `/studies/${studyId}/design` as Route;
-  if (stage === "Preview") return `/studies/${studyId}/preview` as Route;
+  // Preview opens the side-by-side builder preview (full-screen reachable from there).
+  if (stage === "Preview") return `/studies/${studyId}/build?preview=1` as Route;
   if (stage === "Share") return `/studies/${studyId}/share` as Route;
   if (stage === "Preregister") return `/studies/${studyId}/preregister` as Route;
   if (stage === "Run") return `/studies/${studyId}/run` as Route;
