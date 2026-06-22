@@ -253,9 +253,11 @@ describe("playground comments (reuse the comment table, no study)", () => {
     expect(thread.map((t) => t.bodyMd)).toEqual(["What do you think @maya?"]);
     expect(thread[0].mentionedUserIds).toEqual([maya.id]);
 
-    // Only the mention event fires (no study-owner thread notification on a board).
+    // The comment fires only a mention event (no study-owner thread notification
+    // on a board). The card-creation `playground_card_added` event is separate.
     const events = await db.select().from(activityEvent);
-    expect(events.map((e) => e.type)).toEqual(["mention"]);
+    const commentEvents = events.map((e) => e.type).filter((t) => t !== "playground_card_added");
+    expect(commentEvents).toEqual(["mention"]);
 
     // The board reflects the comment count.
     const [board] = await caller.playground.list();
@@ -278,6 +280,59 @@ describe("playground comments (reuse the comment table, no study)", () => {
     await expect(mayaCaller.playground.deleteComment({ commentId: id })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await caller.playground.deleteComment({ commentId: id });
     expect(await db.select().from(comment).where(eq(comment.id, id))).toHaveLength(0);
+  });
+});
+
+describe("playground Phase 3 — multi-item todo + notifications", () => {
+  it("creates a multi-item todo checklist and toggles items via update", async () => {
+    await seedOwner("hanna", "Lab");
+    const caller = createCaller({ authUser: authUser("hanna") });
+    const { id } = await caller.playground.create({
+      kind: "todo",
+      title: "Launch checklist",
+      todoItems: ["Pilot", "IRB", "Recruit"],
+    });
+    let card = (await caller.playground.list())[0];
+    expect(card.todoItems?.map((t) => t.label)).toEqual(["Pilot", "IRB", "Recruit"]);
+    expect(card.todoItems?.every((t) => !t.done)).toBe(true);
+
+    const items = card.todoItems!.map((t) => (t.label === "IRB" ? { ...t, done: true } : t));
+    await caller.playground.update({ id, todoItems: items });
+    card = (await caller.playground.list())[0];
+    expect(card.todoItems?.find((t) => t.label === "IRB")?.done).toBe(true);
+  });
+
+  it("emits a card-added event addressed to other members (not the author)", async () => {
+    const { workspace: ws, user: owner } = await seedOwner("hanna", "Lab");
+    const maya = await addMember(ws.id, "maya");
+    const caller = createCaller({ authUser: authUser("hanna") });
+    await caller.playground.create({ kind: "poll", title: "Which?", pollOptions: ["a", "b"] });
+
+    // emit() writes the activity_event synchronously; the notification fan-out is
+    // an enqueued job (mocked), so we assert the event + its recipient payload.
+    const [ev] = await db.select().from(activityEvent).where(eq(activityEvent.type, "playground_card_added"));
+    expect(ev).toBeTruthy();
+    const payload = ev.payload as { recipientUserIds: string[]; cardKind: string };
+    expect(payload.cardKind).toBe("poll");
+    expect(payload.recipientUserIds).toEqual([maya.id]); // author excluded
+    expect(payload.recipientUserIds).not.toContain(owner.id);
+  });
+
+  it("emits an assignment event to the assignee, and not on re-assign to the same person", async () => {
+    const { workspace: ws } = await seedOwner("hanna", "Lab");
+    const maya = await addMember(ws.id, "maya");
+    const caller = createCaller({ authUser: authUser("hanna") });
+    const { id } = await caller.playground.create({ kind: "todo", title: "Do it" });
+    await caller.playground.update({ id, assigneeUserId: maya.id });
+
+    const evs = await db.select().from(activityEvent).where(eq(activityEvent.type, "playground_assigned"));
+    expect(evs).toHaveLength(1);
+    expect((evs[0].payload as { assigneeUserId: string }).assigneeUserId).toBe(maya.id);
+
+    // Re-assigning to the same person emits no new event.
+    await caller.playground.update({ id, assigneeUserId: maya.id });
+    const after = await db.select().from(activityEvent).where(eq(activityEvent.type, "playground_assigned"));
+    expect(after).toHaveLength(1);
   });
 });
 

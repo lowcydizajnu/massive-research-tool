@@ -71,6 +71,16 @@ export async function resolveRecipients(input: EmitInput): Promise<string[]> {
     case "study_finished":
       recipients = []; // Follows-only
       break;
+
+    case "playground_assigned":
+      // The newly-assigned member (ADR-0059 P3).
+      recipients = asIds(data.assigneeUserId);
+      break;
+
+    case "playground_card_added":
+      // Every other active board member — resolved by the router and passed in.
+      recipients = asIds(data.recipientUserIds);
+      break;
   }
 
   // Exclude the actor + dedupe.

@@ -37,6 +37,7 @@ const CARD_KINDS = ["link", "note", "image", "file", "reference", "todo", "poll"
 const PLAYGROUND_TARGET = "playground_card";
 
 export type PollOption = { id: string; label: string };
+export type TodoItem = { id: string; label: string; done: boolean };
 
 export type PlaygroundCardDTO = {
   id: string;
@@ -55,6 +56,7 @@ export type PlaygroundCardDTO = {
   assigneeUserId: string | null;
   assigneeName: string | null;
   done: boolean;
+  todoItems: TodoItem[] | null;
   position: number;
   convertedStudyId: string | null;
   createdByUserId: string;
@@ -168,6 +170,7 @@ export const playgroundRouter = router({
       assigneeUserId: card.assigneeUserId,
       assigneeName: assigneeName ?? null,
       done: card.done,
+      todoItems: card.todoItems ?? null,
       position: Number(card.position),
       convertedStudyId: card.convertedStudyId,
       createdByUserId: card.createdByUserId,
@@ -189,6 +192,7 @@ export const playgroundRouter = router({
         mediaKey: z.string().trim().max(500).nullish(),
         refDoi: z.string().trim().max(255).nullish(),
         pollOptions: z.array(z.string().trim().min(1).max(200)).min(2).max(12).optional(),
+        todoItems: z.array(z.string().trim().min(1).max(500)).max(50).optional(),
         assigneeUserId: z.string().uuid().nullish(),
       }),
     )
@@ -215,10 +219,44 @@ export const playgroundRouter = router({
           input.kind === "poll" && input.pollOptions
             ? input.pollOptions.map((label) => ({ id: ulid(), label }))
             : null,
+        todoItems:
+          input.kind === "todo" && input.todoItems
+            ? input.todoItems.map((label) => ({ id: ulid(), label, done: false }))
+            : null,
         assigneeUserId: input.assigneeUserId ?? null,
         position: String(Number(max) + 1),
         createdByUserId: ctx.dbUser.id,
       });
+
+      // Notify other active board members that a card landed (ADR-0059 P3).
+      const members = await activeMemberIds(ctx.workspace.id);
+      const recipientUserIds = [...members].filter((uid) => uid !== ctx.dbUser.id);
+      if (recipientUserIds.length) {
+        await emit({
+          type: "playground_card_added",
+          actorUserId: ctx.dbUser.id,
+          workspaceId: ctx.workspace.id,
+          targetType: PLAYGROUND_TARGET,
+          targetId: id,
+          data: {
+            recipientUserIds,
+            cardId: id,
+            cardKind: input.kind,
+            cardTitle: input.title?.trim() || null,
+          },
+        });
+      }
+      // A card created already assigned → tell the assignee too.
+      if (input.assigneeUserId && input.assigneeUserId !== ctx.dbUser.id) {
+        await emit({
+          type: "playground_assigned",
+          actorUserId: ctx.dbUser.id,
+          workspaceId: ctx.workspace.id,
+          targetType: PLAYGROUND_TARGET,
+          targetId: id,
+          data: { assigneeUserId: input.assigneeUserId, cardId: id, cardTitle: input.title?.trim() || null },
+        });
+      }
       return { id };
     }),
 
@@ -235,10 +273,14 @@ export const playgroundRouter = router({
         // todo
         assigneeUserId: z.string().uuid().nullish(),
         done: z.boolean().optional(),
+        todoItems: z
+          .array(z.object({ id: z.string().min(1), label: z.string().trim().min(1).max(500), done: z.boolean() }))
+          .max(50)
+          .optional(),
       }),
     )
     .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
-      await cardInWorkspace(input.id, ctx.workspace.id);
+      const card = await cardInWorkspace(input.id, ctx.workspace.id);
       const patch: Record<string, unknown> = { updatedAt: new Date() };
       if (input.title !== undefined) patch.title = input.title?.trim() || null;
       if (input.body !== undefined) patch.body = input.body?.trim() || null;
@@ -247,7 +289,28 @@ export const playgroundRouter = router({
       if (input.refDoi !== undefined) patch.refDoi = input.refDoi?.trim() || null;
       if (input.assigneeUserId !== undefined) patch.assigneeUserId = input.assigneeUserId ?? null;
       if (input.done !== undefined) patch.done = input.done;
+      if (input.todoItems !== undefined) patch.todoItems = input.todoItems;
       await db.update(playgroundCard).set(patch).where(eq(playgroundCard.id, input.id));
+
+      // Notify a newly-assigned member (assignee changed to a different, non-self user).
+      if (
+        input.assigneeUserId &&
+        input.assigneeUserId !== card.assigneeUserId &&
+        input.assigneeUserId !== ctx.dbUser.id
+      ) {
+        await emit({
+          type: "playground_assigned",
+          actorUserId: ctx.dbUser.id,
+          workspaceId: ctx.workspace.id,
+          targetType: PLAYGROUND_TARGET,
+          targetId: card.id,
+          data: {
+            assigneeUserId: input.assigneeUserId,
+            cardId: card.id,
+            cardTitle: (input.title ?? card.title)?.trim() || null,
+          },
+        });
+      }
       return { ok: true };
     }),
 

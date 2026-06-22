@@ -218,6 +218,13 @@
       "when": 1782077746122,
       "tag": "0030_loose_madame_web",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1782107235338,
+      "tag": "0031_stale_red_wolf",
+      "breakpoints": true
     }
   ]
 }
