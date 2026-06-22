@@ -1,8 +1,12 @@
-# Code tab handoff — V2.1 Hume emotion AI (drafted 2026-06-22 — owner scope-locked)
+# Code tab handoff — V2.1 Hume emotion AI (drafted 2026-06-22 — owner-locked, all 7 open questions resolved)
 
-> **V2.1 = Hume emotion-AI as an option on existing applicable blocks + four new dedicated blocks.** This is the second AI release after V2.0 (text-LLM substrate: measure picker, literature→blocks, hypothesis extraction). V2.1 introduces a **second AI vendor** with a different sensitivity profile — Hume analyzes voice/text/face emotion and generates emotional audio. Estimated **~12 weeks Code-tab time** across 6 PR streams. **BYOAI model locked** (researcher provides their own Hume API token; mirrors OSF/Prolific connect pattern).
+> **V2.1 = Hume emotion-AI as an option on existing applicable blocks + four new dedicated blocks.** This is the second AI release after V2.0 (text-LLM substrate: measure picker, literature→blocks, hypothesis extraction). V2.1 introduces a **second AI vendor** with a different sensitivity profile — Hume analyzes voice/text/face emotion and generates emotional audio. Estimated **~12.5 weeks Code-tab time** across 6 PR streams (12 original + 0.5 for the we-manage-EVI-configs work added 2026-06-22). **BYOAI model locked** (researcher provides their own Hume API token; mirrors OSF/Prolific connect pattern).
 >
 > **Scope-locked 2026-06-22:** none of #3 (Octave TTS) or #4 (EVI conversational interface) is deferred — all four feature families ship in V2.1. Emotion analysis is offered as an OPTION on all existing applicable blocks (any free-text input + any audio record) AND as four dedicated new block kinds.
+>
+> **Reconciliation 2026-06-22 (substrate already shipped):** While this handoff was being drafted, Code tab shipped **ADR-0061** + the V2.0 substrate (commits `df1fa9f` + `35890fe` + `24392d6`). What now exists in the codebase: `AIProviderAdapter` interface at `server/adapters/ai.ts`; Anthropic adapter `server/adapters/ai.anthropic.ts` (HTTP, key confined per ADR-0007); `ai_provider_connection` table (per-workspace BYO key, AES-256-GCM encrypted, masked on list); `ai.connections` tRPC router (`status` / `connect` / `disconnect`); a workspace-settings card to paste/validate/remove keys; and `ai-chat` block kind queued for the next slice (the text-LLM Claude conversation). **V2.1 extends this substrate** — no need to "land V2.0 first": (a) we add a `hume` row to the existing `ai_provider_connection` provider enum + add a nullable `encrypted_secret_key` column (Hume needs two keys); (b) extend the existing `ai.connections` router for Hume; (c) implement `server/adapters/ai.hume.ts`; (d) **rename my proposed `ai-conversation` block to `core/voice-conversation@1.0.0`** to avoid collision with the in-progress `ai-chat` (text) block. The two AI conversation blocks are siblings — `ai-chat` is text-LLM-mediated; `voice-conversation` is Hume EVI voice-mediated with emotion measurement. Different blocks, different modalities, same `AIProviderAdapter` seam.
+>
+> **All 7 open questions resolved 2026-06-22:** (1) **we manage EVI configs** via Hume's Configs API on the researcher's behalf — one Hume config per `voice-conversation` block instance, mirrored in our DB; (2) **participant raw-audio retention is a per-block toggle** (`'never' | 'session' | 'retained'`) so researchers can match retention to study type (default `'never'`); (3) **10 vetted TTS voice presets** for V2.1 (full picker = V2.2); (4) **$50/mo workspace AI budget default cap** on new workspaces; **owner-overridable per workspace**; existing workspaces get no default; (5) **keep both** `text-emotion-probe` block AND the free-text emotion-analysis option (different cognitive affordances for researchers); (6) **researcher-facing Hume branding** (visible in Builder Configure / Connections list / Results panels); **no participant-facing branding** unless Hume's TOS strongly requires it (pre-ship check, see H7); (7) **workspace-level cost rollup only** — no per-researcher attribution in the Usage dashboard.
 
 V2.1 unblocks **emotion-as-a-measure** for psychological research. Today researchers can collect audio responses (V1.12 `core/audio-record@1.0.0`) and free-text responses (V1.6 `core/free-text@1.0.0`), but the only signal they extract is the raw content + manual coding. V2.1 turns every voice and text response into a structured emotion-vector measure, and adds two new stimulus modalities (emotion-controlled TTS + voice-conversation-with-AI) that are impossible without specialized infrastructure.
 
@@ -15,6 +19,13 @@ V2.1 unblocks **emotion-as-a-measure** for psychological research. Today researc
 3. ✅ **All four feature families in scope.** Voice emotion (Feature #1) + text emotion (Feature #2) + Octave TTS stimulus (Feature #3) + EVI ai-conversation (Feature #4) all ship in V2.1. No deferrals.
 4. ✅ **Adapter discipline holds.** No `@hume/*` import outside `05_app/server/adapters/ai.hume.ts` per ADR-0007.
 5. ✅ **Sensitivity tier respects ADR-0006 + ADR-0014.** Voice = `pii` (biometric); text = `participant_data`; face = explicitly out-of-scope for V2.1 (no video capture today; revisit V2.2+). Withdraw flow per ADR-0014 cascades to the `ai_invocation` audit table.
+6. ✅ **EVI configs are managed by us.** We mirror Hume's Config schema in our DB; on block save, we create/update the config on Hume's side via their Configs API and store the returned `config_id`. Researchers never leave MRT to author EVI configs. (Adds ~3 days to H6; locked because it keeps the researcher mental model unified — system prompt + voice + caps live in our Builder, not on platform.hume.ai.)
+7. ✅ **Per-block participant audio retention.** `voice-conversation` config field `participantAudioRetention: 'never' | 'session' | 'retained'`. `'never'` = audio discarded after Hume turn-processing (default); `'session'` = retained for the study duration then auto-purged; `'retained'` = kept indefinitely (researcher acknowledges higher IRB burden — banner displayed). Same field is also added to the H3 `voice-emotion-probe` and the H3a `audio-record` emotion-option (where retention default is `'session'` because participants expect researchers to keep audio responses for analysis — different than EVI's discard-by-default ephemeral conversation).
+8. ✅ **10 vetted TTS voice presets for V2.1.** Curated list owned by us; researcher-friendly names mapped internally to Hume Octave voice IDs. Full Hume catalog picker = V2.2.
+9. ✅ **$50/mo default AI budget cap on new workspaces; per-workspace overridable.** Existing workspaces get no default cap (don't surprise current users). Owner can change the cap any time via Settings · Workspace → Usage → AI section.
+10. ✅ **Keep both `text-emotion-probe` block and the free-text emotion option.** The dedicated block puts emotion-as-primary in the Builder/Results affordance; the option augments existing measures. Different researcher intent; different surfaces.
+11. ✅ **Researcher-facing Hume branding; no participant-facing branding (unless TOS-required).** Visible in Builder Configure, AI Connections list, Results panels, Usage dashboard. Participant Take UI shows no Hume branding by default. **Pre-ship gate:** during PR H1.1, verify Hume's current TOS for participant-attribution requirements — if attribution is mandatory on participant-played generated audio, surface a small "🔊 generated by Hume" tag under TTS audio-stimulus playback (audio-stimulus only, not the other surfaces).
+12. ✅ **Workspace-level cost rollup only.** Usage dashboard does not split spend by researcher; per-researcher attribution = V2.2+ if requested.
 
 ---
 
@@ -41,7 +52,7 @@ V2.1 unblocks **emotion-as-a-measure** for psychological research. Today researc
 - `server/adapters/ai.hume.ts` (the only repo file allowed to import `@hume/*` per ADR-0007)
 - `ai_invocation` table is in ADR-0006 spec but not yet migrated (V2.0 lands the migration; V2.1 extends with Hume-specific columns)
 - Optional `analyzeEmotion: boolean` flag on every applicable existing block + the post-submit Inngest job that processes audio/text → Hume → result
-- 4 new block kinds: `core/voice-emotion-probe@1.0.0`, `core/text-emotion-probe@1.0.0`, `core/audio-stimulus@1.0.0`, `core/ai-conversation@1.0.0`
+- 4 new block kinds: `core/voice-emotion-probe@1.0.0`, `core/text-emotion-probe@1.0.0`, `core/audio-stimulus@1.0.0`, `core/voice-conversation@1.0.0`
 - Biometric-consent layer above V1.5 GDPR consent (per-study + per-block surfacing)
 - IRB-acknowledgment gate for Hume-using studies (mirrors V1.12 mimicking-presets pattern)
 - Emotion-vector results display (charts + per-condition distributions)
@@ -72,7 +83,7 @@ Clicking **Connect** opens a modal:
 - Field 2: **Hume Secret key** (Hume's auth uses both; required for EVI WebSocket)
 - Read-only info box: "Your key is encrypted at rest using `TOKEN_ENCRYPTION_KEY`. We never log raw keys. Disconnecting deletes the encrypted key but does not revoke it on Hume's side — do that separately at platform.hume.ai."
 - **Test connection** button: calls `humeAdapter.ping()` (a no-cost endpoint — Hume has a `/v0/me` or equivalent that returns the account holder); shows "Connected as: {account email}" on success.
-- Submit → encrypts both keys, writes one row to `ai_connection` table (`workspace_id`, `provider='hume'`, `encrypted_api_key`, `encrypted_secret_key`, `connected_by_user_id`, `connected_at`), redirects back to the AI Connections list.
+- Submit → encrypts both keys, writes one row to `ai_provider_connection` table (`workspace_id`, `provider='hume'`, `encrypted_api_key`, `encrypted_secret_key`, `connected_by_user_id`, `connected_at`), redirects back to the AI Connections list.
 
 ### Data shape
 
@@ -90,7 +101,7 @@ CREATE TABLE ai_connection (
 );
 ```
 
-(`ai_connection` is V2.0's table; V2.1 only adds the `hume` enum value + `encrypted_secret_key` column. Both additive.)
+(`ai_provider_connection` is V2.0's table; V2.1 only adds the `hume` enum value + `encrypted_secret_key` column. Both additive.)
 
 ### tRPC procedures
 
@@ -257,8 +268,22 @@ emotionAnalysis?: {
   enabled: boolean;
   provider: 'hume';                  // future: room for 'azure-emotion' / 'aws-comprehend' etc.
   modality: 'voice' | 'text';        // derived from block kind but stored for clarity
+  // owner-locked answer #2 — per-block participant audio retention (voice modality only)
+  participantAudioRetention?: 'never' | 'session' | 'retained';
+  // default 'session' for audio-record + voice-emotion-probe blocks
+  // (researchers expect to keep response audio for review);
+  // 'never' for EVI conversation per H6;
+  // 'retained' requires escalated IRB acknowledgment at publish time
 };
 ```
+
+**Retention semantics:**
+
+- `'never'` — audio is uploaded to R2, processed by Hume, then deleted from R2 + the `resp/` key cleared from `response_item.audio_r2_key`. Only the emotion vector + transcript (if Hume returned one) persists.
+- `'session'` — audio stays in R2 for the duration of the study (until study close OR explicit researcher purge); auto-purged on study close.
+- `'retained'` — audio kept indefinitely in R2. Researcher's IRB-acknowledgment escalates at publish time.
+
+Withdraw flow (per ADR-0014) deletes audio in all three cases regardless of retention setting.
 
 **Submit-time flow:**
 
@@ -379,7 +404,19 @@ A stimulus delivery block where the researcher writes a script + picks an emotio
 ### Researcher Builder config
 
 - **Script** (plain text or SSML-light; max ~500 chars per stimulus)
-- **Voice preset** (`narrator-neutral` / `narrator-warm` / `narrator-urgent` / `narrator-anxious` / `peer-casual` / `peer-skeptical` / `authority-formal` — researcher-friendly names mapping to Hume Octave voice IDs)
+- **Voice preset** — owner-locked answer #3 = exactly **10 vetted presets in V2.1** (V2.2 = full Hume catalog picker). The V2.1 preset list (researcher-friendly names mapped to Hume Octave voice IDs internally):
+  1. `narrator-neutral` — flat newsreader baseline
+  2. `narrator-warm` — friendly storyteller
+  3. `narrator-urgent` — breaking-news anxiety
+  4. `narrator-anxious` — uneasy, hedging
+  5. `peer-casual` — same-age peer, conversational
+  6. `peer-skeptical` — disbelieving peer
+  7. `authority-formal` — expert/clinician
+  8. `authority-warm` — pediatrician / counselor
+  9. `voice-young-energetic` — younger demographic
+  10. `voice-mature-calm` — older demographic, measured
+
+  Map maintained in `server/adapters/ai.hume.ts` as a constant; full Hume voice catalog inside the adapter but not exposed in Builder.
 - **Emotional dimensions** (sliders, optional — `valence: -1..1`, `arousal: 0..1`, `intensity: 0..1`)
 - **Per-condition variants?** (toggle — if on, the Configure panel shows one variant per condition; researcher writes the same script with a different voice/emotion per condition. Default: same audio across all conditions.)
 - **Playback controls** (`play once` / `play N times` / `forced-listen` — borrows pattern from V1.12 video-stimulus block)
@@ -433,14 +470,14 @@ Audio stimulus blocks don't have responses (they're delivery), but the Results p
 
 ---
 
-## Section H6 — `core/ai-conversation@1.0.0` (EVI conversational interface, new dedicated block) (~3 weeks)
+## Section H6 — `core/voice-conversation@1.0.0` (EVI conversational interface, new dedicated block) (~3 weeks)
 
 The most ambitious block in V2.1. Participant has a real-time voice conversation with a Hume EVI-powered AI agent; researcher gets full transcript + per-turn emotion vectors for both sides.
 
 ### Researcher Builder config
 
 - **System prompt** (multi-line; defines the agent's personality, topic, goal, constraints)
-- **Voice** (Hume voice preset — same picker as H5)
+- **Voice** (Hume voice preset — same 10-preset picker as H5)
 - **Duration cap** (1-15 minutes; default 5; hard stop)
 - **Turn cap** (5-50 turns; default 20)
 - **Agent's starting line** (optional — what the agent says first; default: agent waits for participant)
@@ -448,7 +485,55 @@ The most ambitious block in V2.1. Participant has a real-time voice conversation
 - **Tools the agent can use** (V2.1: none; V2.2+: could pass back to study state — e.g., agent can "mark participant as eligible for follow-up question X")
 - **Participant-visible transcript?** (default: yes; shows the chat-style history during the call)
 - **Allow participant to end early?** (default: yes; button "End conversation")
-- **IRB acknowledgment gate**: checkbox "I have IRB approval or equivalent for AI-mediated participant interaction" — required before researcher can publish a study using this block (mirrors V1.12 mimicking-presets pattern)
+- **Participant audio retention** (default `'never'` — audio discarded after Hume turn-processing; transcripts + emotion vectors kept regardless). Options: `'never'` / `'session'` (purged at study close) / `'retained'` (indefinite; banner explains higher IRB burden + auto-requires the stricter publish acknowledgment). Per owner-locked answer #2, this is per-block — different EVI blocks in the same study can have different retention if the researcher needs it.
+- **IRB acknowledgment gate**: checkbox "I have IRB approval or equivalent for AI-mediated participant interaction" — required before researcher can publish a study using this block (mirrors V1.12 mimicking-presets pattern). When `participantAudioRetention === 'retained'`, the checkbox copy escalates: "I have IRB approval for AI-mediated voice interaction AND for indefinite retention of participant biometric audio data."
+
+### Hume Config management (we own this; owner-locked answer #1)
+
+On block save (the `studies.setBlocks` mutation), if the block kind is `core/voice-conversation@1.0.0`:
+
+1. Read the block's `config` (system prompt, voice, caps, etc.)
+2. Compute a config fingerprint (hash of the relevant fields)
+3. Look up `hume_evi_config` table for an existing row matching `(workspace_id, fingerprint)` — if found, reuse the `hume_config_id`
+4. Otherwise, call `humeAdapter.createOrUpdateEVIConfig(...)` — which POSTs to Hume's Configs API, gets back a `config_id`, and writes a `hume_evi_config` row tying our local fingerprint to Hume's config ID
+5. Store `hume_config_id` in the block's persisted config (so the runtime knows which Hume config to start a session against)
+
+**Why managed by us:**
+
+- Researchers don't leave MRT to author conversation behavior
+- Config changes flow through our Builder (and through study versioning per ADR-0012 — preregistered configs are frozen)
+- Withdraw / workspace-delete cascades to Hume (we DELETE configs on Hume's side when a study is hard-deleted; pre-existing AI-conversation responses are unaffected — the config ID lives on in `ai_conversation.hume_config_id` history)
+
+**Schema:**
+
+```sql
+CREATE TABLE hume_evi_config (
+  id TEXT PRIMARY KEY,                       -- ulid
+  workspace_id UUID NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
+  fingerprint TEXT NOT NULL,                 -- hash of (system_prompt, voice_id, caps, ...)
+  hume_config_id TEXT NOT NULL,              -- Hume's returned config ID
+  hume_config_version INTEGER,               -- Hume's version counter
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_used_at TIMESTAMPTZ,
+  UNIQUE (workspace_id, fingerprint)
+);
+```
+
+**Adapter additions:**
+
+```ts
+// in ai.hume.ts (V2.1 additions)
+createOrUpdateEVIConfig(opts: {
+  ctx: AIInvocationContext;
+  systemPrompt: string;
+  voicePresetId: string;
+  durationCapSeconds: number;
+  turnCap: number;
+  // ... etc
+}): Promise<{ humeConfigId: string; humeConfigVersion: number }>;
+
+deleteEVIConfig(opts: { ctx: AIInvocationContext; humeConfigId: string }): Promise<void>;
+```
 
 ### Participant Take UI
 
@@ -519,7 +604,7 @@ CREATE TABLE ai_conversation_turn (
 
 ### IRB gate enforcement
 
-When publishing a study containing an `ai-conversation` block:
+When publishing a study containing an `voice-conversation` block:
 
 - Publish-time check: "This study uses AI-mediated voice conversation. Confirm you have IRB approval or equivalent for this interaction." Researcher confirms by checking the box; publish-action records the acknowledgment in `study_publish_acknowledgment` table (already exists since V1.12 mimicking-presets).
 - Per-participant disclosure (auto-rendered above the pre-call screen): "This study includes a conversation with an AI agent. By participating, you acknowledge that this interaction is with software, not a human. Your voice will be analyzed for emotional content. You can stop the conversation at any time."
@@ -580,7 +665,7 @@ When emotion analysis is enabled on an existing block (H3a/H4a), a small line of
 Three publish-time gates:
 
 1. **Any emotion-analysis block in the study:** "I have appropriate IRB approval (or equivalent) to collect biometric voice data and/or text emotion data from participants. [confirmed]"
-2. **Any `ai-conversation` block:** the stronger gate (per H6) about AI-mediated interaction.
+2. **Any `voice-conversation` block:** the stronger gate (per H6) about AI-mediated interaction.
 3. **Any `audio-stimulus` block with emotional dimensions outside the neutral baseline:** "I have IRB approval to deliver emotionally-charged audio stimuli to participants. [confirmed]" (mirrors V1.12 mimicking-presets exactly)
 
 All three gates write to `study_publish_acknowledgment`; each ack is timestamped + linked to the publishing user + survives study forking (forked studies require fresh acknowledgment by the new owner).
@@ -644,7 +729,8 @@ CSV/Excel export builder (the V1.12 Export builder) gets a new section:
 - Per-provider per-modality breakdown for Hume (voice / text / TTS / conversation)
 - Top-spending studies (linked)
 - Per-month historical chart
-- Budget alert: workspace-owner-configurable monthly cap. When crossed, the next AI invocation throws `WorkspaceAICapExceeded` with a friendly message; researcher sees a notice + can raise the cap or wait until next month.
+- **Owner-locked answer #7: workspace-level cost rollup only.** No per-researcher attribution column. (Owner can request per-researcher attribution as V2.2+ work if they later want to see which team member is most expensive.)
+- Budget cap: **owner-locked answer #4** — workspace-owner-configurable monthly cap. **New workspaces auto-seed with a $50/mo default cap** (additive migration sets `workspace_settings.monthly_ai_budget_usd_cap = 50` for rows created on or after the V2.1 release date); **existing workspaces get NULL** (no surprise enforcement on incumbent users — they explicitly enable a cap). When crossed, the next AI invocation throws `WorkspaceAICapExceeded` with a friendly message; researcher sees a notice + can raise the cap (workspace-admin only) or wait until next month. Warning surfaces at 80% via in-app notification.
 
 ### Wireframe gates
 
@@ -662,10 +748,10 @@ CSV/Excel export builder (the V1.12 Export builder) gets a new section:
 
 ## ADRs needed
 
-- **ADR-00XX — Hume integration + AI Connections shell.** Locks: BYOAI model; PAT + secret key stored encrypted; the `ai_connection` table; `aiConnections` tRPC router; the workspace-level `allow_pii_to_external_ai` toggle; adapter discipline (only `server/adapters/ai.hume.ts` may import `@hume/*`); lock-in inventory updated. Supersedes nothing.
+- **ADR-00XX — Hume integration + AI Connections shell.** Locks: BYOAI model; PAT + secret key stored encrypted; the `ai_provider_connection` table; `aiConnections` tRPC router; the workspace-level `allow_pii_to_external_ai` toggle; adapter discipline (only `server/adapters/ai.hume.ts` may import `@hume/*`); lock-in inventory updated. Supersedes nothing.
 - **ADR-00XX — Emotion analysis as block-level option.** Locks: the shared `emotionAnalysis: { enabled, provider, modality }` config addition across applicable block kinds; the `recordAnswer` Inngest enqueue hook (voice) + sync-call pattern (text); failure-handling semantics; export-column shape.
 - **ADR-00XX — `core/audio-stimulus@1.0.0` + Octave TTS caching.** Locks: the new block kind; the R2 cache key derivation (hash of script + voice + emotional dimensions); per-condition variant model; publish-time generation flow.
-- **ADR-00XX — `core/ai-conversation@1.0.0` + EVI WebSocket proxy.** Locks: the proxy architecture (browser ↔ our server ↔ Hume); the `ai_conversation` + `ai_conversation_turn` tables; per-turn emotion logging; the IRB-acknowledgment gate (mirrors V1.12 mimicking-presets); participant-audio retention default-off, opt-in.
+- **ADR-00XX — `core/voice-conversation@1.0.0` + EVI WebSocket proxy.** Locks: the proxy architecture (browser ↔ our server ↔ Hume); the `ai_conversation` + `ai_conversation_turn` tables; per-turn emotion logging; the IRB-acknowledgment gate (mirrors V1.12 mimicking-presets); participant-audio retention default-off, opt-in.
 - **ADR-0014 amendment — Biometric-data lifecycle.** Voice = `pii` sensitivity; withdraw cascades to `ai_invocation`, `ai_invocation_payload` (R2-backed), `ai_conversation`, `ai_conversation_turn`; per-block disclosure copy + study-level consent banner; researcher IRB-acknowledgment.
 - **ADR-00XX — AI cost metering + workspace caps.** Locks: per-invocation `cost_usd` write; workspace monthly cap; warning at 80%; hard-stop at 100%; usage dashboard schema.
 
@@ -704,10 +790,10 @@ CSV/Excel export builder (the V1.12 Export builder) gets a new section:
 
 ---
 
-## Sequencing PRs (~12 weeks total, 6 streams)
+## Sequencing PRs (~12.5 weeks total, 6 streams)
 
 **Stream H1+H2 — Foundation (~2 weeks):**
-- PR H1.1: `ai_connection` schema extension + AI Connections row for Hume + connect/disconnect/test flow (~3 days)
+- PR H1.1: `ai_provider_connection` schema extension + AI Connections row for Hume + connect/disconnect/test flow (~3 days)
 - PR H2.1: `server/adapters/ai.hume.ts` shell + `analyzeText` + `analyzeVoice` adapter methods + `ai_invocation` extension + cost metering (~5 days)
 - PR H2.2: `synthesizeAudio` + `startConversation` adapter methods (deferred until streams H5/H6 need them — can split or land together) (~2 days)
 
@@ -724,9 +810,10 @@ CSV/Excel export builder (the V1.12 Export builder) gets a new section:
 - PR H5.1: `core/audio-stimulus@1.0.0` schema + Configure + per-condition variants + generation flow + R2 cache (~5 days)
 - PR H5.2: Take UI + playback controls + Results display (~3 days)
 
-**Stream H6 — EVI ai-conversation (~3 weeks):**
+**Stream H6 — EVI ai-conversation (~3.5 weeks):**
 - PR H6.1: WebSocket proxy infrastructure (browser ↔ our server ↔ Hume) + edge runtime decision + `ai_conversation` + `ai_conversation_turn` schema (~5 days)
-- PR H6.2: `core/ai-conversation@1.0.0` schema + Configure (system prompt, voice, caps, IRB ack) (~3 days)
+- PR H6.2: `core/voice-conversation@1.0.0` schema + Configure (system prompt, voice, caps, audio-retention, IRB ack) (~3 days)
+- PR H6.2b: We-manage EVI Configs API — `hume_evi_config` table + `createOrUpdateEVIConfig` adapter method + fingerprint-based reuse + delete-on-study-hard-delete (~3 days; owner-locked answer #1)
 - PR H6.3: Take UI pre-call + active + transcript rendering + early-end handling (~5 days)
 - PR H6.4: Per-response detail view + aggregate trajectory chart + CSV/Excel export (~2 days)
 
@@ -757,18 +844,17 @@ So a clean ordering: **H1 → H2.1 → H3a → H4a → H3b/H4b/H5 in parallel �
 
 ---
 
-## Open questions for the owner
+## Open questions — fully resolved 2026-06-22 (owner answered all 7)
 
-1. **Hume EVI configuration model.** Hume's EVI lets researchers create "Configs" (system prompt + voice + tools + tool-use config) on Hume's side, then reference by `config_id` from API. Two options:
-   - (a) Researcher creates EVI configs directly on platform.hume.ai and pastes the config_id into our Builder. Less control for us; more transparency to researcher.
-   - (b) We create + manage configs via Hume's API on behalf of the researcher (one config per `ai-conversation` block instance). More integrated; more code; we have to mirror Hume's config schema in our DB.
-   - **Recommendation: (a) for V2.1 (faster ship, simpler mental model), (b) as V2.2 polish if researchers complain.** Lock?
-2. **Participant audio retention for `ai-conversation`.** Default off (privacy-minimizing) — we keep transcripts + emotion vectors but discard raw participant audio after Hume processes it. Researcher can opt in to retain raw audio (with disclosure to participant). **Confirm default-off + opt-in?**
-3. **TTS voice presets — researcher-friendly names or Hume IDs?** Hume Octave has internal voice IDs like `ito-narrator-warm-001`. Our Builder needs friendlier names (`narrator-warm` / `narrator-neutral` / etc.). Should we ship a fixed list of, say, 10 vetted presets (researcher-friendly names mapped internally), or expose all of Hume's voices via a search picker? **Recommendation: ship 10 vetted in V2.1; full picker in V2.2.**
-4. **Workspace AI budget caps — opt-in or default?** Should new workspaces get a default monthly cap (e.g., $50/mo) auto-set, or zero cap until owner enables? **Recommendation: default $50 cap on new workspaces (forces conscious opt-in to higher spend); existing workspaces get no default cap (don't surprise current users).**
-5. **`text-emotion-probe` overlap with `free-text` + emotion option.** Are these meaningfully different to researchers, or is the dedicated block redundant? **Recommendation: ship both — the dedicated block puts emotion-as-primary in the Builder/Results affordance, which is a real cognitive difference even if the underlying data is similar. Researchers picking it know they're emotion-first; researchers using the option are augmenting an existing measure.** Confirm?
-6. **Should `audio-stimulus` participants see Hume branding?** Hume's TOS may require attribution ("audio generated by Hume AI"). Need to check the TOS before shipping; if required, surface a small "🔊 generated by Hume" tag under the player. Or pay for white-label tier if available.
-7. **Pricing the cost passthrough.** BYOAI means researcher pays Hume directly — but the Hume API key is workspace-scoped, so all researchers in a workspace share one bill. Should we surface per-researcher attribution in the Usage dashboard (researcher X spent $Y this month) or only roll up to workspace level? **Recommendation: per-researcher attribution — workspace owners want to know who's expensive. Cheap to add.**
+1. ✅ **EVI configuration model: we manage configs.** Option (b) locked. `hume_evi_config` table mirrors Hume's Config schema; block save calls `humeAdapter.createOrUpdateEVIConfig(...)`; `hume_config_id` persists in the block config. Researchers never leave MRT for EVI authoring. Adds ~3 days to H6 (scoped in). Full spec in H6 § "Hume Config management".
+2. ✅ **Participant audio retention is per-block.** `participantAudioRetention: 'never' | 'session' | 'retained'` on `voice-conversation`, `voice-emotion-probe`, and `audio-record` (when emotion-option is on). Default `'session'` for the audio-collecting blocks (researchers expect to keep response audio for analysis), default `'never'` for EVI conversation. `'retained'` triggers escalated IRB-acknowledgment copy at publish time. Withdraw cascades regardless.
+3. ✅ **10 vetted TTS presets in V2.1.** Curated list locked in H5; full Hume catalog picker = V2.2.
+4. ✅ **$50/mo default AI budget cap on NEW workspaces; per-workspace overridable; existing workspaces get NULL.** Additive migration seeds the cap on rows created on/after the V2.1 release date. Owner can change any time in Settings · Workspace → Usage → AI.
+5. ✅ **Keep both `text-emotion-probe` block and the free-text emotion option.** Different cognitive affordances; ship both.
+6. ✅ **Researcher-facing branding YES, participant-facing branding NO (unless Hume TOS strongly requires).** Builder Configure / Connections list / Results / Usage dashboard show "Powered by Hume". Participant Take UI shows no Hume branding by default. **Pre-ship gate during PR H1.1:** read Hume's current TOS for participant-attribution requirements on generated audio (TTS); if attribution is mandatory on participant-played audio, surface a small "🔊 generated by Hume" tag under `audio-stimulus` playback only. Audit logged in `06_qa/audit-logs/<date>-v210-hume-tos-attribution-check.md` when the check completes.
+7. ✅ **Workspace-level cost rollup only.** Usage dashboard rolls up to workspace; no per-researcher split column. Per-researcher attribution = V2.2+ scope.
+
+All 12 owner-confirmed decisions (5 original + 7 from this round) are locked into the body sections above.
 
 ---
 
@@ -804,7 +890,7 @@ So a clean ordering: **H1 → H2.1 → H3a → H4a → H3b/H4b/H5 in parallel �
 - **Per-study (not per-workspace) Hume keys.** Workspaces share one Hume connection across all studies. If labs want per-study isolation (different IRB protocols, etc.), that's V2.2+ scope.
 - **Cross-workspace emotion-model comparison.** "How does this study's emotion data compare to similar published studies?" Future replication-network feature.
 - **Auto-redaction of voice for compliance.** Removing identifying info from recordings before Hume processes. Compliance-heavy; defer until a real user demand surfaces.
-- **Hume's tool-use feature in `ai-conversation`.** EVI agents can call functions. Cool but adds complexity (validation, security, state-transitions); V2.2+.
+- **Hume's tool-use feature in `voice-conversation`.** EVI agents can call functions. Cool but adds complexity (validation, security, state-transitions); V2.2+.
 - **Multi-language Hume support beyond defaults.** Hume supports many languages; V2.1 ships English-first with `language` parameter exposed in the adapter but the Builder UI defaults to English. Per-block language picker = V2.2+.
 - **Sona Systems integration** (separate concern — that's V1.17 Participants extension, not Hume-related).
 
