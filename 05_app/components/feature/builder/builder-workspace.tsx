@@ -34,6 +34,7 @@ import { ConditionsSection } from "./conditions-section";
 import { ConfigureForm } from "./configure-form";
 import { BlockLibraryModal } from "./block-library-modal";
 import { ForkableControl, ReplicateButton, ReplicationsPanel } from "./replications-panel";
+import { SaveAsTemplateModal } from "./save-as-template-modal";
 import { SaveVersionDialog } from "./save-version-dialog";
 import { TagsSection } from "./tags-section";
 import { ValidationPanel } from "./validation-panel";
@@ -168,6 +169,7 @@ export function BuilderWorkspace({
   // A library card is mid-drag (the modal hides itself; list rows become drop targets).
   const [libraryDragging, setLibraryDragging] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
+  const [templateOpen, setTemplateOpen] = useState(false);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
 
   const invalidate = () => {
@@ -654,6 +656,15 @@ export function BuilderWorkspace({
                 Compare versions
               </Link>
               <ModeToggle studyId={study.id} mode="builder" />
+              <button
+                type="button"
+                onClick={() => setTemplateOpen(true)}
+                disabled={!canEdit}
+                title={canEdit ? "Save this study as a reusable template" : READ_ONLY_TITLE}
+                className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-1.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)] disabled:opacity-40"
+              >
+                Save as template
+              </button>
               <button
                 type="button"
                 onClick={() => setSaveOpen(true)}
@@ -1292,6 +1303,18 @@ export function BuilderWorkspace({
             setSaveOpen(false);
             setSavedMsg(`Saved “${name}” as v${n}`);
             void invalidate();
+          }}
+        />
+      ) : null}
+
+      {templateOpen ? (
+        <SaveAsTemplateModal
+          studyId={study.id}
+          defaultName={study.title}
+          onClose={() => setTemplateOpen(false)}
+          onSaved={(name) => {
+            setTemplateOpen(false);
+            setSavedMsg(`Saved “${name}” as a template`);
           }}
         />
       ) : null}
