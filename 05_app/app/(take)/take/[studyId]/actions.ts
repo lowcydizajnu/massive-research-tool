@@ -3,6 +3,7 @@
 import type { Route } from "next";
 import { redirect } from "next/navigation";
 
+import { aiChatTurn, type AiChatTurnResult } from "@/server/runtime/ai-chat";
 import { recordScreenAnswers, startResponse } from "@/server/runtime/participant";
 import { allowAnswer, allowBegin } from "@/server/runtime/take-rate-limit";
 
@@ -266,4 +267,30 @@ export async function answerAction(formData: FormData): Promise<void> {
     redirect(`/take/${studyId}/${responseId}/complete`);
   }
   redirect(`/take/${studyId}/${responseId}/${result.nextIndex}`);
+}
+
+/**
+ * One assistant turn for an `ai-chat` block (ADR-0061). Called from the participant
+ * chat UI (client) per message; returns the reply (no redirect). Rate-limited per
+ * response (cost + abuse). The transcript is saved at the end via answerAction.
+ */
+export async function aiChatTurnAction(input: {
+  responseId: string;
+  blockInstanceId: string;
+  history: { role: "user" | "assistant"; content: string }[];
+  userMessage: string;
+}): Promise<AiChatTurnResult> {
+  if (!(await allowAnswer(input.responseId))) return { ok: false, error: "throttled" };
+  const userMessage = input.userMessage.trim().slice(0, 5000);
+  if (!userMessage) return { ok: false, error: "ai_error" };
+  const history = (Array.isArray(input.history) ? input.history : [])
+    .slice(-100)
+    .filter((m) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
+    .map((m) => ({ role: m.role, content: m.content.slice(0, 20000) }));
+  return aiChatTurn({
+    responseId: input.responseId,
+    blockInstanceId: input.blockInstanceId,
+    history,
+    userMessage,
+  });
 }
