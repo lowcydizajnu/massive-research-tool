@@ -12,10 +12,15 @@ import type { StudyDetail } from "@/server/trpc/routers/studies";
  */
 export default async function BuildStagePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ preview?: string | string[] }>;
 }) {
   const { id } = await params;
+  const previewParam = (await searchParams).preview;
+  // The Preview tab routes here as /build?preview=1 → open the side-by-side preview.
+  const initialPreviewOpen = (Array.isArray(previewParam) ? previewParam[0] : previewParam) === "1";
   const api = await getServerApi();
 
   let study: StudyDetail | null = null;
@@ -28,5 +33,11 @@ export default async function BuildStagePage({
 
   const dbUser = await getCurrentDbUser();
 
-  return <BuilderWorkspace study={study} currentUserId={dbUser?.id ?? null} />;
+  return (
+    <BuilderWorkspace
+      study={study}
+      currentUserId={dbUser?.id ?? null}
+      initialPreviewOpen={initialPreviewOpen}
+    />
+  );
 }

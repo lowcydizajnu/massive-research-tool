@@ -93,9 +93,12 @@ function TabSoon({ label }: { label: string }) {
 export function BuilderWorkspace({
   study: initial,
   currentUserId = null,
+  initialPreviewOpen = false,
 }: {
   study: StudyDetail;
   currentUserId?: string | null;
+  /** Arriving via the Preview tab (/build?preview=1) — open side-by-side + highlight Preview. */
+  initialPreviewOpen?: boolean;
 }) {
   const utils = api.useUtils();
   const { data } = api.studies.get.useQuery({ id: initial.id }, { initialData: initial });
@@ -122,10 +125,16 @@ export function BuilderWorkspace({
   const panelPane = usePaneWidth("mrt-builder-panel-width", 250, 220, 480);
   const previewPane = usePaneWidth("mrt-builder-preview-width", 400, 320, 680);
   // Live side-by-side preview (ADR-0057). Default on; remembered per-browser.
-  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(initialPreviewOpen);
   useEffect(() => {
+    // Arriving via the Preview tab forces it open; otherwise honor the saved pref.
+    if (initialPreviewOpen) {
+      setPreviewOpen(true);
+      window.localStorage.setItem("mrt-builder-live-preview", "on");
+      return;
+    }
     setPreviewOpen(window.localStorage.getItem("mrt-builder-live-preview") !== "off");
-  }, []);
+  }, [initialPreviewOpen]);
   const togglePreview = () =>
     setPreviewOpen((v) => {
       const next = !v;
@@ -567,7 +576,7 @@ export function BuilderWorkspace({
         <PaneHandle pane={panelPane} dir={1} label="Resize study panel" />
       ) : null}
       <main className="flex min-w-0 flex-1 flex-col gap-3">
-        <StageTabs studyId={study.id} />
+        <StageTabs studyId={study.id} active={initialPreviewOpen ? "Preview" : "Build"} />
         <BuildDriftBanner studyId={study.id} />
         <ReadOnlyBanner role={study.viewerRole} />
 
@@ -992,10 +1001,10 @@ export function BuilderWorkspace({
         </div>
       </main>
 
-      {/* Live participant preview, beside the blocks (ADR-0057). Hidden on narrow
-          viewports where three columns won't fit. */}
+      {/* Live participant preview, beside the blocks (ADR-0057). Hidden only on
+          genuinely narrow viewports where three columns won't fit (≥lg). */}
       {previewOpen ? (
-        <div className="hidden items-stretch xl:flex">
+        <div className="hidden items-stretch lg:flex">
           <PaneHandle pane={previewPane} dir={-1} label="Resize live preview" />
           <LivePreviewPane studyId={study.id} revision={study.lastEditedAt} width={previewPane.width} factors={study.factors} onClose={togglePreview} />
         </div>

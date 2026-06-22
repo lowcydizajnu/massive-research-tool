@@ -91,7 +91,10 @@ export function CommandPalette() {
           id: `stage-${s}`,
           group: "Stages" as const,
           label: s[0].toUpperCase() + s.slice(1),
-          href: `/studies/${studyId}/${s}` as Route,
+          // Preview opens the side-by-side builder preview (parity with the stage tab).
+          href: (s === "preview"
+            ? `/studies/${studyId}/build?preview=1`
+            : `/studies/${studyId}/${s}`) as Route,
         }))
       : [];
 

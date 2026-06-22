@@ -1,6 +1,6 @@
 "use client";
 
-import { ExternalLink, RotateCcw, X } from "lucide-react";
+import { Columns2, ExternalLink, RotateCcw, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
@@ -95,6 +95,14 @@ export function PreviewExperience({ studyId, title }: { studyId: string; title: 
           Restart
         </button>
         <div className="flex-1" />
+        <button
+          type="button"
+          onClick={() => router.push(`/studies/${studyId}/build?preview=1`)}
+          className="inline-flex items-center gap-1 rounded-[var(--radius-md)] px-2 py-1 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
+        >
+          <Columns2 className="size-3.5" aria-hidden />
+          Side by side
+        </button>
         <PreviewShareMenu studyId={studyId} />
         {runUrl ? (
           <a
