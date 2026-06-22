@@ -37,7 +37,7 @@ const CARD_KINDS = ["link", "note", "image", "file", "reference", "todo", "poll"
 const PLAYGROUND_TARGET = "playground_card";
 
 export type PollOption = { id: string; label: string };
-export type TodoItem = { id: string; label: string; done: boolean };
+export type TodoItem = { id: string; label: string; done: boolean; assigneeUserId?: string | null };
 
 export type PlaygroundCardDTO = {
   id: string;
@@ -274,7 +274,14 @@ export const playgroundRouter = router({
         assigneeUserId: z.string().uuid().nullish(),
         done: z.boolean().optional(),
         todoItems: z
-          .array(z.object({ id: z.string().min(1), label: z.string().trim().min(1).max(500), done: z.boolean() }))
+          .array(
+            z.object({
+              id: z.string().min(1),
+              label: z.string().trim().min(1).max(500),
+              done: z.boolean(),
+              assigneeUserId: z.string().uuid().nullish(),
+            }),
+          )
           .max(50)
           .optional(),
       }),
@@ -292,12 +299,22 @@ export const playgroundRouter = router({
       if (input.todoItems !== undefined) patch.todoItems = input.todoItems;
       await db.update(playgroundCard).set(patch).where(eq(playgroundCard.id, input.id));
 
-      // Notify a newly-assigned member (assignee changed to a different, non-self user).
-      if (
-        input.assigneeUserId &&
-        input.assigneeUserId !== card.assigneeUserId &&
-        input.assigneeUserId !== ctx.dbUser.id
-      ) {
+      // Collect newly-assigned members: the card-level assignee changing, plus any
+      // checklist item whose assignee changed to a different, non-self member
+      // (assignment is per item, ADR-0059 P3). One notification per new assignee.
+      const newlyAssigned = new Set<string>();
+      if (input.assigneeUserId && input.assigneeUserId !== card.assigneeUserId) {
+        newlyAssigned.add(input.assigneeUserId);
+      }
+      if (input.todoItems) {
+        const prevById = new Map((card.todoItems ?? []).map((t) => [t.id, t.assigneeUserId ?? null]));
+        for (const item of input.todoItems) {
+          const next = item.assigneeUserId ?? null;
+          if (next && next !== (prevById.get(item.id) ?? null)) newlyAssigned.add(next);
+        }
+      }
+      newlyAssigned.delete(ctx.dbUser.id);
+      for (const assigneeUserId of newlyAssigned) {
         await emit({
           type: "playground_assigned",
           actorUserId: ctx.dbUser.id,
@@ -305,7 +322,7 @@ export const playgroundRouter = router({
           targetType: PLAYGROUND_TARGET,
           targetId: card.id,
           data: {
-            assigneeUserId: input.assigneeUserId,
+            assigneeUserId,
             cardId: card.id,
             cardTitle: (input.title ?? card.title)?.trim() || null,
           },

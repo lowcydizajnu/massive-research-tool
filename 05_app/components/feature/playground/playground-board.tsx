@@ -28,7 +28,7 @@ import { UploadButton } from "@/components/feature/builder/upload-button";
 import { PendingButton, Spinner } from "@/components/ui/pending-button";
 import { api } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
-import type { PlaygroundCardDTO } from "@/server/trpc/routers/playground";
+import type { PlaygroundCardDTO, TodoItem } from "@/server/trpc/routers/playground";
 
 /**
  * Playground board (ADR-0059, workspace-playground.md). A shared grid of typed
@@ -384,15 +384,18 @@ function TodoControls({ card, canEdit }: { card: CardDTO; canEdit: boolean }) {
   const update = api.playground.update.useMutation({ onSuccess: () => utils.playground.list.invalidate() });
   const [newItem, setNewItem] = useState("");
   const items = card.todoItems ?? [];
+  const nameById = new Map((members.data ?? []).map((m) => [m.userId, m.displayName]));
 
-  const setItems = (next: { id: string; label: string; done: boolean }[]) =>
-    update.mutate({ id: card.id, todoItems: next });
-  const toggle = (id: string) =>
-    setItems(items.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
+  const setItems = (next: TodoItem[]) => update.mutate({ id: card.id, todoItems: next });
+  const patchItem = (id: string, patch: Partial<TodoItem>) =>
+    setItems(items.map((t) => (t.id === id ? { ...t, ...patch } : t)));
   const remove = (id: string) => setItems(items.filter((t) => t.id !== id));
   const add = () => {
     if (!newItem.trim()) return;
-    setItems([...items, { id: `ti_${newItem.length}_${items.length}_${Date.now() % 100000}`, label: newItem.trim(), done: false }]);
+    setItems([
+      ...items,
+      { id: `ti_${newItem.length}_${items.length}_${Date.now() % 100000}`, label: newItem.trim(), done: false, assigneeUserId: null },
+    ]);
     setNewItem("");
   };
 
@@ -401,14 +404,14 @@ function TodoControls({ card, canEdit }: { card: CardDTO; canEdit: boolean }) {
   return (
     <div className="flex flex-col gap-2 text-[length:var(--text-small)]">
       {items.length > 0 && (
-        <ul className="flex flex-col gap-1">
+        <ul className="flex flex-col gap-1.5">
           {items.map((t) => (
             <li key={t.id} className="flex items-center gap-1.5">
               <button
                 type="button"
                 disabled={!canEdit || update.isPending}
-                onClick={() => toggle(t.id)}
-                className="inline-flex items-center gap-1.5 text-left text-[var(--color-text-secondary)] disabled:opacity-60"
+                onClick={() => patchItem(t.id, { done: !t.done })}
+                className="inline-flex min-w-0 items-center gap-1.5 text-left text-[var(--color-text-secondary)] disabled:opacity-60"
                 aria-pressed={t.done}
               >
                 {t.done ? (
@@ -416,14 +419,32 @@ function TodoControls({ card, canEdit }: { card: CardDTO; canEdit: boolean }) {
                 ) : (
                   <Square className="size-4 shrink-0" aria-hidden />
                 )}
-                <span className={t.done ? "text-[var(--color-text-muted)] line-through" : ""}>{t.label}</span>
+                <span className={cn("truncate", t.done && "text-[var(--color-text-muted)] line-through")}>{t.label}</span>
               </button>
+              {/* Per-item assignee (ADR-0059 P3). */}
+              {canEdit ? (
+                <select
+                  value={t.assigneeUserId ?? ""}
+                  onChange={(e) => patchItem(t.id, { assigneeUserId: e.target.value || null })}
+                  className="ml-auto max-w-[8rem] shrink-0 rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-1.5 py-0.5 text-[var(--color-text-secondary)]"
+                  aria-label={`Assign “${t.label}”`}
+                >
+                  <option value="">—</option>
+                  {(members.data ?? []).map((m) => (
+                    <option key={m.userId} value={m.userId}>
+                      {m.displayName}
+                    </option>
+                  ))}
+                </select>
+              ) : t.assigneeUserId ? (
+                <span className="ml-auto shrink-0 text-[var(--color-text-muted)]">{nameById.get(t.assigneeUserId) ?? "assigned"}</span>
+              ) : null}
               {canEdit && (
                 <button
                   type="button"
                   aria-label={`Remove ${t.label}`}
                   onClick={() => remove(t.id)}
-                  className="ml-auto text-[var(--color-text-muted)] hover:text-[var(--color-danger)]"
+                  className="shrink-0 text-[var(--color-text-muted)] hover:text-[var(--color-danger)]"
                 >
                   <X className="size-3.5" />
                 </button>
@@ -451,30 +472,11 @@ function TodoControls({ card, canEdit }: { card: CardDTO; canEdit: boolean }) {
           </IconBtn>
         </div>
       )}
-      <div className="flex flex-wrap items-center gap-2 text-[var(--color-text-muted)]">
-        {items.length > 0 && (
-          <span>
-            {doneCount}/{items.length} done
-          </span>
-        )}
-        {canEdit ? (
-          <select
-            value={card.assigneeUserId ?? ""}
-            onChange={(e) => update.mutate({ id: card.id, assigneeUserId: e.target.value || null })}
-            className="rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-1 text-[var(--color-text-secondary)]"
-            aria-label="Assignee"
-          >
-            <option value="">Unassigned</option>
-            {(members.data ?? []).map((m) => (
-              <option key={m.userId} value={m.userId}>
-                {m.displayName}
-              </option>
-            ))}
-          </select>
-        ) : card.assigneeName ? (
-          <span>→ {card.assigneeName}</span>
-        ) : null}
-      </div>
+      {items.length > 0 && (
+        <span className="text-[var(--color-text-muted)]">
+          {doneCount}/{items.length} done
+        </span>
+      )}
     </div>
   );
 }

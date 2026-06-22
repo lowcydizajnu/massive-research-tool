@@ -318,6 +318,27 @@ describe("playground Phase 3 — multi-item todo + notifications", () => {
     expect(payload.recipientUserIds).not.toContain(owner.id);
   });
 
+  it("emits an assignment event when a checklist item is assigned to a member", async () => {
+    const { workspace: ws } = await seedOwner("hanna", "Lab");
+    const maya = await addMember(ws.id, "maya");
+    const caller = createCaller({ authUser: authUser("hanna") });
+    const { id } = await caller.playground.create({ kind: "todo", title: "Checklist", todoItems: ["Pilot", "IRB"] });
+    const items = (await caller.playground.list())[0].todoItems!;
+
+    // Assign the first item to Maya.
+    await caller.playground.update({
+      id,
+      todoItems: items.map((t, i) => (i === 0 ? { ...t, assigneeUserId: maya.id } : t)),
+    });
+    const evs = await db.select().from(activityEvent).where(eq(activityEvent.type, "playground_assigned"));
+    expect(evs).toHaveLength(1);
+    expect((evs[0].payload as { assigneeUserId: string }).assigneeUserId).toBe(maya.id);
+
+    // The item carries the assignee back in the DTO.
+    const card = (await caller.playground.list())[0];
+    expect(card.todoItems?.find((t) => t.label === "Pilot")?.assigneeUserId).toBe(maya.id);
+  });
+
   it("emits an assignment event to the assignee, and not on re-assign to the same person", async () => {
     const { workspace: ws } = await seedOwner("hanna", "Lab");
     const maya = await addMember(ws.id, "maya");

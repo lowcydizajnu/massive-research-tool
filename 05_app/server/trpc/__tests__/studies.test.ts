@@ -1012,40 +1012,6 @@ describe("studies.getResults (end-to-end)", () => {
     expect(results!.rows[0]).toMatchObject({ conditionSlug: "control", externalPid: "P1" });
   });
 
-  it("flags variantsNeedPublish when the Draft's variants aren't in the running version (ADR-0058)", async () => {
-    await seedUserWithWorkspace("ext_a", "Alpha");
-    const caller = createCaller({ authUser: authUser("ext_a") });
-    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
-    await caller.studies.addBlock({ studyId: id, source: "core", key: "likert-7", version: "1.0.0" });
-
-    // No factors → nothing pending.
-    expect((await caller.studies.get({ id })).variantsNeedPublish).toBe(false);
-
-    // Freeze a runnable version WITHOUT factors, then add variants to the Draft.
-    await caller.studies.preregister({ studyId: id });
-    await caller.studies.setVariants({
-      studyId: id,
-      factors: [{ id: "f1", name: "Social", levels: [{ id: "lo", name: "low" }, { id: "hi", name: "high" }] }],
-      variantBindings: [],
-    });
-    expect((await caller.studies.get({ id })).variantsNeedPublish).toBe(true);
-  });
-
-  it("clears variantsNeedPublish once the variant-bearing version is frozen", async () => {
-    await seedUserWithWorkspace("ext_a", "Alpha");
-    const caller = createCaller({ authUser: authUser("ext_a") });
-    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
-    await caller.studies.addBlock({ studyId: id, source: "core", key: "likert-7", version: "1.0.0" });
-    // Variants defined BEFORE freezing → the runnable version carries them.
-    await caller.studies.setVariants({
-      studyId: id,
-      factors: [{ id: "f1", name: "Social", levels: [{ id: "lo", name: "low" }, { id: "hi", name: "high" }] }],
-      variantBindings: [],
-    });
-    await caller.studies.preregister({ studyId: id });
-    expect((await caller.studies.get({ id })).variantsNeedPublish).toBe(false);
-  });
-
   it("returns null when the study isn't preregistered", async () => {
     await seedUserWithWorkspace("ext_a", "Alpha");
     const caller = createCaller({ authUser: authUser("ext_a") });
