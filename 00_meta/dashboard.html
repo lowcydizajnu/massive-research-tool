@@ -437,9 +437,9 @@
 <script id="dashboard-state" type="application/json">{
   "project": "Massive Research Tool",
   "tagline": "Multi-tenant SaaS for psychological experiments",
-  "lastUpdated": "2026-06-21",
-  "currentFocus": "Live cooperation V1 deployed (v1.16.0-a30). Presence behind RealtimeAdapter (DB polling): builder top avatar cluster incl. yourself + per-block who's-editing outline/initials + soft-lock banner naming the other editor (last-write-wins). Live comments across the app. Near-real-time by design; Liveblocks/Yjs upgrade behind the seam.",
-  "currentFocusPrev": "Live cooperation V1 built (Approach A, ADR-0060) — awaiting deploy (migration 0032). Presence behind a new RealtimeAdapter (V1 = DB heartbeat + 5s polling, no vendor): Builder avatar cluster + per-block 'who's editing' outline/initials; presence router heartbeat/list/leave. Live comments closed the last gap (Playground board + drawer now poll; share panel + activity already did). 637 tests green. Commits 51a776e + 1e91bc6. Liveblocks/Yjs upgrade behind the seam.",
+  "lastUpdated": "2026-06-22",
+  "currentFocus": "V2.1 Hume emotion-AI handoff queued for Code tab. BYOAI; full scope (no deferral of Octave TTS or EVI). Emotion analysis as optional toggle on every applicable existing block + 4 new dedicated blocks (voice-emotion-probe, text-emotion-probe, audio-stimulus with Octave TTS, ai-conversation with EVI). ~12 weeks Code-tab time, 6 PR streams, 6 new ADRs + ADR-0014 amendment, 22 wireframes. Adapter discipline holds (only server/adapters/ai.hume.ts may import @hume/*). 7 open questions for owner. Built on V2.0 substrate.",
+  "currentFocusPrev": "Live cooperation V1 deployed (v1.16.0-a30). Presence behind RealtimeAdapter (DB polling): builder top avatar cluster incl. yourself + per-block who's-editing outline/initials + soft-lock banner naming the other editor (last-write-wins). Live comments across the app. Near-real-time by design; Liveblocks/Yjs upgrade behind the seam.",
   "phases": [
     {
       "id": "foundation",
@@ -1212,6 +1212,9 @@
     }
   ],
   "recentActivity": [
+    {
+      "text": "docs(handoff): V2.1 Hume emotion-AI handoff written for Code tab. BYOAI (researcher PAT+secret); emotion analysis as optional toggle on existing audio + free-text blocks AND 4 new dedicated blocks (voice-emotion-probe, text-emotion-probe, audio-stimulus via Octave TTS, ai-conversation via EVI WebSocket-proxied). 6 ADRs queued + ADR-0014 amendment for biometric lifecycle. ~12 weeks Code-tab time, 8 sections (H1-H8), 22 wireframes. No deferrals: Octave TTS + EVI both in scope. 04_architecture/handoffs/code-tab-v210-hume-emotion-ai.md."
+    },
     {
       "text": "deploy(v1.16.0-a30): presence self-avatar + per-block soft-lock banner (ADR-0060). 80534b2."
     },
