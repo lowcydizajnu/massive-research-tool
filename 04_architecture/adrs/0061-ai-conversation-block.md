@@ -50,10 +50,17 @@ The Anthropic key is **brought by the workspace**, not a global env var — the 
 1. **Gate** (this ADR) + draft the `AIProviderAdapter` interface (`server/adapters/ai.ts`) — no key needed.
 2. **BYO-key connection** (this slice): `ai_provider_connection` table + an `ai.connections` router (status / connect / disconnect) + the Anthropic adapter (`ai.anthropic.ts`, vendor calls confined here; `validateKey` + `chat` via the HTTP API) + a workspace-settings card to paste/validate/remove the key.
 3. **`ai-chat` module** (registry: config schema = role, context, model, openingMessage, maxTurns; defaultConfig; Builder Configure UI).
-3. **`ai-chat` module** (registry: config schema = role, context, model, openingMessage, maxTurns; defaultConfig; Builder Configure UI).
 4. **Runtime**: `aiChat.turn` (rate-limited) + transcript persistence to `response_item` on completion; turn cap enforced server-side.
 5. **Participant chat UI** in the take runtime; **export** the transcript column.
 6. Audit + per-tenant cost metering rows (ADR-0006); a Builder note that the block is non-deterministic (preregistration).
+
+### Amendment 1 (2026-06-22) — cost estimate, preregistration disclosure, document extraction
+
+Hardening the two caveats this ADR named ("Cons", line 22; "What becomes harder", line 61) plus the deferred context-upload formats:
+
+- **Cost estimate (advisory).** The Cons named "paid, per-message" and the turn cap as the bound. We surface that to the researcher *before* they run: a pure `estimateChatCost({ model, contextChars, roleChars, maxTurns })` and a **hard-coded price table** (`server/runtime/ai-pricing.ts`, `$/Mtok` in + out per model, **"prices as of 2026-06"**) drive an `≈ $X per participant (up to N replies)` line in the Builder Configure panel. It is **explicitly advisory** — token counts are estimated from character length (≈4 chars/token) and the per-turn output is bounded by the adapter's `max_tokens`; real spend varies and is the workspace's own Anthropic bill (BYO key). This is **not** the authoritative `TenantAIMeter` metering from ADR-0006 (still future) — it is a setup-time projection. The price table will drift; it is dated, marked approximate, and lives in one file to update. *Why not query a live pricing API:* Anthropic has no public per-token pricing endpoint; a dated table is honest and zero-dependency. *(Run/Recruit stage projected total `≈ $X × N` is a noted follow-up, not built here.)*
+- **Preregistration non-determinism disclosure.** Slice 6 promised "a Builder note." We go further: when a study **contains an `ai-chat` block**, (1) the **preflight checklist** shows an informational item (not blocking) stating the study has a non-deterministic AI step, and (2) the **OSF preregistration body** (`osf-recipe.ts`) auto-appends a standard disclosure paragraph so the registered plan states the AI's wording varies per participant and the transcript (not a fixed script) is the record. Detection uses the established `blocks.some(b => b.key === "ai-chat")` pattern on the version snapshot.
+- **Document extraction** for the context upload (PDF/Word) is specified separately in **[ADR-0062](0062-document-extraction-for-ai-context.md)** — deterministic server-side parsing, not an AI Task.
 
 ## Consequences
 
