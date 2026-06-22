@@ -80,6 +80,7 @@ export function AiChatConfig({
     openingMessage?: string;
     model?: string;
     maxTurns?: number;
+    timeLimitSec?: number;
   };
   const [cfg, setCfg] = useState({
     role: initial.role ?? "",
@@ -87,6 +88,7 @@ export function AiChatConfig({
     openingMessage: initial.openingMessage ?? "",
     model: initial.model ?? "claude-sonnet-4-6",
     maxTurns: typeof initial.maxTurns === "number" ? initial.maxTurns : 8,
+    timeLimitSec: typeof initial.timeLimitSec === "number" ? initial.timeLimitSec : 0,
   });
   const [title, setTitle] = useState(block.title ?? "");
   const set = (patch: Partial<typeof cfg>) => {
@@ -158,7 +160,7 @@ export function AiChatConfig({
           </select>
         </label>
         <label className="flex w-28 flex-col gap-1">
-          <span className={labelCls}>Max turns</span>
+          <span className={labelCls}>Max replies</span>
           <input
             type="number"
             min={1}
@@ -169,6 +171,21 @@ export function AiChatConfig({
           />
         </label>
       </div>
+
+      <label className="flex w-fit flex-col gap-1">
+        <span className={labelCls}>Time limit (minutes — 0 = no limit)</span>
+        <input
+          type="number"
+          min={0}
+          max={60}
+          step={1}
+          value={Math.round(cfg.timeLimitSec / 60)}
+          onChange={(e) =>
+            set({ timeLimitSec: Math.max(0, Math.min(60, Number(e.target.value) || 0)) * 60 })
+          }
+          className={`${fieldCls} w-28`}
+        />
+      </label>
 
       <p className="rounded-[var(--radius-md)] bg-[var(--color-surface-subtle)] p-2 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
         Uses your workspace&rsquo;s Anthropic key (Settings → AI provider). Each participant&rsquo;s

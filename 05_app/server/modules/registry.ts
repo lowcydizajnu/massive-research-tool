@@ -2074,6 +2074,9 @@ const aiChatBlock: CoreModuleDef = {
     openingMessage: z.string(),
     model: z.enum(["claude-sonnet-4-6", "claude-opus-4-8", "claude-haiku-4-5-20251001"]),
     maxTurns: z.number().int().min(1).max(50),
+    // Optional wall-clock limit on the conversation; 0 = no time limit.
+    // Defaulted so configs saved before this field (and existing studies) stay valid.
+    timeLimitSec: z.number().int().min(0).max(3600).default(0),
   }),
   defaultConfig: {
     role: "",
@@ -2081,6 +2084,7 @@ const aiChatBlock: CoreModuleDef = {
     openingMessage: "",
     model: "claude-sonnet-4-6",
     maxTurns: 8,
+    timeLimitSec: 0,
   },
   jsonSchema: {
     type: "object",
@@ -2090,6 +2094,7 @@ const aiChatBlock: CoreModuleDef = {
       openingMessage: { type: "string" },
       model: { type: "string" },
       maxTurns: { type: "integer", minimum: 1, maximum: 50 },
+      timeLimitSec: { type: "integer", minimum: 0, maximum: 3600 },
     },
     required: ["role"],
     additionalProperties: false,

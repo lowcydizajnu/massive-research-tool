@@ -437,8 +437,8 @@
 <script id="dashboard-state" type="application/json">{
   "project": "Massive Research Tool",
   "tagline": "Multi-tenant SaaS for psychological experiments",
-  "lastUpdated": "2026-06-21",
-  "currentFocus": "AI conversation block live + discoverable (v1.16.0-a32). Named 'AI conversation', now in the picker under a new AI category. Two-part fix: db:seed:prod (picker reads the seeded module table, migrations don't seed it) + an ai→AI category mapping. Full feature deployed a31 (ADR-0061): BYO key, role/context/+doc-upload/model/turn-cap, participant chat, transcript export. 645 tests green.",
+  "lastUpdated": "2026-06-22",
+  "currentFocus": "AI conversation — immersive chat UI + chat time limit (v1.16.0-a33). Participant chat rebuilt as a real chat window: assistant-avatar header, live mm:ss countdown + x/maxReplies budget, animated typing dots while thinking, per-message fade-in, auto-scroll, round Send. New researcher Time limit field (Builder → Configure; minutes, 0 = no limit) enforced by a client countdown; 'Max turns' relabeled 'Max replies' (the x/8 counter). timeLimitSec config schema .default(0) so old study configs stay valid; migration-free, no db:seed:prod. 645 tests green.",
   "currentFocusPrev": "AI conversation block deployed end-to-end (v1.16.0-a31, migration 0033). BYO Anthropic key; ai-chat module + turn engine behind AIProviderAdapter; Builder config + text-document upload into context; participant chat in take flow; transcript export. 645 tests green. Non-deterministic (disclose in prereg); PDF/Word extraction is the next nicety.",
   "phases": [
     {
@@ -1212,6 +1212,9 @@
     }
   ],
   "recentActivity": [
+    {
+      "text": "feat(ai): immersive participant chat UI + thinking animation + chat time limit (v1.16.0-a33). Real chat window (avatar header, live mm:ss countdown + x/maxReplies budget, bouncing-dot typing indicator, per-message fade-in, auto-scroll, round Send). New Time-limit config (minutes, 0 = no limit) enforced by a client countdown; 'Max turns'→'Max replies'. timeLimitSec schema .default(0) keeps old configs valid; migration-free, no db:seed:prod. 645 green."
+    },
     {
       "text": "fix(ai): AI conversation block now appears in prod picker — ran db:seed:prod (migrations don't seed) + added a dedicated 'AI' library category. Deploy a32 (29d1ef2)."
     },
