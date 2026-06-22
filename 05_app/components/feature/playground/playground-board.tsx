@@ -27,6 +27,7 @@ import { useState } from "react";
 import { UploadButton } from "@/components/feature/builder/upload-button";
 import { PendingButton, Spinner } from "@/components/ui/pending-button";
 import { api } from "@/lib/trpc/react";
+import { LIVE_POLL_MS, useVisibleInterval } from "@/lib/use-visible-interval";
 import { cn } from "@/lib/utils";
 import type { PlaygroundCardDTO, TodoItem } from "@/server/trpc/routers/playground";
 
@@ -67,7 +68,10 @@ function chipStyle(token: string): React.CSSProperties {
 export function PlaygroundBoard() {
   const utils = api.useUtils();
   const active = api.workspace.active.useQuery();
-  const board = api.playground.list.useQuery();
+  const board = api.playground.list.useQuery(undefined, {
+    refetchInterval: useVisibleInterval(LIVE_POLL_MS),
+    refetchOnWindowFocus: true,
+  });
   const canEdit = (active.data?.role ?? "viewer") !== "viewer";
 
   const [adding, setAdding] = useState<Kind | null>(null);
@@ -865,7 +869,10 @@ function CommentDrawer({
   onClose: () => void;
 }) {
   const utils = api.useUtils();
-  const thread = api.playground.listComments.useQuery({ cardId });
+  const thread = api.playground.listComments.useQuery(
+    { cardId },
+    { refetchInterval: useVisibleInterval(LIVE_POLL_MS), refetchOnWindowFocus: true },
+  );
   const refresh = () => {
     utils.playground.listComments.invalidate({ cardId });
     utils.playground.list.invalidate();
