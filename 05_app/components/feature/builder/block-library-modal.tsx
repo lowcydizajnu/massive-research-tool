@@ -60,6 +60,7 @@ type Category =
   | "Demographics"
   | "Media & stimuli"
   | "Social"
+  | "AI"
   | "Research tools"
   | "Your blocks"
   | "Community";
@@ -73,6 +74,7 @@ const CATEGORIES: Category[] = [
   "Demographics",
   "Media & stimuli",
   "Social",
+  "AI",
   "Research tools",
   "Your blocks",
   "Community",
@@ -96,6 +98,7 @@ const TAG_TO_CAT: Record<string, Category[]> = {
   instructions: ["Media & stimuli"],
   social: ["Social"],
   misinformation: ["Social"],
+  ai: ["AI"],
   behavioral: ["Research tools"],
   "manipulation-check": ["Research tools"],
   "attention-check": ["Research tools"],
@@ -153,6 +156,7 @@ const CAT_TILE: Record<Category, string> = {
   Demographics: "bg-[var(--color-warning-subtle)] text-[var(--color-warning-text-on-subtle)]",
   "Media & stimuli": "bg-[var(--color-primary-subtle)] text-[var(--color-primary-text-on-subtle)]",
   Social: "bg-[var(--color-danger-subtle)] text-[var(--color-danger-text-on-subtle)]",
+  AI: "bg-[var(--color-cond-4)] text-[var(--color-cond-4-text)]",
   "Research tools": "bg-[var(--color-warning-subtle)] text-[var(--color-warning-text-on-subtle)]",
   "Your blocks": "bg-[var(--color-accent-subtle)] text-[var(--color-accent-text-on-subtle)]",
   Community: "bg-[var(--color-success-subtle)] text-[var(--color-success-text-on-subtle)]",
