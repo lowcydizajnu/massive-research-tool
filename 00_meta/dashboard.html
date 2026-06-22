@@ -1213,6 +1213,9 @@
   ],
   "recentActivity": [
     {
+      "text": "docs(handoff): V2.1 Hume — all 7 open questions resolved + reconciled with ADR-0061 substrate (already shipped 35890fe). Locked: (1) we manage EVI configs via Hume's Configs API (hume_evi_config table; +3 days to H6); (2) per-block participant audio retention 'never'|'session'|'retained' (default session for audio-collecting blocks, never for voice-conversation); (3) 10 vetted TTS voice presets in V2.1; (4) $50/mo default budget cap on new workspaces (existing NULL); (5) keep both text-emotion-probe block + free-text emotion option; (6) researcher-facing branding YES + participant-facing NO (pre-ship Hume TOS check on TTS); (7) workspace-level cost rollup only. Renamed core/ai-conversation → core/voice-conversation@1.0.0 to avoid collision with shipped ai-chat (text-LLM). V2.1 extends ai_provider_connection additively (hume provider + encrypted_secret_key). Total ~12.5 weeks Code-tab. STATUS + handoff updated."
+    },
+    {
       "text": "feat(ai): ADR-0061 accepted + BYO Anthropic key (validate/encrypt/disconnect) like the OSF PAT — AIProviderAdapter + ai_provider_connection (migration 0033) + workspace-settings card. 642 green. 35890fe. Awaiting deploy."
     },
     {
