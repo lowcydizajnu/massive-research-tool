@@ -65,6 +65,30 @@ export async function openStudyAction(
   redirect(`/studies/${studyId}/${stage}`);
 }
 
+/**
+ * Switch into a workspace and land on its Activity feed (the Home "All activity"
+ * picker when the user is in more than one workspace). Same membership guard +
+ * cookie write as switchWorkspaceAction; only the destination differs.
+ */
+export async function openActivityAction(workspaceId: string): Promise<void> {
+  const dbUser = await getCurrentDbUser();
+  if (!dbUser) redirect("/signin");
+  const [m] = await db
+    .select({ id: member.id })
+    .from(member)
+    .where(
+      and(
+        eq(member.userId, dbUser.id),
+        eq(member.workspaceId, workspaceId),
+        eq(member.status, "active"),
+      ),
+    )
+    .limit(1);
+  if (!m) redirect("/");
+  await setActiveCookie(workspaceId);
+  redirect("/activity");
+}
+
 async function setActiveCookie(workspaceId: string): Promise<void> {
   const store = await cookies();
   store.set(ACTIVE_WORKSPACE_COOKIE, workspaceId, {
