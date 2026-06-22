@@ -438,8 +438,8 @@
   "project": "Massive Research Tool",
   "tagline": "Multi-tenant SaaS for psychological experiments",
   "lastUpdated": "2026-06-21",
-  "currentFocus": "AI conversation block deployed end-to-end (v1.16.0-a31, migration 0033). BYO Anthropic key; ai-chat module + turn engine behind AIProviderAdapter; Builder config + text-document upload into context; participant chat in take flow; transcript export. 645 tests green. Non-deterministic (disclose in prereg); PDF/Word extraction is the next nicety.",
-  "currentFocusPrev": "AI conversation block complete end-to-end (ADR-0061) — awaiting deploy (migration 0033). BYO per-workspace Anthropic key; ai-chat module + turn engine behind AIProviderAdapter; Builder config panel; participant chat in the take flow (transcript saved + exported). 645 tests green. Commits 35890fe + 277ee46 + db4c5fd. Non-deterministic (disclose in prereg); document-upload for context is the next nicety.",
+  "currentFocus": "AI conversation block live + discoverable (v1.16.0-a32). Named 'AI conversation', now in the picker under a new AI category. Two-part fix: db:seed:prod (picker reads the seeded module table, migrations don't seed it) + an ai→AI category mapping. Full feature deployed a31 (ADR-0061): BYO key, role/context/+doc-upload/model/turn-cap, participant chat, transcript export. 645 tests green.",
+  "currentFocusPrev": "AI conversation block deployed end-to-end (v1.16.0-a31, migration 0033). BYO Anthropic key; ai-chat module + turn engine behind AIProviderAdapter; Builder config + text-document upload into context; participant chat in take flow; transcript export. 645 tests green. Non-deterministic (disclose in prereg); PDF/Word extraction is the next nicety.",
   "phases": [
     {
       "id": "foundation",
@@ -1212,6 +1212,9 @@
     }
   ],
   "recentActivity": [
+    {
+      "text": "fix(ai): AI conversation block now appears in prod picker — ran db:seed:prod (migrations don't seed) + added a dedicated 'AI' library category. Deploy a32 (29d1ef2)."
+    },
     {
       "text": "deploy(v1.16.0-a31): AI conversation block complete (ADR-0061) — BYO key, module+engine, builder config + text-doc upload, participant chat, transcript export. Migration 0033. 060904d."
     },
