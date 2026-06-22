@@ -138,37 +138,42 @@ CREATE TABLE workspace_template (
 
 ---
 
-## Section L2 — Frameworks removal + Misinformation Research Framework migration (~3 days)
+## Section L2 — Frameworks removal (~0.5 day) — SIMPLIFIED (owner-directed 2026-06-22)
 
-Frameworks goes away as a destination. The Misinformation Research Framework content survives as an app-shipped starter Template.
+> **Scope change (owner-directed 2026-06-22).** The original plan "migrate the
+> Misinformation Research Framework into a starter Template" assumed Frameworks
+> were seeded `experiment` rows a `workspace_template` could reference. They are
+> **not** — Frameworks is an in-code `FRAMEWORK_REGISTRY` (`server/trpc/routers/
+> frameworks.ts`); there is no study/version to point at. Since there are **no
+> external users** (only the owner ever used it), the migration's justification
+> (preserve content + existing followers' onboarding hook) doesn't apply. So:
+> **just remove Frameworks. No content migration, no `workspace.is_starter`
+> column, no `framework`→`template` follow remap, and no 90-day redirect shim**
+> (no external traffic to protect). This drops L2 from ~3 days to ~0.5 day.
 
-### Migration steps (one-time data ops)
+### Steps (clean removal)
 
-1. **Identify the canonical Misinformation Research Framework study + version.** Today it's seeded via `scripts/seed-core.ts` under a system-owned workspace (verify the workspace_id during PR; document in `06_qa/audit-logs/<date>-frameworks-removal.md`).
-2. **Promote that workspace to an "app starter" workspace.** Add a `workspace.is_starter BOOLEAN NOT NULL DEFAULT FALSE` column (additive migration); flip the row to TRUE for the system workspace.
-3. **Create a `workspace_template` row** referencing the framework's study + frozen version: `name='Misinformation Research Framework'`, `share_scope='public'`, `starter=TRUE`, `tags=['misinformation', 'starter']`, cover image migrated from existing framework cover.
-4. **Migrate any existing `framework_follow` rows** to follow the new Template instead (additive — keep the `follow` rows; just update the target type from `framework` to `template` for the rows whose framework_id was the Misinformation one).
+1. Delete the `/frameworks` and `/frameworks/<id>` routes (`app/(app)/(workspace)/frameworks/`).
+2. Delete `FRAMEWORK_REGISTRY` + the `frameworks` tRPC router; remove its registration from `server/trpc/root.ts`.
+3. Remove the Frameworks entry from the LeftRail.
+4. Remove the `framework` follow-target: the `+Follow framework` affordance, the `framework` branch in the activity recipient resolver, and **delete the owner's stray `framework`-target `follow` rows** (a tiny one-off cleanup; no remap).
+5. Update onboarding: new-researcher "start from a curated study" points at **`/library?tab=templates`** (an empty Templates tab is fine until a starter exists), not `/frameworks`.
+6. Update the IA doc: drop the Frameworks destination (one fewer top-level item).
+7. Audit log: `06_qa/audit-logs/<date>-frameworks-removal.md`.
 
-### Code removal
+### Starter template / onboarding hook — OPTIONAL, decoupled
 
-- Delete `/frameworks` and `/frameworks/<id>` routes
-- Delete the Frameworks entry from the LeftRail
-- Delete `framework`-typed `follow` affordances (the `+Follow framework` button on Framework detail)
-- Delete the Frameworks browse procedure (`frameworks.list` / `frameworks.get`) — but keep the `experiment` rows that were Frameworks (now templates)
-- Update onboarding flow: new researcher signup → "Use a starter template?" lands in `/library/templates?filter=starters` instead of `/frameworks`
-- Delete the `framework_follow` follow target type from the activity engine's recipient resolver
-- Mark the Frameworks destination card "removed" in the IA — update IA doc
-
-### Compatibility shim
-
-`/frameworks` and `/frameworks/<id>` redirect to `/library/templates` and `/library/templates/<starter-template-id>` for 90 days, then 404. Logged in ADR-0034 amendment.
+The Misinformation content is **not** auto-migrated. If an onboarding starter is
+still wanted, author it **fresh** later as a real study, then Save-as-template
+with `starter=TRUE` using the L1 machinery — a clean, separate task, not a data
+migration. (Owner to decide if/when. Not a blocker for removal.)
 
 ### Tests
 
-- Unit: starter template appears in `templates.list({ scope: 'starters' })` for any workspace
-- Unit: starter template cannot be deleted by non-owner (workspace_id != caller's workspace_id)
-- e2e: a researcher who used to follow the Misinformation framework now sees template_used / template_published events in their Follows tab
-- Smoke: `/frameworks` and `/frameworks/<id>` 301-redirect correctly for 90 days
+- Smoke: `/frameworks` and `/frameworks/<id>` now 404 (route deleted).
+- Unit: the activity recipient resolver no longer references a `framework` target type.
+- Regression: no remaining import of `FRAMEWORK_REGISTRY` / `frameworks` router (grep gate).
+- (If a starter template is later authored: `templates.list({ scope: 'starters' })` returns it; non-owner workspaces can't delete it.)
 
 ---
 
@@ -607,11 +612,10 @@ Qualtrics ToS may restrict programmatic processing of `.qsf` files. Verify befor
 
 ## Sequencing PRs (~9.5 weeks total)
 
-**Stream L1 + L2 — Templates + Frameworks removal (~2.5 weeks):**
+**Stream L1 + L2 — Templates + Frameworks removal (~2 weeks):**
 - PR L1.1: `workspace_template` schema + `templates.create` + `templates.list` + `templates.useTemplate` + Save-as-Template modal in Builder (~5 days)
 - PR L1.2: Library Templates tab UI + per-template detail page + activity events (~3 days)
-- PR L2.1: Migration script (Misinformation Research Framework → starter Template) + `workspace.is_starter` column + onboarding redirect (~2 days)
-- PR L2.2: Frameworks destination removal + redirect shim + IA update (~2 days)
+- PR L2.1: Frameworks clean removal (routes + `FRAMEWORK_REGISTRY` + router + LeftRail + `framework` follow-target + stray follow-row cleanup + onboarding → `/library?tab=templates` + IA update + audit log) (~0.5 day). **Simplified — no migration, no `is_starter` column, no redirect shim** (owner-directed 2026-06-22; see §L2). Optional later: author a fresh Misinformation starter template.
 
 **Stream L3 — Materials + Playground bridge (~2 weeks):**
 - PR L3.1: `workspace_material` schema + `materials.upload` + Library Materials tab + upload flow (~3 days)
