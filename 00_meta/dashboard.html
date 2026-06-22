@@ -1213,6 +1213,9 @@
   ],
   "recentActivity": [
     {
+      "text": "fix(studies): can't delete a study saved as a template. studies.delete didn't clean up workspace_template rows that FK-reference the experiment + its frozen version (ON DELETE no action), so 'Delete forever' failed on a template source. The delete tx now removes templates WHERE source_experiment_id = study first (covers both FKs). +1 test; 676 vitest green. Ships with the L3 batch."
+    },
+    {
       "text": "feat(materials): Library L3.2 — Materials tab + Pick-from-Materials (ADR-0064); + fix(templates) replication-banner bug. L3 end-to-end: Materials tab (/library?tab=materials) — Upload (reuses uploads.presign -> R2 PUT -> materials.upload; ws/ key passes the namespace guard) + kind filter/search/grid + soft-delete. Pick-from-Materials sits beside Upload-from-computer on every block media field; selecting sets the field to /api/media/<r2Key> (orphan-safe) + bumps use-count — completing the owner-pinned upload-to-tab -> insert-into-block flow. Bug fix: useTemplate no longer sets forkOf*, so a template clone is a duplicate (no false 'Replicating <source>' banner). 675 vitest green; tsc+lint+build clean. Carries migration 0035."
     },
     {

@@ -24,6 +24,7 @@ import {
   responseItem,
   studyRecord,
   user,
+  workspaceTemplate,
 } from "@/server/db/schema";
 import { sanitizeLayout as sanitizeRecordLayout } from "@/lib/study-record/sections";
 import { extractMaterials } from "@/lib/study-record/materials";
@@ -5008,6 +5009,12 @@ export const studiesRouter = router({
           .set({ forkOfExperimentId: null, forkOfVersionId: null })
           .where(eq(experiment.forkOfExperimentId, exp.id));
         await tx.update(experiment).set({ currentVersionId: null }).where(eq(experiment.id, exp.id));
+        // Templates saved FROM this study reference its experiment + a frozen
+        // version (FK = no action), so they must go before the versions/experiment
+        // or the delete is blocked (ADR-0063/0064 L1 bug, 2026-06-22). A template's
+        // source_version_id is always a version of source_experiment_id, so keying
+        // on the experiment covers both FKs.
+        await tx.delete(workspaceTemplate).where(eq(workspaceTemplate.sourceExperimentId, exp.id));
         await tx.delete(experimentVersion).where(eq(experimentVersion.experimentId, exp.id));
         await tx.delete(experiment).where(eq(experiment.id, exp.id));
       });
