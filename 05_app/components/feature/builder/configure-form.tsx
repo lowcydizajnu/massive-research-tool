@@ -4,6 +4,7 @@ import { Eye, EyeOff, X } from "lucide-react";
 import { useRef, useState } from "react";
 
 import type { StudyBlock } from "@/server/trpc/routers/studies";
+import { AiChatConfig } from "@/components/feature/builder/ai-chat-config";
 import { UploadButton } from "@/components/feature/builder/upload-button";
 import { mediaKindForField } from "@/lib/uploads";
 import { cn } from "@/lib/utils";
@@ -54,6 +55,11 @@ export function ConfigureForm({
   const [draft, setDraft] = useState<Record<string, unknown>>(block.config);
   const [title, setTitle] = useState<string>(block.title ?? "");
   const [savingAs, setSavingAs] = useState<string | null>(null);
+
+  // The AI conversation block has a purpose-built config (role/context/model/cap).
+  if (block.key === "ai-chat") {
+    return <AiChatConfig block={block} onChange={onChange} onRename={onRename} onRemove={onRemove} />;
+  }
 
   return (
     <div className="flex flex-col gap-4">

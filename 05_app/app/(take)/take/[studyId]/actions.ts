@@ -50,6 +50,27 @@ function extractAnswer(moduleKey: string, prefix: string, fd: FormData): unknown
   const g = (n: string) => fd.get(`${prefix}${n}`);
   const gAll = (n: string) => fd.getAll(`${prefix}${n}`);
 
+  if (moduleKey === "ai-chat") {
+    // The participant chat island mirrors the transcript into a hidden field.
+    try {
+      const parsed = JSON.parse(String(g("aichat") ?? "[]")) as unknown;
+      const messages = Array.isArray(parsed)
+        ? parsed
+            .filter(
+              (m): m is { role: "user" | "assistant"; content: string } =>
+                !!m &&
+                ((m as { role?: unknown }).role === "user" || (m as { role?: unknown }).role === "assistant") &&
+                typeof (m as { content?: unknown }).content === "string",
+            )
+            .map((m) => ({ role: m.role, content: m.content.slice(0, 20000) }))
+            .slice(0, 200)
+        : [];
+      return { messages };
+    } catch {
+      return { messages: [] };
+    }
+  }
+
   if (
     moduleKey === "likert-7" ||
     moduleKey === "slider" ||
