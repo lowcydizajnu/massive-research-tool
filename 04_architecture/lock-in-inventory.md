@@ -42,9 +42,9 @@ For each vendor:
 
 | | |
 | --- | --- |
-| **What we use it for** | (stub only in V1 — per ADR-0011, no realtime features ship in MVP). Future: collaborative cursors on the Whiteboard mode canvas, presence indicators on shared studies, optimistic update broadcasting. |
-| **Behind an adapter** | `RealtimeAdapter` interface (to be drafted when the first realtime feature lands). All `@liveblocks/*` imports limited to `05_app/server/adapters/realtime.liveblocks.ts`. |
-| **Deliberate exceptions** | (none — adapter not yet written; first realtime feature triggers the interface.) |
+| **What we use it for** | Not adopted yet. The first realtime feature shipped on a **DB-polling default**, not Liveblocks (ADR-0060): presence indicators (avatars + per-block "who's editing") on the Builder, via a `study_presence` heartbeat table + client polling. Liveblocks remains the **push upgrade** for lower latency / collaborative cursors on the Whiteboard canvas. |
+| **Behind an adapter** | `RealtimeAdapter` interface **now drafted** at `05_app/server/adapters/realtime.ts` (presence / list / clear); V1 impl is `realtime.local.ts` (DB + polling, no vendor). A Liveblocks impl would live at `realtime.liveblocks.ts` with all `@liveblocks/*` imports confined there; the `realtime` binding swaps with no feature-code change. |
+| **Deliberate exceptions** | (none yet — V1 uses no vendor; the DB-polling impl needs no `@liveblocks/*` imports. First Liveblocks impl adds the confined import.) |
 | **Migration target** | Yjs + a small WebSocket server (could be deployed alongside the Next.js app or as a separate service). Yjs is the standard CRDT for collaborative editing; Liveblocks itself is built on top of conceptually similar primitives. |
 | **Cost-ceiling trigger** | Liveblocks free up to a low MAU threshold; ~$99/mo for the Starter tier. Trigger when monthly cost > $200/mo OR when we need to support self-hosted enterprise deployments. |
 
