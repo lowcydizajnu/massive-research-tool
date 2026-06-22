@@ -438,7 +438,7 @@
   "project": "Massive Research Tool",
   "tagline": "Multi-tenant SaaS for psychological experiments",
   "lastUpdated": "2026-06-22",
-  "currentFocus": "AI conversation — immersive chat UI + chat time limit (v1.16.0-a33). Participant chat rebuilt as a real chat window: assistant-avatar header, live mm:ss countdown + x/maxReplies budget, animated typing dots while thinking, per-message fade-in, auto-scroll, round Send. New researcher Time limit field (Builder → Configure; minutes, 0 = no limit) enforced by a client countdown; 'Max turns' relabeled 'Max replies' (the x/8 counter). timeLimitSec config schema .default(0) so old study configs stay valid; migration-free, no db:seed:prod. 645 tests green.",
+  "currentFocus": "AI conversation — immersive chat UI + chat time limit + Configure layout fix (v1.16.0-a34). Fixed: on the narrow right rail the Model dropdown overflowed and hid the Max-replies field; Model is now full-width (clips, not overflows) and Max replies + Time limit sit in a wrap row, always visible. Prior (a33): Participant chat rebuilt as a real chat window: assistant-avatar header, live mm:ss countdown + x/maxReplies budget, animated typing dots while thinking, per-message fade-in, auto-scroll, round Send. New researcher Time limit field (Builder → Configure; minutes, 0 = no limit) enforced by a client countdown; 'Max turns' relabeled 'Max replies' (the x/8 counter). timeLimitSec config schema .default(0) so old study configs stay valid; migration-free, no db:seed:prod. 645 tests green.",
   "currentFocusPrev": "AI conversation block deployed end-to-end (v1.16.0-a31, migration 0033). BYO Anthropic key; ai-chat module + turn engine behind AIProviderAdapter; Builder config + text-document upload into context; participant chat in take flow; transcript export. 645 tests green. Non-deterministic (disclose in prereg); PDF/Word extraction is the next nicety.",
   "phases": [
     {
@@ -1212,6 +1212,9 @@
     }
   ],
   "recentActivity": [
+    {
+      "text": "fix(ai): AI conversation Configure layout (v1.16.0-a34) — Max replies was pushed off-screen on the narrow rail because the Model dropdown (long labels) overflowed. Model now full-width with min-w-0/w-full (clips instead of overflowing); Max replies + Time limit in a flex-wrap two-up row, always visible; helper line clarifies Max replies = the x/8 counter."
+    },
     {
       "text": "feat(ai): immersive participant chat UI + thinking animation + chat time limit (v1.16.0-a33). Real chat window (avatar header, live mm:ss countdown + x/maxReplies budget, bouncing-dot typing indicator, per-message fade-in, auto-scroll, round Send). New Time-limit config (minutes, 0 = no limit) enforced by a client countdown; 'Max turns'→'Max replies'. timeLimitSec schema .default(0) keeps old configs valid; migration-free, no db:seed:prod. 645 green."
     },
