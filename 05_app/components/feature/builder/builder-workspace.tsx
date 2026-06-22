@@ -18,7 +18,7 @@ import {
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 import { StageTabs } from "@/components/chrome/stage-tabs";
-import { BlockEditorsBadge, PresenceAvatars, blockOutlineStyle, usePresence } from "@/components/feature/builder/presence";
+import { BlockEditorsBadge, BlockLockBanner, PresenceAvatars, blockOutlineStyle, usePresence } from "@/components/feature/builder/presence";
 import { LivePreviewPane } from "@/components/feature/builder/live-preview-pane";
 import { VariantsSection } from "@/components/feature/builder/variants-section";
 import { ConditionBuilder } from "@/components/feature/whiteboard/condition-builder";
@@ -94,10 +94,12 @@ function TabSoon({ label }: { label: string }) {
 export function BuilderWorkspace({
   study: initial,
   currentUserId = null,
+  currentUserName = null,
   initialPreviewOpen = false,
 }: {
   study: StudyDetail;
   currentUserId?: string | null;
+  currentUserName?: string | null;
   /** Arriving via the Preview tab (/build?preview=1) — open side-by-side + highlight Preview. */
   initialPreviewOpen?: boolean;
 }) {
@@ -148,6 +150,15 @@ export function BuilderWorkspace({
   for (const c of collaborators) {
     if (c.blockId) presenceByBlock.set(c.blockId, [...(presenceByBlock.get(c.blockId) ?? []), c]);
   }
+  // The avatar cluster shows everyone here — yourself first, then collaborators —
+  // so presence is always visible (the per-block indicators stay others-only).
+  const everyonePresent =
+    currentUserId != null
+      ? [
+          { userId: currentUserId, displayName: `${currentUserName ?? "You"} (you)`, blockId: selectedId, updatedAt: "" },
+          ...collaborators,
+        ]
+      : collaborators;
 
   const [pickerOpen, setPickerOpen] = useState(false);
   // The pinned Consent card is selected (its editor replaces the context panel).
@@ -626,7 +637,7 @@ export function BuilderWorkspace({
               >
                 <Redo2 className="size-4" aria-hidden />
               </button>
-              <PresenceAvatars users={collaborators} />
+              <PresenceAvatars users={everyonePresent} />
               <button
                 type="button"
                 onClick={togglePreview}
@@ -1142,6 +1153,7 @@ export function BuilderWorkspace({
           <BlockHistoryPanel studyId={study.id} instanceId={selected.instanceId} />
         ) : selected ? (
           <fieldset disabled={!canEdit} className="contents">
+            <BlockLockBanner users={presenceByBlock.get(selected.instanceId) ?? []} />
             <BlockProvenance studyId={study.id} instanceId={selected.instanceId} />
             {divergenceBadges[selected.instanceId] ? (
               <ReplicationConfigExtras
