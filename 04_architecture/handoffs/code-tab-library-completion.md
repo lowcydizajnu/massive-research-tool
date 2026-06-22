@@ -12,6 +12,17 @@ This handoff turns the Library from "one populated tab + four empty placeholders
 
 ---
 
+> **Path corrections (verified against the repo 2026-06-22).** Two "verify path"
+> references in this handoff are stale — confirmed before any L-stream starts:
+> - The Library/Frameworks routes live under **`app/(app)/(workspace)/library`**
+>   and **`app/(app)/(workspace)/frameworks`** (the `(app)` route group is in the
+>   path), not `app/(workspace)/…`. Adjust every `(workspace)/…` reference below.
+> - **`scripts/seed-core.ts` does not exist.** Core seeding is `scripts/seed-prod.ts`
+>   (`seedCoreModules`). The Misinformation Research Framework's actual seed
+>   location/owner workspace must be re-identified in L2 before the migration —
+>   do not assume `seed-core.ts`. (Other seed scripts: `seed-demo-prod.ts`,
+>   `seed-demo-workspace.ts`, `seed-network-demo.ts`, `seed-clerk-test-users.ts`.)
+
 ## What's in place today (post-V1.13.0)
 
 | Component | What's there | Where |
@@ -217,6 +228,17 @@ CREATE TABLE workspace_material (
 - Every block media-upload field gains a new picker option alongside the existing "Upload from computer" button: "Pick from Materials → [opens modal grid filtered by kind]"
 - Selecting a material sets the block's media field to reference the material's R2 key.
 - Important: block config stores the R2 key (not the material_id) so the block continues to work if the material is later deleted from Materials (orphan-safe).
+
+> **Owner addition — REQUIRED acceptance criterion (2026-06-22).** The primary
+> flow the owner explicitly wants is the *direct* one: **upload an asset straight
+> into the Materials tab** (the `+ Upload` button above), then, **while building a
+> study, open a dropdown/modal on the block you're editing to insert that
+> material** (the "Pick from Materials" picker above). Both ends of this flow
+> ship in this stream and are part of L3's done-definition — not the
+> promote-from-study direction alone. The picker must reach every block media
+> field (image / audio / video / document stimuli), default-filter by the field's
+> expected kind, and store the R2 key (orphan-safe). Cover this end-to-end in the
+> L3 e2e (upload to tab → add to a block via the modal → block renders it).
 
 **Playground bridge (two-way):**
 
