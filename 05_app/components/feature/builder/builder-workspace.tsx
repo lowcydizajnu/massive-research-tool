@@ -18,6 +18,7 @@ import {
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 import { StageTabs } from "@/components/chrome/stage-tabs";
+import { BlockEditorsBadge, PresenceAvatars, blockOutlineStyle, usePresence } from "@/components/feature/builder/presence";
 import { LivePreviewPane } from "@/components/feature/builder/live-preview-pane";
 import { VariantsSection } from "@/components/feature/builder/variants-section";
 import { ConditionBuilder } from "@/components/feature/whiteboard/condition-builder";
@@ -141,6 +142,12 @@ export function BuilderWorkspace({
       window.localStorage.setItem("mrt-builder-live-preview", next ? "on" : "off");
       return next;
     });
+  // Live cooperation (ADR-0060): heartbeat my focused block, see other editors.
+  const collaborators = usePresence(study.id, selectedId, currentUserId != null);
+  const presenceByBlock = new Map<string, typeof collaborators>();
+  for (const c of collaborators) {
+    if (c.blockId) presenceByBlock.set(c.blockId, [...(presenceByBlock.get(c.blockId) ?? []), c]);
+  }
 
   const [pickerOpen, setPickerOpen] = useState(false);
   // The pinned Consent card is selected (its editor replaces the context panel).
@@ -619,6 +626,7 @@ export function BuilderWorkspace({
               >
                 <Redo2 className="size-4" aria-hidden />
               </button>
+              <PresenceAvatars users={collaborators} />
               <button
                 type="button"
                 onClick={togglePreview}
@@ -908,8 +916,13 @@ export function BuilderWorkspace({
                     );
                   }
 
+                  const blockEditors = presenceByBlock.get(b.instanceId) ?? [];
                   return (
-                    <div className={cn("flex items-stretch gap-1", groupCls, grouped && "py-0.5")}>
+                    <div
+                      className={cn("relative flex items-stretch gap-1", groupCls, grouped && "py-0.5")}
+                      style={blockOutlineStyle(blockEditors)}
+                    >
+                      <BlockEditorsBadge users={blockEditors} />
                       <span
                         ref={handle.ref}
                         {...handle.attributes}
