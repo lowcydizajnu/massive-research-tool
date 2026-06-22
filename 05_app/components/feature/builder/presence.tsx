@@ -1,5 +1,6 @@
 "use client";
 
+import { Pencil } from "lucide-react";
 import { useEffect, useRef } from "react";
 
 import { api } from "@/lib/trpc/react";
@@ -114,6 +115,30 @@ export function BlockEditorsBadge({ users }: { users: PresenceEntry[] }) {
         <Dot key={u.userId} user={u} size="sm" />
       ))}
     </span>
+  );
+}
+
+/**
+ * Soft-lock banner for the Configure panel (ADR-0060): tells the editor that
+ * someone else is on this block, so an edit may overwrite theirs (last-write-wins).
+ */
+export function BlockLockBanner({ users }: { users: PresenceEntry[] }) {
+  if (users.length === 0) return null;
+  const names =
+    users.length === 1
+      ? users[0].displayName
+      : `${users.slice(0, -1).map((u) => u.displayName).join(", ")} and ${users[users.length - 1].displayName}`;
+  return (
+    <p
+      role="status"
+      className="flex items-start gap-2 rounded-[var(--radius-md)] border border-[var(--color-warning)] bg-[var(--color-warning-subtle)] px-3 py-2 text-[length:var(--text-small)] text-[var(--color-warning-text-on-subtle)]"
+    >
+      <Pencil className="mt-0.5 size-4 shrink-0" aria-hidden />
+      <span>
+        <strong>{names}</strong> {users.length === 1 ? "is" : "are"} also editing this block. Saving
+        will overwrite each other (last change wins) — coordinate to avoid losing work.
+      </span>
+    </p>
   );
 }
 

@@ -37,6 +37,7 @@ export default async function BuildStagePage({
     <BuilderWorkspace
       study={study}
       currentUserId={dbUser?.id ?? null}
+      currentUserName={dbUser?.displayName ?? null}
       initialPreviewOpen={initialPreviewOpen}
     />
   );
