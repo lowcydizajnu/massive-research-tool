@@ -1213,6 +1213,9 @@
   ],
   "recentActivity": [
     {
+      "text": "feat(templates): Library L1.1 — workspace_template data layer + templates router (ADR-0063). Migration 0034 (curated metadata -> frozen experiment_version; share_scope CHECK; soft-delete; use_count; starter). templates router: list (scope/search/sort), get (frozen-blocks preview), create (freezes a named version then writes the row; emits template_published when shared), useTemplate (clones the frozen version via fork's copy shape, +use_count, emits template_used), update, delete (soft). +2 event types; +5 router tests; 670 vitest green; tsc+lint clean. ⚠️ migration 0034 not yet on prod. Next: Save-as-template modal + Templates tab UI."
+    },
+    {
       "text": "docs(gate): Library L1 Templates — ADR-0063 + user flow + 3 wireframes. workspace_template table pins curated metadata (name/desc/tags/cover/visibility/use_count/starter) to a FROZEN experiment_version; Save-as-template freezes via studies.saveAsNamed then inserts the row; Use-template clones via studies.fork; 3-scope visibility (private/workspace/public); template_published/template_used events; soft-delete; no template-internal versioning. Flow use-and-save-templates + wireframes (templates-tab/detail/save-as-template-modal). L2 correction: Frameworks is an in-code registry, not seeded experiments — must materialize the Misinformation framework first. Validator clean (192). Code not started."
     },
     {

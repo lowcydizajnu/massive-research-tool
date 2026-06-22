@@ -17,6 +17,7 @@ import { savedRouter } from "@/server/trpc/routers/saved";
 import { studiesRouter } from "@/server/trpc/routers/studies";
 import { studyRecordRouter } from "@/server/trpc/routers/study-record";
 import { teamRouter } from "@/server/trpc/routers/team";
+import { templatesRouter } from "@/server/trpc/routers/templates";
 import { uploadsRouter } from "@/server/trpc/routers/uploads";
 import { workspaceRouter } from "@/server/trpc/routers/workspace";
 import { router } from "@/server/trpc/trpc";
@@ -36,6 +37,7 @@ export const appRouter = router({
   modules: modulesRouter,
   proposals: proposalsRouter,
   frameworks: frameworksRouter,
+  templates: templatesRouter,
   comments: commentsRouter,
   notifications: notificationsRouter,
   follows: followsRouter,

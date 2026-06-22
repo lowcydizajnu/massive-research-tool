@@ -19,7 +19,9 @@ export type EventType =
   | "proposal_open" // someone proposed changes to your study (ADR-0036)
   | "proposal_decided" // your proposal was accepted/declined
   | "playground_assigned" // a Playground to-do was assigned to you (ADR-0059 P3)
-  | "playground_card_added"; // a card was added to a Playground board you're in (ADR-0059 P3)
+  | "playground_card_added" // a card was added to a Playground board you're in (ADR-0059 P3)
+  | "template_published" // a workspace/public template was published (ADR-0063, Library L1)
+  | "template_used"; // someone cloned your template (ADR-0063, Library L1)
 
 export const EVENT_TYPES: EventType[] = [
   "mention",
@@ -36,6 +38,8 @@ export const EVENT_TYPES: EventType[] = [
   "proposal_decided",
   "playground_assigned",
   "playground_card_added",
+  "template_published",
+  "template_used",
 ];
 
 /**
