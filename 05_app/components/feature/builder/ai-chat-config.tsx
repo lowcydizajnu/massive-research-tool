@@ -19,40 +19,66 @@ const MODELS: { value: string; label: string }[] = [
 ];
 
 const MAX_DOC_CHARS = 100_000;
+const TEXT_EXTS = ["txt", "md", "markdown", "csv", "tsv", "json", "text", "log"];
 
 /**
- * Upload a TEXT document (.txt/.md/.csv/.json) — read client-side and appended to
- * the context. Text-only for now (PDF/Word extraction is a follow-up behind the
- * AI Task substrate, ADR-0006). Nothing is uploaded to storage; we only keep the
- * text the AI needs.
+ * Upload a document and append its text to the context (ADR-0061 + ADR-0062).
+ * Plain-text files are read in the browser (no round-trip); PDF/Word go to the
+ * auth-gated /api/extract-document route, which parses them server-side and
+ * returns the text. Nothing is stored — we keep only the text the AI needs.
  */
 function ContextDocUpload({ onText }: { onText: (text: string, name: string) => void }) {
   const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function handleFile(file: File) {
+    setErr(null);
+    const ext = (file.name.split(".").pop() ?? "").toLowerCase();
+    const isText = TEXT_EXTS.includes(ext) || file.type.startsWith("text/") || file.type === "application/json";
+    if (file.size > 10_000_000) return setErr("File too large (max 10 MB).");
+    setBusy(true);
+    try {
+      if (isText) {
+        const raw = await file.text();
+        onText(raw.slice(0, MAX_DOC_CHARS), file.name);
+      } else {
+        const fd = new FormData();
+        fd.append("file", file);
+        const res = await fetch("/api/extract-document", { method: "POST", body: fd });
+        const data = (await res.json().catch(() => ({}))) as { text?: string; error?: string };
+        if (!res.ok || typeof data.text !== "string") {
+          setErr(data.error ?? "Couldn’t read that document. Try a different file or paste the text.");
+          return;
+        }
+        onText(data.text, file.name);
+      }
+    } catch {
+      setErr("Couldn’t read that file. PDF, Word (.docx), or plain text (.txt, .md, .csv) work best.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <span className="flex flex-col gap-1">
-      <label className="inline-flex w-fit cursor-pointer items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-2.5 py-1 text-[length:var(--text-small)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]">
-        <Upload className="size-3.5" aria-hidden /> Upload a text document
+      <label
+        className={`inline-flex w-fit items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-2.5 py-1 text-[length:var(--text-small)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)] ${busy ? "cursor-wait opacity-60" : "cursor-pointer"}`}
+      >
+        <Upload className="size-3.5" aria-hidden /> {busy ? "Extracting…" : "Upload a document"}
         <input
           type="file"
-          accept=".txt,.md,.markdown,.csv,.tsv,.json,text/plain"
+          accept=".txt,.md,.markdown,.csv,.tsv,.json,.pdf,.docx,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
           className="hidden"
+          disabled={busy}
           onChange={async (e) => {
             const file = e.target.files?.[0];
             e.target.value = "";
-            if (!file) return;
-            setErr(null);
-            if (file.size > 2_000_000) return setErr("File too large (max ~2 MB of text).");
-            try {
-              const raw = await file.text();
-              onText(raw.slice(0, MAX_DOC_CHARS), file.name);
-            } catch {
-              setErr("Couldn’t read that file. Plain-text files (.txt, .md, .csv) work best.");
-            }
+            if (file) await handleFile(file);
           }}
         />
       </label>
       <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-        Text files only for now (.txt, .md, .csv). PDF/Word extraction is coming.
+        PDF, Word (.docx), or text (.txt, .md, .csv). Extracted text only — scanned/image PDFs won’t work.
       </span>
       {err && <span className="text-[length:var(--text-small)] text-[var(--color-danger-text-on-subtle)]">{err}</span>}
     </span>
