@@ -137,6 +137,47 @@ export const workspaceRouter = router({
       .sort((x, y) => y.lastActivityAt.localeCompare(x.lastActivityAt));
   }),
 
+  /**
+   * Create a new workspace owned by the caller (the Home "New workspace" action).
+   * Mirrors onboarding's standalone path: insert workspace + an owner membership.
+   * The client switches into it (cookie) via switchWorkspaceAction afterwards.
+   */
+  create: protectedProcedure
+    .input(z.object({ name: z.string().trim().min(1).max(120) }))
+    .mutation(async ({ ctx, input }): Promise<{ id: string }> => {
+      const name = input.name.trim();
+      const base =
+        name
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "") || "workspace";
+      // Cheap collision handling (workspace creation is rare): append -2, -3, …
+      let slug = base;
+      for (let n = 2; ; n++) {
+        const [taken] = await db
+          .select({ id: workspace.id })
+          .from(workspace)
+          .where(eq(workspace.slug, slug))
+          .limit(1);
+        if (!taken) break;
+        slug = `${base}-${n}`;
+      }
+      const id = await db.transaction(async (tx) => {
+        const [ws] = await tx
+          .insert(workspace)
+          .values({ name, slug, ownerId: ctx.dbUser.id })
+          .returning();
+        await tx.insert(member).values({
+          workspaceId: ws.id,
+          userId: ctx.dbUser.id,
+          role: "owner",
+          status: "active",
+        });
+        return ws.id;
+      });
+      return { id };
+    }),
+
   /** Active members of the workspace — feeds the @-mention autocomplete (ADR-0015). */
   members: workspaceProcedure.query(async ({ ctx }): Promise<WorkspaceMember[]> => {
     const rows = await db

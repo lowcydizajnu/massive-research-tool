@@ -3,6 +3,8 @@ import { ArrowRight, BookmarkCheck, FlaskConical } from "lucide-react";
 import Link from "next/link";
 
 import { openStudyAction, switchWorkspaceAction } from "@/app/actions/switch-workspace";
+import { ActivityLink } from "@/components/feature/dashboard/personal/activity-link";
+import { NewWorkspaceButton } from "@/components/feature/dashboard/personal/new-workspace-button";
 import { PaginatedList } from "@/components/feature/dashboard/paginated-list";
 import { NewStudyButton } from "@/components/feature/new-study/new-study-button";
 import type { FollowsFeedItem } from "@/server/trpc/routers/follows";
@@ -120,6 +122,7 @@ export function WorkspacesWidget({
           ))}
         </PaginatedList>
       )}
+      <NewWorkspaceButton />
     </Card>
   );
 }
@@ -222,31 +225,31 @@ function relTime(iso: string): string {
   return new Date(iso).toLocaleDateString();
 }
 
-function FeedRow({ text, href, when }: { text: string; href: Route | null; when: string }) {
+function FeedRow({
+  text,
+  href,
+  when,
+  sub,
+}: {
+  text: string;
+  href: Route | null;
+  when: string;
+  sub?: string | null;
+}) {
   return (
     <li className="flex items-baseline justify-between gap-3 px-1 py-1 text-[length:var(--text-small)]">
-      <span className="min-w-0 truncate text-[var(--color-text-secondary)]">
+      <span className="min-w-0 truncate">
         {href ? (
           <Link href={href} className="text-[var(--color-text-primary)] hover:underline">
             {text}
           </Link>
         ) : (
-          text
+          <span className="text-[var(--color-text-secondary)]">{text}</span>
         )}
+        {sub ? <span className="text-[var(--color-text-muted)]"> · {sub}</span> : null}
       </span>
       <time className="shrink-0 text-[var(--color-text-muted)]">{relTime(when)}</time>
     </li>
-  );
-}
-
-function ActivityLink() {
-  return (
-    <Link
-      href="/activity"
-      className="mt-1 inline-flex w-fit items-center gap-1 text-[length:var(--text-small)] font-medium text-[var(--color-primary)] hover:opacity-90"
-    >
-      All activity <ArrowRight className="size-3" aria-hidden />
-    </Link>
   );
 }
 
@@ -266,12 +269,24 @@ function notifText(n: NotificationDTO): string {
       return `${actor} replicated ${title}`;
     case "osf_push_complete":
       return `Your preregistration for ${title} is live`;
+    case "playground_assigned": {
+      const ct = typeof n.payload?.cardTitle === "string" && n.payload.cardTitle ? `“${n.payload.cardTitle}”` : "a to-do";
+      return `${actor} assigned ${ct} to you`;
+    }
+    case "playground_card_added": {
+      const kind = typeof n.payload?.cardKind === "string" ? n.payload.cardKind : "card";
+      const label = kind === "poll" ? "a poll" : kind === "todo" ? "a to-do" : `a ${kind}`;
+      return `${actor} added ${label} to the Playground`;
+    }
     default:
       return `${actor} updated ${title}`;
   }
 }
 
 function notifHref(n: NotificationDTO): Route | null {
+  if (n.type === "playground_assigned" || n.type === "playground_card_added") {
+    return "/playground" as Route;
+  }
   const studyId = typeof n.payload?.studyId === "string" ? n.payload.studyId : null;
   if (!studyId) return null;
   const stage = n.type === "fork" || n.type === "osf_push_complete" ? "build" : "share";
@@ -286,7 +301,7 @@ export function NotificationsWidget({ items }: { items: NotificationDTO[] }) {
       ) : (
         <ul className="flex flex-col">
           {items.map((n) => (
-            <FeedRow key={n.id} text={notifText(n)} href={notifHref(n)} when={n.createdAt} />
+            <FeedRow key={n.id} text={notifText(n)} href={notifHref(n)} when={n.createdAt} sub={n.workspaceName} />
           ))}
         </ul>
       )}
@@ -303,7 +318,7 @@ export function MentionsWidget({ items }: { items: NotificationDTO[] }) {
       ) : (
         <ul className="flex flex-col">
           {items.map((n) => (
-            <FeedRow key={n.id} text={notifText(n)} href={notifHref(n)} when={n.createdAt} />
+            <FeedRow key={n.id} text={notifText(n)} href={notifHref(n)} when={n.createdAt} sub={n.workspaceName} />
           ))}
         </ul>
       )}

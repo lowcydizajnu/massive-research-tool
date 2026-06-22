@@ -60,6 +60,31 @@ beforeEach(async () => {
   await db.delete(user);
 });
 
+describe("workspace.create", () => {
+  it("creates a workspace owned by the caller and lists it", async () => {
+    const ws = await seedWs("owner");
+    expect(ws.id).toBeTruthy();
+    const caller = createCaller({ authUser: authUser("u") });
+
+    const { id } = await caller.workspace.create({ name: "My Second Lab" });
+    const rows = await caller.workspace.list();
+    const created = rows.find((w) => w.id === id);
+    expect(created).toBeTruthy();
+    expect(created!.name).toBe("My Second Lab");
+    expect(created!.slug).toBe("my-second-lab");
+    expect(created!.role).toBe("owner");
+    expect(created!.studyCount).toBe(0);
+  });
+
+  it("de-duplicates slugs across workspaces", async () => {
+    await seedWs("owner"); // existing slug "lab"
+    const caller = createCaller({ authUser: authUser("u") });
+    const { id } = await caller.workspace.create({ name: "Lab" });
+    const created = (await caller.workspace.list()).find((w) => w.id === id);
+    expect(created!.slug).toBe("lab-2");
+  });
+});
+
 describe("workspace activity filter", () => {
   it("recentActivity shows all kinds by default, hides the configured ones", async () => {
     await seedWs("owner");

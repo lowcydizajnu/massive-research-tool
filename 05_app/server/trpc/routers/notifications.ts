@@ -2,7 +2,7 @@ import { and, desc, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/server/db/client";
-import { notification, user } from "@/server/db/schema";
+import { activityEvent, notification, user, workspace } from "@/server/db/schema";
 import { protectedProcedure, router } from "@/server/trpc/trpc";
 
 /**
@@ -21,6 +21,8 @@ export type NotificationDTO = {
   targetType: string;
   targetId: string;
   payload: Record<string, unknown>;
+  /** Which workspace the event happened in — secondary info on cross-workspace feeds. */
+  workspaceName: string | null;
   readAt: string | null;
   createdAt: string;
 };
@@ -39,11 +41,15 @@ export const notificationsRouter = router({
           targetType: notification.targetType,
           targetId: notification.targetId,
           payload: notification.payload,
+          workspaceName: workspace.name,
           readAt: notification.readAt,
           createdAt: notification.createdAt,
         })
         .from(notification)
         .leftJoin(user, eq(notification.actorUserId, user.id))
+        // The originating event carries the workspace; surface its name (cross-workspace feed).
+        .leftJoin(activityEvent, eq(notification.sourceEventId, activityEvent.id))
+        .leftJoin(workspace, eq(activityEvent.workspaceId, workspace.id))
         .where(eq(notification.recipientUserId, ctx.dbUser.id))
         .orderBy(desc(notification.createdAt))
         .limit(input?.limit ?? 50);
@@ -56,6 +62,7 @@ export const notificationsRouter = router({
         targetType: r.targetType,
         targetId: r.targetId,
         payload: (r.payload ?? {}) as Record<string, unknown>,
+        workspaceName: r.workspaceName ?? null,
         readAt: r.readAt ? r.readAt.toISOString() : null,
         createdAt: r.createdAt.toISOString(),
       }));
