@@ -100,6 +100,16 @@ For each vendor:
 | **Migration target** | Per-tenant or per-task. Multiple providers can be active simultaneously. |
 | **Cost-ceiling trigger** | Cost-per-invocation tracked in `TenantAIMeter`; trigger when monthly cost > $50/tenant OR when token consumption pattern suggests caching gaps. |
 
+## Document extraction (PDF / Word → text — per ADR-0062)
+
+| | |
+| --- | --- |
+| **What we use it for** | Turning a researcher-uploaded PDF/DOCX into plain text for the AI conversation block's **context** (ADR-0061/0062). Deterministic parsing — **not** an AI Task, not behind `AIProviderAdapter`. |
+| **Behind an adapter** | One module: `server/extract/document.ts`. Library imports (`unpdf` for PDF, `mammoth` for DOCX) live **only** there; the `/api/extract-document` route and feature code call `extractDocumentText(...)` and never import a parser. |
+| **Deliberate exceptions** | (none — both libs are pure-JS, server-only, imported solely in `server/extract/document.ts`.) |
+| **Migration target** | Swap `unpdf`/`mammoth` for another parser (or a sandboxed background job, or an OCR provider for scanned PDFs) inside the one module without touching callers. |
+| **Cost-ceiling trigger** | No per-use cost (local parsing). Capability trigger: scanned-PDF/OCR demand, or structured field extraction → an ADR-0006 AI `extraction` Task instead. |
+
 ## React Flow / xyflow (Whiteboard canvas — per ADR-0020)
 
 | | |
