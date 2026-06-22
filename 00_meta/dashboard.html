@@ -438,8 +438,8 @@
   "project": "Massive Research Tool",
   "tagline": "Multi-tenant SaaS for psychological experiments",
   "lastUpdated": "2026-06-21",
-  "currentFocus": "Owner feedback batch built (awaiting deploy, no migration): removed the variants banner (drift/Run already covers it); Playground to-do assignment is now per item (own assignee + notification); workspace.create + 'New workspace' button on Home; notifications show the workspace name + render playground events correctly; 'All activity' is a workspace picker when in >1 workspace. 632 tests green. Commits 9e3e2b0 + 780cda2.",
-  "currentFocusPrev": "Playground feature-complete + factorial variants-not-published warning — DEPLOYED (v1.16.0-a26, 9078fc4, migration 0031). P3: multi-item to-do checklists, assignee + card-added notifications, inline edit, drag-to-reorder. Plus a Variants-editor warning when the Draft's factors aren't in the running version (variantsNeedPublish). 631 tests green. ADR-0059 P1+P2+P3 all live.",
+  "currentFocus": "Preview side-by-side loop fixed (awaiting deploy, no migration): Preview tab/⌘K → /build?preview=1 opens side-by-side (discoverable; pane gate xl→lg + resize handle); full-screen ⇄ 'Side by side' loop. Commit 100dadf, 632 green. NEXT: live cooperation (presence avatars, per-block editor borders w/ initials, conflict-aware autosave) — new realtime concept, gate-first (ADR + RealtimeAdapter + flow + wireframe).",
+  "currentFocusPrev": "Owner feedback batch built (awaiting deploy, no migration): removed the variants banner (drift/Run already covers it); Playground to-do assignment is now per item (own assignee + notification); workspace.create + 'New workspace' button on Home; notifications show the workspace name + render playground events correctly; 'All activity' is a workspace picker when in >1 workspace. 632 tests green. Commits 9e3e2b0 + 780cda2.",
   "phases": [
     {
       "id": "foundation",
@@ -1212,6 +1212,9 @@
     }
   ],
   "recentActivity": [
+    {
+      "text": "feat(preview): Preview tab opens side-by-side; full-screen ⇄ side-by-side loop; pane reachable on laptops + resize handle. Commit 100dadf. Awaiting deploy."
+    },
     {
       "text": "feat: owner feedback batch — per-item to-do assignees, workspace.create + New workspace button, workspace-name on notifications, 'All activity' workspace picker, drop variants banner. 632 green. 9e3e2b0 + 780cda2. Awaiting deploy."
     },
