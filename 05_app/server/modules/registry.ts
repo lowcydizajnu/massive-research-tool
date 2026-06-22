@@ -2057,7 +2057,58 @@ const endRedirectBlock: CoreModuleDef = {
   isComplete: (c) => typeof c.redirectUrl === "string" && c.redirectUrl.trim() !== "",
 };
 
+// AI conversation (ADR-0061) — a live chat with Claude given a researcher role +
+// context. The full transcript is the answer. Uses the workspace's BYO Anthropic
+// key (Settings → AI provider); each assistant turn is server-mediated.
+const aiChatBlock: CoreModuleDef = {
+  source: "core",
+  key: "ai-chat",
+  version: "1.0.0",
+  name: "AI conversation",
+  description:
+    "A live chat with an AI (Claude) you give a role + context. The whole transcript is saved as the answer. Uses your workspace's Anthropic key (Settings → AI provider).",
+  categoryTags: ["ai", "open-ended"],
+  configSchema: z.object({
+    role: z.string(),
+    context: z.string(),
+    openingMessage: z.string(),
+    model: z.enum(["claude-sonnet-4-6", "claude-opus-4-8", "claude-haiku-4-5-20251001"]),
+    maxTurns: z.number().int().min(1).max(50),
+  }),
+  defaultConfig: {
+    role: "",
+    context: "",
+    openingMessage: "",
+    model: "claude-sonnet-4-6",
+    maxTurns: 8,
+  },
+  jsonSchema: {
+    type: "object",
+    properties: {
+      role: { type: "string" },
+      context: { type: "string" },
+      openingMessage: { type: "string" },
+      model: { type: "string" },
+      maxTurns: { type: "integer", minimum: 1, maximum: 50 },
+    },
+    required: ["role"],
+    additionalProperties: false,
+  },
+  collectsResponse: true,
+  // The stored answer is the conversation transcript.
+  responseSchema: z.object({
+    messages: z
+      .array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().max(20000) }))
+      .max(200),
+  }),
+  isAnswerEmpty: (a) =>
+    !Array.isArray((a as { messages?: unknown })?.messages) ||
+    (a as { messages: unknown[] }).messages.length === 0,
+  isComplete: (c) => typeof c.role === "string" && c.role.trim().length > 0,
+};
+
 export const MODULE_REGISTRY: CoreModuleDef[] = [
+  aiChatBlock,
   npsBlock,
   ratingStarsBlock,
   vasBlock,

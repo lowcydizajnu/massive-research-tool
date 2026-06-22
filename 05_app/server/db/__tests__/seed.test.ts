@@ -33,6 +33,7 @@ describe("seedCoreModules", () => {
     expect(mods.map((m) => `${m.source}/${m.key}`).sort()).toEqual([
       "core/accuracy-confidence",
       "core/address",
+      "core/ai-chat",
       "core/attention-check",
       "core/audio-record",
       "core/constant-sum",
@@ -80,7 +81,7 @@ describe("seedCoreModules", () => {
     ]);
 
     const versions = await db.select().from(moduleVersion);
-    expect(versions).toHaveLength(47); // +2 Wave 5 flow blocks (2026-06-13)
+    expect(versions).toHaveLength(48); // +2 Wave 5 flow blocks (2026-06-13)
 
     const social = mods.find((m) => m.key === "social-post")!;
     const socialVersions = versions
@@ -94,7 +95,7 @@ describe("seedCoreModules", () => {
   it("is idempotent across repeated runs", async () => {
     await seedCoreModules();
     await seedCoreModules();
-    expect(await db.select().from(moduleTable)).toHaveLength(46);
-    expect(await db.select().from(moduleVersion)).toHaveLength(47);
+    expect(await db.select().from(moduleTable)).toHaveLength(47);
+    expect(await db.select().from(moduleVersion)).toHaveLength(48);
   });
 });
