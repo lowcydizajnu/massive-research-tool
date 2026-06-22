@@ -438,8 +438,8 @@
   "project": "Massive Research Tool",
   "tagline": "Multi-tenant SaaS for psychological experiments",
   "lastUpdated": "2026-06-21",
-  "currentFocus": "AI conversation block (ADR-0061): BYO-key layer + ai-chat module + turn engine built (645 tests green; commits 35890fe + 277ee46). Remaining: Builder config UI, participant chat UI, transcript export. Awaiting deploy (migration 0033).",
-  "currentFocusPrev": "AI conversation block — ADR-0061 accepted; BYO Anthropic key layer built (awaiting deploy, migration 0033). AIProviderAdapter + Anthropic impl (HTTP, key confined); ai_provider_connection (encrypted, per-workspace, masked); ai.connections router + workspace-settings card to paste/validate/remove the key. 642 tests green; commit 35890fe. Remaining: the ai-chat module + runtime turn + participant chat UI (needs a workspace BYO key to reach Claude).",
+  "currentFocus": "AI conversation block complete end-to-end (ADR-0061) — awaiting deploy (migration 0033). BYO per-workspace Anthropic key; ai-chat module + turn engine behind AIProviderAdapter; Builder config panel; participant chat in the take flow (transcript saved + exported). 645 tests green. Commits 35890fe + 277ee46 + db4c5fd. Non-deterministic (disclose in prereg); document-upload for context is the next nicety.",
+  "currentFocusPrev": "AI conversation block (ADR-0061): BYO-key layer + ai-chat module + turn engine built (645 tests green; commits 35890fe + 277ee46). Remaining: Builder config UI, participant chat UI, transcript export. Awaiting deploy (migration 0033).",
   "phases": [
     {
       "id": "foundation",
@@ -1212,6 +1212,9 @@
     }
   ],
   "recentActivity": [
+    {
+      "text": "feat(ai): AI conversation block complete (ADR-0061) — Builder config + participant chat UI + transcript export, atop the BYO-key layer + turn engine. 645 green. db4c5fd. Awaiting deploy (migration 0033)."
+    },
     {
       "text": "feat(ai): ai-chat module + aiChatTurn engine + server action (ADR-0061). Transcript via normal answer path. 645 green. 277ee46. Remaining: builder + participant UIs."
     },
