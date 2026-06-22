@@ -544,6 +544,42 @@ export type RecruitmentProviderConnection = typeof recruitmentProviderConnection
 export type NewRecruitmentProviderConnection = typeof recruitmentProviderConnection.$inferInsert;
 
 /**
+ * A workspace's bring-your-own AI provider key (ADR-0061 / ADR-0006 BYO-key).
+ * Mirrors recruitment_provider_connection: a pasted API key, validated against
+ * the provider, encrypted at rest (AES-256-GCM via TOKEN_ENCRYPTION_KEY), one
+ * row per (workspace, provider). The key is NEVER returned to the client — only
+ * a masked hint + status. No participant data (ADR-0014).
+ */
+export const aiProviderConnection = pgTable(
+  "ai_provider_connection",
+  {
+    id: text("id").primaryKey(), // ULID
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspace.id),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id),
+    provider: text("provider").notNull(), // 'anthropic' (extends to 'openai', …)
+    /** Encrypted at rest (AES-256-GCM); never plaintext, never sent to the client. */
+    apiKey: text("api_key").notNull(),
+    /** Last 4 chars of the key for a "•••• 1a2b" hint in the UI. */
+    keyHint: text("key_hint"),
+    status: text("status").notNull().default("active"), // 'active' | 'error'
+    lastError: text("last_error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check("ai_provider_connection_provider", sql`${t.provider} IN ('anthropic', 'openai')`),
+    check("ai_provider_connection_status", sql`${t.status} IN ('active', 'error')`),
+    uniqueIndex("ai_provider_connection_ws_provider_unique").on(t.workspaceId, t.provider),
+  ],
+);
+export type AiProviderConnection = typeof aiProviderConnection.$inferSelect;
+export type NewAiProviderConnection = typeof aiProviderConnection.$inferInsert;
+
+/**
  * Per-workspace webhook subscription with a recruitment provider (V1.15 / ADR-0050).
  * Prolific "hooks" are API-created (no dashboard UI) and sign each event with a
  * PER-WORKSPACE secret (from POST /hooks/secrets/). We store that signing secret

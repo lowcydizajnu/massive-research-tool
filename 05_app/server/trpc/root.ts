@@ -1,3 +1,4 @@
+import { aiRouter } from "@/server/trpc/routers/ai";
 import { commentsRouter } from "@/server/trpc/routers/comments";
 import { dashboardRouter } from "@/server/trpc/routers/dashboard";
 import { followsRouter } from "@/server/trpc/routers/follows";
@@ -21,6 +22,7 @@ import { workspaceRouter } from "@/server/trpc/routers/workspace";
 import { router } from "@/server/trpc/trpc";
 
 export const appRouter = router({
+  ai: aiRouter,
   workspace: workspaceRouter,
   team: teamRouter,
   recruitment: recruitmentRouter,

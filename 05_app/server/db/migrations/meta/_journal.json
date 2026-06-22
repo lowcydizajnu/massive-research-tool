@@ -232,6 +232,13 @@
       "when": 1782113685261,
       "tag": "0032_freezing_groot",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1782118268295,
+      "tag": "0033_nice_silver_centurion",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,6 @@
 # ADR 0061 — AI conversation block — first AI feature
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-06-21
 - **Deciders:** Project owner, Claude
 - **Tags:** ai, blocks, runtime, privacy, cost-model, vendor-seam
@@ -41,10 +41,15 @@ So the architecture is ready; this ADR pins the concrete first feature. The flow
 
 Reasoning: ADR-0006 already chose this shape; this is its first concrete tenant. Modeling it as a block means the entire rest of the stack — ordering, the Builder, the runtime spine, response storage, export — works unchanged, and "questions → chat → questions" is just three blocks in a row. The only authoritative new state is the transcript, which fits `response_item` exactly. Keeping the LLM call server-side (never a browser key) + behind `AIProviderAdapter` preserves the ADR-0006 controls (audit, metering, privacy routing) and lets a researcher later choose BYO-key or opt-out without touching the block.
 
+### Credential model — BYO key (owner direction 2026-06-21)
+
+The Anthropic key is **brought by the workspace**, not a global env var — the same UX as a recruitment-provider Personal Access Token (ADR-0047): a researcher pastes their key, we **validate it against Anthropic, encrypt it at rest (AES-256-GCM via `TOKEN_ENCRYPTION_KEY`), and store it per-workspace** (`ai_provider_connection`, mirroring `recruitment_provider_connection`). The list/status endpoint never returns the key (masked hint only). This realizes ADR-0006's BYO-key provider routing and means no owner-provisioned global key is required — each workspace pays for its own usage. The `AIProviderAdapter` receives the decrypted key per call; feature code never sees vendor types.
+
 ### Build slices (post-acceptance)
 
-1. **Gate** (this ADR) + draft the `AIProviderAdapter` interface (`server/adapters/ai.ts`) + a test stub (`ai.stub.ts`) — no key needed.
-2. **Anthropic impl** (`ai.anthropic.ts`, `@anthropic-ai/sdk` confined here) — needs `ANTHROPIC_API_KEY`.
+1. **Gate** (this ADR) + draft the `AIProviderAdapter` interface (`server/adapters/ai.ts`) — no key needed.
+2. **BYO-key connection** (this slice): `ai_provider_connection` table + an `ai.connections` router (status / connect / disconnect) + the Anthropic adapter (`ai.anthropic.ts`, vendor calls confined here; `validateKey` + `chat` via the HTTP API) + a workspace-settings card to paste/validate/remove the key.
+3. **`ai-chat` module** (registry: config schema = role, context, model, openingMessage, maxTurns; defaultConfig; Builder Configure UI).
 3. **`ai-chat` module** (registry: config schema = role, context, model, openingMessage, maxTurns; defaultConfig; Builder Configure UI).
 4. **Runtime**: `aiChat.turn` (rate-limited) + transcript persistence to `response_item` on completion; turn cap enforced server-side.
 5. **Participant chat UI** in the take runtime; **export** the transcript column.
