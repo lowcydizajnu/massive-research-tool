@@ -1274,3 +1274,57 @@ export type DashboardLayout = typeof dashboardLayout.$inferSelect;
 export type NewDashboardLayout = typeof dashboardLayout.$inferInsert;
 export type WorkspaceDashboardDefault = typeof workspaceDashboardDefault.$inferSelect;
 export type NewWorkspaceDashboardDefault = typeof workspaceDashboardDefault.$inferInsert;
+
+/**
+ * Workspace Templates (ADR-0063, Library L1). A named, curated study skeleton
+ * pinned to a FROZEN experiment_version. "Save as template" freezes the working
+ * tip (studies.saveAsNamed) then writes this row; "Use template" clones the
+ * frozen version via studies.fork. Decoupled from the source study's edit
+ * lifecycle. Soft-deleted (deleted_at) so use-history degrades gracefully.
+ */
+export const workspaceTemplate = pgTable(
+  "workspace_template",
+  {
+    id: text("id").primaryKey(), // ULID
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspace.id),
+    /** The study this was captured from (lineage; the study keeps evolving). */
+    sourceExperimentId: uuid("source_experiment_id")
+      .notNull()
+      .references(() => experiment.id),
+    /** The frozen named version the template clones from (stable reference). */
+    sourceVersionId: uuid("source_version_id")
+      .notNull()
+      .references(() => experimentVersion.id),
+    name: text("name").notNull(),
+    description: text("description"),
+    tags: text("tags").array().notNull().default(sql`'{}'`),
+    /** Optional preview image in the ws/ (public-readable) R2 namespace. */
+    coverImageR2Key: text("cover_image_r2_key"),
+    /** Visibility: private (author workspace) | workspace (members) | public (any workspace). */
+    shareScope: text("share_scope").notNull().default("private"),
+    createdByUserId: uuid("created_by_user_id")
+      .notNull()
+      .references(() => user.id),
+    /** Denormalized; incremented on each fork-from-template. */
+    useCount: integer("use_count").notNull().default(0),
+    /** TRUE for app-shipped starter templates (public, app-owned). */
+    starter: boolean("starter").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    /** Soft delete — hidden from lists; preserved for use-history + in-flight views. */
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  },
+  (t) => [
+    check(
+      "workspace_template_share_scope",
+      sql`${t.shareScope} IN ('private', 'workspace', 'public')`,
+    ),
+    index("idx_workspace_template_ws").on(t.workspaceId, t.createdAt),
+    index("idx_workspace_template_scope").on(t.shareScope),
+  ],
+);
+
+export type WorkspaceTemplate = typeof workspaceTemplate.$inferSelect;
+export type NewWorkspaceTemplate = typeof workspaceTemplate.$inferInsert;

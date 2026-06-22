@@ -239,6 +239,13 @@
       "when": 1782118268295,
       "tag": "0033_nice_silver_centurion",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1782132254144,
+      "tag": "0034_brown_lila_cheney",
+      "breakpoints": true
     }
   ]
 }
