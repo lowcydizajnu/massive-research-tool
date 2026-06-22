@@ -130,7 +130,7 @@ export const WIDGET_REGISTRY: Record<WidgetKey, WidgetMeta> = {
   "follows-feed": {
     key: "follows-feed",
     name: "Following",
-    description: "Updates from tags, authors, frameworks, and studies you follow.",
+    description: "Updates from tags, authors, and studies you follow.",
     category: "activity",
     size: "medium",
     dashboard: "user",

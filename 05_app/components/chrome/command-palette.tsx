@@ -25,7 +25,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 const DESTINATIONS: { label: string; href: Route }[] = [
   { label: "Studies", href: "/studies" as Route },
-  { label: "Frameworks", href: "/frameworks" as Route },
+  { label: "Library", href: "/library" as Route },
   { label: "Browse", href: "/browse" as Route },
   { label: "Activity", href: "/activity" as Route },
   { label: "Settings", href: "/settings/account" as Route },

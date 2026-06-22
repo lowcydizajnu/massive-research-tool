@@ -4,6 +4,7 @@
 
 ## Changelog
 
+- **v0.8 (2026-06-22):** **Frameworks retired — Templates is the successor (ADR-0063, Library L2).** The standalone **Frameworks** destination is removed (one fewer top-level item). Curated reusable studies now live as **Library · Templates** — user-authorable (Save-as-template), three share scopes, app-shipped *starter* templates — superseding the in-code Frameworks registry. The New-study modal's "From a Framework" choice becomes **"From a Template"** (→ Library Templates); `framework` is removed as a follow target; no redirect shim (no external users). The historical changelog below still references Frameworks as it stood.
 - **v0.7 (2026-06-18):** **Settings split by scope — personal vs workspace.** "Account settings" previously rendered in the *workspace* chrome and bundled both per-user concerns (Profile, OSF Connections, theme/panel-side) and workspace-admin toggles (Show demo content, the workspace Activity-feed filter), so clicking it from anywhere "led to a workspace." Now: **`/settings/account`** renders in **personal** chrome (reached from the UserMenu → Account settings) and holds only per-user settings; **`/settings/workspace`** renders in **workspace** chrome (reached from the workspace left rail's *Settings*) and holds the workspace-admin toggles. The OSF-connect deep links (preregister, OAuth callback) still target `/settings/account · Connections` because OSF auth is per-user. Also: the Home tabs are relabelled by **scope** — **Your Dashboard · Browse Entire App** — to make the dashboard-vs-global distinction explicit (an app-level section may join later); and Browse's filter/sort controls use a **token-styled dropdown** (`SelectMenu`), not native `<select>` flyouts.
 - **v0.6 (2026-06-18):** **Browse moves to the global/Home layer (ADR-0055).** Browse is cross-workspace discovery, so it no longer sits in the **workspace** left rail (which is now solely workspace-scoped work: Studies / Library / Frameworks / Participants / Activity / Team / Settings). It lives under **personal/Home** as a top tab — **Home · Browse** — alongside the cross-workspace home. Because replicating from a workspaceless global context still needs a destination, `studies.fork` / `useAsTemplate` accept a server-validated `targetWorkspaceId` (defaults to the active workspace; a chosen target requires write-capable membership); the Replicate/Template dialog offers a workspace picker preselected to the last-used workspace. Also: the workspace **name in the top bar links to `/dashboard`** (caret = switcher), the **⌘K chip is removed** (shortcut + palette retained), and the **Owner badge sits by the avatar**.
 - **v0.4 (2026-06-12):** **Two-mode chrome.** (a) **Workspace mode** (destinations: Studies / Library / Frameworks / Browse / Participants / Activity / Team / Settings) keeps the v0.3 chrome — top bar + left rail — with the rail now **resizable** (drag handle, per-device persistence) and the top bar flattened into a flush strip (no boxed card). (b) **Focused study mode** (every `/studies/[id]/*` route): the left rail disappears and the top bar slims to workspace name · breadcrumb `Studies / [Title]` (link back) · autosave · ⋯ per-study actions · ✕ close. The switch is **URL-driven via Next.js route groups — no manual toggle**. (c) **⌘K command palette goes live** and becomes the primary cross-study navigation inside a study (stage jumps ranked first in focused mode). (d) **Right-panel side preference** (right default, left option) in Settings · per device. Wireframes: [focused-study-mode](../wireframes/focused-study-mode.md), [workspace-mode-topbar](../wireframes/workspace-mode-topbar.md).
@@ -57,12 +58,11 @@ Ordered by frequency-of-use for Hanna (daily) + Maya (weekly). Labels at desktop
 | # | Destination | Icon | Why it's there | Used by |
 | - | --- | --- | --- | --- |
 | 1 | **Studies** | `folder` | The thing Hanna touches every working day. Maya reviews approvals here. | Both, daily |
-| 2 | **Library** | `stack-2` | Modules, themes, assets, stimuli — the building blocks Hanna assembles. | Hanna, daily |
-| 3 | **Frameworks** | `puzzle` | Curated reusable protocols — where Maya finds something to adapt, where Hanna picks a starting point. | Both, weekly |
-| 4 | **Participants** | `users` | Cross-study participant management — tracks who's in what, addresses Hanna's parallel-spreadsheet pain. | Hanna, weekly |
-| 5 | **Activity** | `history` | Recent versions, fork notifications, OSF push status, collaborator changes — answers "what happened while I was away." | Both, weekly |
-| 6 | **Team** | `user-circle` | Members, roles, invitations. Maya manages; Hanna mostly reads. | Maya, monthly |
-| 7 | **Settings** | `settings` | Workspace settings, OSF connection, AI routing policy, billing, data export. | Maya, rarely |
+| 2 | **Library** | `stack-2` | Modules, themes, assets, stimuli + **Templates** (curated reusable studies — where Maya finds something to adapt, where Hanna picks a starting point; absorbed the retired Frameworks destination, ADR-0063). | Hanna, daily |
+| 3 | **Participants** | `users` | Cross-study participant management — tracks who's in what, addresses Hanna's parallel-spreadsheet pain. | Hanna, weekly |
+| 4 | **Activity** | `history` | Recent versions, fork notifications, OSF push status, collaborator changes — answers "what happened while I was away." | Both, weekly |
+| 5 | **Team** | `user-circle` | Members, roles, invitations. Maya manages; Hanna mostly reads. | Maya, monthly |
+| 6 | **Settings** | `settings` | Workspace settings, OSF connection, AI routing policy, billing, data export. | Maya, rarely |
 
 **At the top of the top-bar (resolved 2026-05-28):**
 
@@ -98,13 +98,6 @@ A replicated study appears in the Studies list as the user's own object, with a 
 - Materials (assets — stimuli, instructions, scoring keys)
 - **Templates** — paste-ready starter studies (user's own saved templates + public templates discoverable here). See "Templates and how researchers share them" below.
 - Imports (uploaded papers ingestion artifacts — V2)
-
-**Frameworks sub-nav**:
-
-- All
-- Verified (curator-badged)
-- By theme
-- My drafts (researchers can author frameworks too, even before curator review)
 
 **Participants sub-nav** (v0.3 — five-view structure):
 

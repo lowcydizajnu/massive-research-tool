@@ -7,7 +7,7 @@ import { getServerApi } from "@/server/trpc/server";
 /**
  * Workspace mode (IA v0.4, ADR-0032; workspace-mode-topbar.md) — the
  * destination chrome: flat top-bar strip + resizable left rail + work-surface
- * card. Every cross-study surface (/studies, /browse, /activity, /frameworks,
+ * card. Every cross-study surface (/studies, /browse, /activity, /library,
  * /settings) lives in this group; opening a study leaves it for `(study)`.
  */
 function initialsFrom(name: string, email: string): string {

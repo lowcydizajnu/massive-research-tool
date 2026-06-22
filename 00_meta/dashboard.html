@@ -1213,6 +1213,9 @@
   ],
   "recentActivity": [
     {
+      "text": "refactor(library): L2 — Frameworks removed; Templates is the successor (ADR-0063). Deleted /frameworks route + FRAMEWORK_REGISTRY + frameworks router; studies.create is blank-only (curated starts = Templates); framework removed as a follow target (legacy rows filtered). New-study 'From a Framework' -> 'From a Template' (-> /library?tab=templates). Chrome/copy cleaned (left rail, ⌘K, breadcrumb, Activity/Home). IA v0.8 (one fewer destination). Owner-simplified: no migration, no is_starter column, no redirect shim; /frameworks 404s. Audit log filed. Migration-free; 669 vitest green; tsc+build clean."
+    },
+    {
       "text": "feat(templates): Library L1.2 — Save-as-template modal + Templates tab + detail (ADR-0063). Save-as-template modal wired into the Builder header (name/desc/tags/visibility -> templates.create; cover upload deferred). Templates tab at /library?tab=templates: scope filter (workspace/starters/public) + search + sort, card grid, Use-template -> clone -> new study Builder, owner soft-delete. Detail page /library/templates/[id]: read-only BlockView preview of frozen blocks + Use CTA (visibility enforced server-side). 670 vitest green; tsc+lint+build clean. L1 Templates is end-to-end. ⚠️ migration 0034 still not on prod (db:migrate:prod at deploy). Not browser-verified (Clerk-auth surfaces)."
     },
     {
