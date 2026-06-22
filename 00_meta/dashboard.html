@@ -438,8 +438,8 @@
   "project": "Massive Research Tool",
   "tagline": "Multi-tenant SaaS for psychological experiments",
   "lastUpdated": "2026-06-21",
-  "currentFocus": "Live cooperation V1 built (Approach A, ADR-0060) — awaiting deploy (migration 0032). Presence behind a new RealtimeAdapter (V1 = DB heartbeat + 5s polling, no vendor): Builder avatar cluster + per-block 'who's editing' outline/initials; presence router heartbeat/list/leave. Live comments closed the last gap (Playground board + drawer now poll; share panel + activity already did). 637 tests green. Commits 51a776e + 1e91bc6. Liveblocks/Yjs upgrade behind the seam.",
-  "currentFocusPrev": "Preview side-by-side loop fixed (awaiting deploy, no migration): Preview tab/⌘K → /build?preview=1 opens side-by-side (discoverable; pane gate xl→lg + resize handle); full-screen ⇄ 'Side by side' loop. Commit 100dadf, 632 green. NEXT: live cooperation (presence avatars, per-block editor borders w/ initials, conflict-aware autosave) — new realtime concept, gate-first (ADR + RealtimeAdapter + flow + wireframe).",
+  "currentFocus": "Live cooperation V1 deployed (v1.16.0-a30). Presence behind RealtimeAdapter (DB polling): builder top avatar cluster incl. yourself + per-block who's-editing outline/initials + soft-lock banner naming the other editor (last-write-wins). Live comments across the app. Near-real-time by design; Liveblocks/Yjs upgrade behind the seam.",
+  "currentFocusPrev": "Live cooperation V1 built (Approach A, ADR-0060) — awaiting deploy (migration 0032). Presence behind a new RealtimeAdapter (V1 = DB heartbeat + 5s polling, no vendor): Builder avatar cluster + per-block 'who's editing' outline/initials; presence router heartbeat/list/leave. Live comments closed the last gap (Playground board + drawer now poll; share panel + activity already did). 637 tests green. Commits 51a776e + 1e91bc6. Liveblocks/Yjs upgrade behind the seam.",
   "phases": [
     {
       "id": "foundation",
@@ -1212,6 +1212,9 @@
     }
   ],
   "recentActivity": [
+    {
+      "text": "deploy(v1.16.0-a30): presence self-avatar + per-block soft-lock banner (ADR-0060). 80534b2."
+    },
     {
       "text": "feat(realtime): live cooperation V1 (ADR-0060) — presence avatars + per-block who's-editing behind RealtimeAdapter (DB polling); live Playground comments. Migration 0032. 637 green. 51a776e + 1e91bc6. Awaiting deploy."
     },
