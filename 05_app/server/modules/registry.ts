@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { HUME_LANGUAGE_CODES } from "@/lib/ai/hume-languages";
+
 /**
  * In-repo module registry — the runtime source of truth for module config
  * schemas (Zod), display metadata, and default config (per ADR-0001 + ADR-0012).
@@ -299,6 +301,10 @@ const emotionAnalysisConfig = z
     provider: z.literal("hume"),
     modality: z.enum(["text", "voice"]),
     participantAudioRetention: z.enum(["never", "session", "retained"]).optional(),
+    // Optional BCP-47 transcription language (ADR-0066 H3a language selector).
+    // Absent = Hume auto-detects; a known language can improve accuracy. Verified
+    // against the Hume SDK v0.7.0 Transcription.language tag set.
+    language: z.enum(HUME_LANGUAGE_CODES).optional(),
   })
   .optional();
 
@@ -309,6 +315,7 @@ const emotionAnalysisJsonSchema = {
     provider: { type: "string" },
     modality: { type: "string" },
     participantAudioRetention: { type: "string" },
+    language: { type: "string" },
   },
   additionalProperties: false,
 } as const;

@@ -51,7 +51,7 @@ export async function runHumeAnalyze(payload: { responseId: string; blockInstanc
   if (!exp) return;
 
   const block = readBlocks(ver.snapshot).find((b) => b.instanceId === payload.blockInstanceId);
-  const cfg = (block?.config as { emotionAnalysis?: { enabled?: boolean; modality?: string } } | undefined)?.emotionAnalysis;
+  const cfg = (block?.config as { emotionAnalysis?: { enabled?: boolean; modality?: string; language?: string } } | undefined)?.emotionAnalysis;
   if (!cfg?.enabled) return; // analysis disabled — nothing to do
 
   const fail = () =>
@@ -83,11 +83,11 @@ export async function runHumeAnalyze(payload: { responseId: string; blockInstanc
       const r2Key = (item.answer as { r2Key?: string })?.r2Key;
       if (!r2Key) throw new Error("No audio to analyze.");
       const audioUrl = await storage.presignDownload(r2Key);
-      result = await runEmotion(ctx, { kind: "voice", audioUrl }, { provider: "hume", apiKey });
+      result = await runEmotion(ctx, { kind: "voice", audioUrl, language: cfg.language }, { provider: "hume", apiKey });
     } else {
       const text = (item.answer as { text?: string })?.text ?? "";
       if (!text.trim()) throw new Error("No text to analyze.");
-      result = await runEmotion(ctx, { kind: "text", text }, { provider: "hume", apiKey });
+      result = await runEmotion(ctx, { kind: "text", text, language: cfg.language }, { provider: "hume", apiKey });
     }
     await db
       .update(responseItem)

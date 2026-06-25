@@ -94,3 +94,31 @@ describe("humeAdapter.analyzeText (ADR-0066 H3a, verified schema)", () => {
     expect(res.emotions).toEqual({});
   });
 });
+
+/** The JSON body sent to the batch submit POST (V2.1 language selector). */
+function submittedBody(): Record<string, unknown> {
+  const call = fetchMock.mock.calls.find(([url, opts]) => (opts as { method?: string })?.method === "POST" && String(url).endsWith("/batch/jobs"));
+  return JSON.parse((call![1] as { body: string }).body);
+}
+
+describe("humeAdapter language selector → transcription.language (ADR-0066 H3a, verified vs SDK v0.7.0)", () => {
+  it("sets transcription.language for a valid BCP-47 code (analyzeText)", async () => {
+    await humeAdapter.analyzeText!({ apiKey: "k", text: "Cześć", language: "pl" });
+    expect(submittedBody()).toMatchObject({ models: { language: {} }, transcription: { language: "pl" } });
+  });
+
+  it("sets transcription.language for voice (analyzeVoice)", async () => {
+    await humeAdapter.analyzeVoice!({ apiKey: "k", audioUrl: "https://r2/x.webm", language: "de" });
+    expect(submittedBody()).toMatchObject({ models: { prosody: {} }, transcription: { language: "de" } });
+  });
+
+  it("omits transcription when no language is given (Hume auto-detects)", async () => {
+    await humeAdapter.analyzeText!({ apiKey: "k", text: "hi" });
+    expect(submittedBody()).not.toHaveProperty("transcription");
+  });
+
+  it("drops an invalid/unknown language code rather than sending it", async () => {
+    await humeAdapter.analyzeText!({ apiKey: "k", text: "hi", language: "klingon" });
+    expect(submittedBody()).not.toHaveProperty("transcription");
+  });
+});
