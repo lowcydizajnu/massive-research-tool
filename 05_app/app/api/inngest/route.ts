@@ -9,6 +9,20 @@ import { runOsfWatch } from "@/server/jobs/osf-watch";
 import { runHumeAnalyze } from "@/server/jobs/hume-analyze";
 
 /**
+ * Node runtime + a long function budget. The `hume.analyze` job (ADR-0066 H3a)
+ * submits a Hume Expression Measurement BATCH job and polls it to completion —
+ * up to ~120s in a single invocation. Vercel's default function limit (~10–15s)
+ * would kill that mid-poll, leaving the response_item stuck `pending` forever
+ * (no terminal write runs when the process is hard-killed; Inngest retries then
+ * re-poll and die the same way). 300s comfortably covers the poll ceiling.
+ * NOTE: requires a Vercel plan that permits maxDuration ≥ 300 (Pro+); on Hobby
+ * this is capped and emotion analysis would still time out — bump the plan or
+ * move to step-based polling (the longer-term hardening).
+ */
+export const runtime = "nodejs";
+export const maxDuration = 300;
+
+/**
  * Inngest serve endpoint. Deliberate lock-in exception (ADR-0007,
  * lock-in-inventory.md): the serve handler must live at the route boundary, so
  * the Inngest SDK is imported here + in jobs.inngest.ts only. The job *bodies*

@@ -1214,6 +1214,9 @@
   ],
   "recentActivity": [
     {
+      "text": "fix(ai): emotion analysis stuck 'pending' — root cause was /api/inngest having no maxDuration, so Vercel's ~10-15s default killed the Hume batch poll (up to 120s) mid-flight (no terminal write → stuck pending; '1 failed' was the fast-path empty-text/API failure). Fix: maxDuration=300 + runtime=nodejs on the route (needs Vercel Pro+). H6 EVI paused per owner."
+    },
+    {
       "text": "feat(ai): H3b/H4b emotion-probe blocks (ADR-0066 amendment). core/voice-emotion-probe + core/text-emotion-probe — emotion forced on, reuse the H3a pipeline + base Take views; always-on emotion panel + language in Configure. 4 wireframes, registry 50 modules/51 versions, 714 tests, lint/build/validator clean. Needs db:seed:prod on deploy."
     },
     {
