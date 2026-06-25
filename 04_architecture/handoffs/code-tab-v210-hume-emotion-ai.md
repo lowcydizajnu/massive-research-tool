@@ -209,6 +209,8 @@ Existing columns reused as-is: `api_key` (encrypted), `key_hint`, `status`, `las
 
 ## Section H2 — Hume adapter implementing the H0 contract (~4-5 days)
 
+> **Status (2026-06-25): TTS shipped; emotion deferred to H3a.** `synthesizeAudio` is implemented in `ai.hume.ts` against the verified synchronous `POST /v0/tts` (base64 audio), with a gateway `runTts()` wrapper (audit + budget; advisory `ttsCostUsdFromChars`). It returns the audio **bytes** — R2 persistence + caching + the voice-preset catalog are H5. The **emotion** methods (`analyzeText`/`analyzeVoice`) are NOT here: Expression Measurement is batch/async (see the H4a correction), so they land **with the `hume.analyze` Inngest job in H3a**, internally submitting+polling the batch API. `startConversation` (EVI) is H6.
+
 Builds on **H0** (the contract + audit gateway already exist). V2.1 adds:
 
 - One adapter file: `05_app/server/adapters/ai.hume.ts` (the only file allowed to import `@hume/*`), implementing the optional capability methods (`analyzeVoice` / `analyzeText` / `synthesizeAudio` / `startConversation`) of the H0 `AIProviderAdapter` contract.
@@ -425,6 +427,8 @@ A block kind where **emotion is the response**, not a side-channel measure.
 ## Section H4 — Text emotion analysis: option on existing blocks + dedicated probe block (~1 week)
 
 ### H4a — Option on existing text blocks (~3 days)
+
+> ⚠️ **Correction (2026-06-25, verified against Hume docs):** Hume Expression Measurement has **no synchronous REST** path — it's **batch (POST /v0/batch/jobs, async + poll)** or **WebSocket (streaming)**. So the "Synchronous Hume call on submit" below is **not achievable**; text emotion must run as an **async Inngest job** exactly like H3a (voice). Treat H4a as "same as H3a but text input," sharing one `hume.analyze` job that submits a batch job, polls, and writes the result. The `analyzeText`/`analyzeVoice` adapter methods (which internally submit+poll the batch API) land **with that job in H3a**, not in H2. (H2 shipped the verified, synchronous **TTS** method instead.)
 
 Mirror of H3a but for text. The toggle appears on:
 

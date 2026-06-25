@@ -68,6 +68,19 @@ export function costUsdFromTokens(model: string, inputTokens: number, outputToke
   return (inT / 1_000_000) * price.in + (outT / 1_000_000) * price.out;
 }
 
+/**
+ * Advisory per-character price for Octave TTS (ADR-0067). Hume publishes no
+ * per-token endpoint, so this is a DATED estimate (≈ $0.05 per ~30s / ~400-char
+ * clip). Drives `ai_invocation.cost_usd` for tts calls until a precise figure is
+ * confirmed; like the chat prices, it will drift — update here.
+ */
+export const TTS_USD_PER_CHAR = 0.000125;
+
+/** Advisory USD cost of a TTS generation from its script length. */
+export function ttsCostUsdFromChars(chars: number): number {
+  return Math.max(0, chars || 0) * TTS_USD_PER_CHAR;
+}
+
 /** Format a small USD amount sensibly (e.g. "$0.04", "$1.20", "<$0.01"). */
 export function formatUsd(n: number): string {
   if (n > 0 && n < 0.01) return "<$0.01";
