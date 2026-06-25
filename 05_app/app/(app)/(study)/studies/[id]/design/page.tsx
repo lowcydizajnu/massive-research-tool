@@ -34,7 +34,13 @@ export default async function DesignPage({ params }: { params: Promise<{ id: str
             preregistering freezes it, and replications copy it.
           </p>
         </div>
-        <DesignWorkspace studyId={study.id} initialTheme={study.theme} />
+        <DesignWorkspace
+          studyId={study.id}
+          initialTheme={study.theme}
+          aiBlocks={study.blocks
+            .filter((b) => b.key === "ai-chat")
+            .map((b) => ({ instanceId: b.instanceId, title: b.title ?? b.name, config: b.config }))}
+        />
       </div>
     </main>
   );
