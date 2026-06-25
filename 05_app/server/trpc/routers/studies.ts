@@ -2853,6 +2853,64 @@ export const studiesRouter = router({
     }),
 
   /**
+   * Generate (or cache-hit) a TTS clip for an ARBITRARY script — used for
+   * per-variant audio (ADR-0058/0069): the variants editor calls this once per
+   * level's script and stores the resulting URLs as an `audioUrl` binding, so each
+   * variant plays its own clip (the runtime already resolves the bound audioUrl per
+   * cell). Unlike `generateStimulusAudio` it does NOT mutate a block — it just
+   * returns the cached `/api/media` URL. Same R2 cache key, so identical scripts
+   * are free and shared with the single-block generator.
+   */
+  generateAudioClip: writeProcedure
+    .input(z.object({ studyId: z.string().uuid(), script: z.string().min(1).max(2000), description: z.string().max(500).optional() }))
+    .mutation(async ({ ctx, input }): Promise<{ url: string; cached: boolean }> => {
+      await loadWorkingTip(input.studyId, ctx.workspace.id); // authz: study ∈ workspace
+      const script = input.script.trim();
+      const description = (input.description ?? "").trim();
+      if (!script) throw new TRPCError({ code: "BAD_REQUEST", message: "Empty script." });
+
+      const [conn] = await db
+        .select({ apiKey: aiProviderConnection.apiKey })
+        .from(aiProviderConnection)
+        .where(and(eq(aiProviderConnection.workspaceId, ctx.workspace.id), eq(aiProviderConnection.provider, "hume")))
+        .limit(1);
+      if (!conn) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Connect Hume in Settings → Workspace to generate audio." });
+      }
+
+      const hash = createHash("sha256").update(`${script} ${description}`).digest("hex").slice(0, 32);
+      const key = `ws/${ctx.workspace.id}/audio-stimulus/${hash}.mp3`;
+      const url = `/api/media/${key}`;
+
+      // Cache hit: identical (script, description) already rendered.
+      try {
+        const head = await fetch(await storage.presignDownload(key), { method: "HEAD" });
+        if (head.ok) return { url, cached: true };
+      } catch {
+        /* fall through to generate */
+      }
+
+      let audio: { audioBase64: string; mimeType: string };
+      try {
+        audio = await runTts(
+          { workspaceId: ctx.workspace.id, studyId: input.studyId, feature: "audio-stimulus", sensitivity: "researcher_content" },
+          { script, description: description || undefined },
+          { provider: "hume", apiKey: decryptSecret(conn.apiKey) },
+        );
+      } catch (err) {
+        if (err instanceof AiBudgetExceededError) {
+          throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Monthly AI budget cap reached." });
+        }
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Audio generation failed — check your Hume key." });
+      }
+
+      const putUrl = await storage.presignUpload(key, audio.mimeType);
+      const put = await fetch(putUrl, { method: "PUT", headers: { "Content-Type": audio.mimeType }, body: Buffer.from(audio.audioBase64, "base64") });
+      if (!put.ok) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Couldn't store the generated audio." });
+      return { url, cached: false };
+    }),
+
+  /**
    * Rename a block instance — a researcher-set title distinct from the module
    * type. Empty/blank clears it (falls back to the module's display name).
    * Stored in the blocks JSON (no migration); never shown to participants.

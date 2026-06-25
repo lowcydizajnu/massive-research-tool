@@ -165,45 +165,56 @@ export async function runHumeAnalyze(
     return;
   }
 
-  let completed = false;
-  for (let i = 0; i < MAX_POLLS; i++) {
-    await step.sleep(`hume-wait-${i}`, POLL_INTERVAL_MS);
-    const status = await step.run(`hume-poll-${i}`, async () => {
-      const apiKey = await loadHumeKey(workspaceId);
-      if (!apiKey) return "failed" as const;
-      return pollEmotionJob({ provider: "hume", apiKey }, jobId);
-    });
-    if (status === "completed") {
-      completed = true;
-      break;
+  // Fail-safe: any unhandled throw from a poll/finish step (after its own Inngest
+  // retries) marks the item `failed` rather than leaving it silently `pending` —
+  // so a stuck item is always visible + Re-runnable, and "pending" reliably means
+  // "the job never ran" (a useful operational signal).
+  try {
+    let completed = false;
+    for (let i = 0; i < MAX_POLLS; i++) {
+      await step.sleep(`hume-wait-${i}`, POLL_INTERVAL_MS);
+      const status = await step.run(`hume-poll-${i}`, async () => {
+        const apiKey = await loadHumeKey(workspaceId);
+        if (!apiKey) return "failed" as const;
+        return pollEmotionJob({ provider: "hume", apiKey }, jobId);
+      });
+      if (status === "completed") {
+        completed = true;
+        break;
+      }
+      if (status === "failed") {
+        await step.run(`hume-failed-${i}`, async () => {
+          await recordEmotionFailure(ctx, { kind }, "hume", startedAtMs, new Error("Hume batch job failed"));
+          await fail();
+        });
+        return;
+      }
     }
-    if (status === "failed") {
-      await step.run(`hume-failed-${i}`, async () => {
-        await recordEmotionFailure(ctx, { kind }, "hume", startedAtMs, new Error("Hume batch job failed"));
+    if (!completed) {
+      await step.run("hume-timeout", async () => {
+        await recordEmotionFailure(ctx, { kind }, "hume", startedAtMs, new Error("Hume batch job timed out"));
         await fail();
       });
       return;
     }
-  }
-  if (!completed) {
-    await step.run("hume-timeout", async () => {
-      await recordEmotionFailure(ctx, { kind }, "hume", startedAtMs, new Error("Hume batch job timed out"));
+
+    await step.run("hume-finish", async () => {
+      const apiKey = await loadHumeKey(workspaceId);
+      if (!apiKey) {
+        await fail();
+        return;
+      }
+      try {
+        const result = await finishEmotionJob(ctx, { kind }, { provider: "hume", apiKey }, jobId, startedAtMs);
+        await writeOk(result.emotions, result.transcript ?? null);
+      } catch {
+        await fail();
+      }
+    });
+  } catch {
+    await step.run("hume-uncaught-failed", async () => {
+      await recordEmotionFailure(ctx, { kind }, "hume", startedAtMs, new Error("Hume analysis errored"));
       await fail();
     });
-    return;
   }
-
-  await step.run("hume-finish", async () => {
-    const apiKey = await loadHumeKey(workspaceId);
-    if (!apiKey) {
-      await fail();
-      return;
-    }
-    try {
-      const result = await finishEmotionJob(ctx, { kind }, { provider: "hume", apiKey }, jobId, startedAtMs);
-      await writeOk(result.emotions, result.transcript ?? null);
-    } catch {
-      await fail();
-    }
-  });
 }
