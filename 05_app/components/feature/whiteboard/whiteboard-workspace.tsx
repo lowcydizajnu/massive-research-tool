@@ -320,6 +320,7 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
             <fieldset disabled={!canEdit} className="contents">
               <ConfigureForm
                 key={`${selected.instanceId}-${panelEpoch}`}
+                studyId={study.id}
                 block={selected}
                 pending={updateConfig.isPending || removeBlock.isPending}
                 onChange={(config) =>

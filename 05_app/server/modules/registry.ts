@@ -2060,6 +2060,48 @@ const endRedirectBlock: CoreModuleDef = {
 // AI conversation (ADR-0061) — a live chat with Claude given a researcher role +
 // context. The full transcript is the answer. Uses the workspace's BYO Anthropic
 // key (Settings → AI provider); each assistant turn is server-mediated.
+const audioStimulusBlock: CoreModuleDef = {
+  source: "core",
+  key: "audio-stimulus",
+  version: "1.0.0",
+  name: "Audio stimulus (AI voice)",
+  description:
+    "A spoken stimulus generated from your script by Hume Octave TTS. Write the words + a delivery direction; participants hear the clip. Uses your workspace's Hume key (Settings → AI provider).",
+  categoryTags: ["ai", "content", "stimulus", "media"],
+  configSchema: z.object({
+    script: z.string(),
+    /** Acting direction (e.g. "anxious, urgent newsreader"); Octave shapes prosody from it. */
+    description: z.string(),
+    playback: z.enum(["once", "replayable", "forced"]),
+    /** Set after generation — the /api/media URL of the cached clip. */
+    audioUrl: z.string(),
+    /** Hash of (script, description) that produced audioUrl; lets the UI flag staleness. */
+    audioHash: z.string(),
+  }),
+  defaultConfig: { script: "", description: "", playback: "replayable", audioUrl: "", audioHash: "" },
+  jsonSchema: {
+    type: "object",
+    properties: {
+      script: { type: "string" },
+      description: { type: "string" },
+      playback: { type: "string", enum: ["once", "replayable", "forced"] },
+      audioUrl: { type: "string" },
+      audioHash: { type: "string" },
+    },
+    required: ["script"],
+    additionalProperties: false,
+  },
+  collectsResponse: false,
+  responseSchema: null,
+  // Complete only once the audio has been generated (audioUrl present) for the
+  // current script — so a study can't be published with an empty/stale stimulus.
+  isComplete: (c) =>
+    typeof c.script === "string" &&
+    c.script.trim().length > 0 &&
+    typeof c.audioUrl === "string" &&
+    c.audioUrl.length > 0,
+};
+
 const aiChatBlock: CoreModuleDef = {
   source: "core",
   key: "ai-chat",
@@ -2114,6 +2156,7 @@ const aiChatBlock: CoreModuleDef = {
 
 export const MODULE_REGISTRY: CoreModuleDef[] = [
   aiChatBlock,
+  audioStimulusBlock,
   npsBlock,
   ratingStarsBlock,
   vasBlock,

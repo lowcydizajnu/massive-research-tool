@@ -7,8 +7,11 @@ import { jobs } from "@/server/adapters/jobs";
 import { registry } from "@/server/adapters/registry";
 import { db } from "@/server/db/client";
 import { emit } from "@/server/events/emit";
+import { createHash } from "node:crypto";
+
 import {
   activityEvent,
+  aiProviderConnection,
   condition as conditionTable,
   changeProposal,
   comment,
@@ -70,6 +73,9 @@ import { registry as registryAdapter } from "@/server/adapters/registry";
 import { divergenceAgainstPinned, injectReplicationRecipe, type DivergenceStatus } from "@/server/modules/replication";
 import { getModuleDef } from "@/server/modules/registry";
 import { protocolText } from "@/server/modules/protocol-text";
+import { decryptSecret } from "@/server/crypto/tokens";
+import { storage } from "@/server/adapters/storage";
+import { runTts, AiBudgetExceededError } from "@/server/runtime/ai-gateway";
 import { applyVisualContext, readTheme, requiresAcknowledgment, studyThemeSchema } from "@/lib/themes/themes";
 import { diffLines } from "@/lib/diff-lines";
 import { publicProcedure, router, workspaceProcedure, writeProcedure } from "@/server/trpc/trpc";
@@ -2748,6 +2754,99 @@ export const studiesRouter = router({
       blocks[idx] = { ...target, config: validated };
       await writeBlocks(tip.version.id, input.studyId, blocks);
       return { ok: true };
+    }),
+
+  /**
+   * Generate the audio for an `audio-stimulus` block (ADR-0069): read the saved
+   * script + delivery direction, hash them, reuse the cached R2 clip on an
+   * identical input, otherwise synthesize via the AI gateway (`runTts` — audited,
+   * metered, budget-enforced) using the workspace's BYO Hume key and store the
+   * mp3 in R2. Writes the resulting `/api/media` URL + hash back onto the block
+   * config so the Take surface plays it with no run-time vendor call.
+   */
+  generateStimulusAudio: writeProcedure
+    .input(z.object({ studyId: z.string().uuid(), instanceId: z.string() }))
+    .mutation(async ({ ctx, input }): Promise<{ url: string; cached: boolean }> => {
+      const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+      const blocks = readBlocks(tip.version.definitionSnapshot);
+      const idx = blocks.findIndex((b) => b.instanceId === input.instanceId);
+      if (idx === -1) throw new TRPCError({ code: "NOT_FOUND" });
+      const target = blocks[idx];
+      if (target.key !== "audio-stimulus") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Not an audio-stimulus block." });
+      }
+      const cfg = (target.config ?? {}) as { script?: string; description?: string };
+      const script = (cfg.script ?? "").trim();
+      const description = (cfg.description ?? "").trim();
+      if (!script) throw new TRPCError({ code: "BAD_REQUEST", message: "Write a script first." });
+
+      // Resolve the workspace's Hume key (BYO; ADR-0067).
+      const [conn] = await db
+        .select({ apiKey: aiProviderConnection.apiKey })
+        .from(aiProviderConnection)
+        .where(
+          and(
+            eq(aiProviderConnection.workspaceId, ctx.workspace.id),
+            eq(aiProviderConnection.provider, "hume"),
+          ),
+        )
+        .limit(1);
+      if (!conn) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Connect Hume in Settings → Workspace to generate audio.",
+        });
+      }
+
+      // Deterministic cache key from the inputs that change the audio.
+      const hash = createHash("sha256").update(`${script} ${description}`).digest("hex").slice(0, 32);
+      const key = `ws/${ctx.workspace.id}/audio-stimulus/${hash}.mp3`;
+      const url = `/api/media/${key}`;
+
+      const persist = async (cached: boolean) => {
+        blocks[idx] = { ...target, config: { ...target.config, audioUrl: url, audioHash: hash } };
+        await writeBlocks(tip.version.id, input.studyId, blocks);
+        return { url, cached };
+      };
+
+      // Cache hit: the clip for these exact inputs already exists in R2.
+      try {
+        const head = await fetch(await storage.presignDownload(key), { method: "HEAD" });
+        if (head.ok) return persist(true);
+      } catch {
+        // fall through to generate
+      }
+
+      let audio: { audioBase64: string; mimeType: string };
+      try {
+        audio = await runTts(
+          {
+            workspaceId: ctx.workspace.id,
+            studyId: input.studyId,
+            blockInstanceId: input.instanceId,
+            feature: "audio-stimulus",
+            sensitivity: "researcher_content",
+          },
+          { script, description: description || undefined },
+          { provider: "hume", apiKey: decryptSecret(conn.apiKey) },
+        );
+      } catch (err) {
+        if (err instanceof AiBudgetExceededError) {
+          throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Monthly AI budget cap reached." });
+        }
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Audio generation failed — check your Hume key." });
+      }
+
+      // Upload the bytes to R2 via a presigned PUT (server-side; no adapter change).
+      const putUrl = await storage.presignUpload(key, audio.mimeType);
+      const put = await fetch(putUrl, {
+        method: "PUT",
+        headers: { "Content-Type": audio.mimeType },
+        body: Buffer.from(audio.audioBase64, "base64"),
+      });
+      if (!put.ok) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Couldn't store the generated audio." });
+
+      return persist(false);
     }),
 
   /**

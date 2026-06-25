@@ -1176,6 +1176,7 @@ export function BuilderWorkspace({
             ) : null}
             <ConfigureForm
               key={`${selected.instanceId}-${panelEpoch}`}
+              studyId={study.id}
               block={selected}
               pending={updateConfig.isPending || removeBlock.isPending}
               onChange={(config) =>
