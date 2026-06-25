@@ -1,10 +1,11 @@
 "use client";
 
-import { Check, ChevronDown, Home } from "lucide-react";
+import { Check, ChevronDown, Home, Plus } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
 import { switchWorkspaceAction } from "@/app/actions/switch-workspace";
+import { PendingButton } from "@/components/ui/pending-button";
 import { api } from "@/lib/trpc/react";
 
 /**
@@ -24,6 +25,23 @@ export function WorkspaceSwitcher({
   const [open, setOpen] = useState(false);
   // Only fetch the list when the popover opens (cheap, and keeps the bar quiet).
   const { data: workspaces, isLoading } = api.workspace.list.useQuery(undefined, { enabled: open });
+
+  // Inline "New workspace" (ADR-0033) — create + switch into it, reachable from
+  // anywhere via the switcher (not just the Home widget).
+  const [creating, setCreating] = useState(false);
+  const [name, setName] = useState("");
+  const [createErr, setCreateErr] = useState<string | null>(null);
+  const create = api.workspace.create.useMutation();
+  async function submitCreate() {
+    if (!name.trim()) return setCreateErr("Name your workspace.");
+    setCreateErr(null);
+    try {
+      const { id } = await create.mutateAsync({ name: name.trim() });
+      await switchWorkspaceAction(id); // sets the active cookie + redirects
+    } catch (e) {
+      setCreateErr(e instanceof Error ? e.message : "Couldn’t create the workspace.");
+    }
+  }
 
   return (
     <div className="relative flex items-center">
@@ -110,6 +128,55 @@ export function WorkspaceSwitcher({
                   </form>
                 );
               })
+            )}
+
+            <div className="my-1 border-t border-[var(--color-border-subtle)]" />
+            {creating ? (
+              <div className="flex flex-col gap-1.5 px-3 py-2">
+                <input
+                  autoFocus
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      void submitCreate();
+                    }
+                    if (e.key === "Escape") setCreating(false);
+                  }}
+                  placeholder="Workspace name"
+                  className="w-full rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2.5 py-1.5 text-[length:var(--text-small)] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)]"
+                />
+                <div className="flex items-center gap-1.5">
+                  <PendingButton
+                    pending={create.isPending}
+                    onClick={submitCreate}
+                    idleLabel="Create"
+                    pendingLabel="Creating…"
+                    className="px-2.5 py-1 text-[length:var(--text-small)]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setCreating(false)}
+                    className="text-[length:var(--text-small)] text-[var(--color-text-secondary)] hover:underline"
+                  >
+                    Cancel
+                  </button>
+                </div>
+                {createErr ? (
+                  <p className="text-[length:var(--text-small)] text-[var(--color-danger-text-on-subtle)]">{createErr}</p>
+                ) : null}
+              </div>
+            ) : (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => setCreating(true)}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-[length:var(--text-small)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
+              >
+                <Plus className="size-3.5 shrink-0 text-[var(--color-text-muted)]" aria-hidden />
+                <span className="flex-1">New workspace</span>
+              </button>
             )}
           </div>
         </>
