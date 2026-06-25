@@ -4,7 +4,7 @@
 >
 > **Scope-locked 2026-06-22:** none of #3 (Octave TTS) or #4 (EVI conversational interface) is deferred — all four feature families ship in V2.1. Emotion analysis is offered as an OPTION on all existing applicable blocks (any free-text input + any audio record) AND as four dedicated new block kinds.
 >
-> **Reconciliation 2026-06-22 (substrate already shipped):** While this handoff was being drafted, Code tab shipped **ADR-0061** + the V2.0 substrate (commits `df1fa9f` + `35890fe` + `24392d6`). What now exists in the codebase: `AIProviderAdapter` interface at `server/adapters/ai.ts`; Anthropic adapter `server/adapters/ai.anthropic.ts` (HTTP, key confined per ADR-0007); `ai_provider_connection` table (per-workspace BYO key, AES-256-GCM encrypted, masked on list); `ai.connections` tRPC router (`status` / `connect` / `disconnect`); a workspace-settings card to paste/validate/remove keys; and `ai-chat` block kind queued for the next slice (the text-LLM Claude conversation). **V2.1 extends this substrate** — no need to "land V2.0 first": (a) we add a `hume` row to the existing `ai_provider_connection` provider enum + add a nullable `encrypted_secret_key` column (Hume needs two keys); (b) extend the existing `ai.connections` router for Hume; (c) implement `server/adapters/ai.hume.ts`; (d) **rename my proposed `ai-conversation` block to `core/voice-conversation@1.0.0`** to avoid collision with the in-progress `ai-chat` (text) block. The two AI conversation blocks are siblings — `ai-chat` is text-LLM-mediated; `voice-conversation` is Hume EVI voice-mediated with emotion measurement. Different blocks, different modalities, same `AIProviderAdapter` seam.
+> **Reconciliation 2026-06-22 (substrate already shipped):** While this handoff was being drafted, Code tab shipped **ADR-0061** + the V2.0 substrate (commits `df1fa9f` + `35890fe` + `24392d6`). What now exists in the codebase: `AIProviderAdapter` interface at `server/adapters/ai.ts`; Anthropic adapter `server/adapters/ai.anthropic.ts` (HTTP, key confined per ADR-0007); `ai_provider_connection` table (per-workspace BYO key, AES-256-GCM encrypted, masked on list); `ai.connections` tRPC router (`status` / `connect` / `disconnect`); a workspace-settings card to paste/validate/remove keys; and `ai-chat` block kind queued for the next slice (the text-LLM Claude conversation). **V2.1 extends this substrate** — no need to "land V2.0 first": (a) we add a `hume` row to the existing `ai_provider_connection` provider enum + add nullable `encrypted_secret_key` + `encrypted_webhook_signing_key` columns (Hume needs three keys — API + Secret + Webhook signing); (b) extend the existing `ai.connections` router for Hume; (c) implement `server/adapters/ai.hume.ts`; (d) **rename my proposed `ai-conversation` block to `core/voice-conversation@1.0.0`** to avoid collision with the in-progress `ai-chat` (text) block. The two AI conversation blocks are siblings — `ai-chat` is text-LLM-mediated; `voice-conversation` is Hume EVI voice-mediated with emotion measurement. Different blocks, different modalities, same `AIProviderAdapter` seam.
 >
 > **All 7 open questions resolved 2026-06-22:** (1) **we manage EVI configs** via Hume's Configs API on the researcher's behalf — one Hume config per `voice-conversation` block instance, mirrored in our DB; (2) **participant raw-audio retention is a per-block toggle** (`'never' | 'session' | 'retained'`) so researchers can match retention to study type (default `'never'`); (3) **10 vetted TTS voice presets** for V2.1 (full picker = V2.2); (4) **$50/mo workspace AI budget default cap** on new workspaces; **owner-overridable per workspace**; existing workspaces get no default; (5) **keep both** `text-emotion-probe` block AND the free-text emotion-analysis option (different cognitive affordances for researchers); (6) **researcher-facing Hume branding** (visible in Builder Configure / Connections list / Results panels); **no participant-facing branding** unless Hume's TOS strongly requires it (pre-ship check, see H7); (7) **workspace-level cost rollup only** — no per-researcher attribution in the Usage dashboard.
 
@@ -77,13 +77,14 @@ Each AI provider is a row:
 
 ### Connect-Hume flow
 
-Clicking **Connect** opens a modal:
+Clicking **Connect** opens a modal. Hume issues **three keys** — collect all three on the Developers page at https://platform.hume.ai/settings/keys:
 
-- Field 1: **Hume API key** (PAT — read at https://platform.hume.ai/settings/keys)
-- Field 2: **Hume Secret key** (Hume's auth uses both; required for EVI WebSocket)
-- Read-only info box: "Your key is encrypted at rest using `TOKEN_ENCRYPTION_KEY`. We never log raw keys. Disconnecting deletes the encrypted key but does not revoke it on Hume's side — do that separately at platform.hume.ai."
-- **Test connection** button: calls `humeAdapter.ping()` (a no-cost endpoint — Hume has a `/v0/me` or equivalent that returns the account holder); shows "Connected as: {account email}" on success.
-- Submit → encrypts both keys, writes one row to `ai_provider_connection` table (`workspace_id`, `provider='hume'`, `encrypted_api_key`, `encrypted_secret_key`, `connected_by_user_id`, `connected_at`), redirects back to the AI Connections list.
+- Field 1: **Hume API key** — HTTPS calls (Expression Measurement + Octave TTS + EVI Configs API)
+- Field 2: **Hume Secret key** — paired with API key for EVI WebSocket auth
+- Field 3: **Hume Webhook signing key** — validates incoming EVI webhook events (session-ended notifications, async config events). Required for H6 voice-conversation block server-side webhook handling.
+- Read-only info box: "Your keys are encrypted at rest using `TOKEN_ENCRYPTION_KEY`. We never log raw keys. Disconnecting deletes the encrypted keys but does not revoke them on Hume's side — do that separately at platform.hume.ai."
+- **Test connection** button: calls `humeAdapter.ping()` (a no-cost endpoint — Hume has `/v0/me` or equivalent that returns the account holder); shows "Connected as: {account email}" on success.
+- Submit → encrypts all three keys, writes one row to `ai_provider_connection` table (`workspace_id`, `provider='hume'`, `encrypted_api_key`, `encrypted_secret_key`, `encrypted_webhook_signing_key`, `connected_by_user_id`, `connected_at`), redirects back to the AI Connections list.
 
 ### Data shape
 
@@ -101,7 +102,7 @@ CREATE TABLE ai_connection (
 );
 ```
 
-(`ai_provider_connection` is V2.0's table; V2.1 only adds the `hume` enum value + `encrypted_secret_key` column. Both additive.)
+(`ai_provider_connection` is V2.0's table; V2.1 adds the `hume` enum value + `encrypted_secret_key` column + `encrypted_webhook_signing_key` column. All additive nullable.)
 
 ### tRPC procedures
 
