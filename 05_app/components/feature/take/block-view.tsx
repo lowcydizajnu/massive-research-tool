@@ -2,6 +2,7 @@ import { ReactionTimeInput } from "@/components/feature/take/reaction-time-input
 import { getBlockOverride } from "@/components/feature/take/block-overrides";
 import { ReactionButton, ReactionGroup } from "@/components/feature/take/reaction-toggles";
 import { AudioRecordInput } from "@/components/feature/take/audio-record-input";
+import { AudioStimulusView } from "@/components/feature/take/audio-stimulus-view";
 import { DrillDownInput } from "@/components/feature/take/drill-down-input";
 import { TimedExposureInput } from "@/components/feature/take/timed-exposure-input";
 import { ForcedWaitInput } from "@/components/feature/take/forced-wait-input";
@@ -75,6 +76,7 @@ export function BlockView({
   if (block.key === "text") return <TextView config={c} />;
   if (block.key === "image") return <ImageView config={c} />;
   if (block.key === "video") return <VideoView config={c} />;
+  if (block.key === "audio-stimulus") return <AudioStimulusView config={c} />;
   if (block.key === "link") return <LinkView config={c} />;
   // V1.12 C2 — standard form blocks.
   if (block.key === "email") return <SimpleFieldInput config={c} type="email" np={np} />;

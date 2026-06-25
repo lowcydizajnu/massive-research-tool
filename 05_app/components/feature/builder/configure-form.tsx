@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 
 import type { StudyBlock } from "@/server/trpc/routers/studies";
 import { AiChatConfig } from "@/components/feature/builder/ai-chat-config";
+import { AudioStimulusConfig } from "@/components/feature/builder/audio-stimulus-config";
 import { PickFromMaterialsButton } from "@/components/feature/builder/pick-from-materials-button";
 import { UploadButton } from "@/components/feature/builder/upload-button";
 import { mediaKindForField } from "@/lib/uploads";
@@ -37,6 +38,7 @@ function humanize(key: string): string {
 }
 
 export function ConfigureForm({
+  studyId,
   block,
   onChange,
   onRename,
@@ -44,6 +46,7 @@ export function ConfigureForm({
   onSaveAsModule,
   pending,
 }: {
+  studyId: string;
   block: StudyBlock;
   onChange: (config: Record<string, unknown>) => void;
   /** Commit a researcher-set block title (blank clears it → falls back to the type name). */
@@ -60,6 +63,19 @@ export function ConfigureForm({
   // The AI conversation block has a purpose-built config (role/context/model/cap).
   if (block.key === "ai-chat") {
     return <AiChatConfig block={block} onChange={onChange} onRename={onRename} onRemove={onRemove} />;
+  }
+
+  // The audio-stimulus block has a purpose-built config (script + TTS generation).
+  if (block.key === "audio-stimulus") {
+    return (
+      <AudioStimulusConfig
+        studyId={studyId}
+        block={block}
+        onChange={onChange}
+        onRename={onRename}
+        onRemove={onRemove}
+      />
+    );
   }
 
   return (

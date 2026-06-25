@@ -36,6 +36,7 @@ describe("seedCoreModules", () => {
       "core/ai-chat",
       "core/attention-check",
       "core/audio-record",
+      "core/audio-stimulus",
       "core/constant-sum",
       "core/contact",
       "core/date",
@@ -81,7 +82,7 @@ describe("seedCoreModules", () => {
     ]);
 
     const versions = await db.select().from(moduleVersion);
-    expect(versions).toHaveLength(48); // +2 Wave 5 flow blocks (2026-06-13)
+    expect(versions).toHaveLength(49); // +audio-stimulus (ADR-0069); social-post has v1+v2
 
     const social = mods.find((m) => m.key === "social-post")!;
     const socialVersions = versions
@@ -95,7 +96,7 @@ describe("seedCoreModules", () => {
   it("is idempotent across repeated runs", async () => {
     await seedCoreModules();
     await seedCoreModules();
-    expect(await db.select().from(moduleTable)).toHaveLength(47);
-    expect(await db.select().from(moduleVersion)).toHaveLength(48);
+    expect(await db.select().from(moduleTable)).toHaveLength(48);
+    expect(await db.select().from(moduleVersion)).toHaveLength(49);
   });
 });
