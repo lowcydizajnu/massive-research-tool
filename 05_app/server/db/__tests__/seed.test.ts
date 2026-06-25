@@ -73,16 +73,18 @@ describe("seedCoreModules", () => {
       "core/slider",
       "core/social-post",
       "core/text",
+      "core/text-emotion-probe",
       "core/timed-exposure",
       "core/url",
       "core/vas",
       "core/video",
       "core/video-record",
+      "core/voice-emotion-probe",
       "core/yes-no",
     ]);
 
     const versions = await db.select().from(moduleVersion);
-    expect(versions).toHaveLength(49); // +audio-stimulus (ADR-0069); social-post has v1+v2
+    expect(versions).toHaveLength(51); // +voice/text-emotion-probe (ADR-0066 H3b/H4b); +audio-stimulus; social-post v1+v2
 
     const social = mods.find((m) => m.key === "social-post")!;
     const socialVersions = versions
@@ -96,7 +98,7 @@ describe("seedCoreModules", () => {
   it("is idempotent across repeated runs", async () => {
     await seedCoreModules();
     await seedCoreModules();
-    expect(await db.select().from(moduleTable)).toHaveLength(48);
-    expect(await db.select().from(moduleVersion)).toHaveLength(49);
+    expect(await db.select().from(moduleTable)).toHaveLength(50);
+    expect(await db.select().from(moduleVersion)).toHaveLength(51);
   });
 });

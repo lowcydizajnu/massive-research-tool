@@ -2,6 +2,33 @@ import { describe, expect, it } from "vitest";
 
 import { getModuleDef } from "@/server/modules/registry";
 
+describe("emotion-probe blocks (ADR-0066 H3b/H4b)", () => {
+  it("voice-emotion-probe forces emotion analysis ON (voice) and reuses audio-record's response schema", () => {
+    const m = getModuleDef("core", "voice-emotion-probe", "1.0.0")!;
+    expect(m.collectsResponse).toBe(true);
+    const ea = (m.defaultConfig as { emotionAnalysis?: { enabled?: boolean; modality?: string; provider?: string } }).emotionAnalysis;
+    expect(ea).toMatchObject({ enabled: true, provider: "hume", modality: "voice" });
+    // Inherited audio-record response schema: accepts an r2Key + duration.
+    expect(m.responseSchema!.safeParse({ r2Key: "resp/abc/clip.webm", durationMs: 4000 }).success).toBe(true);
+  });
+
+  it("text-emotion-probe forces emotion analysis ON (text) and reuses free-text's response schema", () => {
+    const m = getModuleDef("core", "text-emotion-probe", "1.0.0")!;
+    expect(m.collectsResponse).toBe(true);
+    const ea = (m.defaultConfig as { emotionAnalysis?: { enabled?: boolean; modality?: string } }).emotionAnalysis;
+    expect(ea).toMatchObject({ enabled: true, provider: "hume", modality: "text" });
+    expect(m.responseSchema!.safeParse({ text: "I felt uneasy reading that." }).success).toBe(true);
+  });
+
+  it("both probes require a prompt to be complete", () => {
+    for (const key of ["voice-emotion-probe", "text-emotion-probe"]) {
+      const m = getModuleDef("core", key, "1.0.0")!;
+      expect(m.isComplete({ ...m.defaultConfig, prompt: "" })).toBe(false);
+      expect(m.isComplete({ ...m.defaultConfig, prompt: "How did that make you feel?" })).toBe(true);
+    }
+  });
+});
+
 describe("module response schemas (ADR-0014 answer validation)", () => {
   it("social-post is a pure stimulus — collects no response", () => {
     const m = getModuleDef("core", "social-post", "1.0.0")!;

@@ -966,6 +966,47 @@ const audioRecordBlock: CoreModuleDef = {
   isComplete: (c) => typeof c.prompt === "string" && c.prompt.trim().length > 0,
 };
 
+/**
+ * Voice emotion probe (ADR-0066 H3b) — a dedicated block where the emotion in a
+ * spoken answer IS the measure. Config-identical to audio-record (prompt, duration,
+ * required) but emotion analysis is FORCED ON in defaultConfig (no opt-out toggle).
+ * Reuses the entire H3a pipeline (enqueue → hume.analyze voice → Results → export)
+ * via the shared `emotionAnalysis` config; take view reuses AudioRecordInput.
+ */
+const voiceEmotionProbe: CoreModuleDef = {
+  ...audioRecordBlock,
+  key: "voice-emotion-probe",
+  name: "Voice emotion probe",
+  description: "Participants speak an answer; Hume scores the emotion in their voice. Analysis is always on — emotion is the measure.",
+  categoryTags: ["measurement", "media", "ai"],
+  defaultConfig: {
+    prompt: "",
+    maxDurationSeconds: 60,
+    required: true,
+    emotionAnalysis: { enabled: true, provider: "hume", modality: "voice", participantAudioRetention: "session" },
+  },
+};
+
+/**
+ * Text emotion probe (ADR-0066 H4b) — a dedicated block where the emotion in a
+ * written answer IS the measure. Config-identical to free-text but emotion analysis
+ * is FORCED ON. Reuses the H3a text pipeline; take view reuses FreeTextInput.
+ */
+const textEmotionProbe: CoreModuleDef = {
+  ...freeText,
+  key: "text-emotion-probe",
+  name: "Text emotion probe",
+  description: "Participants type an answer; Hume scores the emotion in their words. Analysis is always on — emotion is the measure.",
+  categoryTags: ["measurement", "open-ended", "ai"],
+  defaultConfig: {
+    prompt: "",
+    longForm: true,
+    required: true,
+    maxLength: 1000,
+    emotionAnalysis: { enabled: true, provider: "hume", modality: "text" },
+  },
+};
+
 const fieldGroupBlock: CoreModuleDef = {
   source: "core",
   key: "field-group",
@@ -2216,6 +2257,8 @@ export const MODULE_REGISTRY: CoreModuleDef[] = [
   addressBlock,
   contactBlock,
   audioRecordBlock,
+  voiceEmotionProbe,
+  textEmotionProbe,
   fieldGroupBlock,
   accuracyConfidenceBlock,
   shareIntentionBlock,
