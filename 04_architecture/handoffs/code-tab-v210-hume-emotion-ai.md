@@ -315,6 +315,8 @@ Each Hume invocation writes `cost_usd` (from Hume's response headers, or for TTS
 
 ## Section H3 — Voice emotion analysis: option on existing blocks + dedicated probe block (~2 weeks)
 
+> ⏸️ **Blocked-on-verification (2026-06-25):** the emotion adapter methods (`analyzeText`/`analyzeVoice`) need the **exact predictions JSON nesting** of Hume's Expression Measurement batch results (the path down to each `{name, score}` emotion). The submit/poll flow + request body are verified (`POST /v0/batch/jobs` `{ models: { language|prosody: {} }, text|urls: [...] }` → `job_id`; `GET /v0/batch/jobs/:id` status; `GET /v0/batch/jobs/:id/predictions`), but the predictions structure couldn't be fetched (Hume's reference is a client-rendered SPA that 404s to server fetch). Per the no-invent rule, the parser was NOT written from memory. **To unblock:** paste a sample language-model predictions payload from the rendered Hume reference, OR confirm the parser against a live job with a real key. Until then, **H5 (TTS, fully verified) was built first.** When unblocked, also resolve: Hume returns emotion scores (48–53 dims), NOT valence/arousal — derive those in the results layer or drop them (the H0 `AiEmotionResult` valence/arousal are optional).
+
 ### H3a — Option on existing audio blocks (~3 days)
 
 Every existing audio-capturing block gets an optional **Emotion analysis** toggle in its Configure panel:
