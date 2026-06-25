@@ -315,7 +315,18 @@ Each Hume invocation writes `cost_usd` (from Hume's response headers, or for TTS
 
 ## Section H3 — Voice emotion analysis: option on existing blocks + dedicated probe block (~2 weeks)
 
-> ⏸️ **Blocked-on-verification (2026-06-25):** the emotion adapter methods (`analyzeText`/`analyzeVoice`) need the **exact predictions JSON nesting** of Hume's Expression Measurement batch results (the path down to each `{name, score}` emotion). The submit/poll flow + request body are verified (`POST /v0/batch/jobs` `{ models: { language|prosody: {} }, text|urls: [...] }` → `job_id`; `GET /v0/batch/jobs/:id` status; `GET /v0/batch/jobs/:id/predictions`), but the predictions structure couldn't be fetched (Hume's reference is a client-rendered SPA that 404s to server fetch). Per the no-invent rule, the parser was NOT written from memory. **To unblock:** paste a sample language-model predictions payload from the rendered Hume reference, OR confirm the parser against a live job with a real key. Until then, **H5 (TTS, fully verified) was built first.** When unblocked, also resolve: Hume returns emotion scores (48–53 dims), NOT valence/arousal — derive those in the results layer or drop them (the H0 `AiEmotionResult` valence/arousal are optional).
+> ✅ **UNBLOCKED 2026-06-25 — predictions schema verified from Hume's official SDK** (`HumeAI/hume-python-sdk` @ `v0.7.0`, the last release that shipped Expression Measurement; pulled via `gh api`, an authoritative fetchable source — no key, no guessing). The current TS/Python SDKs dropped batch Expression Measurement (EVI + TTS only), but the batch API + this schema are still live. **Verified chain** (`src/hume/expression_measurement/batch/types/`):
+> - `GET /v0/batch/jobs/{id}/predictions` → `InferenceSourcePredictResult[]`
+> - `InferenceSourcePredictResult` = `{ source, results?: InferenceResults, error? }`
+> - `InferenceResults` = `{ predictions: InferencePrediction[], errors: [] }`
+> - `InferencePrediction` = `{ file, models: ModelsPredictions }`
+> - `ModelsPredictions` = `{ language?, prosody?, face?, burst?, ner?, facemesh? }`
+> - language/prosody = `{ metadata?, grouped_predictions: GroupedPredictions[] }`
+> - `GroupedPredictions` = `{ id, predictions: (Language|Prosody)Prediction[] }`
+> - `LanguagePrediction` = `{ text, position, time?, confidence?, speaker_confidence?, emotions: EmotionScore[], sentiment?, toxicity? }` (prosody mirrors this)
+> - `EmotionScore` = `{ name: string, score: number }` (~53 dims for language, 48 for prosody)
+>
+> Submit/poll also verified: `POST /v0/batch/jobs` `{ models: { language|prosody: {} }, text|urls: [...] }` → `{ job_id }`; `GET /v0/batch/jobs/:id` (`state.status`); `GET /v0/batch/jobs/:id/predictions`. **Note:** Hume returns emotion scores, NOT valence/arousal — derive those in the results layer or leave the H0 `AiEmotionResult` valence/arousal optional. **H3a is buildable now** (`analyzeText`/`analyzeVoice` parse the above; voice resolves the R2 audio to a presigned URL passed as `urls[]`; both run inside the `hume.analyze` Inngest job, not synchronously). H5 (TTS) was built first while this was blocked.
 
 ### H3a — Option on existing audio blocks (~3 days)
 
