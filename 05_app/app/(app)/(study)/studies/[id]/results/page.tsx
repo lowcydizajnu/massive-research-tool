@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { StageTabs } from "@/components/chrome/stage-tabs";
 import { FinishStudyCard } from "@/components/feature/results/finish-study-card";
 import { ResultsActions } from "@/components/feature/results/results-actions";
+import { ReanalyzeEmotionButton } from "@/components/feature/results/reanalyze-emotion-button";
 import { SpatialOverlay } from "@/components/feature/results/spatial-overlay";
 import { getServerApi } from "@/server/trpc/server";
 import type { ResultsSummary, StudyDetail } from "@/server/trpc/routers/studies";
@@ -161,9 +162,16 @@ export default async function ResultsStagePage({
             ) : null}
 
             <section className="flex flex-col gap-2">
-              <h2 className="font-serif text-[17px] font-medium text-[var(--color-text-primary)]">
-                By question
-              </h2>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="font-serif text-[17px] font-medium text-[var(--color-text-primary)]">
+                  By question
+                </h2>
+                {/* Re-run any emotion items stuck pending/failed (ADR-0066 H3a amendment). */}
+                <ReanalyzeEmotionButton
+                  studyId={study.id}
+                  stuck={results.questions.reduce((n, q) => n + (q.emotion ? q.emotion.pending + q.emotion.failed : 0), 0)}
+                />
+              </div>
               {results.questions.length === 0 ? (
                 <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
                   This study has no answer-collecting questions (stimulus-only).

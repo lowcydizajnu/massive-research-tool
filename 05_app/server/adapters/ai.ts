@@ -59,6 +59,12 @@ export type AiChatResult = {
  * for language, 48 for prosody). `valence`/`arousal` are OPTIONAL — Hume does not
  * return them natively; they're derived in the results layer when needed.
  */
+/** Which emotion modality a batch job analyzes (text = language model, voice = prosody). */
+export type AiEmotionKind = "text" | "voice";
+
+/** Terminal/!terminal state of a submitted batch emotion job. */
+export type AiEmotionJobStatus = "completed" | "failed" | "running";
+
 export type AiEmotionResult = {
   emotions: Record<string, number>;
   valence?: number;
@@ -99,6 +105,19 @@ export interface AIProviderAdapter {
   analyzeVoice?(input: { apiKey: string; audioUrl: string; language?: string }): Promise<AiEmotionResult>;
   /** Text emotion (Hume language model). */
   analyzeText?(input: { apiKey: string; text: string; language?: string }): Promise<AiEmotionResult>;
+
+  // — Stepped batch primitives (ADR-0066 H3a) — the same Expression Measurement
+  // batch flow as analyzeText/analyzeVoice, but split so a job orchestrator can
+  // poll across separate short invocations (Inngest steps) instead of blocking
+  // one long-lived serverless function. `analyzeText`/`analyzeVoice` are the
+  // synchronous convenience built on top of these.
+  /** Submit a batch emotion job; returns the provider job id (no waiting). */
+  startEmotionBatch?(input: { apiKey: string; kind: AiEmotionKind; text?: string; audioUrl?: string; language?: string }): Promise<{ jobId: string }>;
+  /** One status check for a submitted batch job. */
+  pollEmotionBatch?(input: { apiKey: string; jobId: string }): Promise<AiEmotionJobStatus>;
+  /** Fetch + aggregate predictions for a COMPLETED batch job. */
+  fetchEmotionBatch?(input: { apiKey: string; jobId: string; kind: AiEmotionKind }): Promise<AiEmotionResult>;
+
   synthesizeAudio?(input: {
     apiKey: string;
     script: string;

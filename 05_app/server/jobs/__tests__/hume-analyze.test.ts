@@ -22,6 +22,9 @@ vi.mock("@/server/adapters/ai", () => {
     chat: vi.fn(),
     analyzeText: vi.fn(async () => ({ emotions: { Joy: 0.7, Sadness: 0.1 }, transcript: "I am happy" })),
     analyzeVoice: vi.fn(),
+    startEmotionBatch: vi.fn(async () => ({ jobId: "job-1" })),
+    pollEmotionBatch: vi.fn(async () => "completed"),
+    fetchEmotionBatch: vi.fn(async () => ({ emotions: { Joy: 0.7, Sadness: 0.1 }, transcript: "I am happy" })),
   };
   return { ai: adapter, AI_PROVIDERS: ["anthropic", "hume"], providerAdapter: () => adapter };
 });
@@ -33,13 +36,19 @@ import { providerAdapter } from "@/server/adapters/ai";
 import { encryptSecret } from "@/server/crypto/tokens";
 import { db } from "@/server/db/client";
 import { aiProviderConnection, experiment, member, responseItem, user, workspace } from "@/server/db/schema";
-import { runHumeAnalyze } from "@/server/jobs/hume-analyze";
+import { runHumeAnalyze, type StepRunner } from "@/server/jobs/hume-analyze";
 import { openRecruitment, recordScreenAnswers, startResponse } from "@/server/runtime/participant";
 import { appRouter } from "@/server/trpc/root";
 import { createCallerFactory } from "@/server/trpc/trpc";
 
 const createCaller = createCallerFactory(appRouter);
 const analyzeText = vi.mocked(providerAdapter("hume").analyzeText!);
+const startBatch = vi.mocked(providerAdapter("hume").startEmotionBatch!);
+const pollBatch = vi.mocked(providerAdapter("hume").pollEmotionBatch!);
+const fetchBatch = vi.mocked(providerAdapter("hume").fetchEmotionBatch!);
+
+// A fake Inngest step runner: runs callbacks immediately, sleeps are no-ops.
+const immediateStep: StepRunner = { run: (_id, fn) => fn(), sleep: async () => {} };
 const authUser = (ext: string): AuthUser => ({ id: ext, email: `${ext}@e.com`, displayName: ext, avatarUrl: null, hasCompletedOnboarding: true });
 
 let seq = 0;
@@ -70,7 +79,7 @@ async function seedAnsweredStudy(connectHume: boolean) {
   const started = await startResponse({ recruitmentSessionId: rs.id, mode: "run", externalPid: null });
   const responseId = (started as { responseId: string }).responseId;
   await recordScreenAnswers({ responseId, screenIndex: 0, answers: { [instanceId]: { text: "I am happy" } } });
-  return { responseId, instanceId, workspaceId: ws.id };
+  return { responseId, instanceId, workspaceId: ws.id, studyId, ext };
 }
 
 beforeEach(() => {
@@ -102,5 +111,61 @@ describe("runHumeAnalyze (ADR-0066 H3a)", () => {
     await runHumeAnalyze({ responseId, blockInstanceId: instanceId });
     await runHumeAnalyze({ responseId, blockInstanceId: instanceId });
     expect(analyzeText).toHaveBeenCalledOnce();
+  });
+});
+
+describe("runHumeAnalyze stepped path (ADR-0066 H3a amendment — Hobby-safe polling)", () => {
+  it("submits, polls to completion across steps, then writes the result", async () => {
+    pollBatch.mockResolvedValueOnce("running").mockResolvedValueOnce("completed");
+    const { responseId, instanceId } = await seedAnsweredStudy(true);
+    await runHumeAnalyze({ responseId, blockInstanceId: instanceId }, immediateStep);
+
+    expect(startBatch).toHaveBeenCalledOnce();
+    expect(pollBatch).toHaveBeenCalledTimes(2); // running → completed
+    expect(fetchBatch).toHaveBeenCalledOnce();
+    expect(analyzeText).not.toHaveBeenCalled(); // stepped path, not the sync fallback
+    const [item] = await db.select().from(responseItem).where(eq(responseItem.blockInstanceId, instanceId));
+    expect(item.emotionStatus).toBe("ok");
+    expect((item.emotionAnalysis as { emotions: Record<string, number> }).emotions.Joy).toBe(0.7);
+  });
+
+  it("marks the item failed (no predictions fetch) when the batch job reports failed", async () => {
+    pollBatch.mockResolvedValueOnce("failed");
+    const { responseId, instanceId } = await seedAnsweredStudy(true);
+    await runHumeAnalyze({ responseId, blockInstanceId: instanceId }, immediateStep);
+
+    expect(fetchBatch).not.toHaveBeenCalled();
+    const [item] = await db.select().from(responseItem).where(eq(responseItem.blockInstanceId, instanceId));
+    expect(item.emotionStatus).toBe("failed");
+  });
+});
+
+describe("studies.reanalyzeEmotion (ADR-0066 H3a amendment — Re-run affordance)", () => {
+  it("re-queues a stuck failed item: resets it to pending + enqueues the job", async () => {
+    const enqueue = vi.mocked((await import("@/server/adapters/jobs")).jobs.enqueue);
+    const { instanceId, studyId, ext } = await seedAnsweredStudy(true);
+    await db.update(responseItem).set({ emotionStatus: "failed" }).where(eq(responseItem.blockInstanceId, instanceId));
+    enqueue.mockClear();
+
+    const caller = createCaller({ authUser: authUser(ext) });
+    const res = await caller.studies.reanalyzeEmotion({ studyId });
+
+    expect(res.requeued).toBe(1);
+    expect(enqueue).toHaveBeenCalledWith("hume.analyze", expect.objectContaining({ blockInstanceId: instanceId }));
+    const [item] = await db.select().from(responseItem).where(eq(responseItem.blockInstanceId, instanceId));
+    expect(item.emotionStatus).toBe("pending");
+  });
+
+  it("does not re-queue items already analyzed (ok)", async () => {
+    const enqueue = vi.mocked((await import("@/server/adapters/jobs")).jobs.enqueue);
+    const { instanceId, studyId, ext } = await seedAnsweredStudy(true);
+    await db.update(responseItem).set({ emotionStatus: "ok" }).where(eq(responseItem.blockInstanceId, instanceId));
+    enqueue.mockClear();
+
+    const caller = createCaller({ authUser: authUser(ext) });
+    const res = await caller.studies.reanalyzeEmotion({ studyId });
+
+    expect(res.requeued).toBe(0);
+    expect(enqueue).not.toHaveBeenCalled();
   });
 });

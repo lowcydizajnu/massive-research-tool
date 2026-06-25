@@ -4606,6 +4606,63 @@ export const studiesRouter = router({
     }),
 
   /**
+   * Re-run emotion analysis (ADR-0066 H3a amendment) for a study's NOT-yet-ok
+   * emotion items — clears rows stuck `pending`/`failed` (e.g. from a transient
+   * vendor error or a pre-fix timeout). Resets each to `pending` and re-enqueues
+   * the `hume.analyze` job (idempotent: a re-run on an `ok` item is a no-op).
+   * Tenant-scoped; only emotion-enabled blocks of the study are touched.
+   */
+  reanalyzeEmotion: writeProcedure
+    .input(z.object({ studyId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }): Promise<{ requeued: number }> => {
+      // ALL versions of the study (tenant-scoped) — not just runnable: a stuck
+      // emotion item should be re-runnable whatever version its response is on.
+      const versions = await db
+        .select({ id: experimentVersion.id, snapshot: experimentVersion.definitionSnapshot })
+        .from(experimentVersion)
+        .innerJoin(experiment, eq(experimentVersion.experimentId, experiment.id))
+        .where(and(eq(experimentVersion.experimentId, input.studyId), eq(experiment.tenantId, ctx.workspace.id)));
+      if (!versions.length) return { requeued: 0 };
+
+      // Emotion-enabled block instanceIds per version (config drives it, not module).
+      const emotionByVersion = new Map<string, Set<string>>();
+      for (const v of versions) {
+        const set = new Set<string>();
+        for (const b of readBlocks(v.snapshot)) {
+          if ((b.config as { emotionAnalysis?: { enabled?: boolean } } | undefined)?.emotionAnalysis?.enabled) set.add(b.instanceId);
+        }
+        if (set.size) emotionByVersion.set(v.id, set);
+      }
+      if (!emotionByVersion.size) return { requeued: 0 };
+
+      const responses = await db
+        .select({ id: responseTable.id, versionId: responseTable.experimentVersionId })
+        .from(responseTable)
+        .where(inArray(responseTable.experimentVersionId, [...emotionByVersion.keys()]));
+      if (!responses.length) return { requeued: 0 };
+      const versionByResponse = new Map(responses.map((r) => [r.id, r.versionId]));
+
+      const items = await db
+        .select({ responseId: responseItem.responseId, blockInstanceId: responseItem.blockInstanceId, emotionStatus: responseItem.emotionStatus })
+        .from(responseItem)
+        .where(inArray(responseItem.responseId, responses.map((r) => r.id)));
+
+      let requeued = 0;
+      for (const it of items) {
+        if (it.emotionStatus === "ok") continue; // already analyzed
+        const vId = versionByResponse.get(it.responseId);
+        if (!vId || !emotionByVersion.get(vId)?.has(it.blockInstanceId)) continue; // not an emotion block
+        await db
+          .update(responseItem)
+          .set({ emotionStatus: "pending" })
+          .where(and(eq(responseItem.responseId, it.responseId), eq(responseItem.blockInstanceId, it.blockInstanceId)));
+        await jobs.enqueue("hume.analyze", { responseId: it.responseId, blockInstanceId: it.blockInstanceId });
+        requeued++;
+      }
+      return { requeued };
+    }),
+
+  /**
    * Create a new study in the active workspace. Inserts the Experiment + its
    * first version (v1, autosave, empty definition) and points current_version_id
    * at it — all in one transaction. Returns the new study id; the caller routes

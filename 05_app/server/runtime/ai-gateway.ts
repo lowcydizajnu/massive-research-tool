@@ -6,6 +6,7 @@ import {
   providerAdapter,
   type AiChatInput,
   type AiChatResult,
+  type AiEmotionJobStatus,
   type AiEmotionResult,
   type AIInvocationContext,
   type AIModality,
@@ -310,4 +311,104 @@ export async function runEmotion(
     });
     throw err;
   }
+}
+
+/**
+ * Stepped emotion flow (ADR-0066 H3a amendment) — the same gateway guarantees as
+ * `runEmotion` (policy + capability + metering), but split into submit / poll /
+ * finish so a job orchestrator can wait BETWEEN short invocations (Inngest steps)
+ * instead of blocking one long serverless function. Policy is enforced at submit;
+ * the single `ai_invocation` row is written at finish (ok) or via
+ * `recordEmotionFailure` on any failure. `apiKey` is never returned across step
+ * boundaries — each step re-derives it.
+ */
+type EmotionStartOpts =
+  | { kind: "text"; text: string; language?: string }
+  | { kind: "voice"; audioUrl: string; language?: string };
+
+export async function startEmotionJob(
+  ctx: AIInvocationContext,
+  opts: EmotionStartOpts,
+  config: { provider?: AiProvider; apiKey: string },
+): Promise<{ jobId: string }> {
+  const provider = config.provider ?? "hume";
+  const adapter = providerAdapter(provider);
+  if (!adapter.startEmotionBatch || !adapter.pollEmotionBatch || !adapter.fetchEmotionBatch) {
+    throw new AiCapabilityUnsupportedError(opts.kind === "text" ? "text-emotion" : "voice-emotion");
+  }
+  await assertAllowed(ctx); // PII opt-in + monthly budget, before any vendor call
+  return adapter.startEmotionBatch({
+    apiKey: config.apiKey,
+    kind: opts.kind,
+    text: opts.kind === "text" ? opts.text : undefined,
+    audioUrl: opts.kind === "voice" ? opts.audioUrl : undefined,
+    language: opts.language,
+  });
+}
+
+export async function pollEmotionJob(
+  config: { provider?: AiProvider; apiKey: string },
+  jobId: string,
+): Promise<AiEmotionJobStatus> {
+  const adapter = providerAdapter(config.provider ?? "hume");
+  if (!adapter.pollEmotionBatch) throw new AiCapabilityUnsupportedError("emotion-poll");
+  return adapter.pollEmotionBatch({ apiKey: config.apiKey, jobId });
+}
+
+export async function finishEmotionJob(
+  ctx: AIInvocationContext,
+  opts: { kind: "text" | "voice" },
+  config: { provider?: AiProvider; apiKey: string },
+  jobId: string,
+  startedAtMs: number,
+): Promise<AiEmotionResult> {
+  const provider = config.provider ?? "hume";
+  const adapter = providerAdapter(provider);
+  if (!adapter.fetchEmotionBatch) throw new AiCapabilityUnsupportedError("emotion-fetch");
+  const modality: AIModality = opts.kind === "text" ? "text" : "voice";
+  try {
+    const result = await adapter.fetchEmotionBatch({ apiKey: config.apiKey, jobId, kind: opts.kind });
+    const top = Object.entries(result.emotions)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([name, score]) => ({ name, score }));
+    await recordInvocation({
+      ctx,
+      provider,
+      model: opts.kind === "text" ? "language" : "prosody",
+      modality,
+      inputTokens: null,
+      outputTokens: null,
+      durationMs: Date.now() - startedAtMs,
+      costUsd: emotionCostUsd(opts.kind),
+      status: "ok",
+      resultSummary: { top, emotionCount: Object.keys(result.emotions).length },
+    });
+    return result;
+  } catch (err) {
+    await recordEmotionFailure(ctx, opts, provider, startedAtMs, err);
+    throw err;
+  }
+}
+
+/** Audit a failed/timed-out stepped emotion job (mirrors runEmotion's error row). */
+export async function recordEmotionFailure(
+  ctx: AIInvocationContext,
+  opts: { kind: "text" | "voice" },
+  provider: AiProvider,
+  startedAtMs: number,
+  err: unknown,
+): Promise<void> {
+  await recordInvocation({
+    ctx,
+    provider,
+    model: opts.kind === "text" ? "language" : "prosody",
+    modality: opts.kind === "text" ? "text" : "voice",
+    inputTokens: null,
+    outputTokens: null,
+    durationMs: Date.now() - startedAtMs,
+    costUsd: 0,
+    status: "error",
+    errorCode: err instanceof Error ? err.name : "unknown",
+  });
 }
