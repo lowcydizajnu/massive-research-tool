@@ -737,6 +737,9 @@ export type ResultsSummary = {
     kind: "numeric" | "categorical" | "text";
     mean: number | null;
     optionCounts: { value: string; count: number }[];
+    /** V2.1 (ADR-0066 H3a): emotion-analysis aggregate when enabled on this
+     *  block — mean emotion vector (top-N) + ok/failed/pending counts. */
+    emotion?: { n: number; failed: number; pending: number; top: { name: string; score: number }[] };
     /** Spatial overlay — the stimulus image + aggregated clicks/region hits
      *  (inline on Results, ADR-0041) plus per-respondent rows for the dedicated
      *  Explore surface (ADR-0041 amendment). `points`/`regions` stay pooled and
@@ -4232,6 +4235,8 @@ export const studiesRouter = router({
               responseId: responseItem.responseId,
               blockInstanceId: responseItem.blockInstanceId,
               answer: responseItem.answer,
+              emotionAnalysis: responseItem.emotionAnalysis,
+              emotionStatus: responseItem.emotionStatus,
             })
             .from(responseItem)
             .where(inArray(responseItem.responseId, completed.map((r) => r.id)))
@@ -4492,6 +4497,44 @@ export const studiesRouter = router({
         return { instanceId: b.instanceId, prompt, moduleKey: b.key, n, kind, mean: null, optionCounts: [] };
         })(b)];
       });
+
+      // V2.1 (ADR-0066 H3a): attach a per-block emotion aggregate to any question
+      // whose block has emotion analysis enabled — mean of the per-response
+      // emotion vectors (top-7) + ok/failed/pending counts.
+      const emotionEnabled = new Map(
+        blocks
+          .filter((b) => (b.config as { emotionAnalysis?: { enabled?: boolean } } | undefined)?.emotionAnalysis?.enabled)
+          .map((b) => [b.instanceId, true as const]),
+      );
+      if (emotionEnabled.size) {
+        for (const q of questions) {
+          if (!emotionEnabled.has(q.instanceId)) continue;
+          const rows = items.filter((it) => it.blockInstanceId === q.instanceId);
+          const sums = new Map<string, number>();
+          let ok = 0;
+          let failed = 0;
+          let pending = 0;
+          for (const r of rows) {
+            if (r.emotionStatus === "ok") {
+              ok++;
+              const emo = (r.emotionAnalysis as { emotions?: Record<string, number> } | null)?.emotions ?? {};
+              for (const [name, score] of Object.entries(emo)) {
+                if (typeof score === "number") sums.set(name, (sums.get(name) ?? 0) + score);
+              }
+            } else if (r.emotionStatus === "failed") failed++;
+            else if (r.emotionStatus === "pending" || r.emotionStatus == null) pending++;
+          }
+          q.emotion = {
+            n: ok,
+            failed,
+            pending,
+            top: [...sums.entries()]
+              .map(([name, total]) => ({ name, score: total / Math.max(1, ok) }))
+              .sort((a, b) => b.score - a.score)
+              .slice(0, 7),
+          };
+        }
+      }
 
       // Per-condition aggregate: merge by slug across scoped versions (the newest
       // version's name/position wins). Every condition appears, even at 0.
