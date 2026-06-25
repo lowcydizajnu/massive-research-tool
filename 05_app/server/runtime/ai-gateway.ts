@@ -3,14 +3,17 @@ import { ulid } from "ulid";
 
 import {
   ai,
+  providerAdapter,
   type AiChatInput,
   type AiChatResult,
   type AIInvocationContext,
   type AIModality,
+  type AiProvider,
+  type AiTtsResult,
 } from "@/server/adapters/ai";
 import { db } from "@/server/db/client";
 import { aiInvocation, workspaceAiSettings } from "@/server/db/schema";
-import { costUsdFromTokens } from "@/lib/ai-pricing";
+import { costUsdFromTokens, ttsCostUsdFromChars } from "@/lib/ai-pricing";
 
 /**
  * AI gateway (ADR-0066) — the single path from feature code to a vendor adapter.
@@ -180,6 +183,61 @@ export async function runChat(
       provider,
       model: input.model,
       modality: "text",
+      inputTokens: null,
+      outputTokens: null,
+      durationMs: Date.now() - startedAt,
+      costUsd: 0,
+      status: "error",
+      errorCode: err instanceof Error ? err.name : "unknown",
+    });
+    throw err;
+  }
+}
+
+/**
+ * Generate speech through the gateway (ADR-0066/0067; V2.1 H5 substrate): enforce
+ * policy → call the provider's TTS → meter advisory cost from script length →
+ * write one `tts` audit row. Returns the raw audio (base64); persisting to R2 +
+ * caching is the caller's job (H5 audio-stimulus). Throws
+ * AiCapabilityUnsupportedError if the provider has no TTS.
+ */
+export async function runTts(
+  ctx: AIInvocationContext,
+  opts: { script: string; description?: string; voicePresetId?: string },
+  config: { provider?: AiProvider; apiKey: string },
+): Promise<AiTtsResult> {
+  const provider = config.provider ?? "hume";
+  const adapter = providerAdapter(provider);
+  if (!adapter.synthesizeAudio) throw new AiCapabilityUnsupportedError("text-to-speech");
+  await assertAllowed(ctx);
+  const startedAt = Date.now();
+  try {
+    const result = await adapter.synthesizeAudio({
+      apiKey: config.apiKey,
+      script: opts.script,
+      description: opts.description,
+      voicePresetId: opts.voicePresetId,
+    });
+    await recordInvocation({
+      ctx,
+      provider,
+      model: "octave",
+      modality: "tts",
+      inputTokens: null,
+      outputTokens: null,
+      durationMs: Date.now() - startedAt,
+      costUsd: ttsCostUsdFromChars(result.charsBilled ?? opts.script.length),
+      status: "ok",
+      resultSummary: { mimeType: result.mimeType, audioDurationMs: result.durationMs ?? null },
+    });
+    return result;
+  } catch (err) {
+    if (err instanceof AiCapabilityUnsupportedError) throw err;
+    await recordInvocation({
+      ctx,
+      provider,
+      model: "octave",
+      modality: "tts",
       inputTokens: null,
       outputTokens: null,
       durationMs: Date.now() - startedAt,

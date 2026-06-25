@@ -10,21 +10,29 @@ vi.mock("@/server/db/client", async () => {
   await migrate(db, { migrationsFolder: "./server/db/migrations" });
   return { db, schema };
 });
-vi.mock("@/server/adapters/ai", () => ({ ai: { chat: vi.fn() } }));
+vi.mock("@/server/adapters/ai", () => {
+  const humeAdapter = { synthesizeAudio: vi.fn() };
+  return {
+    ai: { chat: vi.fn() },
+    providerAdapter: () => humeAdapter,
+  };
+});
 
 import { eq } from "drizzle-orm";
 
-import { ai, type AIInvocationContext } from "@/server/adapters/ai";
+import { ai, providerAdapter, type AIInvocationContext } from "@/server/adapters/ai";
 import { db } from "@/server/db/client";
 import { aiInvocation, user, workspace, workspaceAiSettings } from "@/server/db/schema";
 import {
   AiBudgetExceededError,
   AiPiiBlockedError,
   runChat,
+  runTts,
   workspaceAiSpendThisMonthUsd,
 } from "@/server/runtime/ai-gateway";
 
 const chat = vi.mocked(ai.chat);
+const synth = vi.mocked(providerAdapter("hume").synthesizeAudio!);
 
 // The mocked PGlite db is one instance shared across this file's tests, so each
 // seed needs unique natural keys (externalId / slug).
@@ -47,6 +55,7 @@ const CHAT_INPUT = { apiKey: "sk-x", model: "claude-sonnet-4-6", system: "You ar
 
 beforeEach(() => {
   chat.mockReset();
+  synth.mockReset();
 });
 
 describe("AI gateway (ADR-0066)", () => {
@@ -114,5 +123,57 @@ describe("AI gateway (ADR-0066)", () => {
     await db.insert(workspaceAiSettings).values({ workspaceId: ws, monthlyBudgetUsdCap: "100.00" });
     chat.mockResolvedValue({ text: "x", usage: { inputTokens: 1000, outputTokens: 1000 } });
     await expect(runChat(ctxFor(ws), CHAT_INPUT)).resolves.toBeDefined();
+  });
+
+  it("runTts returns the audio and writes one tts row with advisory cost", async () => {
+    const ws = await seedWorkspace();
+    synth.mockResolvedValue({ audioBase64: "AAAA", mimeType: "audio/mpeg", durationMs: 3000, charsBilled: 400 });
+
+    const res = await runTts(
+      { workspaceId: ws, feature: "audio-stimulus", sensitivity: "researcher_content" },
+      { script: "x".repeat(400), description: "calm" },
+      { provider: "hume", apiKey: "hume-x" },
+    );
+    expect(res.audioBase64).toBe("AAAA");
+    expect(res.mimeType).toBe("audio/mpeg");
+
+    const rows = await db.select().from(aiInvocation).where(eq(aiInvocation.workspaceId, ws));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].modality).toBe("tts");
+    expect(rows[0].provider).toBe("hume");
+    expect(rows[0].status).toBe("ok");
+    expect(Number(rows[0].costUsd)).toBeCloseTo(400 * 0.000125, 5);
+  });
+
+  it("runTts records an error row and rethrows when the provider fails", async () => {
+    const ws = await seedWorkspace();
+    synth.mockRejectedValue(new Error("Hume TTS error (500)"));
+    await expect(
+      runTts(
+        { workspaceId: ws, feature: "audio-stimulus", sensitivity: "researcher_content" },
+        { script: "hello" },
+        { provider: "hume", apiKey: "hume-x" },
+      ),
+    ).rejects.toThrow();
+    const rows = await db.select().from(aiInvocation).where(eq(aiInvocation.workspaceId, ws));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].status).toBe("error");
+    expect(rows[0].modality).toBe("tts");
+  });
+
+  it("runTts enforces the budget cap before calling the provider", async () => {
+    const ws = await seedWorkspace();
+    await db.insert(workspaceAiSettings).values({ workspaceId: ws, monthlyBudgetUsdCap: "0.01" });
+    // Seed spend at the cap via a chat call.
+    chat.mockResolvedValue({ text: "a", usage: { inputTokens: 10_000, outputTokens: 10_000 } });
+    await runChat(ctxFor(ws), CHAT_INPUT);
+    await expect(
+      runTts(
+        { workspaceId: ws, feature: "audio-stimulus", sensitivity: "researcher_content" },
+        { script: "hello" },
+        { provider: "hume", apiKey: "hume-x" },
+      ),
+    ).rejects.toBeInstanceOf(AiBudgetExceededError);
+    expect(synth).not.toHaveBeenCalled();
   });
 });

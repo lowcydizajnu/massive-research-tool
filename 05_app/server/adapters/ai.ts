@@ -63,6 +63,18 @@ export type AiEmotionResult = {
   durationMs?: number;
 };
 
+/**
+ * Generated speech, as the vendor returns it (base64). The adapter stays a pure
+ * vendor seam — persisting the bytes to R2 + caching is the gateway/caller's job
+ * (V2.1 H5), so this never couples the adapter to storage.
+ */
+export type AiTtsResult = {
+  audioBase64: string;
+  mimeType: string;
+  durationMs?: number;
+  charsBilled?: number;
+};
+
 export interface AIProviderAdapter {
   /** Confirm a pasted key works (used by the connect flow). Returns false on auth failure. */
   validateKey(apiKey: string): Promise<boolean>;
@@ -83,9 +95,11 @@ export interface AIProviderAdapter {
   synthesizeAudio?(input: {
     apiKey: string;
     script: string;
-    voicePresetId: string;
-    emotionalDimensions?: { valence?: number; arousal?: number; intensity?: number };
-  }): Promise<{ audioR2Key: string; durationMs: number; usage?: AiUsage }>;
+    /** A delivery prompt (acting direction); Octave shapes prosody from it. */
+    description?: string;
+    /** Reserved for H5's vetted voice-preset catalog; omitted = Octave default voice. */
+    voicePresetId?: string;
+  }): Promise<AiTtsResult>;
 }
 
 import { anthropicAdapter } from "@/server/adapters/ai.anthropic";
