@@ -25,7 +25,7 @@ Concretely, **none of these exist**:
 - **(a)** Build the ADR-0006 Task substrate first (audit table + per-invocation metering + schemas-first task layer) as a genuine prerequisite slice — then V2.1 "extends" as the handoff imagines; **or**
 - **(b)** Continue the thin-adapter pattern ADR-0061 set, and fold `ai_invocation` + metering into V2.1 scope explicitly (raises the H1/H2 estimate).
 
-Either is defensible, but the handoff currently assumes (a) is *done*. It is not.
+> **RESOLVED 2026-06-25 — owner chose (a), substrate-first.** Rationale (owner's words): build on high-quality code that allows constant flexibility to grow the product without constraints, with the best UX. The main handoff has been revised accordingly: a new **Section H0 — AI substrate** is now the lead stream (widened `AIProviderAdapter` contract + `ai_invocation` audit/metering gateway + `ai-chat` retrofit), the estimate is now **~14–14.5 weeks**, and the identifier/path/ADR corrections below are baked into the handoff body. This note remains the audit trail of *why*.
 
 ---
 
