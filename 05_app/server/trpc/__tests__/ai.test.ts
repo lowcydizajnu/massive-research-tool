@@ -12,13 +12,24 @@ vi.mock("@/server/db/client", async () => {
   return { db, schema };
 });
 
-// Control the provider key validation without hitting Anthropic.
-vi.mock("@/server/adapters/ai", () => ({
-  ai: { validateKey: vi.fn(async () => true), chat: vi.fn() },
-}));
+// Control provider key validation without hitting any vendor. One shared spy
+// adapter backs both the `ai` binding and providerAdapter(), so assertions on
+// validateKey/ping hold regardless of which the router uses.
+vi.mock("@/server/adapters/ai", () => {
+  const adapter = {
+    validateKey: vi.fn(async () => true),
+    ping: vi.fn(async () => ({ account: "lab@uni.edu" })),
+    chat: vi.fn(),
+  };
+  return {
+    ai: adapter,
+    AI_PROVIDERS: ["anthropic", "hume"],
+    providerAdapter: () => adapter,
+  };
+});
 
 import type { AuthUser } from "@/server/adapters/auth";
-import { ai } from "@/server/adapters/ai";
+import { ai, providerAdapter } from "@/server/adapters/ai";
 import { decryptSecret } from "@/server/crypto/tokens";
 import { db } from "@/server/db/client";
 import { aiProviderConnection, member, user, workspace } from "@/server/db/schema";
@@ -110,5 +121,52 @@ describe("ai.connections (BYO key, ADR-0061)", () => {
     await expect(
       caller.ai.connections.connect({ provider: "anthropic", apiKey: "sk-ant-x-1234" }),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("Hume requires all three keys, and stores secret + webhook encrypted (ADR-0067)", async () => {
+    const { workspace: ws } = await seed("hanna", "Lab");
+    const caller = createCaller({ authUser: authUser("hanna") });
+
+    // Missing the secret/webhook keys → rejected before any vendor call.
+    await expect(
+      caller.ai.connections.connect({ provider: "hume", apiKey: "hume-api-aaaa" }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+    await caller.ai.connections.connect({
+      provider: "hume",
+      apiKey: "hume-api-aaaa",
+      secretKey: "hume-secret-bbbb",
+      webhookSigningKey: "hume-webhook-cccc",
+    });
+    const [row] = await db
+      .select()
+      .from(aiProviderConnection)
+      .where(eq(aiProviderConnection.workspaceId, ws.id));
+    expect(row.provider).toBe("hume");
+    expect(decryptSecret(row.apiKey)).toBe("hume-api-aaaa");
+    expect(decryptSecret(row.secretKey!)).toBe("hume-secret-bbbb");
+    expect(decryptSecret(row.webhookSigningKey!)).toBe("hume-webhook-cccc");
+    // None of the secrets leak to the list DTO.
+    expect(JSON.stringify(await caller.ai.connections.list())).not.toContain("bbbb");
+  });
+
+  it("test() pings the stored connection and reports the account", async () => {
+    await seed("hanna", "Lab");
+    const caller = createCaller({ authUser: authUser("hanna") });
+    await caller.ai.connections.connect({ provider: "anthropic", apiKey: "sk-ant-x-1234" });
+    const res = await caller.ai.connections.test({ provider: "anthropic" });
+    expect(providerAdapter("anthropic").ping).toHaveBeenCalled();
+    expect(res).toMatchObject({ ok: true, account: "lab@uni.edu" });
+  });
+
+  it("test() flags the row errored when ping fails", async () => {
+    const { workspace: ws } = await seed("hanna", "Lab");
+    const caller = createCaller({ authUser: authUser("hanna") });
+    await caller.ai.connections.connect({ provider: "anthropic", apiKey: "sk-ant-x-1234" });
+    vi.mocked(providerAdapter("anthropic").ping).mockRejectedValueOnce(new Error("Anthropic key rejected (401)"));
+    const res = await caller.ai.connections.test({ provider: "anthropic" });
+    expect(res.ok).toBe(false);
+    const [row] = await db.select().from(aiProviderConnection).where(eq(aiProviderConnection.workspaceId, ws.id));
+    expect(row.status).toBe("error");
   });
 });
