@@ -1,5 +1,7 @@
 # Code tab handoff — V2.1 Hume emotion AI (drafted 2026-06-22 — owner-locked, all 7 open questions resolved)
 
+> ⚠️ **READ FIRST (2026-06-25):** several substrate assumptions below are wrong — the "V2.0 substrate" (`ai_invocation` audit table, metering, Task layer) does **not** exist; the connection table is `ai_provider_connection` (not `ai_connection`); ADR-0014 is *not* the PII ADR; the next ADR is `0066`; there is no `components/blocks/` dir; `core/long-text` and `study_publish_acknowledgment` don't exist. See the corrections in [`code-tab-v210-hume-reconciliation.md`](code-tab-v210-hume-reconciliation.md) before opening the H1/H2 gate.
+
 > **V2.1 = Hume emotion-AI as an option on existing applicable blocks + four new dedicated blocks.** This is the second AI release after V2.0 (text-LLM substrate: measure picker, literature→blocks, hypothesis extraction). V2.1 introduces a **second AI vendor** with a different sensitivity profile — Hume analyzes voice/text/face emotion and generates emotional audio. Estimated **~12.5 weeks Code-tab time** across 6 PR streams (12 original + 0.5 for the we-manage-EVI-configs work added 2026-06-22). **BYOAI model locked** (researcher provides their own Hume API token; mirrors OSF/Prolific connect pattern).
 >
 > **Scope-locked 2026-06-22:** none of #3 (Octave TTS) or #4 (EVI conversational interface) is deferred — all four feature families ship in V2.1. Emotion analysis is offered as an OPTION on all existing applicable blocks (any free-text input + any audio record) AND as four dedicated new block kinds.
