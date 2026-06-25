@@ -18,6 +18,13 @@ export type CoreModuleDef = {
   name: string;
   description: string;
   categoryTags: string[];
+  /**
+   * Config keys that are DERIVED/generated (filled by the system, not typed by
+   * the researcher) — e.g. audio-stimulus `audioUrl`/`audioHash` set by TTS
+   * generation. The variants editor hides these from the "varying field" picker
+   * (varying a generated value by hand is nonsensical — ADR-0058/0069). Optional.
+   */
+  derivedFields?: readonly string[];
   /** Runtime validation schema (structural). */
   configSchema: z.ZodType<Record<string, unknown>>;
   /** Valid starting config for a freshly-added block. */
@@ -2147,6 +2154,9 @@ const audioStimulusBlock: CoreModuleDef = {
   description:
     "A spoken stimulus generated from your script by Hume Octave TTS. Write the words + a delivery direction; participants hear the clip. Uses your workspace's Hume key (Settings → AI provider).",
   categoryTags: ["ai", "content", "stimulus", "media"],
+  // audioUrl/audioHash are produced by TTS generation, not typed — hide them from
+  // the variants "varying field" picker (you vary `script`, the audio follows).
+  derivedFields: ["audioUrl", "audioHash"],
   configSchema: z.object({
     script: z.string(),
     /** Acting direction (e.g. "anxious, urgent newsreader"); Octave shapes prosody from it. */

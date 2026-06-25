@@ -5,6 +5,7 @@ import { HelpCircle, Plus, Trash2, X } from "lucide-react";
 
 import { api } from "@/lib/trpc/react";
 import { cellCount, type VariantBinding, type VariantFactor } from "@/lib/variants/factorial";
+import { getModuleDef } from "@/server/modules/registry";
 import type { StudyDetail } from "@/server/trpc/routers/studies";
 import { READ_ONLY_TITLE } from "@/components/feature/workspace/role-gate";
 
@@ -19,12 +20,20 @@ const coerce = (s: string): unknown => {
   return t !== "" && !Number.isNaN(Number(t)) ? Number(t) : s;
 };
 
+/** Config keys never offered as varying fields regardless of block — system-managed
+ *  objects, not researcher-set content. */
+const GLOBAL_NON_VARYING = new Set(["emotionAnalysis"]);
+
 /** Bindable field keys from a block's config — top-level keys, plus one level of
  *  nesting as dot-paths (so `metrics.likes` is selectable). Arrays/objects of
- *  arrays are offered as a whole key. */
-function configFieldKeys(config: Record<string, unknown> | undefined): string[] {
+ *  arrays are offered as a whole key. Skips DERIVED keys (e.g. audio-stimulus
+ *  `audioUrl`/`audioHash`, set by generation — varying them by hand is nonsensical)
+ *  and system-managed objects. */
+function configFieldKeys(config: Record<string, unknown> | undefined, derived: readonly string[] = []): string[] {
+  const skip = new Set<string>([...derived, ...GLOBAL_NON_VARYING]);
   const out: string[] = [];
   for (const [k, v] of Object.entries(config ?? {})) {
+    if (skip.has(k)) continue;
     if (v !== null && typeof v === "object" && !Array.isArray(v)) {
       const children = Object.keys(v as Record<string, unknown>);
       if (children.length) for (const ck of children) out.push(`${k}.${ck}`);
@@ -78,7 +87,11 @@ export function VariantsSection({ study, canEdit }: { study: StudyDetail; canEdi
   const [newPath, setNewPath] = useState("");
   const [newFactor, setNewFactor] = useState("");
   const [helpOpen, setHelpOpen] = useState(false);
-  const newBlockFields = configFieldKeys(study.blocks.find((b) => b.instanceId === newBlock)?.config);
+  const newBlk = study.blocks.find((b) => b.instanceId === newBlock);
+  const newBlockFields = configFieldKeys(
+    newBlk?.config,
+    newBlk ? getModuleDef(newBlk.source, newBlk.key, newBlk.version)?.derivedFields ?? [] : [],
+  );
   const addBinding = () => {
     if (!newBlock || !newPath.trim() || !newFactor) return;
     commit(factors, [...bindings, { instanceId: newBlock, path: newPath.trim(), factorId: newFactor, valuesByLevel: {} }]);
@@ -164,6 +177,11 @@ export function VariantsSection({ study, canEdit }: { study: StudyDetail; canEdi
           <h3 className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">Varying fields</h3>
           {bindings.map((b, i) => {
             const f = factors.find((x) => x.id === b.factorId);
+            const bindBlk = study.blocks.find((x) => x.instanceId === b.instanceId);
+            // Honest interim note: varying an audio-stimulus script/description does
+            // not yet auto-generate a clip per level (per-variant voice gen is the
+            // next H5 enhancement) — until then all levels play the base audio.
+            const needsPerVariantAudio = bindBlk?.key === "audio-stimulus" && (b.path === "script" || b.path === "description");
             return (
               <div key={`${b.instanceId}-${b.path}-${i}`} className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-3">
                 <div className="flex items-center justify-between gap-2">
@@ -193,6 +211,12 @@ export function VariantsSection({ study, canEdit }: { study: StudyDetail; canEdi
                     </label>
                   ))}
                 </div>
+                {needsPerVariantAudio ? (
+                  <p className="text-[length:var(--text-small)] text-[var(--color-warning-text-on-subtle)]">
+                    Heads up: per-level audio isn’t generated yet — every variant currently plays the block’s base clip.
+                    Per-variant voice generation is coming next; until then, vary the script only if you’ll regenerate audio per level.
+                  </p>
+                ) : null}
               </div>
             );
           })}

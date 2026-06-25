@@ -2,6 +2,25 @@ import { describe, expect, it } from "vitest";
 
 import { getModuleDef } from "@/server/modules/registry";
 
+describe("customization guards (variants varying-field + condition source)", () => {
+  it("audio-stimulus marks audioUrl/audioHash as derived (hidden from the variants picker)", () => {
+    const m = getModuleDef("core", "audio-stimulus", "1.0.0")!;
+    expect(m.derivedFields).toEqual(["audioUrl", "audioHash"]);
+  });
+
+  it("display-only stimulus blocks collect no response — so they're never offered as condition sources", () => {
+    for (const key of ["audio-stimulus", "text", "image", "video", "link", "embedded-data", "end-redirect"]) {
+      expect(getModuleDef("core", key, "1.0.0")!.collectsResponse).toBe(false);
+    }
+  });
+
+  it("answer-collecting blocks remain valid condition sources", () => {
+    for (const key of ["multiple-choice", "likert-7", "free-text"]) {
+      expect(getModuleDef("core", key, "1.0.0")!.collectsResponse).toBe(true);
+    }
+  });
+});
+
 describe("emotion-probe blocks (ADR-0066 H3b/H4b)", () => {
   it("voice-emotion-probe forces emotion analysis ON (voice) and reuses audio-record's response schema", () => {
     const m = getModuleDef("core", "voice-emotion-probe", "1.0.0")!;
