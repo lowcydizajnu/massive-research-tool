@@ -9,11 +9,11 @@ import {
   type Clause,
   type ConditionGroup,
   type Operator,
-  isConditionSource,
   normalizeCondition,
   operatorsForKey,
 } from "@/lib/whiteboard/conditions";
 import { cn } from "@/lib/utils";
+import { getModuleDef } from "@/server/modules/registry";
 import type { StudyBlock } from "@/server/trpc/routers/studies";
 
 /** Operators whose value is a list (comma-separated); others are single text/number. */
@@ -55,7 +55,11 @@ export function ConditionBuilder({
   pending: boolean;
   onSave: (showIf: ConditionGroup | null) => void;
 }) {
-  const sources = earlierBlocks.filter((b) => isConditionSource(b.key));
+  // Only blocks that record an answer can be a condition source — version-aware via
+  // the registry (e.g. social-post v2 collects a comment, v1 doesn't). Stimulus /
+  // display-only blocks (audio-stimulus, text, image, video, link…) are excluded so
+  // they don't appear as a non-actionable dead-end (ADR-0021 amendment).
+  const sources = earlierBlocks.filter((b) => getModuleDef(b.source, b.key, b.version)?.collectsResponse ?? false);
   const initial = normalizeCondition(block.showIf, block.branchRules);
   const [op, setOp] = useState<"and" | "or">(initial?.op ?? "and");
   const [clauses, setClauses] = useState<Clause[]>(initial?.clauses ?? []);
