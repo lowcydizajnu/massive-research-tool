@@ -1,6 +1,6 @@
 # Code tab handoff — V2.1 Hume emotion AI (drafted 2026-06-22 — owner-locked, all 7 open questions resolved)
 
-> ⚠️ **READ FIRST (2026-06-25):** several substrate assumptions below are wrong — the "V2.0 substrate" (`ai_invocation` audit table, metering, Task layer) does **not** exist; the connection table is `ai_provider_connection` (not `ai_connection`); ADR-0014 is *not* the PII ADR; the next ADR is `0066`; there is no `components/blocks/` dir; `core/long-text` and `study_publish_acknowledgment` don't exist. See the corrections in [`code-tab-v210-hume-reconciliation.md`](code-tab-v210-hume-reconciliation.md) before opening the H1/H2 gate.
+> ⚠️ **REVISED 2026-06-25 — substrate-first.** This handoff was reconciled against the real repo and edited per owner direction (high-quality, build-it-right). Key changes baked in below: a new **Section H0 — AI substrate** (the `ai_invocation` audit table, write-through metering gateway, widened `AIProviderAdapter` contract, and `ai-chat` retrofit) is now the **first** stream — it was wrongly assumed already shipped; total estimate is now **~14–14.5 weeks** (was 12.5). Identifier/path fixes throughout: table is `ai_provider_connection` (not `ai_connection`); AI keys are workspace-scoped; ADRs renumbered to **0066+**; ADR-0014 is *Response data model* (not a "PII ADR"); blocks live in `server/modules/registry.ts` (no `components/blocks/` dir); `core/long-text` and `study_publish_acknowledgment` don't exist. Full gap analysis: [`code-tab-v210-hume-reconciliation.md`](code-tab-v210-hume-reconciliation.md).
 
 > **V2.1 = Hume emotion-AI as an option on existing applicable blocks + four new dedicated blocks.** This is the second AI release after V2.0 (text-LLM substrate: measure picker, literature→blocks, hypothesis extraction). V2.1 introduces a **second AI vendor** with a different sensitivity profile — Hume analyzes voice/text/face emotion and generates emotional audio. Estimated **~12.5 weeks Code-tab time** across 6 PR streams (12 original + 0.5 for the we-manage-EVI-configs work added 2026-06-22). **BYOAI model locked** (researcher provides their own Hume API token; mirrors OSF/Prolific connect pattern).
 >
@@ -33,105 +33,187 @@ V2.1 unblocks **emotion-as-a-measure** for psychological research. Today researc
 
 ## What's in place today
 
+> Corrected 2026-06-25 against the real repo — see [`code-tab-v210-hume-reconciliation.md`](code-tab-v210-hume-reconciliation.md). Several rows the original draft listed as "in place" are **not** built. They are now in *What's missing → H0*.
+
 | Component | What's there | Where |
 |---|---|---|
-| ADR-0006 AI plug-in substrate | `AIProviderAdapter` interface; `ai_invocation` audit table; sensitivity-tag routing; per-workspace toggle pattern. Locked in V1.5/V2.0 prep work. | `04_architecture/adrs/0006-ai-plugin-architecture.md` |
-| OSF Connections sub-view | Settings · Account → Integrations → OSF; PAT input; encrypted at rest (`TOKEN_ENCRYPTION_KEY`); test-connection button. | `05_app/app/(account)/account/integrations/page.tsx` + `server/adapters/registry.osf.ts` |
-| Prolific Connections sub-view | Mirror of OSF pattern; PAT input; encrypted; per-workspace enable toggle. | `05_app/app/(workspace)/participants/connections/page.tsx` + `server/adapters/recruitment.prolific.ts` |
-| `core/audio-record@1.0.0` | Browser MediaRecorder; R2 upload; per-response audio key stored in `response_item.answer.audioKey`. V1.21.x. | `05_app/components/blocks/audio-record/` + `server/storage/r2.ts` |
-| `core/free-text@1.0.0` | Short/long text variants; maxLength; `responseSchema {text}`. V1.6. | `05_app/components/blocks/free-text/` |
-| `core/long-text` (V1.12 expansion) | Multi-paragraph response variant; same emotion-eligible shape. | `05_app/components/blocks/long-text/` |
-| `core/social-post@2.0.0` | Has a participant-comment field (free-text); emotion-eligible. | `05_app/components/blocks/social-post/` |
-| R2 storage (ADR-0003) | `ws/` (public, unauthenticated, cheap) + `resp/` (workspace-ownership-gated); V1.40.0 hardened the `resp/` path. Audio responses live in `resp/`. | `server/adapters/storage.r2.ts` |
-| `token_encryption_key` discipline | Permanent ledger key per ADR-0016 §6; never rotate; OSF/Prolific tokens already encrypted with it. | env + `lib/crypto/token-encryption.ts` |
-| Withdraw flow | Per ADR-0014: participant deletion cascades through `response`, `response_item`, R2 audio keys, `recruitment_session`, and (after this release) `ai_invocation`. | `server/workers/withdraw-participant.ts` |
-| Activity destination (V1.7) | Emits per-action events; emotion-analysis events will join this surface. | `server/events/` |
-| Cost-ceiling pattern (ADR-0007) | Workspace-level $200/mo plan + $500/mo execute per managed service; instrumented via vendor-invocation rows. | (no central UI yet — V2.1 adds the dashboard widget) |
+| ADR-0006 AI architecture (substrate **designed, not built**) | ADR-0006 commits to a **Task-based** model: typed input/output schemas, schemas-first validation, an audit log per invocation, per-tenant metering, privacy routing. **None of that substrate exists yet** — what shipped (ADR-0061) is a thin BYO-key path. | `04_architecture/adrs/0006-ai-plugin-architecture.md` (title: *Task-based AI architecture with provider adapters*) |
+| `AIProviderAdapter` (minimal) | Interface is **`validateKey(apiKey)` + `chat(input)` only**. `ai` export = `anthropicAdapter`. No audit hook, no metering, no `ping`. | `05_app/server/adapters/ai.ts` + `ai.anthropic.ts` |
+| `ai_provider_connection` table | Per-workspace BYO key, AES-256-GCM at rest (`api_key`), `key_hint` for the masked UI, `status`/`last_error`. Provider CHECK = `('anthropic','openai')`. | `05_app/server/db/schema.ts` (`aiProviderConnection`) |
+| `ai.connections` tRPC router | `list` / `connect` / `disconnect` only — **no `test`/`ping`, no `usage`**. | `05_app/server/trpc/routers/ai.ts` |
+| Workspace AI-key settings card | Paste/validate/remove an Anthropic key. **Workspace-scoped** (not account). | `components/feature/settings/ai-provider-settings.tsx` under `app/(app)/(workspace)/settings/workspace/page.tsx` |
+| `ai-chat` block (ADR-0061) | Text LLM conversation; opening message / replies / time-limit + appearance (ADR-0065). The first AI feature — built on the thin path. | `server/modules/registry.ts` (`key: "ai-chat"`) + `components/feature/take/ai-chat-input.tsx` |
+| Prolific Connections | PAT input; encrypted; per-workspace. Closest precedent for the Hume connect UX. | `app/(app)/(workspace)/participants/connections/page.tsx` + `server/adapters/recruitment.prolific.ts` |
+| OSF Connections | PAT/OAuth connect; encrypted at rest. | `app/(app)/(personal)/settings/account/page.tsx` + study surfaces; `server/adapters/registry.osf.ts` |
+| `audio-record` / `free-text` / `social-post@2.0.0` blocks | Registry entries (`source:"core"`, bare `key`, `version`), rendered via `components/feature/take/` overrides + configured in `components/feature/builder/`. **There is no `components/blocks/` dir, and no `long-text` module** (free-text has a long variant). | `server/modules/registry.ts` |
+| R2 storage (ADR-0003) | `ws/` (public) + `resp/` (workspace-gated). Audio responses live in `resp/`. | `server/adapters/storage.r2.ts` (interface `storage.ts`) |
+| Token encryption | AES-256-GCM keyed by `TOKEN_ENCRYPTION_KEY` (ADR-0016 §6). | `server/crypto/tokens.ts` (`encryptSecret`) |
+| Inngest job substrate | Real, with several jobs to model on. The post-submit emotion job (H3a) is viable here. | `server/adapters/jobs.inngest.ts` + `server/jobs/{notification-fanout,osf-watch,registry-push,recruitment}.ts` |
+| Withdraw flow | Participant/study deletion cascade lives in `server/trpc/routers/studies.ts` (+ OSF in `registry.osf.ts`/`jobs/osf-watch.ts`). **There is no `server/workers/withdraw-participant.ts`.** ADR-0014 = *Response data model + conditioning* (this is the right ADR for the cascade — but it is NOT a "PII boundary" ADR; no PII ADR exists). | `server/trpc/routers/studies.ts` |
+| Adapter discipline (ADR-0007) | Real and enforced — `ai.anthropic.ts` confines the vendor SDK; `ai.hume.ts` confining `@hume/*` fits the pattern exactly. | `04_architecture/lock-in-inventory.md` |
 
 ## What's missing (the V2.1 build)
 
-- AI Connections sub-view at `Settings · Account → AI Connections` (currently no AI-vendor connect surface; V2.0 will add the shell — V2.1 adds the Hume row)
-- `server/adapters/ai.hume.ts` (the only repo file allowed to import `@hume/*` per ADR-0007)
-- `ai_invocation` table is in ADR-0006 spec but not yet migrated (V2.0 lands the migration; V2.1 extends with Hume-specific columns)
-- Optional `analyzeEmotion: boolean` flag on every applicable existing block + the post-submit Inngest job that processes audio/text → Hume → result
-- 4 new block kinds: `core/voice-emotion-probe@1.0.0`, `core/text-emotion-probe@1.0.0`, `core/audio-stimulus@1.0.0`, `core/voice-conversation@1.0.0`
-- Biometric-consent layer above V1.5 GDPR consent (per-study + per-block surfacing)
-- IRB-acknowledgment gate for Hume-using studies (mirrors V1.12 mimicking-presets pattern)
-- Emotion-vector results display (charts + per-condition distributions)
-- CSV/Excel export columns for emotion vectors
-- Workspace-level Hume usage + cost meter (Settings · Workspace → Usage → AI section)
+**H0 — AI substrate (must be built first; the original draft wrongly assumed this existed):**
+- A **real `AIProviderAdapter` contract** that can express every AI operation as a typed, schema-validated op (chat · voice-emotion · text-emotion · TTS · streaming voice conversation), vendor confined to the adapter file.
+- `ai_invocation` **audit table** (+ R2-backed `ai_invocation_payload` sidecar) — one row per AI call, any provider, any modality: workspace/study/response, provider+model, sensitivity tier, tokens-or-duration, **cost_usd**, status, timestamp.
+- A **write-through metering layer** so every adapter call records an `ai_invocation` row, and a per-workspace cost rollup the cap/dashboard read from.
+- **Retrofit `ai-chat` (ADR-0061) onto the new contract + audit log** so it isn't left as a thin one-off (no orphaned vendor path).
+
+**H1–H8 (the Hume features, on top of H0):**
+- Hume row on the workspace AI-keys card + `connect`/`test`/`usage` procedures (migration `0036`: extend the provider CHECK to include `hume`, add nullable `secret_key` + `webhook_signing_key`).
+- `server/adapters/ai.hume.ts` (the only repo file allowed to import `@hume/*` per ADR-0007), implementing the H0 contract.
+- The shared `emotionAnalysis` block-config option + the post-submit Inngest job (model on `server/jobs/registry-push.ts`).
+- 4 new block kinds as **registry entries + take/results/configure components + manifest** (`voice-emotion-probe`, `text-emotion-probe`, `audio-stimulus`, `voice-conversation`).
+- Biometric-consent layer above V1.5 GDPR consent; **a net-new IRB-acknowledgment table** (the mimicking-presets ack is stored in theme JSON — there is no `study_publish_acknowledgment` table to reuse).
+- Emotion-vector results display + CSV/Excel export columns.
+- Workspace-level Hume usage + cost meter (reads H0's metering).
 
 ---
 
-## Section H1 — AI Connections sub-view + Hume PAT flow (~3 days)
+## Section H0 — AI substrate: real adapter contract + invocation audit + metering (~1.5–2 weeks) — **BUILD FIRST**
 
-**Route:** `Settings · Account → AI Connections` (new sub-view; V2.0 ships the shell with Claude/GPT/etc. rows — V2.1 adds the Hume row to that table).
+> Added 2026-06-25. Owner chose the high-quality, substrate-first path (option **a** in the reconciliation note): build the spine ADR-0006 designed *before* layering a second vendor on top, so every future AI feature is a localized change rather than a rewrite, and cost/withdraw/audit are uniform. This was wrongly assumed "already shipped." It is the true first stream; H1 onward depend on it. (Strictly, this is V2.0-substrate work being completed; it lives here because V2.1 is the release that needs it.)
 
-### What it looks like
+**Why this comes first (the trade-off, recorded):** the alternative — each AI feature bolting on its own vendor call, as `ai-chat` did — ships one feature faster but has no cost control, no unified audit, leaks vendor logic, and re-implements auth/metering/withdraw every time. For a second vendor handling **biometric voice data + billing + four new blocks**, that debt compounds badly. Paying the substrate cost once now buys constant flexibility (add/swap vendors + models locally), safer UX (budget caps, "withdraw deletes everything", graceful errors), and reproducible/auditable research. ~1.5–2 weeks upfront; cheaper for every AI feature after.
 
-Each AI provider is a row:
+### H0.1 — Widen the `AIProviderAdapter` contract (~3 days)
 
-| Provider | Status | Last used | Actions |
-|---|---|---|---|
-| Anthropic Claude (text) | Connected | 2 days ago | Disconnect / Test |
-| OpenAI GPT (text) | Not connected | — | Connect |
-| **Hume (emotion + voice)** | **Not connected** | — | **Connect** |
+Today: `validateKey(apiKey)` + `chat(input)` (`server/adapters/ai.ts`). Grow it into a typed, provider-agnostic op set, each op carrying an `AIInvocationContext` and validated against a declared output schema (ADR-0006 schemas-first):
 
-### Connect-Hume flow
+```ts
+// server/adapters/ai.ts (widened — exact method set finalized in the ADR)
+export type AISensitivity = 'researcher_content' | 'participant_data' | 'pii';
+export interface AIInvocationContext {
+  workspaceId: string; studyId?: string; responseId?: string;
+  blockInstanceId?: string; feature: string;       // e.g. 'ai-chat' | 'voice-emotion-probe'
+  sensitivity: AISensitivity;
+}
+export interface AIProviderAdapter {
+  validateKey(apiKey: string): Promise<boolean>;
+  ping(): Promise<{ account?: string }>;            // no-cost identity check (powers connect "Test")
+  chat(input: AiChatInput, ctx: AIInvocationContext): Promise<AiChatResult>;
+  // Hume implements the rest (H2); other providers may no-op / throw NotSupported:
+  analyzeVoice?(opts): Promise<VoiceEmotionResult>;
+  analyzeText?(opts): Promise<TextEmotionResult>;
+  synthesizeAudio?(opts): Promise<{ audioR2Key: string; durationMs: number; cached: boolean }>;
+  startConversation?(opts): Promise<EVISession>;
+}
+```
 
-Clicking **Connect** opens a modal. Hume issues **three keys** — collect all three on the Developers page at https://platform.hume.ai/settings/keys:
+The capability methods are **optional on the base interface** so a text-only provider (Anthropic) isn't forced to implement voice; the gateway throws a typed `AICapabilityUnsupported` if a feature asks a provider for an op it lacks. `ctx` threads through every call so the audit log (H0.2) is automatic, not per-feature boilerplate.
 
-- Field 1: **Hume API key** — HTTPS calls (Expression Measurement + Octave TTS + EVI Configs API)
-- Field 2: **Hume Secret key** — paired with API key for EVI WebSocket auth
-- Field 3: **Hume Webhook signing key** — validates incoming EVI webhook events (session-ended notifications, async config events). Required for H6 voice-conversation block server-side webhook handling.
-- Read-only info box: "Your keys are encrypted at rest using `TOKEN_ENCRYPTION_KEY`. We never log raw keys. Disconnecting deletes the encrypted keys but does not revoke them on Hume's side — do that separately at platform.hume.ai."
-- **Test connection** button: calls `humeAdapter.ping()` (a no-cost endpoint — Hume has `/v0/me` or equivalent that returns the account holder); shows "Connected as: {account email}" on success.
-- Submit → encrypts all three keys, writes one row to `ai_provider_connection` table (`workspace_id`, `provider='hume'`, `encrypted_api_key`, `encrypted_secret_key`, `encrypted_webhook_signing_key`, `connected_by_user_id`, `connected_at`), redirects back to the AI Connections list.
+### H0.2 — `ai_invocation` audit table + write-through gateway (~3 days)
 
-### Data shape
+A thin gateway wraps the adapter so **every** AI call writes one audit row — no feature can call a provider without being logged. Migration (part of `0036`):
 
 ```sql
-CREATE TABLE ai_connection (
+CREATE TABLE ai_invocation (
   id TEXT PRIMARY KEY,                       -- ulid
   workspace_id UUID NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
-  provider TEXT NOT NULL CHECK (provider IN ('anthropic', 'openai', 'hume')),
-  encrypted_api_key TEXT NOT NULL,           -- AES-256-GCM via TOKEN_ENCRYPTION_KEY
-  encrypted_secret_key TEXT,                 -- nullable; only Hume requires both today
-  connected_by_user_id UUID NOT NULL REFERENCES user(id),
-  connected_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  last_used_at TIMESTAMPTZ,
-  UNIQUE (workspace_id, provider)
+  study_id UUID REFERENCES experiment(id) ON DELETE SET NULL,
+  response_id UUID REFERENCES response(id) ON DELETE CASCADE,
+  feature TEXT NOT NULL,                     -- 'ai-chat' | 'voice-emotion-probe' | ...
+  provider TEXT NOT NULL,                    -- 'anthropic' | 'hume' | ...
+  model TEXT,
+  modality TEXT NOT NULL CHECK (modality IN ('text','voice','tts','conversation')),
+  sensitivity TEXT NOT NULL CHECK (sensitivity IN ('researcher_content','participant_data','pii')),
+  input_tokens INTEGER, output_tokens INTEGER, duration_ms INTEGER,
+  cost_usd NUMERIC(10,5) NOT NULL DEFAULT 0,
+  status TEXT NOT NULL CHECK (status IN ('ok','error')),
+  error_code TEXT,
+  result_summary JSONB,                      -- small: top-3 emotions + valence/arousal; full vector → sidecar
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+-- R2-backed sidecar for large payloads (full emotion vectors, transcripts):
+CREATE TABLE ai_invocation_payload (
+  invocation_id TEXT PRIMARY KEY REFERENCES ai_invocation(id) ON DELETE CASCADE,
+  r2_key TEXT NOT NULL
 );
 ```
 
-(`ai_provider_connection` is V2.0's table; V2.1 adds the `hume` enum value + `encrypted_secret_key` column + `encrypted_webhook_signing_key` column. All additive nullable.)
+The gateway also enforces the per-workspace `allow_pii_to_external_ai` flag (default false) — a `sensitivity: 'pii'` call against a workspace that hasn't opted in throws before any vendor call.
 
-### tRPC procedures
+### H0.3 — Per-workspace cost metering + cap primitive (~2 days)
 
-- `aiConnections.list()` — returns rows for the active workspace (decrypted keys never leave the server).
-- `aiConnections.connect({ provider: 'hume', apiKey, secretKey })` — workspace-admin only; writes the row.
-- `aiConnections.disconnect({ provider })` — workspace-admin only; deletes the row.
-- `aiConnections.test({ provider })` — calls the adapter's `ping()` method.
+`ai.usage({ range })` rolls up `sum(ai_invocation.cost_usd)` per workspace per modality/provider. A `workspace_settings.monthly_ai_budget_usd_cap` column (additive, nullable) + a gateway check that throws `WorkspaceAICapExceeded` at 100% and emits an 80% warning event. This is the substrate H8c's dashboard and the owner-locked $50 cap read from — built once here, consumed everywhere.
 
-### Wireframe gate
+### H0.4 — Retrofit `ai-chat` (ADR-0061) onto the substrate (~2 days)
 
-`03_design/wireframes/settings-ai-connections.md` (extend the V2.0 wireframe to include the Hume row).
+Route the existing `ai-chat` turn engine through the new gateway so it writes `ai_invocation` rows and respects the cap. No orphaned thin path; the advisory cost estimate in Configure can later read real per-study spend. This is the proof the substrate works end-to-end before any Hume code lands.
 
-### Tests
+### ADR + tests
 
-- Unit: encrypt → decrypt round-trips correctly.
-- Unit: `disconnect` deletes the row but doesn't touch upstream Hume keys.
-- e2e: connect → test → see "Connected as: …" → disconnect → row gone.
+- ADR (next number — see ADRs section) locks: the widened contract; the `ai_invocation` + sidecar tables; the write-through gateway; `allow_pii_to_external_ai`; the cap primitive; the ai-chat retrofit.
+- Unit: gateway writes exactly one `ai_invocation` row per call (ok + error paths); pii-blocked path throws pre-vendor; cap math (throws >cap, not at cap, warns at 80%).
+- Integration: ai-chat turn produces an `ai_invocation` row with correct cost.
 
 ---
 
-## Section H2 — `AIProviderAdapter` extension + Hume implementation (~4-5 days)
+## Section H1 — Hume row on the AI-keys card + connect/test (~3 days)
 
-The substrate is V2.0's. V2.1 only adds:
+**Surface:** extend the existing **workspace** AI-keys card (`components/feature/settings/ai-provider-settings.tsx`, under Settings · Workspace), not a new "Settings · Account" page. It currently lists Anthropic; add a Hume row beside it.
 
-- One adapter file: `05_app/server/adapters/ai.hume.ts` (the only file in the repo allowed to import `@hume/*`).
-- Schema extensions on the existing `ai_invocation` audit table (additive columns; no migration of existing rows).
-- A `humeAdapter` factory that takes a decrypted `{ apiKey, secretKey }` and returns the typed interface below.
+| Provider | Status | Actions |
+|---|---|---|
+| Anthropic (Claude) | Connected • •••• 1a2b | Disconnect / Test |
+| **Hume (emotion + voice)** | **Not connected** | **Connect** |
+
+### Connect-Hume flow
+
+Clicking **Connect** opens a modal. Hume issues **three keys** (https://platform.hume.ai/settings/keys):
+
+- **Hume API key** — Expression Measurement + Octave TTS + EVI Configs API
+- **Hume Secret key** — paired with the API key for EVI WebSocket auth
+- **Hume Webhook signing key** — validates incoming EVI webhook events (H6)
+- Info box: "Keys are encrypted at rest (`TOKEN_ENCRYPTION_KEY` via `server/crypto/tokens.ts`). We never log raw keys. Disconnecting deletes them here but does not revoke them on Hume."
+- **Test connection** → `ai.connections.test({ provider:'hume' })` → adapter `ping()` → "Connected as: {account}".
+- Submit → encrypts the three keys, upserts the `ai_provider_connection` row.
+
+### Data shape — extend the real table (migration `0036`)
+
+The table is **`ai_provider_connection`** (already exists). Do **not** create `ai_connection`. Migration `0036`:
+
+```sql
+-- extend the provider CHECK to include hume
+ALTER TABLE ai_provider_connection DROP CONSTRAINT ai_provider_connection_provider;
+ALTER TABLE ai_provider_connection ADD CONSTRAINT ai_provider_connection_provider
+  CHECK (provider IN ('anthropic','openai','hume'));
+-- Hume needs two extra encrypted keys (additive, nullable; existing rows unaffected)
+ALTER TABLE ai_provider_connection ADD COLUMN secret_key TEXT;           -- encrypted
+ALTER TABLE ai_provider_connection ADD COLUMN webhook_signing_key TEXT;  -- encrypted
+```
+
+Existing columns reused as-is: `api_key` (encrypted), `key_hint`, `status`, `last_error`, `user_id`, `created_at`/`updated_at`. (No `last_used_at`; `last_used_at`-style "last used" can come from `ai_invocation` instead.)
+
+### tRPC procedures (extend `server/trpc/routers/ai.ts`)
+
+- `ai.connections.list` — exists (add Hume to the returned shape).
+- `ai.connections.connect({ provider:'hume', apiKey, secretKey, webhookSigningKey })` — extend; workspace-admin only.
+- `ai.connections.disconnect({ provider })` — exists.
+- **`ai.connections.test({ provider })` — NEW** (no `test`/`ping` today) → adapter `ping()`.
+- **`ai.connections.usage({ range })` — NEW** (provided by H0.3).
+
+### Wireframe gate
+
+`03_design/wireframes/settings-ai-connections.md` (the AI-keys card is workspace-scoped; show the Hume row + connect modal).
+
+### Tests
+
+- Unit: encrypt → decrypt round-trips for all three Hume keys.
+- Unit: `disconnect` deletes the row, leaves upstream Hume keys.
+- Unit: migration `0036` — provider CHECK accepts `hume`, rejects garbage; new columns nullable.
+- e2e: connect → test → "Connected as: …" → disconnect → row gone.
+
+---
+
+## Section H2 — Hume adapter implementing the H0 contract (~4-5 days)
+
+Builds on **H0** (the contract + audit gateway already exist). V2.1 adds:
+
+- One adapter file: `05_app/server/adapters/ai.hume.ts` (the only file allowed to import `@hume/*`), implementing the optional capability methods (`analyzeVoice` / `analyzeText` / `synthesizeAudio` / `startConversation`) of the H0 `AIProviderAdapter` contract.
+- **No new audit table** — `ai_invocation` is H0's; Hume calls flow through the same write-through gateway, so cost/audit/withdraw are automatic. (The original draft's "additive columns on the V2.0 `ai_invocation` table" was wrong — there was no table; H0 builds it.)
+- A `humeAdapter` factory taking decrypted `{ apiKey, secretKey, webhookSigningKey }`.
 
 ### Interface (new — V2.1-specific subset of `AIProviderAdapter`)
 
@@ -205,26 +287,17 @@ export interface EVISession {
 }
 ```
 
-### `ai_invocation` extensions
+### `ai_invocation` — already built in H0
 
-Additive columns on the V2.0 table:
+The `ai_invocation` table + its R2-backed `ai_invocation_payload` sidecar are **built in H0.2**, not here, and they already carry `modality`, `duration_ms`, `cost_usd`, `result_summary`, and `sensitivity`. Hume's adapter methods just flow through the H0 gateway, so each Hume call writes its audit row automatically. (The original draft's "additive columns on the V2.0 table" assumed a table that didn't exist — see the reconciliation note.)
 
-```sql
-ALTER TABLE ai_invocation
-  ADD COLUMN modality TEXT CHECK (modality IN ('text', 'voice', 'tts', 'conversation')),
-  ADD COLUMN duration_ms INTEGER,
-  ADD COLUMN result_summary JSONB;        -- top-3 emotions + valence/arousal; full vector lives in ai_invocation_payload (R2-backed for size)
-```
+### Cost metering — reads H0.3
 
-`ai_invocation_payload` is a small R2-backed sidecar table (key + R2 pointer) for the full emotion vectors + transcripts; raw audio responses already live in `resp/` per ADR-0003.
+Each Hume invocation writes `cost_usd` (from Hume's response headers, or for TTS from script length) via the H0 gateway. Workspace usage rolls up via `ai.usage({ range })` (H0.3) → Settings · Workspace → Usage → AI section.
 
-### Cost metering
+### Sensitivity routing (per ADR-0006 + the H0 gateway)
 
-Each invocation writes `cost_usd` (computed from the response headers Hume returns or — for TTS — from the script length). Workspace usage rolls up via `aiConnections.usage({ provider, range })` → Settings · Workspace → Usage → AI section.
-
-### Sensitivity routing (per ADR-0006)
-
-`AIInvocationContext.sensitivity` is one of: `researcher_content` | `participant_data` | `pii`. The adapter refuses calls when the per-workspace setting `allow_pii_to_external_ai` is false (default: false; researcher must explicitly enable in the AI Connections row).
+`AIInvocationContext.sensitivity` ∈ `researcher_content | participant_data | pii`. The **H0 gateway** (not the Hume adapter itself) refuses a `pii` call when the per-workspace `allow_pii_to_external_ai` flag is false (default false) — enforced once, for every provider.
 
 ### Wireframe gate
 
@@ -609,7 +682,7 @@ CREATE TABLE ai_conversation_turn (
 
 When publishing a study containing an `voice-conversation` block:
 
-- Publish-time check: "This study uses AI-mediated voice conversation. Confirm you have IRB approval or equivalent for this interaction." Researcher confirms by checking the box; publish-action records the acknowledgment in `study_publish_acknowledgment` table (already exists since V1.12 mimicking-presets).
+- Publish-time check: "This study uses AI-mediated voice conversation. Confirm you have IRB approval or equivalent for this interaction." Researcher confirms by checking the box; publish-action records the acknowledgment in a **new `study_publish_acknowledgment` table** (this does NOT exist yet — the V1.12 mimicking-presets ack is stored in theme JSON as `mimicAcknowledged`, not a table; building this table is V2.1 scope, see H7c).
 - Per-participant disclosure (auto-rendered above the pre-call screen): "This study includes a conversation with an AI agent. By participating, you acknowledge that this interaction is with software, not a human. Your voice will be analyzed for emotional content. You can stop the conversation at any time."
 
 ### Use cases
@@ -671,7 +744,7 @@ Three publish-time gates:
 2. **Any `voice-conversation` block:** the stronger gate (per H6) about AI-mediated interaction.
 3. **Any `audio-stimulus` block with emotional dimensions outside the neutral baseline:** "I have IRB approval to deliver emotionally-charged audio stimuli to participants. [confirmed]" (mirrors V1.12 mimicking-presets exactly)
 
-All three gates write to `study_publish_acknowledgment`; each ack is timestamped + linked to the publishing user + survives study forking (forked studies require fresh acknowledgment by the new owner).
+All three gates write to the **new `study_publish_acknowledgment` table** (net-new in V2.1 — there is no such table today; the V1.12 mimicking ack lives in theme JSON). Each ack is timestamped + linked to the publishing user + survives study forking (forked studies require fresh acknowledgment by the new owner).
 
 ### Withdraw flow extension (ADR-0014 amendment)
 
@@ -751,14 +824,16 @@ CSV/Excel export builder (the V1.12 Export builder) gets a new section:
 
 ## ADRs needed
 
-- **ADR-00XX — Hume integration + AI Connections shell.** Locks: BYOAI model; PAT + secret key stored encrypted; the `ai_provider_connection` table; `aiConnections` tRPC router; the workspace-level `allow_pii_to_external_ai` toggle; adapter discipline (only `server/adapters/ai.hume.ts` may import `@hume/*`); lock-in inventory updated. Supersedes nothing.
-- **ADR-00XX — Emotion analysis as block-level option.** Locks: the shared `emotionAnalysis: { enabled, provider, modality }` config addition across applicable block kinds; the `recordAnswer` Inngest enqueue hook (voice) + sync-call pattern (text); failure-handling semantics; export-column shape.
-- **ADR-00XX — `core/audio-stimulus@1.0.0` + Octave TTS caching.** Locks: the new block kind; the R2 cache key derivation (hash of script + voice + emotional dimensions); per-condition variant model; publish-time generation flow.
-- **ADR-00XX — `core/voice-conversation@1.0.0` + EVI WebSocket proxy.** Locks: the proxy architecture (browser ↔ our server ↔ Hume); the `ai_conversation` + `ai_conversation_turn` tables; per-turn emotion logging; the IRB-acknowledgment gate (mirrors V1.12 mimicking-presets); participant-audio retention default-off, opt-in.
-- **ADR-0014 amendment — Biometric-data lifecycle.** Voice = `pii` sensitivity; withdraw cascades to `ai_invocation`, `ai_invocation_payload` (R2-backed), `ai_conversation`, `ai_conversation_turn`; per-block disclosure copy + study-level consent banner; researcher IRB-acknowledgment.
-- **ADR-00XX — AI cost metering + workspace caps.** Locks: per-invocation `cost_usd` write; workspace monthly cap; warning at 80%; hard-stop at 100%; usage dashboard schema.
+> **Numbering corrected 2026-06-25:** next-available is **ADR-0066** (0061–0065 are taken: ai-chat, doc-extraction, templates, materials, chat-appearance). Verify before assignment. Note the biometric-lifecycle ADR amends **ADR-0006** (sensitivity/privacy routing) and **ADR-0014** (*Response data model + conditioning* — the withdraw cascade) — there is **no "PII boundary" ADR-0014**; the original draft mislabeled it.
 
-(Six ADRs total. Assign sequential numbers at PR time; current next-available is ADR-0061 per STATUS but verify before assignment.)
+- **ADR-0066 — AI substrate: provider-adapter contract + invocation audit + metering (H0).** Locks: the widened `AIProviderAdapter` contract (typed, schema-validated ops; optional capability methods); the write-through gateway; the `ai_invocation` + `ai_invocation_payload` tables; `allow_pii_to_external_ai`; the per-workspace cost-cap primitive; the `ai-chat` retrofit. **This is the foundational ADR — land it first.** Completes what ADR-0006 designed.
+- **ADR-0067 — Hume integration + AI-keys card extension (H1/H2).** Locks: BYOAI model; the three Hume keys stored encrypted; the `ai_provider_connection` migration (`0036`: `hume` in the CHECK + `secret_key` + `webhook_signing_key`); `ai.connections.test`/`usage`; `server/adapters/ai.hume.ts` adapter discipline (only it may import `@hume/*`); lock-in inventory updated.
+- **ADR-0068 — Emotion analysis as a block-level option (H3a/H4a).** Locks: the shared `emotionAnalysis: { enabled, provider, modality }` config addition; the post-submit Inngest enqueue hook (voice) + sync-call (text); failure-handling; export-column shape.
+- **ADR-0069 — `audio-stimulus` block + Octave TTS caching (H5).** Locks: the new registry block kind; the R2 cache key (hash of script + voice + emotional dimensions); per-condition variants; publish-time generation.
+- **ADR-0070 — `voice-conversation` block + EVI WebSocket proxy (H6).** Locks: the proxy architecture (browser ↔ our server ↔ Hume); `ai_conversation` + `ai_conversation_turn` tables; `hume_evi_config` (we-manage configs); per-turn emotion logging; participant-audio retention default-off opt-in.
+- **ADR-0071 — Biometric-data lifecycle + IRB acknowledgment (H6/H7).** Amends ADR-0006 (voice = `pii` routing) and ADR-0014 (withdraw cascade to `ai_invocation`/`ai_invocation_payload`/`ai_conversation`/`ai_conversation_turn`); locks the **new `study_publish_acknowledgment` table** (does not exist today), the per-block disclosure copy, and the study-level consent banner.
+
+(Numbers above are the expected sequence from `0066`; confirm against `04_architecture/adrs/` at PR time and renumber if anything lands between now and then. Land each alongside the first PR of its stream, not as one batch.)
 
 ---
 
@@ -793,12 +868,20 @@ CSV/Excel export builder (the V1.12 Export builder) gets a new section:
 
 ---
 
-## Sequencing PRs (~12.5 weeks total, 6 streams)
+## Sequencing PRs (~14–14.5 weeks total, 7 streams)
 
-**Stream H1+H2 — Foundation (~2 weeks):**
-- PR H1.1: `ai_provider_connection` schema extension + AI Connections row for Hume + connect/disconnect/test flow (~3 days)
-- PR H2.1: `server/adapters/ai.hume.ts` shell + `analyzeText` + `analyzeVoice` adapter methods + `ai_invocation` extension + cost metering (~5 days)
-- PR H2.2: `synthesizeAudio` + `startConversation` adapter methods (deferred until streams H5/H6 need them — can split or land together) (~2 days)
+> Revised 2026-06-25: **H0 added as the lead stream** (+~1.5–2 weeks) and H1/H2 re-scoped. The original "~12.5 weeks" assumed the substrate existed; the honest figure with the substrate built is ~14–14.5 weeks. This is the cost of the high-quality, flexible foundation the owner chose — paid once.
+
+**Stream H0 — AI substrate (~1.5–2 weeks) — MUST LAND FIRST:**
+- PR H0.1: Widen the `AIProviderAdapter` contract (typed ops + optional capability methods + `ping`) (~3 days)
+- PR H0.2: `ai_invocation` + `ai_invocation_payload` tables (migration `0036`) + write-through gateway + `allow_pii_to_external_ai` enforcement (~3 days)
+- PR H0.3: Per-workspace cost metering (`ai.usage`) + `monthly_ai_budget_usd_cap` + cap/80%-warning primitive (~2 days)
+- PR H0.4: Retrofit `ai-chat` (ADR-0061) onto the gateway + audit log; prove end-to-end (~2 days)
+
+**Stream H1+H2 — Hume connection + adapter (~1.5 weeks):**
+- PR H1.1: `ai_provider_connection` migration (`hume` in CHECK + `secret_key` + `webhook_signing_key`) + Hume row on the workspace AI-keys card + connect/disconnect + **new `test`/`usage`** procedures (~3 days)
+- PR H2.1: `server/adapters/ai.hume.ts` implementing the H0 contract — `analyzeText` + `analyzeVoice` (flows through the H0 gateway; no separate audit table) (~5 days)
+- PR H2.2: `synthesizeAudio` + `startConversation` adapter methods (land with H5/H6) (~2 days)
 
 **Stream H3 — Voice emotion (~2 weeks):**
 - PR H3a.1: Shared `emotionAnalysis` config addition + free-text/audio-record Configure UI + Builder picker (~2 days)
@@ -830,20 +913,22 @@ CSV/Excel export builder (the V1.12 Export builder) gets a new section:
 - PR H8.3: Workspace AI usage dashboard + budget cap enforcement (~3 days)
 
 **Cross-cutting PRs:**
-- PR X1: ADRs (6 new + ADR-0014 amendment) — land alongside the first PR of each stream that needs them, not as a single ADRs-batch PR
+- PR X1: ADRs (ADR-0066 substrate first, then 0067–0071 + the ADR-0006/0014 amendments) — land alongside the first PR of each stream that needs them, not as a single ADRs-batch PR
 - PR X2: Manifest + `00_meta/manifest/schema.yaml` entries for 4 new block kinds; `validate.py` must return clean before any stream merges
 - PR X3: e2e suite — `e2e/hume-voice-emotion.spec.ts` + `e2e/hume-text-emotion.spec.ts` + `e2e/hume-audio-stimulus.spec.ts` + `e2e/hume-ai-conversation.spec.ts` (all gated `RUN_HUME_E2E=1` against fixture-Hume); a separate live-Hume e2e for ai-conversation gated even more tightly because of WebSocket complexity
 
 **Dependencies between streams:**
 
-- H3a + H4a both depend on H1 (AI Connections + Hume row) + H2.1 (adapter shell with `analyzeText` + `analyzeVoice`).
+- **Everything depends on H0** (the contract + audit gateway + metering). Nothing Hume-facing can land before it.
+- H1 + H2.1 depend on H0 (the widened contract + gateway).
+- H3a + H4a depend on H1 + H2.1 (`analyzeText` + `analyzeVoice`).
 - H3b + H4b depend on H3a + H4a (reuse the same Inngest job + sync-call code).
-- H5 depends on H1 + H2.2 (`synthesizeAudio` adapter method).
-- H6 depends on H1 + H2.2 (`startConversation`) + a small chunk of new WebSocket infrastructure.
+- H5 depends on H1 + H2.2 (`synthesizeAudio`).
+- H6 depends on H1 + H2.2 (`startConversation`) + new WebSocket infrastructure.
 - H7 depends on H3a + H6 (consent banner shape depends on which blocks the study contains).
-- H8 depends on at least one analyzed-block stream having landed.
+- H8 depends on H0.3 (metering) + at least one analyzed-block stream.
 
-So a clean ordering: **H1 → H2.1 → H3a → H4a → H3b/H4b/H5 in parallel → H2.2 → H6 → H7 → H8.**
+So a clean ordering: **H0 → H1 → H2.1 → H3a → H4a → H3b/H4b/H5 in parallel → H2.2 → H6 → H7 → H8.**
 
 ---
 
@@ -863,18 +948,18 @@ All 12 owner-confirmed decisions (5 original + 7 from this round) are locked int
 
 ## Files to read first
 
-1. This handoff start to finish.
-2. `04_architecture/adrs/0006-ai-plugin-architecture.md` — the substrate this builds on; V2.0 lands the table + adapter interface; V2.1 extends.
-3. `04_architecture/adrs/0007-path-a-vs-b.md` + lock-in inventory — adapter discipline + cost-ceiling triggers.
-4. `04_architecture/adrs/0014-pii-boundary.md` — voice + biometric handling; this handoff proposes an amendment.
-5. `04_architecture/adrs/0016-production-deployment-architecture.md` §6 — `TOKEN_ENCRYPTION_KEY` discipline.
-6. `04_architecture/adrs/0003-asset-storage.md` — R2 `ws/` (TTS-generated audio cache) vs `resp/` (participant response audio); V1.40.0 amendment.
-7. `05_app/server/adapters/registry.osf.ts` — the pattern for OAuth-y connect flow + token encryption.
-8. `05_app/server/adapters/recruitment.prolific.ts` — the pattern for PAT-only connect flow (closer to Hume).
-9. `05_app/server/db/schema.ts` — `ai_invocation` table once V2.0 lands; existing `response`/`response_item`/`recruitment_session` tables.
-10. `05_app/components/blocks/audio-record/` — the existing voice-capture block; H3a extends it.
-11. `05_app/components/blocks/free-text/` — H4a extends it.
-12. `05_app/scripts/dev/seed-network-demo.ts` — dev seeder pattern; we'll want a `seed-hume-fixtures.ts` for the e2e suite (fixture audio + fixture Hume responses).
+1. This handoff start to finish, then [`code-tab-v210-hume-reconciliation.md`](code-tab-v210-hume-reconciliation.md).
+2. `04_architecture/adrs/0006-ai-plugin-architecture.md` (*Task-based AI architecture with provider adapters*) — the substrate H0 **completes**; it was designed here but never built. Read Option B closely.
+3. `04_architecture/adrs/0007-path-a-vs-b.md` + `lock-in-inventory.md` — adapter discipline + cost-ceiling triggers.
+4. `04_architecture/adrs/0014-response-data-model-and-conditioning.md` — the response/withdraw data model H0/H7 cascade through (this is the real ADR-0014; there is **no** `0014-pii-boundary.md`; sensitivity routing is in ADR-0006).
+5. `04_architecture/adrs/0016-production-deployment-architecture.md` §6 — `TOKEN_ENCRYPTION_KEY` discipline (used by `server/crypto/tokens.ts`).
+6. `04_architecture/adrs/0003-asset-storage.md` — R2 `ws/` (TTS cache) vs `resp/` (participant audio).
+7. `05_app/server/adapters/ai.ts` + `ai.anthropic.ts` — the current (minimal) adapter H0 widens.
+8. `05_app/server/trpc/routers/ai.ts` + `components/feature/settings/ai-provider-settings.tsx` — the connect surface H1 extends (workspace-scoped).
+9. `05_app/server/adapters/recruitment.prolific.ts` — closest PAT connect precedent for Hume.
+10. `05_app/server/db/schema.ts` — `aiProviderConnection`; existing `response`/`response_item` tables (note: **no `ai_invocation` yet** — H0 adds it).
+11. `05_app/server/modules/registry.ts` — how blocks are defined (`audio-record`, `free-text`, `social-post`); the 4 new blocks are registry entries here + components under `components/feature/{take,builder}` (there is no `components/blocks/` dir).
+12. `05_app/server/jobs/registry-push.ts` — model the `hume.analyze-voice` Inngest job on this; `seed-core.ts` for the seeding pattern.
 13. Hume docs to read before adapter implementation:
     - https://dev.hume.ai/docs/expression-measurement-api/overview
     - https://dev.hume.ai/docs/empathic-voice-interface-evi/overview
