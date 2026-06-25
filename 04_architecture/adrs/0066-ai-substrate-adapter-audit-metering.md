@@ -46,6 +46,16 @@ In plain terms: today an AI call is a direct phone call with no record kept. We 
 - **What we are now committed to.** A single AI gateway (`server/runtime/ai-gateway.ts`) as the only path from feature code to `ai.<vendor>`; the `ai_invocation` + `ai_invocation_payload` schema; per-workspace `allow_pii_to_external_ai` (default false) and `monthly_ai_budget_usd_cap` (nullable; existing workspaces uncapped); cost computed from a dated price table (`lib/ai-pricing.ts`) until vendors return authoritative usage.
 - **What we are now precluded from.** Feature code calling `ai.<vendor>` (or a vendor SDK) directly — it must go through the gateway. Storing full emotion vectors / large transcripts inline in `ai_invocation` (they go to the R2-backed `ai_invocation_payload` sidecar to keep the audit table small).
 
+## Amendment (2026-06-25) — emotion-analysis language selector (pulled forward from V2.2)
+
+The original H3a scope deferred a multi-language picker to V2.2 (English-first; "language param exposed in adapter"). On owner request after the V2.1 deploy, the picker is pulled forward for **emotion analysis only**:
+
+- The shared `emotionAnalysis` block config (free-text + audio-record) gains an optional `language` field — a BCP-47 tag from `lib/ai/hume-languages.ts`. Absent = Hume auto-detects (the default and recommended option).
+- It threads `block config → hume.analyze job → gateway runEmotion → adapter analyzeText/analyzeVoice`, where it sets the batch request's top-level `transcription.language`. **Verified** against the Hume SDK v0.7.0 `Transcription` / `Bcp47Tag` types — the accepted set is the 29-language list in `hume-languages.ts` (Polish = `pl`); it applies to both the Language (text) and Prosody (voice) models. Invalid codes are dropped client-and-server-side, never sent.
+- **Octave TTS (audio-stimulus) gets NO language selector**: `PostedUtterance` has no language param (verified — SDK `main`); Octave infers language from the script text. The audio-stimulus panel states this inline instead of offering a no-op control.
+
+No migration (config is jsonb). Within this ADR's emotion-analysis concept; the adapter contract already reserved `language?`.
+
 ## Revisit triggers
 
 - We add a provider whose pricing isn't expressible as the current per-token/per-duration table (revisit the cost model).

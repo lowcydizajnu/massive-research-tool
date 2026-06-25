@@ -1,3 +1,4 @@
+import { isHumeLanguage } from "@/lib/ai/hume-languages";
 import type { AIProviderAdapter, AiChatInput, AiChatResult, AiEmotionResult, AiTtsResult } from "@/server/adapters/ai";
 
 /**
@@ -152,18 +153,30 @@ export const humeAdapter: AIProviderAdapter = {
   /**
    * Text emotion (ADR-0066 H3a) — Hume Expression Measurement `language` model
    * via the batch API. Returns the mean emotion vector across text segments.
+   * `language` (BCP-47) is an optional accuracy hint applied via the batch's
+   * `transcription.language` (verified against the Hume SDK v0.7.0 Transcription
+   * type); omitted → Hume auto-detects. Invalid codes are dropped, not sent.
    */
-  async analyzeText({ apiKey, text }): Promise<AiEmotionResult> {
-    const payload = await runBatchJob(apiKey, { models: { language: {} }, text: [text] });
+  async analyzeText({ apiKey, text, language }): Promise<AiEmotionResult> {
+    const payload = await runBatchJob(apiKey, {
+      models: { language: {} },
+      text: [text],
+      ...(isHumeLanguage(language) ? { transcription: { language } } : {}),
+    });
     return aggregateEmotions(payload, "language");
   },
 
   /**
    * Voice emotion (ADR-0066 H3a) — Hume `prosody` model via the batch API on a
-   * fetchable audio URL (the gateway presigns the R2 object).
+   * fetchable audio URL (the gateway presigns the R2 object). Optional `language`
+   * (BCP-47) sets `transcription.language` for the prosody transcription step.
    */
-  async analyzeVoice({ apiKey, audioUrl }): Promise<AiEmotionResult> {
-    const payload = await runBatchJob(apiKey, { models: { prosody: {} }, urls: [audioUrl] });
+  async analyzeVoice({ apiKey, audioUrl, language }): Promise<AiEmotionResult> {
+    const payload = await runBatchJob(apiKey, {
+      models: { prosody: {} },
+      urls: [audioUrl],
+      ...(isHumeLanguage(language) ? { transcription: { language } } : {}),
+    });
     return aggregateEmotions(payload, "prosody");
   },
 };

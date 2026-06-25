@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 
 import type { StudyBlock } from "@/server/trpc/routers/studies";
 import { api } from "@/lib/trpc/react";
+import { HUME_LANGUAGES } from "@/lib/ai/hume-languages";
 import { AiChatConfig } from "@/components/feature/builder/ai-chat-config";
 import { AudioStimulusConfig } from "@/components/feature/builder/audio-stimulus-config";
 import { PickFromMaterialsButton } from "@/components/feature/builder/pick-from-materials-button";
@@ -305,16 +306,27 @@ export function ConfigureForm({
       </div>
 
       {block.key === "free-text" || block.key === "audio-record" ? (
-        <EmotionAnalysisToggle
-          block={block}
-          enabled={Boolean((draft.emotionAnalysis as { enabled?: boolean } | undefined)?.enabled)}
-          onToggle={(enabled) => {
-            const modality = block.key === "audio-record" ? "voice" : "text";
-            const next = { ...draft, emotionAnalysis: { enabled, provider: "hume", modality } };
+        (() => {
+          const ea = draft.emotionAnalysis as { enabled?: boolean; language?: string } | undefined;
+          const modality = block.key === "audio-record" ? "voice" : "text";
+          // Merge-write so toggling/relanguaging never drops the other fields.
+          const write = (patch: Record<string, unknown>) => {
+            const nextEa: Record<string, unknown> = { provider: "hume", modality, enabled: Boolean(ea?.enabled), ...(ea ?? {}), ...patch };
+            if (!nextEa.language) delete nextEa.language; // absent = Hume auto-detect
+            const next = { ...draft, emotionAnalysis: nextEa };
             setDraft(next);
             onChange(next);
-          }}
-        />
+          };
+          return (
+            <EmotionAnalysisToggle
+              block={block}
+              enabled={Boolean(ea?.enabled)}
+              language={typeof ea?.language === "string" ? ea.language : ""}
+              onToggle={(enabled) => write({ enabled })}
+              onLanguageChange={(language) => write({ language })}
+            />
+          );
+        })()
       ) : null}
 
       {onSaveAsModule ? (
@@ -924,11 +936,15 @@ function clampedCentered(n: number): { x: number; y: number; w: number; h: numbe
 function EmotionAnalysisToggle({
   block,
   enabled,
+  language,
   onToggle,
+  onLanguageChange,
 }: {
   block: StudyBlock;
   enabled: boolean;
+  language: string;
   onToggle: (enabled: boolean) => void;
+  onLanguageChange: (language: string) => void;
 }) {
   const list = api.ai.connections.list.useQuery();
   const humeConnected = (list.data ?? []).some((c) => c.provider === "hume");
@@ -946,6 +962,26 @@ function EmotionAnalysisToggle({
         appear in Results. Sensitivity: {isVoice ? "PII (biometric voice)" : "participant data"}. ≈{" "}
         {isVoice ? "$0.005" : "$0.001"} per response, billed to your Hume key.
       </span>
+      {enabled ? (
+        <label className="mt-1 flex flex-col gap-1">
+          <span className="text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)]">Language</span>
+          <select
+            value={language}
+            onChange={(e) => onLanguageChange(e.target.value)}
+            className="rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-1 text-[length:var(--text-body)] text-[var(--color-text-primary)]"
+          >
+            <option value="">Auto-detect (recommended)</option>
+            {HUME_LANGUAGES.map((l) => (
+              <option key={l.code} value={l.code}>
+                {l.label}
+              </option>
+            ))}
+          </select>
+          <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+            Hume auto-detects by default; pick a language to improve accuracy when you know it.
+          </span>
+        </label>
+      ) : null}
       {enabled && !humeConnected ? (
         <span className="text-[length:var(--text-small)] text-[var(--color-danger-text-on-subtle)]">
           Connect Hume in Settings → Workspace → AI providers to run this.

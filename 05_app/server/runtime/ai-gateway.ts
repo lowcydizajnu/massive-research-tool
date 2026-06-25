@@ -259,7 +259,9 @@ export async function runTts(
  */
 export async function runEmotion(
   ctx: AIInvocationContext,
-  opts: { kind: "text"; text: string } | { kind: "voice"; audioUrl: string },
+  opts:
+    | { kind: "text"; text: string; language?: string }
+    | { kind: "voice"; audioUrl: string; language?: string },
   config: { provider?: AiProvider; apiKey: string },
 ): Promise<AiEmotionResult> {
   const provider = config.provider ?? "hume";
@@ -273,8 +275,8 @@ export async function runEmotion(
   try {
     const result =
       opts.kind === "text"
-        ? await adapter.analyzeText!({ apiKey: config.apiKey, text: opts.text })
-        : await adapter.analyzeVoice!({ apiKey: config.apiKey, audioUrl: opts.audioUrl });
+        ? await adapter.analyzeText!({ apiKey: config.apiKey, text: opts.text, language: opts.language })
+        : await adapter.analyzeVoice!({ apiKey: config.apiKey, audioUrl: opts.audioUrl, language: opts.language });
     const top = Object.entries(result.emotions)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 3)

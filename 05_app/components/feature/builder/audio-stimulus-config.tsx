@@ -101,7 +101,9 @@ export function AudioStimulusConfig({
           placeholder="e.g. Scientists confirm coffee reverses aging, a new study claims."
           className={fieldCls}
         />
-        <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">{cfg.script.length}/500</span>
+        <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+          {cfg.script.length}/500 · The voice speaks whatever language you write here — Polish, English, etc. (auto-matched, no setting needed).
+        </span>
       </label>
 
       <label className="flex flex-col gap-1">
