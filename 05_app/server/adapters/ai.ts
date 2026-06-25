@@ -89,5 +89,21 @@ export interface AIProviderAdapter {
 }
 
 import { anthropicAdapter } from "@/server/adapters/ai.anthropic";
+import { humeAdapter } from "@/server/adapters/ai.hume";
 
+/** Default text-LLM binding (used by `chat` features like ai-chat). */
 export const ai: AIProviderAdapter = anthropicAdapter;
+
+/** The providers a workspace can connect a BYO key for. */
+export const AI_PROVIDERS = ["anthropic", "hume"] as const;
+export type AiProvider = (typeof AI_PROVIDERS)[number];
+
+const ADAPTERS: Record<AiProvider, AIProviderAdapter> = {
+  anthropic: anthropicAdapter,
+  hume: humeAdapter,
+};
+
+/** Resolve the adapter for a provider — so connect/test validate against the RIGHT vendor. */
+export function providerAdapter(provider: AiProvider): AIProviderAdapter {
+  return ADAPTERS[provider];
+}

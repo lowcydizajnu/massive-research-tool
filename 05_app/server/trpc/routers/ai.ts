@@ -3,8 +3,8 @@ import { and, eq } from "drizzle-orm";
 import { ulid } from "ulid";
 import { z } from "zod";
 
-import { ai } from "@/server/adapters/ai";
-import { encryptSecret } from "@/server/crypto/tokens";
+import { AI_PROVIDERS, providerAdapter } from "@/server/adapters/ai";
+import { decryptSecret, encryptSecret } from "@/server/crypto/tokens";
 import { db } from "@/server/db/client";
 import { aiProviderConnection, workspaceAiSettings } from "@/server/db/schema";
 import { getWorkspaceAiPolicy, workspaceAiBudgetUsage } from "@/server/runtime/ai-gateway";
@@ -17,8 +17,7 @@ import { router, workspaceProcedure, writeProcedure } from "@/server/trpc/trpc";
  * the client; the UI sees a masked hint + status only. Mirrors the
  * recruitment-provider connection UX (ADR-0047).
  */
-const PROVIDERS = ["anthropic"] as const;
-const providerInput = z.object({ provider: z.enum(PROVIDERS) });
+const providerInput = z.object({ provider: z.enum(AI_PROVIDERS) });
 
 export type AiConnectionDTO = {
   provider: string;
@@ -48,19 +47,41 @@ export const aiRouter = router({
       }));
     }),
 
-    /** Connect (or replace) a provider key — validates against the provider, then encrypts + stores. */
+    /**
+     * Connect (or replace) a provider key — validates against the CORRECT vendor
+     * (ADR-0067), then encrypts + stores. Hume also takes a Secret key + Webhook
+     * signing key (both required for it); other providers use the API key alone.
+     */
     connect: writeProcedure
-      .input(providerInput.extend({ apiKey: z.string().trim().min(8).max(500) }))
+      .input(
+        providerInput.extend({
+          apiKey: z.string().trim().min(8).max(500),
+          secretKey: z.string().trim().min(8).max(500).optional(),
+          webhookSigningKey: z.string().trim().min(8).max(500).optional(),
+        }),
+      )
       .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
-        const valid = await ai.validateKey(input.apiKey);
+        if (input.provider === "hume" && (!input.secretKey || !input.webhookSigningKey)) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Hume needs all three keys: API key, Secret key, and Webhook signing key.",
+          });
+        }
+        const valid = await providerAdapter(input.provider).validateKey(input.apiKey);
         if (!valid) {
           throw new TRPCError({
             code: "BAD_REQUEST",
             message: "That API key was rejected by the provider. Double-check it and try again.",
           });
         }
-        const encrypted = encryptSecret(input.apiKey);
-        const keyHint = input.apiKey.slice(-4);
+        const values = {
+          apiKey: encryptSecret(input.apiKey),
+          secretKey: input.secretKey ? encryptSecret(input.secretKey) : null,
+          webhookSigningKey: input.webhookSigningKey ? encryptSecret(input.webhookSigningKey) : null,
+          keyHint: input.apiKey.slice(-4),
+          status: "active" as const,
+          lastError: null,
+        };
         const existing = await db
           .select({ id: aiProviderConnection.id })
           .from(aiProviderConnection)
@@ -74,7 +95,7 @@ export const aiRouter = router({
         if (existing.length) {
           await db
             .update(aiProviderConnection)
-            .set({ apiKey: encrypted, keyHint, status: "active", lastError: null, updatedAt: new Date() })
+            .set({ ...values, updatedAt: new Date() })
             .where(eq(aiProviderConnection.id, existing[0].id));
         } else {
           await db.insert(aiProviderConnection).values({
@@ -82,12 +103,45 @@ export const aiRouter = router({
             workspaceId: ctx.workspace.id,
             userId: ctx.dbUser.id,
             provider: input.provider,
-            apiKey: encrypted,
-            keyHint,
-            status: "active",
+            ...values,
           });
         }
         return { ok: true };
+      }),
+
+    /**
+     * Test a stored connection (ADR-0067): decrypt the API key and ping the
+     * provider's no-cost identity endpoint. Surfaces auth failures clearly and
+     * flags the row as errored so the UI shows "needs attention".
+     */
+    test: writeProcedure
+      .input(providerInput)
+      .mutation(async ({ ctx, input }): Promise<{ ok: boolean; account?: string }> => {
+        const [row] = await db
+          .select({ id: aiProviderConnection.id, apiKey: aiProviderConnection.apiKey })
+          .from(aiProviderConnection)
+          .where(
+            and(
+              eq(aiProviderConnection.workspaceId, ctx.workspace.id),
+              eq(aiProviderConnection.provider, input.provider),
+            ),
+          )
+          .limit(1);
+        if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "No connection for that provider." });
+        try {
+          const result = await providerAdapter(input.provider).ping(decryptSecret(row.apiKey));
+          await db
+            .update(aiProviderConnection)
+            .set({ status: "active", lastError: null, updatedAt: new Date() })
+            .where(eq(aiProviderConnection.id, row.id));
+          return { ok: true, account: result.account };
+        } catch (err) {
+          await db
+            .update(aiProviderConnection)
+            .set({ status: "error", lastError: err instanceof Error ? err.message.slice(0, 200) : "error", updatedAt: new Date() })
+            .where(eq(aiProviderConnection.id, row.id));
+          return { ok: false };
+        }
       }),
 
     /** Remove the stored key. */

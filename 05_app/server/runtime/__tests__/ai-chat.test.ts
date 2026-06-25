@@ -11,7 +11,10 @@ vi.mock("@/server/db/client", async () => {
   return { db, schema };
 });
 vi.mock("@/server/adapters/jobs", () => ({ jobs: { enqueue: vi.fn() } }));
-vi.mock("@/server/adapters/ai", () => ({ ai: { validateKey: vi.fn(async () => true), chat: vi.fn() } }));
+vi.mock("@/server/adapters/ai", () => {
+  const adapter = { validateKey: vi.fn(async () => true), ping: vi.fn(async () => ({})), chat: vi.fn() };
+  return { ai: adapter, AI_PROVIDERS: ["anthropic", "hume"], providerAdapter: () => adapter };
+});
 
 import type { AuthUser } from "@/server/adapters/auth";
 import { ai } from "@/server/adapters/ai";

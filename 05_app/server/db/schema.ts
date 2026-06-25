@@ -560,9 +560,16 @@ export const aiProviderConnection = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => user.id),
-    provider: text("provider").notNull(), // 'anthropic' (extends to 'openai', …)
+    provider: text("provider").notNull(), // 'anthropic' | 'openai' | 'hume'
     /** Encrypted at rest (AES-256-GCM); never plaintext, never sent to the client. */
     apiKey: text("api_key").notNull(),
+    /**
+     * Hume needs two more encrypted keys (ADR-0067): the Secret key (paired with
+     * the API key for EVI WebSocket auth) and the Webhook signing key (validates
+     * incoming EVI events). Nullable — only Hume populates them.
+     */
+    secretKey: text("secret_key"),
+    webhookSigningKey: text("webhook_signing_key"),
     /** Last 4 chars of the key for a "•••• 1a2b" hint in the UI. */
     keyHint: text("key_hint"),
     status: text("status").notNull().default("active"), // 'active' | 'error'
@@ -571,7 +578,7 @@ export const aiProviderConnection = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    check("ai_provider_connection_provider", sql`${t.provider} IN ('anthropic', 'openai')`),
+    check("ai_provider_connection_provider", sql`${t.provider} IN ('anthropic', 'openai', 'hume')`),
     check("ai_provider_connection_status", sql`${t.status} IN ('active', 'error')`),
     uniqueIndex("ai_provider_connection_ws_provider_unique").on(t.workspaceId, t.provider),
   ],
