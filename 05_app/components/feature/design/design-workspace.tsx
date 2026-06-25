@@ -67,7 +67,17 @@ function contrast(hexA: string, hexB: string): number {
   return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
 }
 
-export function DesignWorkspace({ studyId, initialTheme }: { studyId: string; initialTheme: StudyTheme }) {
+export type AiChatBlockRef = { instanceId: string; title: string; config: Record<string, unknown> };
+
+export function DesignWorkspace({
+  studyId,
+  initialTheme,
+  aiBlocks = [],
+}: {
+  studyId: string;
+  initialTheme: StudyTheme;
+  aiBlocks?: AiChatBlockRef[];
+}) {
   const [theme, setTheme] = useState<StudyTheme>(initialTheme);
   const [tab, setTab] = useState<"theme" | "chat">("theme");
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
@@ -126,8 +136,10 @@ export function DesignWorkspace({ studyId, initialTheme }: { studyId: string; in
       </div>
       {tab === "chat" ? (
         <ChatAppearanceEditor
+          studyId={studyId}
           chat={resolveChat(theme)}
-          openingMessage="Hi — I’d love to hear your thoughts. To start, what comes to mind?"
+          themeVars={vars}
+          aiBlocks={aiBlocks}
           onChange={(c) => commit({ ...theme, chat: c })}
         />
       ) : (
