@@ -4,6 +4,7 @@ import { Eye, EyeOff, X } from "lucide-react";
 import { useRef, useState } from "react";
 
 import type { StudyBlock } from "@/server/trpc/routers/studies";
+import { api } from "@/lib/trpc/react";
 import { AiChatConfig } from "@/components/feature/builder/ai-chat-config";
 import { AudioStimulusConfig } from "@/components/feature/builder/audio-stimulus-config";
 import { PickFromMaterialsButton } from "@/components/feature/builder/pick-from-materials-button";
@@ -102,6 +103,9 @@ export function ConfigureForm({
 
       <div className="flex flex-col gap-3">
         {Object.entries(draft).map(([key, value]) => {
+          // Emotion analysis (ADR-0066 H3a) has a dedicated toggle below — never
+          // render its nested object through the generic field renderer.
+          if (key === "emotionAnalysis") return null;
           const fieldCls =
             "rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-1 text-[length:var(--text-body)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]";
           const labelCls =
@@ -299,6 +303,19 @@ export function ConfigureForm({
           );
         })}
       </div>
+
+      {block.key === "free-text" || block.key === "audio-record" ? (
+        <EmotionAnalysisToggle
+          block={block}
+          enabled={Boolean((draft.emotionAnalysis as { enabled?: boolean } | undefined)?.enabled)}
+          onToggle={(enabled) => {
+            const modality = block.key === "audio-record" ? "voice" : "text";
+            const next = { ...draft, emotionAnalysis: { enabled, provider: "hume", modality } };
+            setDraft(next);
+            onChange(next);
+          }}
+        />
+      ) : null}
 
       {onSaveAsModule ? (
         savingAs !== null ? (
@@ -896,4 +913,49 @@ function RegionActionRow({
 function clampedCentered(n: number): { x: number; y: number; w: number; h: number } {
   const off = Math.min(0.2, (n % 4) * 0.05);
   return { x: Math.min(0.4 + off, 0.6), y: Math.min(0.4 + off, 0.6), w: 0.2, h: 0.2 };
+}
+
+/**
+ * "Analyze emotion (Hume)" toggle (ADR-0066 H3a) shown on emotion-eligible blocks
+ * (free-text, audio-record). Flips the block's `emotionAnalysis.enabled`; the
+ * participant runtime then enqueues the `hume.analyze` job on submit. Voice =
+ * biometric (pii) — needs the workspace PII opt-in; both need a Hume connection.
+ */
+function EmotionAnalysisToggle({
+  block,
+  enabled,
+  onToggle,
+}: {
+  block: StudyBlock;
+  enabled: boolean;
+  onToggle: (enabled: boolean) => void;
+}) {
+  const list = api.ai.connections.list.useQuery();
+  const humeConnected = (list.data ?? []).some((c) => c.provider === "hume");
+  const isVoice = block.key === "audio-record";
+  return (
+    <div className="flex flex-col gap-1 rounded-[var(--radius-md)] bg-[var(--color-surface-subtle)] p-2.5">
+      <label className="flex items-center gap-2">
+        <input type="checkbox" checked={enabled} onChange={(e) => onToggle(e.target.checked)} />
+        <span className="text-[length:var(--text-body)] font-medium text-[var(--color-text-primary)]">
+          Analyze emotion (Hume)
+        </span>
+      </label>
+      <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+        After each participant submits, their {isVoice ? "audio" : "answer"} is analyzed for emotional content; scores
+        appear in Results. Sensitivity: {isVoice ? "PII (biometric voice)" : "participant data"}. ≈{" "}
+        {isVoice ? "$0.005" : "$0.001"} per response, billed to your Hume key.
+      </span>
+      {enabled && !humeConnected ? (
+        <span className="text-[length:var(--text-small)] text-[var(--color-danger-text-on-subtle)]">
+          Connect Hume in Settings → Workspace → AI providers to run this.
+        </span>
+      ) : null}
+      {enabled && isVoice ? (
+        <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+          Voice analysis requires the workspace PII opt-in (Settings → Workspace).
+        </span>
+      ) : null}
+    </div>
+  );
 }
