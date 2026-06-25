@@ -198,6 +198,7 @@ export function ChatAppearanceEditor({
             blocks.map((b) => {
               const maxTurns = typeof b.config.maxTurns === "number" ? b.config.maxTurns : 8;
               const opening = typeof b.config.openingMessage === "string" ? b.config.openingMessage : "";
+              const timeLimitSec = typeof b.config.timeLimitSec === "number" ? b.config.timeLimitSec : 0;
               return (
                 <div key={b.instanceId} className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-2.5">
                   {blocks.length > 1 ? (
@@ -213,20 +214,40 @@ export function ChatAppearanceEditor({
                       className={`${FIELD} resize-y`}
                     />
                   </label>
-                  <label className="flex items-center justify-between gap-2">
-                    <span className="text-[length:var(--text-body)] text-[var(--color-text-secondary)]">Number of participant replies</span>
-                    <input
-                      type="number"
-                      min={1}
-                      max={50}
-                      value={maxTurns}
-                      onChange={(e) => {
-                        const n = Math.max(1, Math.min(50, Math.round(Number(e.target.value) || 1)));
-                        patchBlock(b.instanceId, { maxTurns: n });
-                      }}
-                      className={`${FIELD} w-20`}
-                    />
-                  </label>
+                  <div className="flex flex-wrap gap-3">
+                    <label className="flex flex-col gap-1">
+                      <span className={LABEL}>Number of replies</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={50}
+                        value={maxTurns}
+                        onChange={(e) => {
+                          const n = Math.max(1, Math.min(50, Math.round(Number(e.target.value) || 1)));
+                          patchBlock(b.instanceId, { maxTurns: n });
+                        }}
+                        className={`${FIELD} w-24`}
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className={LABEL}>Time limit (min)</span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={60}
+                        step={1}
+                        value={Math.round(timeLimitSec / 60)}
+                        onChange={(e) => {
+                          const min = Math.max(0, Math.min(60, Math.round(Number(e.target.value) || 0)));
+                          patchBlock(b.instanceId, { timeLimitSec: min * 60 });
+                        }}
+                        className={`${FIELD} w-24`}
+                      />
+                    </label>
+                  </div>
+                  <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                    Replies = how many turns the participant gets (the x/{maxTurns} counter). Time limit: 0 = no limit.
+                  </p>
                 </div>
               );
             })
