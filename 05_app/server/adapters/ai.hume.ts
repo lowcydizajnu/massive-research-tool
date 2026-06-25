@@ -1,4 +1,4 @@
-import type { AIProviderAdapter, AiChatInput, AiChatResult, AiTtsResult } from "@/server/adapters/ai";
+import type { AIProviderAdapter, AiChatInput, AiChatResult, AiEmotionResult, AiTtsResult } from "@/server/adapters/ai";
 
 /**
  * Hume implementation of the AIProviderAdapter (ADR-0066 / ADR-0067). ALL Hume
@@ -24,6 +24,73 @@ async function reachVoices(apiKey: string): Promise<Response> {
   return fetch(`${API}/tts/voices?provider=HUME_AI&page_size=1`, {
     headers: { "X-Hume-Api-Key": apiKey },
   });
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Run an Expression Measurement batch job to completion (ADR-0066 H3a). Submit →
+ * poll job state → fetch predictions. Endpoints + shapes verified against the
+ * Hume Python SDK v0.7.0 (the last release shipping Expression Measurement):
+ * `POST /v0/batch/jobs` `{ models, text|urls }` → `{ job_id }`;
+ * `GET /v0/batch/jobs/{id}` → `{ state: { status } }`;
+ * `GET /v0/batch/jobs/{id}/predictions` → `InferenceSourcePredictResult[]`.
+ */
+async function runBatchJob(apiKey: string, body: Record<string, unknown>): Promise<unknown> {
+  const headers = { "X-Hume-Api-Key": apiKey, "content-type": "application/json" };
+  const submit = await fetch(`${API}/batch/jobs`, { method: "POST", headers, body: JSON.stringify(body) });
+  if (!submit.ok) throw new Error(`Hume batch submit failed (${submit.status})`);
+  const jobId = ((await submit.json()) as { job_id?: string }).job_id;
+  if (!jobId) throw new Error("Hume batch submit returned no job_id.");
+
+  // Poll (bounded). Status is COMPLETED | FAILED | IN_PROGRESS | QUEUED.
+  for (let attempt = 0; attempt < 60; attempt++) {
+    const res = await fetch(`${API}/batch/jobs/${jobId}`, { headers });
+    if (!res.ok) throw new Error(`Hume batch status failed (${res.status})`);
+    const status = ((await res.json()) as { state?: { status?: string } }).state?.status;
+    if (status === "COMPLETED") break;
+    if (status === "FAILED") throw new Error("Hume batch job failed.");
+    if (attempt === 59) throw new Error("Hume batch job timed out.");
+    await sleep(2000);
+  }
+
+  const preds = await fetch(`${API}/batch/jobs/${jobId}/predictions`, { headers });
+  if (!preds.ok) throw new Error(`Hume batch predictions failed (${preds.status})`);
+  return preds.json();
+}
+
+/** Per-segment prediction holding an emotion vector (language + prosody share this shape). */
+type SegmentPrediction = { text?: string; emotions?: Array<{ name?: string; score?: number }> };
+
+/**
+ * Walk the verified predictions chain for one model and mean-aggregate the
+ * per-segment emotion vectors into a single { name: score } map (+ joined
+ * transcript). Defensive throughout — a missing branch yields {}.
+ * predictions[].models.<model>.grouped_predictions[].predictions[].emotions[]
+ */
+function aggregateEmotions(payload: unknown, model: "language" | "prosody"): AiEmotionResult {
+  const results = Array.isArray(payload) ? payload : [];
+  const segments: SegmentPrediction[] = [];
+  for (const src of results as Array<{ results?: { predictions?: unknown[] } }>) {
+    for (const pred of src.results?.predictions ?? []) {
+      const grouped = (pred as { models?: Record<string, { grouped_predictions?: Array<{ predictions?: SegmentPrediction[] }> }> })
+        .models?.[model]?.grouped_predictions ?? [];
+      for (const g of grouped) for (const p of g.predictions ?? []) segments.push(p);
+    }
+  }
+  const sums = new Map<string, number>();
+  for (const seg of segments) {
+    for (const e of seg.emotions ?? []) {
+      if (typeof e.name === "string" && typeof e.score === "number") {
+        sums.set(e.name, (sums.get(e.name) ?? 0) + e.score);
+      }
+    }
+  }
+  const n = Math.max(1, segments.length);
+  const emotions: Record<string, number> = {};
+  for (const [name, total] of sums) emotions[name] = total / n;
+  const transcript = segments.map((s) => s.text).filter(Boolean).join(" ").trim() || undefined;
+  return { emotions, transcript };
 }
 
 export const humeAdapter: AIProviderAdapter = {
@@ -80,5 +147,23 @@ export const humeAdapter: AIProviderAdapter = {
       durationMs: typeof gen.duration === "number" ? Math.round(gen.duration * 1000) : undefined,
       charsBilled: script.length,
     };
+  },
+
+  /**
+   * Text emotion (ADR-0066 H3a) — Hume Expression Measurement `language` model
+   * via the batch API. Returns the mean emotion vector across text segments.
+   */
+  async analyzeText({ apiKey, text }): Promise<AiEmotionResult> {
+    const payload = await runBatchJob(apiKey, { models: { language: {} }, text: [text] });
+    return aggregateEmotions(payload, "language");
+  },
+
+  /**
+   * Voice emotion (ADR-0066 H3a) — Hume `prosody` model via the batch API on a
+   * fetchable audio URL (the gateway presigns the R2 object).
+   */
+  async analyzeVoice({ apiKey, audioUrl }): Promise<AiEmotionResult> {
+    const payload = await runBatchJob(apiKey, { models: { prosody: {} }, urls: [audioUrl] });
+    return aggregateEmotions(payload, "prosody");
   },
 };

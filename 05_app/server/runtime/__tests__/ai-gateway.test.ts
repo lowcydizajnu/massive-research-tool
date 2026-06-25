@@ -11,7 +11,7 @@ vi.mock("@/server/db/client", async () => {
   return { db, schema };
 });
 vi.mock("@/server/adapters/ai", () => {
-  const humeAdapter = { synthesizeAudio: vi.fn() };
+  const humeAdapter = { synthesizeAudio: vi.fn(), analyzeText: vi.fn(), analyzeVoice: vi.fn() };
   return {
     ai: { chat: vi.fn() },
     providerAdapter: () => humeAdapter,
@@ -27,12 +27,16 @@ import {
   AiBudgetExceededError,
   AiPiiBlockedError,
   runChat,
+  runEmotion,
   runTts,
   workspaceAiSpendThisMonthUsd,
 } from "@/server/runtime/ai-gateway";
 
 const chat = vi.mocked(ai.chat);
-const synth = vi.mocked(providerAdapter("hume").synthesizeAudio!);
+const hume = providerAdapter("hume");
+const synth = vi.mocked(hume.synthesizeAudio!);
+const analyzeText = vi.mocked(hume.analyzeText!);
+const analyzeVoice = vi.mocked(hume.analyzeVoice!);
 
 // The mocked PGlite db is one instance shared across this file's tests, so each
 // seed needs unique natural keys (externalId / slug).
@@ -56,6 +60,8 @@ const CHAT_INPUT = { apiKey: "sk-x", model: "claude-sonnet-4-6", system: "You ar
 beforeEach(() => {
   chat.mockReset();
   synth.mockReset();
+  analyzeText.mockReset();
+  analyzeVoice.mockReset();
 });
 
 describe("AI gateway (ADR-0066)", () => {
@@ -159,6 +165,48 @@ describe("AI gateway (ADR-0066)", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].status).toBe("error");
     expect(rows[0].modality).toBe("tts");
+  });
+
+  it("runEmotion (text) records a text row with advisory cost", async () => {
+    const ws = await seedWorkspace();
+    analyzeText.mockResolvedValue({ emotions: { Joy: 0.7 }, transcript: "hi" });
+    const res = await runEmotion(
+      { workspaceId: ws, feature: "voice-emotion", sensitivity: "participant_data" },
+      { kind: "text", text: "I am happy" },
+      { provider: "hume", apiKey: "hume-x" },
+    );
+    expect(res.emotions.Joy).toBe(0.7);
+    const rows = await db.select().from(aiInvocation).where(eq(aiInvocation.workspaceId, ws));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].modality).toBe("text");
+    expect(Number(rows[0].costUsd)).toBeCloseTo(0.001, 5);
+  });
+
+  it("runEmotion (voice) is blocked when the workspace hasn't opted into PII", async () => {
+    const ws = await seedWorkspace();
+    await expect(
+      runEmotion(
+        { workspaceId: ws, feature: "voice-emotion-probe", sensitivity: "pii" },
+        { kind: "voice", audioUrl: "https://r2/clip.webm" },
+        { provider: "hume", apiKey: "hume-x" },
+      ),
+    ).rejects.toBeInstanceOf(AiPiiBlockedError);
+    expect(analyzeVoice).not.toHaveBeenCalled();
+  });
+
+  it("runEmotion (voice) runs once the workspace opts into PII; records a voice row", async () => {
+    const ws = await seedWorkspace();
+    await db.insert(workspaceAiSettings).values({ workspaceId: ws, allowPiiToExternalAi: true });
+    analyzeVoice.mockResolvedValue({ emotions: { Calmness: 0.5 } });
+    await runEmotion(
+      { workspaceId: ws, feature: "voice-emotion-probe", sensitivity: "pii" },
+      { kind: "voice", audioUrl: "https://r2/clip.webm" },
+      { provider: "hume", apiKey: "hume-x" },
+    );
+    expect(analyzeVoice).toHaveBeenCalledOnce();
+    const rows = await db.select().from(aiInvocation).where(eq(aiInvocation.workspaceId, ws));
+    expect(rows[0].modality).toBe("voice");
+    expect(rows[0].sensitivity).toBe("pii");
   });
 
   it("runTts enforces the budget cap before calling the provider", async () => {
