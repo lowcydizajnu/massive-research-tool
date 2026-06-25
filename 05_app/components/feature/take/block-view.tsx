@@ -68,6 +68,10 @@ export function BlockView({
   if (block.key === "likert-7") return <Likert7Input config={c} np={np} />;
   if (block.key === "multiple-choice") return <MultipleChoiceInput config={c} seed={seed} np={np} />;
   if (block.key === "free-text") return <FreeTextInput config={c} np={np} />;
+  // Dedicated emotion-probe blocks (ADR-0066 H3b/H4b) reuse their base block's
+  // take UI verbatim — emotion analysis runs server-side, invisible to the participant.
+  if (block.key === "text-emotion-probe") return <FreeTextInput config={c} np={np} />;
+  if (block.key === "voice-emotion-probe") return <AudioRecordInput config={c} namePrefix={np} responseId={seed ?? ""} />;
   if (block.key === "slider") return <SliderInput config={c} np={np} />;
   if (block.key === "ranking") return <RankingInput config={c} np={np} />;
   if (block.key === "attention-check") return <AttentionCheckInput config={c} np={np} />;

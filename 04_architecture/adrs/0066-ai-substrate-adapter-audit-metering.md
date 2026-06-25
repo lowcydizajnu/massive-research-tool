@@ -56,6 +56,12 @@ The original H3a scope deferred a multi-language picker to V2.2 (English-first; 
 
 No migration (config is jsonb). Within this ADR's emotion-analysis concept; the adapter contract already reserved `language?`.
 
+## Amendment (2026-06-25) — dedicated emotion-probe blocks (H3b/H4b)
+
+Two new core blocks where **emotion is the measure, not a side-channel**: `core/voice-emotion-probe@1.0.0` and `core/text-emotion-probe@1.0.0`. They are **config-identical to `audio-record` / `free-text`** (defined by spreading those defs in `registry.ts`) but with `emotionAnalysis` **forced on** in `defaultConfig` (no opt-out). They reuse the entire H3a pipeline unchanged — enqueue (`participant.ts` keys off `emotionAnalysis.enabled`) → `hume.analyze` job → gateway `runEmotion` → Results emotion panel → CSV export columns — and reuse the base blocks' Take views (`AudioRecordInput` / `FreeTextInput`). Per the locked answer, the dedicated blocks coexist with the per-block emotion toggle (different researcher affordances). New block kinds → standard wireframe gate (4 specs) + `db:seed:prod`. No new pattern (ADR-0012 block model) and no new table.
+
+**Honest scope correction vs the original handoff:** the handoff's "required emotion dimensions" and "show emotion scores to the participant" are dropped — Hume returns its full ~50-emotion taxonomy (you cannot request a subset) and Expression Measurement is async batch (no synchronous path), so inline participant-facing scores aren't feasible. Probes are researcher-facing; participants see only the base block's UI.
+
 ## Revisit triggers
 
 - We add a provider whose pricing isn't expressible as the current per-token/per-duration table (revisit the cost model).

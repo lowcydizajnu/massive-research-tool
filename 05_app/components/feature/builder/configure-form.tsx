@@ -305,13 +305,16 @@ export function ConfigureForm({
         })}
       </div>
 
-      {block.key === "free-text" || block.key === "audio-record" ? (
+      {["free-text", "audio-record", "voice-emotion-probe", "text-emotion-probe"].includes(block.key) ? (
         (() => {
           const ea = draft.emotionAnalysis as { enabled?: boolean; language?: string } | undefined;
-          const modality = block.key === "audio-record" ? "voice" : "text";
+          // Dedicated probe blocks (ADR-0066 H3b/H4b) have emotion forced ON — no toggle.
+          const alwaysOn = block.key === "voice-emotion-probe" || block.key === "text-emotion-probe";
+          const modality = block.key === "audio-record" || block.key === "voice-emotion-probe" ? "voice" : "text";
           // Merge-write so toggling/relanguaging never drops the other fields.
           const write = (patch: Record<string, unknown>) => {
-            const nextEa: Record<string, unknown> = { provider: "hume", modality, enabled: Boolean(ea?.enabled), ...(ea ?? {}), ...patch };
+            const nextEa: Record<string, unknown> = { provider: "hume", modality, enabled: alwaysOn || Boolean(ea?.enabled), ...(ea ?? {}), ...patch };
+            if (alwaysOn) nextEa.enabled = true; // probe blocks can never disable analysis
             if (!nextEa.language) delete nextEa.language; // absent = Hume auto-detect
             const next = { ...draft, emotionAnalysis: nextEa };
             setDraft(next);
@@ -320,7 +323,8 @@ export function ConfigureForm({
           return (
             <EmotionAnalysisToggle
               block={block}
-              enabled={Boolean(ea?.enabled)}
+              alwaysOn={alwaysOn}
+              enabled={alwaysOn || Boolean(ea?.enabled)}
               language={typeof ea?.language === "string" ? ea.language : ""}
               onToggle={(enabled) => write({ enabled })}
               onLanguageChange={(language) => write({ language })}
@@ -937,26 +941,34 @@ function EmotionAnalysisToggle({
   block,
   enabled,
   language,
+  alwaysOn = false,
   onToggle,
   onLanguageChange,
 }: {
   block: StudyBlock;
   enabled: boolean;
   language: string;
+  alwaysOn?: boolean;
   onToggle: (enabled: boolean) => void;
   onLanguageChange: (language: string) => void;
 }) {
   const list = api.ai.connections.list.useQuery();
   const humeConnected = (list.data ?? []).some((c) => c.provider === "hume");
-  const isVoice = block.key === "audio-record";
+  const isVoice = block.key === "audio-record" || block.key === "voice-emotion-probe";
   return (
     <div className="flex flex-col gap-1 rounded-[var(--radius-md)] bg-[var(--color-surface-subtle)] p-2.5">
-      <label className="flex items-center gap-2">
-        <input type="checkbox" checked={enabled} onChange={(e) => onToggle(e.target.checked)} />
+      {alwaysOn ? (
         <span className="text-[length:var(--text-body)] font-medium text-[var(--color-text-primary)]">
-          Analyze emotion (Hume)
+          Emotion analysis (Hume) · always on
         </span>
-      </label>
+      ) : (
+        <label className="flex items-center gap-2">
+          <input type="checkbox" checked={enabled} onChange={(e) => onToggle(e.target.checked)} />
+          <span className="text-[length:var(--text-body)] font-medium text-[var(--color-text-primary)]">
+            Analyze emotion (Hume)
+          </span>
+        </label>
+      )}
       <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
         After each participant submits, their {isVoice ? "audio" : "answer"} is analyzed for emotional content; scores
         appear in Results. Sensitivity: {isVoice ? "PII (biometric voice)" : "participant data"}. ≈{" "}
