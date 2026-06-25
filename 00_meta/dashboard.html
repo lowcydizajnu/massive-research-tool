@@ -1213,6 +1213,9 @@
   ],
   "recentActivity": [
     {
+      "text": "docs(gate): AI chat appearance + preview modes — ADR-0065 + 2 wireframes. (1) Chat-window design editor under Design -> Chat sub-tab (assistant name, avatar via upload/Pick-from-Materials, participant label, token-based bubble colours, shape/density, theme font, AI-disclosure default-ON, composer placeholder, typing toggle, live preview); stored in the study theme (theme.chat) — rides the snapshot, freezes with the version, no migration; rendered by ai-chat-input. (2) Preview-mode toggle: Participant flow (paginated, new default) vs All-screens (stacked), nothing recorded. Per-study (per-block override deferred); colours/fonts token-constrained; avatar reuses L3. Validator clean (200). Build next."
+    },
+    {
       "text": "fix(take): AI conversation block now renders in the shared preview. block-view only showed the AI chat when a responseId was present (the live take flow); the shared-preview/no-session path has none, so the block fell through to '(This question type isn't available.)'. Added a preview branch: chat-window chrome + opening message + a disabled composer + 'Live AI conversation — the preview doesn't connect to the model' (the live chat needs a recorded response + the workspace AI key). UI-only, migration-free; 677 vitest green; tsc+lint+build clean."
     },
     {
