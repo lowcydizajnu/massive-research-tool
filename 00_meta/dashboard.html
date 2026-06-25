@@ -1213,6 +1213,9 @@
   ],
   "recentActivity": [
     {
+      "text": "feat(design): AI chat appearance editor + preview-mode toggle (ADR-0065, built B1–B4). Design -> Chat sub-tab: assistant name, avatar (upload to ws/ R2 or Pick-from-Materials), participant label, token-based bubble tones, shape/density, font, AI-disclosure (default ON) + text, composer placeholder, typing toggle, live preview. Stored in theme.chat (optional + resolveChat fills defaults; presets untouched; rides snapshot, no migration); ai-chat-input consumes it, threaded at take + preview. Preview-mode toggle on /preview/[id]: Participant flow (paginated via deriveScreens, default) vs All-screens (stacked), server-rendered ?mode/?screen, nothing recorded. +5 tests; 681 vitest green; tsc+lint+build clean. Migration-free. Per-block override deferred."
+    },
+    {
       "text": "docs(gate): AI chat appearance + preview modes — ADR-0065 + 2 wireframes. (1) Chat-window design editor under Design -> Chat sub-tab (assistant name, avatar via upload/Pick-from-Materials, participant label, token-based bubble colours, shape/density, theme font, AI-disclosure default-ON, composer placeholder, typing toggle, live preview); stored in the study theme (theme.chat) — rides the snapshot, freezes with the version, no migration; rendered by ai-chat-input. (2) Preview-mode toggle: Participant flow (paginated, new default) vs All-screens (stacked), nothing recorded. Per-study (per-block override deferred); colours/fonts token-constrained; avatar reuses L3. Validator clean (200). Build next."
     },
     {

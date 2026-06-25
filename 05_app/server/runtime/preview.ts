@@ -4,8 +4,19 @@ import { and, eq, gt, isNull } from "drizzle-orm";
 
 import { db } from "@/server/db/client";
 import { experiment, experimentVersion, previewToken } from "@/server/db/schema";
-import { readBlocks } from "@/server/modules/blocks";
+import { readBlocks, readGroups, type BlockInstance } from "@/server/modules/blocks";
+import { deriveScreens } from "@/lib/whiteboard/screens";
+import { readTheme, resolveChat, type ChatAppearance } from "@/lib/themes/themes";
 import type { RuntimeBlock } from "@/server/runtime/participant";
+
+const toRuntime = (b: BlockInstance): RuntimeBlock => ({
+  instanceId: b.instanceId,
+  source: b.source,
+  key: b.key,
+  version: b.version,
+  config: b.config,
+  visibility: b.visibility,
+});
 
 /** A fresh URL-safe preview token (the plaintext; shown once, never stored). */
 export function newPreviewToken(): string {
@@ -17,7 +28,14 @@ export function hashPreviewToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
-export type PreviewPayload = { title: string; blocks: RuntimeBlock[] };
+export type PreviewPayload = {
+  title: string;
+  blocks: RuntimeBlock[];
+  /** The participant screen model (groups + lone blocks, ADR-0028) for paginated
+   *  preview. No condition filtering — preview has no answers, so all screens show. */
+  screens: RuntimeBlock[][];
+  chat: ChatAppearance;
+};
 
 /**
  * Resolve a public preview link (V1.12 I). Given a study id + plaintext token,
@@ -48,13 +66,8 @@ export async function loadPreviewByToken(
     .limit(1);
   if (!row) return null;
 
-  const blocks: RuntimeBlock[] = readBlocks(row.snapshot).map((b) => ({
-    instanceId: b.instanceId,
-    source: b.source,
-    key: b.key,
-    version: b.version,
-    config: b.config,
-    visibility: b.visibility,
-  }));
-  return { title: row.title, blocks };
+  const raw = readBlocks(row.snapshot);
+  const blocks: RuntimeBlock[] = raw.map(toRuntime);
+  const screens = deriveScreens(raw, readGroups(row.snapshot)).map((s) => s.blocks.map(toRuntime));
+  return { title: row.title, blocks, screens, chat: resolveChat(readTheme(row.snapshot)) };
 }

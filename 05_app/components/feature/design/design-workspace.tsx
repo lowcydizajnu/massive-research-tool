@@ -6,6 +6,7 @@ import { useEffect, useState, type CSSProperties } from "react";
 
 import { api } from "@/lib/trpc/react";
 import { getBlockOverride } from "@/components/feature/take/block-overrides";
+import { ChatAppearanceEditor } from "@/components/feature/design/chat-appearance-editor";
 import { cn } from "@/lib/utils";
 import {
   effectivePresetKey,
@@ -14,6 +15,7 @@ import {
   FONT_STACKS,
   PRESET_DESCRIPTIONS,
   PRESET_WARNINGS,
+  resolveChat,
   THEME_PRESETS,
   WIDTHS,
   themeToCssVars,
@@ -67,6 +69,7 @@ function contrast(hexA: string, hexB: string): number {
 
 export function DesignWorkspace({ studyId, initialTheme }: { studyId: string; initialTheme: StudyTheme }) {
   const [theme, setTheme] = useState<StudyTheme>(initialTheme);
+  const [tab, setTab] = useState<"theme" | "chat">("theme");
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
   /** A mimicking preset awaiting the researcher's acknowledgment (ADR-0024). */
   const [pendingMimic, setPendingMimic] = useState<keyof typeof THEME_PRESETS | null>(null);
@@ -101,7 +104,34 @@ export function DesignWorkspace({ studyId, initialTheme }: { studyId: string; in
   const lowContrast = contrast(theme.colors.text, theme.colors.card) < 4.5;
 
   return (
-    <div className="flex flex-col gap-6 lg:flex-row">
+    <div className="flex flex-col gap-4">
+      <div role="tablist" aria-label="Design sections" className="flex gap-1 border-b border-[var(--color-border-subtle)] pb-2">
+        {(["theme", "chat"] as const).map((t) => (
+          <button
+            key={t}
+            type="button"
+            role="tab"
+            aria-selected={tab === t}
+            onClick={() => setTab(t)}
+            className={cn(
+              "rounded-[var(--radius-md)] px-2.5 py-1 text-[length:var(--text-small)] font-medium",
+              tab === t
+                ? "bg-[var(--color-primary-subtle)] text-[var(--color-primary-text-on-subtle)]"
+                : "text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]",
+            )}
+          >
+            {t === "theme" ? "Theme" : "Chat"}
+          </button>
+        ))}
+      </div>
+      {tab === "chat" ? (
+        <ChatAppearanceEditor
+          chat={resolveChat(theme)}
+          openingMessage="Hi — I’d love to hear your thoughts. To start, what comes to mind?"
+          onChange={(c) => commit({ ...theme, chat: c })}
+        />
+      ) : (
+      <div className="flex flex-col gap-6 lg:flex-row">
       {/* Controls */}
       <div className="flex w-full flex-col gap-5 lg:w-[360px] lg:shrink-0">
         <fieldset className="flex flex-col gap-2">
@@ -370,6 +400,8 @@ export function DesignWorkspace({ studyId, initialTheme }: { studyId: string; in
           Open real preview →
         </Link>
       </div>
+      </div>
+      )}
     </div>
   );
 }
