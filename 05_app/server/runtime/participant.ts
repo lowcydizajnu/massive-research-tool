@@ -14,6 +14,7 @@ import {
 import { conditionWithSources, evaluateCondition, normalizeCondition } from "@/lib/whiteboard/conditions";
 import { deriveScreens, type Screen } from "@/lib/whiteboard/screens";
 import { readBlocks, readGroups, readFactors, readVariantBindings, type BlockInstance } from "@/server/modules/blocks";
+import { jobs } from "@/server/adapters/jobs";
 import { pickCell, resolveConfigForCell, type VariantBinding, type VariantCell } from "@/lib/variants/factorial";
 import { readTheme, type StudyTheme } from "@/lib/themes/themes";
 import { getModuleDef } from "@/server/modules/registry";
@@ -685,6 +686,16 @@ export async function recordScreenAnswers(input: {
         target: [responseItem.responseId, responseItem.blockInstanceId],
         set: { answer: value, blockPosition: input.screenIndex, answeredAt: new Date() },
       });
+  }
+
+  // V2.1 (ADR-0066 H3a): kick off emotion analysis for any submitted block that
+  // has it enabled. Best-effort — a job-enqueue failure must never break the
+  // answer write or the participant's flow.
+  for (const { block } of toWrite) {
+    const ea = (block.config as { emotionAnalysis?: { enabled?: boolean } } | undefined)?.emotionAnalysis;
+    if (ea?.enabled) {
+      void jobs.enqueue("hume.analyze", { responseId: resp.id, blockInstanceId: block.instanceId }).catch(() => {});
+    }
   }
 
   const nextIndex = input.screenIndex + 1;

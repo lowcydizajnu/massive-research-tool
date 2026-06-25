@@ -6,6 +6,7 @@ import { runRegistryPush } from "@/server/jobs/registry-push";
 import { runEmailDigest, runNotificationFanout } from "@/server/jobs/notification-fanout";
 import { runAutoApprove, runDetectQuality, runPollProviderStatus, runReconcileStudy } from "@/server/jobs/recruitment";
 import { runOsfWatch } from "@/server/jobs/osf-watch";
+import { runHumeAnalyze } from "@/server/jobs/hume-analyze";
 
 /**
  * Inngest serve endpoint. Deliberate lock-in exception (ADR-0007,
@@ -95,10 +96,23 @@ const osfWatch = inngest.createFunction(
   },
 );
 
+// V2.1 (ADR-0066 H3a): emotion analysis for a submitted answer. Enqueued
+// best-effort from the participant answer path; idempotent + fail-safe, so a
+// couple of retries is plenty.
+const humeAnalyze = inngest.createFunction(
+  { id: "hume-analyze", retries: 2 },
+  { event: "hume.analyze" },
+  async ({ event }) => {
+    await runHumeAnalyze(event.data as JobCatalog["hume.analyze"]);
+    return { ok: true };
+  },
+);
+
 export const { GET, POST, PUT } = serve({
   client: inngest,
   functions: [
     registryPush,
+    humeAnalyze,
     notificationFanout,
     emailDigest,
     recruitmentReconcileStudy,
