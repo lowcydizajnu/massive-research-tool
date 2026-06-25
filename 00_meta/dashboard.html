@@ -434,12 +434,13 @@
   STATE — Claude updates this JSON block when work happens.
   Everything else (HTML structure, rendering) stays as-is.
 ============================================================ -->
-<script id="dashboard-state" type="application/json">{
+<script id="dashboard-state" type="application/json">
+{
   "project": "Massive Research Tool",
   "tagline": "Multi-tenant SaaS for psychological experiments",
   "lastUpdated": "2026-06-25",
-  "currentFocus": "V2.1 H3a COMPLETE — emotion analysis end-to-end. Final slice: studies.getResults attaches an optional emotion aggregate per question whose block has emotion analysis enabled (mean of per-response vectors, top-7, + n/pending/failed counts from the emotion_analysis/emotion_status columns; respects version+preview scope); the Results page renders labelled emotion bars + counts + an exploratory-measure caveat. Full path: enable in Configure -> participant submits -> hume.analyze job runs -> result persists -> researcher sees emotion bars in Results. Code-only (no migration/module); 705 vitest green; tsc+lint+build clean. V2.1 emotion stream (H3a) DONE. Deployed: H0+H1. Committed/undeployed: H2 TTS, H5 audio-stimulus, all H3a. Remaining V2.1: H3b/H4b dedicated emotion-probe blocks, H6 EVI voice-conversation. Deploy = db:migrate:prod (0038) + db:seed:prod (H5 module) + push.",
-  "currentFocusPrev": "AI conversation — PDF/Word context extraction + non-determinism disclosure + cost estimate (v1.16.0-a35). ADR-0062 + ADR-0061 am.1: (1) researchers upload PDF/.docx (unpdf+mammoth, server-side seam, authed/rate-limited/10MB-capped route, file never stored); (2) preflight item + auto-appended OSF preregistration disclosure when a study has an ai-chat block; (3) advisory cost estimate in Configure from a dated price table. Then ADR-0065 chat appearance editor + preview-mode toggle (a41). 665+ tests green; build clean; migration-free.",
+  "currentFocus": "V2.1 H3a export — emotion now in the data download. Per owner post-deploy feedback, lib/export/dataset.ts emits, for each emotion-enabled block, a categorical `<label>_emotion_status` column plus one numeric `<label>_emo_<name>` column per emotion in the analyzed taxonomy. Per-respondent scores + status ride in row.answers under `emostatus:<inst>` / `emo:<inst>:<name>` keys (resolved by cell()'s default branch — no clash with the `viz:` prefix); the name union is exposed on getResults' `q.emotion.names` (sorted). Visible by default so the data is in every CSV/TSV/JSON/SPSS/Stata export; toggleable in the column picker. 17 export tests + 125 studies tests green; tsc clean. Next in this polish pass: language selector (emotion + audio-stimulus; Hume supports Polish — pulled forward from V2.2), then dedicated probe blocks (H3b/H4b) + H6 EVI. Diagnosis for owner: emotion 'pending forever' = the new hume.analyze Inngest function needs an app sync in Inngest Cloud post-deploy.",
+  "currentFocusPrev": "V2.1 H3a COMPLETE — emotion analysis end-to-end. Final slice: studies.getResults attaches an optional emotion aggregate per question whose block has emotion analysis enabled (mean of per-response vectors, top-7, + n/pending/failed counts from the emotion_analysis/emotion_status columns; respects version+preview scope); the Results page renders labelled emotion bars + counts + an exploratory-measure caveat. Full path: enable in Configure -> participant submits -> hume.analyze job runs -> result persists -> researcher sees emotion bars in Results. Code-only (no migration/module); 705 vitest green; tsc+lint+build clean. V2.1 emotion stream (H3a) DONE. Deployed: H0+H1. Committed/undeployed: H2 TTS, H5 audio-stimulus, all H3a. Remaining V2.1: H3b/H4b dedicated emotion-probe blocks, H6 EVI voice-conversation. Deploy = db:migrate:prod (0038) + db:seed:prod (H5 module) + push.",
   "phases": [
     {
       "id": "foundation",
@@ -1212,6 +1213,9 @@
     }
   ],
   "recentActivity": [
+    {
+      "text": "feat(ai): H3a export — emotion columns in dataset.ts (ADR-0066). Per-block `_emotion_status` + one `_emo_<name>` numeric column per analyzed emotion; per-respondent scores/status in row.answers (emostatus:/emo: keys), name-union on q.emotion.names. 17 export + 125 studies tests green; tsc clean."
+    },
     {
       "text": "feat(ai): H3a COMPLETE — Results emotion panel (ADR-0066). studies.getResults attaches an optional emotion aggregate to each question whose block has emotion analysis enabled: mean of the per-response emotion vectors (top-7) + n analyzed / pending / failed counts (from the emotion_analysis/emotion_status columns it already loads with items; respects version+preview scope). The Results page renders labelled emotion bars under the question + a counts line + an exploratory-measure caveat. H3a end-to-end now: enable in Configure -> participant submits -> hume.analyze runs -> result persists -> researcher sees emotion bars in Results. Code-only (no migration/module); 705 vitest green; tsc+lint+build clean. V2.1 emotion stream done (H3b/H4b dedicated probe blocks + H6 EVI remain)."
     },
@@ -2442,7 +2446,8 @@
       "prompt": "Set up Playwright in 05_app/tests/e2e/ and write the first failing e2e for Hanna's complete MVP loop: 'Hanna signs up, creates a study from Misinformation Research Framework, configures Block 1 (Stimulus) with valid schema, configures Block 2 (Manipulation check) — initially shows missing-field validation error in vibrant red — fixes the field, hits Save → Save as named version with label v1 draft, closes the browser, returns, finds the draft in Studies → Drafts sub-nav.' Keep the test failing until features land. Configure playwright.config.ts to run against localhost:3000; auth uses Clerk test-mode helpers."
     }
   ]
-}</script>
+}
+</script>
 
 <!-- ============================================================
   RENDERING (don't edit unless restructuring the UI)

@@ -81,7 +81,32 @@ export function baseColumns(results: ResultsSummary): ExportColumn[] {
       label: dedupe(`${slugifyLabel(q.prompt || q.moduleKey)}_explore_url`),
       hidden: false,
     }));
-  return [...meta, ...questions, ...viz];
+  // V2.1 (ADR-0066 H3a): emotion-analysis columns for each emotion-enabled block —
+  // a categorical status column + one numeric column per emotion in the taxonomy
+  // seen across analyzed respondents. Keys (`emostatus:<inst>`, `emo:<inst>:<name>`)
+  // resolve via row.answers in cell() — no colon clash with the `viz:` prefix check.
+  const emotion = results.questions
+    .filter((q) => q.emotion)
+    .flatMap((q): ExportColumn[] => {
+      const base = slugifyLabel(q.prompt || q.moduleKey);
+      const src = q.prompt || q.moduleKey;
+      const status: ExportColumn = {
+        key: `emostatus:${q.instanceId}`,
+        source: `${src} — emotion status`,
+        type: "categorical",
+        label: dedupe(`${base}_emotion_status`),
+        hidden: false,
+      };
+      const scores: ExportColumn[] = q.emotion!.names.map((name) => ({
+        key: `emo:${q.instanceId}:${name}`,
+        source: `${src} — emotion: ${name}`,
+        type: "numeric",
+        label: dedupe(`${base}_emo_${slugifyLabel(name)}`),
+        hidden: false,
+      }));
+      return [status, ...scores];
+    });
+  return [...meta, ...questions, ...viz, ...emotion];
 }
 
 /** responseIds that actually have a per-respondent response, per block instanceId

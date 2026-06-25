@@ -74,6 +74,53 @@ describe("export dataset (V1.12 D)", () => {
   });
 });
 
+// An emotion-enabled free-text block (ADR-0066 H3a): r1 analyzed (ok), r2 still
+// pending. Names come pre-unioned + sorted from getResults; per-respondent scores
+// + status ride in row.answers under `emo:`/`emostatus:` keys.
+const withEmotion: ResultsSummary = {
+  ...results,
+  questions: [
+    results.questions[0],
+    {
+      ...results.questions[1],
+      emotion: {
+        n: 1,
+        failed: 0,
+        pending: 1,
+        names: ["Anger", "Joy"],
+        top: [
+          { name: "Joy", score: 0.7 },
+          { name: "Anger", score: 0.1 },
+        ],
+      },
+    },
+  ],
+  rows: [
+    { ...results.rows[0], answers: { ...results.rows[0].answers, "emostatus:q2": "ok", "emo:q2:Anger": "0.1000", "emo:q2:Joy": "0.7000" } },
+    { ...results.rows[1], answers: { ...results.rows[1].answers, "emostatus:q2": "pending" } },
+  ],
+};
+
+describe("emotion export columns (ADR-0066 H3a)", () => {
+  it("appends a status column + one numeric column per emotion, only for emotion blocks", () => {
+    expect(baseColumns(results).some((c) => c.key.startsWith("emo"))).toBe(false);
+    const cols = baseColumns(withEmotion);
+    const emo = cols.filter((c) => c.key.startsWith("emostatus:") || c.key.startsWith("emo:"));
+    expect(emo.map((c) => c.key)).toEqual(["emostatus:q2", "emo:q2:Anger", "emo:q2:Joy"]);
+    expect(emo.map((c) => c.label)).toEqual(["why_in_your_words_emotion_status", "why_in_your_words_emo_anger", "why_in_your_words_emo_joy"]);
+    expect(cols.find((c) => c.key === "emostatus:q2")?.type).toBe("categorical");
+    expect(cols.find((c) => c.key === "emo:q2:Joy")?.type).toBe("numeric");
+  });
+
+  it("buildMatrix fills scores for analyzed rows, blanks for pending; status always present", () => {
+    const cols = baseColumns(withEmotion).filter((c) => c.key.startsWith("emo"));
+    const m = buildMatrix(withEmotion, cols);
+    expect(m.headers).toEqual(["why_in_your_words_emotion_status", "why_in_your_words_emo_anger", "why_in_your_words_emo_joy"]);
+    expect(m.rows[0]).toEqual(["ok", "0.1000", "0.7000"]);
+    expect(m.rows[1]).toEqual(["pending", "", ""]); // not yet analyzed → blank scores
+  });
+});
+
 // A spatial block where r1 answered but r2 did NOT (rows ⊋ spatial.responses) —
 // exercises the per-respondent deep-link column + the membership guard.
 const withSpatial: ResultsSummary = {

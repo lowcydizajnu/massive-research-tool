@@ -739,7 +739,7 @@ export type ResultsSummary = {
     optionCounts: { value: string; count: number }[];
     /** V2.1 (ADR-0066 H3a): emotion-analysis aggregate when enabled on this
      *  block — mean emotion vector (top-N) + ok/failed/pending counts. */
-    emotion?: { n: number; failed: number; pending: number; top: { name: string; score: number }[] };
+    emotion?: { n: number; failed: number; pending: number; names: string[]; top: { name: string; score: number }[] };
     /** Spatial overlay — the stimulus image + aggregated clicks/region hits
      *  (inline on Results, ADR-0041) plus per-respondent rows for the dedicated
      *  Explore surface (ADR-0041 amendment). `points`/`regions` stay pooled and
@@ -4511,23 +4511,35 @@ export const studiesRouter = router({
           if (!emotionEnabled.has(q.instanceId)) continue;
           const rows = items.filter((it) => it.blockInstanceId === q.instanceId);
           const sums = new Map<string, number>();
+          const names = new Set<string>();
           let ok = 0;
           let failed = 0;
           let pending = 0;
           for (const r of rows) {
+            // Per-respondent emotion lands in the export matrix via answersByResponse:
+            // a `emostatus:<inst>` status cell + one `emo:<inst>:<name>` score cell per
+            // emotion. cell() resolves these through row.answers (ADR-0066 H3a export).
+            const row = answersByResponse.get(r.responseId) ?? {};
             if (r.emotionStatus === "ok") {
               ok++;
               const emo = (r.emotionAnalysis as { emotions?: Record<string, number> } | null)?.emotions ?? {};
               for (const [name, score] of Object.entries(emo)) {
-                if (typeof score === "number") sums.set(name, (sums.get(name) ?? 0) + score);
+                if (typeof score === "number") {
+                  sums.set(name, (sums.get(name) ?? 0) + score);
+                  names.add(name);
+                  row[`emo:${q.instanceId}:${name}`] = score.toFixed(4);
+                }
               }
             } else if (r.emotionStatus === "failed") failed++;
             else if (r.emotionStatus === "pending" || r.emotionStatus == null) pending++;
+            row[`emostatus:${q.instanceId}`] = r.emotionStatus ?? "pending";
+            answersByResponse.set(r.responseId, row);
           }
           q.emotion = {
             n: ok,
             failed,
             pending,
+            names: [...names].sort(),
             top: [...sums.entries()]
               .map(([name, total]) => ({ name, score: total / Math.max(1, ok) }))
               .sort((a, b) => b.score - a.score)
