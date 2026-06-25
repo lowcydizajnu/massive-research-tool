@@ -6,7 +6,8 @@ import { z } from "zod";
 import { ai } from "@/server/adapters/ai";
 import { encryptSecret } from "@/server/crypto/tokens";
 import { db } from "@/server/db/client";
-import { aiProviderConnection } from "@/server/db/schema";
+import { aiProviderConnection, workspaceAiSettings } from "@/server/db/schema";
+import { getWorkspaceAiPolicy, workspaceAiBudgetUsage } from "@/server/runtime/ai-gateway";
 import { router, workspaceProcedure, writeProcedure } from "@/server/trpc/trpc";
 
 /**
@@ -104,4 +105,48 @@ export const aiRouter = router({
         return { ok: true };
       }),
   }),
+
+  /**
+   * Workspace AI spend this month + the budget cap (ADR-0066 metering). Reads the
+   * `ai_invocation` audit log; `fraction` powers the 80% warning + the cap UI.
+   */
+  usage: workspaceProcedure.query(async ({ ctx }) => {
+    return workspaceAiBudgetUsage(ctx.workspace.id);
+  }),
+
+  /** The workspace's AI policy (PII opt-in + monthly cap). */
+  settings: workspaceProcedure.query(async ({ ctx }) => {
+    return getWorkspaceAiPolicy(ctx.workspace.id);
+  }),
+
+  /**
+   * Set the workspace AI policy (ADR-0066): the monthly USD budget cap (null =
+   * uncapped) and/or the PII opt-in. Upserts the single per-workspace row.
+   */
+  setSettings: writeProcedure
+    .input(
+      z.object({
+        monthlyBudgetUsdCap: z.number().min(0).max(100000).nullable().optional(),
+        allowPiiToExternalAi: z.boolean().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      const patch: { monthlyBudgetUsdCap?: string | null; allowPiiToExternalAi?: boolean } = {};
+      if (input.monthlyBudgetUsdCap !== undefined) {
+        patch.monthlyBudgetUsdCap = input.monthlyBudgetUsdCap === null ? null : input.monthlyBudgetUsdCap.toFixed(2);
+      }
+      if (input.allowPiiToExternalAi !== undefined) patch.allowPiiToExternalAi = input.allowPiiToExternalAi;
+      await db
+        .insert(workspaceAiSettings)
+        .values({
+          workspaceId: ctx.workspace.id,
+          updatedByUserId: ctx.dbUser.id,
+          ...patch,
+        })
+        .onConflictDoUpdate({
+          target: workspaceAiSettings.workspaceId,
+          set: { ...patch, updatedByUserId: ctx.dbUser.id, updatedAt: new Date() },
+        });
+      return { ok: true };
+    }),
 });

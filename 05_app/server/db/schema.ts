@@ -580,6 +580,85 @@ export type AiProviderConnection = typeof aiProviderConnection.$inferSelect;
 export type NewAiProviderConnection = typeof aiProviderConnection.$inferInsert;
 
 /**
+ * Per-workspace AI invocation audit log (ADR-0066). One row per AI call, any
+ * provider, any modality, written by the AI gateway (`server/runtime/ai-gateway.ts`)
+ * — the single path from feature code to a vendor adapter. This is the spine for
+ * cost metering, the budget cap, debugging, reproducibility, and the ADR-0014
+ * withdraw cascade (rows for a participant's response are deleted on withdraw).
+ * Large outputs (full emotion vectors, transcripts) go to the R2-backed
+ * `ai_invocation_payload` sidecar; `result_summary` keeps only a small digest.
+ */
+export const aiInvocation = pgTable(
+  "ai_invocation",
+  {
+    id: text("id").primaryKey(), // ULID
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspace.id),
+    /** Nullable: not every AI call is tied to a study (e.g. a connect test). */
+    studyId: uuid("study_id").references((): AnyPgColumn => experiment.id, { onDelete: "set null" }),
+    /** Participant response (ULID text), when the call is part of a run; cascades on withdraw/delete. */
+    responseId: text("response_id").references((): AnyPgColumn => response.id, { onDelete: "cascade" }),
+    blockInstanceId: text("block_instance_id"),
+    /** The feature making the call, e.g. 'ai-chat' | 'voice-emotion-probe'. */
+    feature: text("feature").notNull(),
+    provider: text("provider").notNull(), // 'anthropic' | 'hume' | …
+    model: text("model"),
+    modality: text("modality").notNull(), // 'text' | 'voice' | 'tts' | 'conversation'
+    sensitivity: text("sensitivity").notNull(), // 'researcher_content' | 'participant_data' | 'pii'
+    inputTokens: integer("input_tokens"),
+    outputTokens: integer("output_tokens"),
+    durationMs: integer("duration_ms"),
+    /** USD cost from the provider's reported usage (or a dated price table). */
+    costUsd: numeric("cost_usd", { precision: 10, scale: 5 }).notNull().default("0"),
+    status: text("status").notNull(), // 'ok' | 'error'
+    errorCode: text("error_code"),
+    /** Small digest only (top emotions + valence/arousal); full payload → sidecar. */
+    resultSummary: jsonb("result_summary"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check("ai_invocation_modality", sql`${t.modality} IN ('text', 'voice', 'tts', 'conversation')`),
+    check(
+      "ai_invocation_sensitivity",
+      sql`${t.sensitivity} IN ('researcher_content', 'participant_data', 'pii')`,
+    ),
+    check("ai_invocation_status", sql`${t.status} IN ('ok', 'error')`),
+    index("idx_ai_invocation_workspace_created").on(t.workspaceId, t.createdAt),
+    index("idx_ai_invocation_response").on(t.responseId),
+  ],
+);
+export type AiInvocation = typeof aiInvocation.$inferSelect;
+export type NewAiInvocation = typeof aiInvocation.$inferInsert;
+
+/** R2-backed sidecar for large AI outputs (full emotion vectors, transcripts). ADR-0066/0003. */
+export const aiInvocationPayload = pgTable("ai_invocation_payload", {
+  invocationId: text("invocation_id")
+    .primaryKey()
+    .references(() => aiInvocation.id, { onDelete: "cascade" }),
+  r2Key: text("r2_key").notNull(),
+});
+export type AiInvocationPayload = typeof aiInvocationPayload.$inferSelect;
+
+/**
+ * Per-workspace AI policy + budget (ADR-0066). One row per workspace, created
+ * lazily. `allowPiiToExternalAi` gates any `pii`-sensitivity call (default false —
+ * researcher must opt in). `monthlyBudgetUsdCap` is a hard monthly spend ceiling
+ * (null = uncapped; existing workspaces stay uncapped, new ones default to $50 in
+ * V2.1 H8c). Enforced by the gateway.
+ */
+export const workspaceAiSettings = pgTable("workspace_ai_settings", {
+  workspaceId: uuid("workspace_id")
+    .primaryKey()
+    .references(() => workspace.id),
+  allowPiiToExternalAi: boolean("allow_pii_to_external_ai").notNull().default(false),
+  monthlyBudgetUsdCap: numeric("monthly_budget_usd_cap", { precision: 10, scale: 2 }),
+  updatedByUserId: uuid("updated_by_user_id").references((): AnyPgColumn => user.id),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type WorkspaceAiSettings = typeof workspaceAiSettings.$inferSelect;
+
+/**
  * Per-workspace webhook subscription with a recruitment provider (V1.15 / ADR-0050).
  * Prolific "hooks" are API-created (no dashboard UI) and sign each event with a
  * PER-WORKSPACE secret (from POST /hooks/secrets/). We store that signing secret

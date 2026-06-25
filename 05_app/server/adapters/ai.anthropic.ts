@@ -22,6 +22,17 @@ export const anthropicAdapter: AIProviderAdapter = {
     }
   },
 
+  async ping(apiKey: string): Promise<{ account?: string }> {
+    // Anthropic exposes no account-identity endpoint, so a no-cost GET /models
+    // reachability check stands in. Throws on auth failure so the connect "Test"
+    // action surfaces a clear error (ping is free, so the gateway never audits it).
+    const res = await fetch(`${API}/models?limit=1`, {
+      headers: { "x-api-key": apiKey, "anthropic-version": VERSION },
+    });
+    if (!res.ok) throw new Error(`Anthropic key rejected (${res.status})`);
+    return {};
+  },
+
   async chat({ apiKey, model, system, messages, maxTokens = 1024 }: AiChatInput): Promise<AiChatResult> {
     const res = await fetch(`${API}/messages`, {
       method: "POST",
@@ -41,11 +52,17 @@ export const anthropicAdapter: AIProviderAdapter = {
       const detail = await res.text().catch(() => "");
       throw new Error(`Anthropic API error (${res.status})${detail ? `: ${detail.slice(0, 200)}` : ""}`);
     }
-    const data = (await res.json()) as { content?: Array<{ type: string; text?: string }> };
+    const data = (await res.json()) as {
+      content?: Array<{ type: string; text?: string }>;
+      usage?: { input_tokens?: number; output_tokens?: number };
+    };
     const text = (data.content ?? [])
       .filter((b) => b.type === "text" && typeof b.text === "string")
       .map((b) => b.text as string)
       .join("");
-    return { text };
+    const usage = data.usage
+      ? { inputTokens: data.usage.input_tokens ?? 0, outputTokens: data.usage.output_tokens ?? 0 }
+      : undefined;
+    return { text, usage };
   },
 };

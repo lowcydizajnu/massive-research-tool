@@ -1,14 +1,25 @@
 import { and, eq } from "drizzle-orm";
 
-import { ai, type AiMessage } from "@/server/adapters/ai";
+import { type AiMessage } from "@/server/adapters/ai";
 import { decryptSecret } from "@/server/crypto/tokens";
 import { db } from "@/server/db/client";
 import { aiProviderConnection, experiment, experimentVersion, response } from "@/server/db/schema";
 import { readBlocks } from "@/server/modules/blocks";
+import { AiBudgetExceededError, runChat } from "@/server/runtime/ai-gateway";
 
 export type AiChatTurnResult =
   | { ok: true; reply: string; turnsUsed: number; maxTurns: number; done: boolean }
-  | { ok: false; error: "not_found" | "not_ai_block" | "turn_limit" | "no_provider_key" | "ai_error" | "throttled" };
+  | {
+      ok: false;
+      error:
+        | "not_found"
+        | "not_ai_block"
+        | "turn_limit"
+        | "no_provider_key"
+        | "ai_error"
+        | "budget_exceeded"
+        | "throttled";
+    };
 
 const DEFAULT_MODEL = "claude-sonnet-4-6";
 
@@ -81,10 +92,24 @@ export async function aiChatTurn(input: {
 
   try {
     const apiKey = decryptSecret(conn.apiKey);
-    const { text } = await ai.chat({ apiKey, model: cfg.model || DEFAULT_MODEL, system, messages });
+    // Through the AI gateway (ADR-0066): enforces the workspace budget cap +
+    // PII boundary and writes one `ai_invocation` audit row per call. Transcripts
+    // are participant-authored text → participant_data sensitivity (ADR-0014).
+    const { text } = await runChat(
+      {
+        workspaceId: exp.tenantId,
+        studyId: ver.experimentId,
+        responseId: input.responseId,
+        blockInstanceId: input.blockInstanceId,
+        feature: "ai-chat",
+        sensitivity: "participant_data",
+      },
+      { apiKey, model: cfg.model || DEFAULT_MODEL, system, messages },
+    );
     const turnsUsed = userTurns + 1;
     return { ok: true, reply: text, turnsUsed, maxTurns, done: turnsUsed >= maxTurns };
-  } catch {
+  } catch (err) {
+    if (err instanceof AiBudgetExceededError) return { ok: false, error: "budget_exceeded" };
     return { ok: false, error: "ai_error" };
   }
 }
