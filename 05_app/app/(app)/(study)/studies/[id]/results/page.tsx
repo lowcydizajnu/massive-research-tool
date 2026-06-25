@@ -219,6 +219,38 @@ export default async function ResultsStagePage({
                           Open-ended — see CSV export for responses.
                         </span>
                       ) : null}
+                      {q.emotion ? (
+                        <div className="flex flex-col gap-1 pt-1">
+                          <span className="text-[length:var(--text-label)] uppercase tracking-wide text-[var(--color-text-muted)]">
+                            Emotion (Hume) · {q.emotion.n} analyzed
+                            {q.emotion.pending ? ` · ${q.emotion.pending} pending` : ""}
+                            {q.emotion.failed ? ` · ${q.emotion.failed} failed` : ""}
+                          </span>
+                          {q.emotion.top.length ? (
+                            <ul className="flex flex-col gap-0.5">
+                              {q.emotion.top.map((e) => (
+                                <li key={e.name} className="flex items-center gap-2 text-[length:var(--text-small)]">
+                                  <span className="w-28 shrink-0 truncate text-[var(--color-text-secondary)]">{e.name}</span>
+                                  <span className="h-2 flex-1 overflow-hidden rounded-full bg-[var(--color-surface-subtle)]">
+                                    <span
+                                      className="block h-full rounded-full bg-[var(--color-primary)]"
+                                      style={{ width: `${Math.round(Math.max(0, Math.min(1, e.score)) * 100)}%` }}
+                                    />
+                                  </span>
+                                  <span className="w-10 shrink-0 text-right text-[var(--color-text-muted)]">{e.score.toFixed(2)}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                              No analyzed responses yet.
+                            </span>
+                          )}
+                          <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                            Exploratory measure — validate with self-report where the construct matters.
+                          </span>
+                        </div>
+                      ) : null}
                     </li>
                   ))}
                 </ul>
