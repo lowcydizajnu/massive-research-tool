@@ -267,6 +267,13 @@
       "when": 1782396653572,
       "tag": "0037_adorable_talisman",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1782406280108,
+      "tag": "0038_old_turbo",
+      "breakpoints": true
     }
   ]
 }

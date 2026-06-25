@@ -35,6 +35,14 @@ export type JobCatalog = {
     provider: import("@/server/adapters/recruitment").RecruitmentProvider;
     providerStudyId: string;
   };
+  // V2.1 (ADR-0066 H3a): emotion analysis for a submitted response_item. The job
+  // resolves the workspace Hume key, runs the modality-appropriate analysis
+  // through the AI gateway (audited/metered), and writes the result onto the
+  // response_item. Enqueued best-effort from the participant answer path.
+  "hume.analyze": {
+    responseId: string;
+    blockInstanceId: string;
+  };
 };
 
 export type JobName = keyof JobCatalog;

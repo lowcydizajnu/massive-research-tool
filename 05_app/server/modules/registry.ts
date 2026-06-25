@@ -286,6 +286,33 @@ const multipleChoice: CoreModuleDef = {
 };
 
 // Free-text response (short input or long textarea).
+/**
+ * Shared optional "Analyze emotion (Hume)" config (ADR-0066 H3a) added to
+ * emotion-eligible blocks (free-text, audio-record). When `enabled`, the
+ * participant runtime enqueues `hume.analyze` after submit; the gateway meters +
+ * audits and the result lands on `response_item.emotion_analysis`. Voice =
+ * biometric (pii); `participantAudioRetention` is the per-block retention choice.
+ */
+const emotionAnalysisConfig = z
+  .object({
+    enabled: z.boolean(),
+    provider: z.literal("hume"),
+    modality: z.enum(["text", "voice"]),
+    participantAudioRetention: z.enum(["never", "session", "retained"]).optional(),
+  })
+  .optional();
+
+const emotionAnalysisJsonSchema = {
+  type: "object",
+  properties: {
+    enabled: { type: "boolean" },
+    provider: { type: "string" },
+    modality: { type: "string" },
+    participantAudioRetention: { type: "string" },
+  },
+  additionalProperties: false,
+} as const;
+
 const freeText: CoreModuleDef = {
   source: "core",
   key: "free-text",
@@ -298,6 +325,7 @@ const freeText: CoreModuleDef = {
     longForm: z.boolean(),
     required: z.boolean(),
     maxLength: z.number().int().min(1).max(10000),
+    emotionAnalysis: emotionAnalysisConfig,
   }),
   defaultConfig: { prompt: "", longForm: false, required: true, maxLength: 500 },
   jsonSchema: {
@@ -307,6 +335,7 @@ const freeText: CoreModuleDef = {
       longForm: { type: "boolean" },
       required: { type: "boolean" },
       maxLength: { type: "integer", minimum: 1, maximum: 10000 },
+      emotionAnalysis: emotionAnalysisJsonSchema,
     },
     required: ["prompt"],
     additionalProperties: false,
@@ -902,6 +931,7 @@ const audioRecordBlock: CoreModuleDef = {
     prompt: z.string(),
     maxDurationSeconds: z.number().int().min(5).max(300),
     required: z.boolean(),
+    emotionAnalysis: emotionAnalysisConfig,
   }),
   defaultConfig: { prompt: "", maxDurationSeconds: 60, required: true },
   jsonSchema: {
@@ -910,6 +940,7 @@ const audioRecordBlock: CoreModuleDef = {
       prompt: { type: "string" },
       maxDurationSeconds: { type: "integer", minimum: 5, maximum: 300 },
       required: { type: "boolean" },
+      emotionAnalysis: emotionAnalysisJsonSchema,
     },
     required: ["prompt"],
     additionalProperties: false,

@@ -465,6 +465,14 @@ export const responseItem = pgTable(
     /** Module-specific; validated against ModuleVersion.responseSchema (added when response-writing lands). */
     answer: jsonb("answer").notNull(),
     answeredAt: timestamp("answered_at", { withTimezone: true }).notNull().defaultNow(),
+    /**
+     * Hume emotion analysis result (ADR-0066 H3a), when the block has emotion
+     * analysis enabled. `{ emotions: {name: score}, transcript? }`. Filled by the
+     * `hume.analyze` Inngest job after submit; null until then / when disabled.
+     */
+    emotionAnalysis: jsonb("emotion_analysis"),
+    /** 'pending' (job enqueued) | 'ok' | 'failed'; null when emotion analysis is off. */
+    emotionStatus: text("emotion_status"),
   },
   (t) => [uniqueIndex("response_item_unique").on(t.responseId, t.blockInstanceId)],
 );
