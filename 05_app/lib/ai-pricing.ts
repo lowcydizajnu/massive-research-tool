@@ -52,6 +52,22 @@ export function estimateChatCostUsd(opts: {
   return (inputTokens / 1_000_000) * price.in + (outputTokens / 1_000_000) * price.out;
 }
 
+/**
+ * Authoritative-ish per-invocation cost from actual token counts returned by the
+ * provider (ADR-0066 metering). Unlike estimateChatCostUsd (a setup-time
+ * projection from character lengths), this is computed AFTER a call using the
+ * real `usage` the adapter reports, and is what the gateway writes to
+ * `ai_invocation.cost_usd`. Returns 0 for an unknown model (we don't guess —
+ * a price gap surfaces as $0 spend, never a crash).
+ */
+export function costUsdFromTokens(model: string, inputTokens: number, outputTokens: number): number {
+  const price = MODEL_PRICES[model];
+  if (!price) return 0;
+  const inT = Math.max(0, inputTokens || 0);
+  const outT = Math.max(0, outputTokens || 0);
+  return (inT / 1_000_000) * price.in + (outT / 1_000_000) * price.out;
+}
+
 /** Format a small USD amount sensibly (e.g. "$0.04", "$1.20", "<$0.01"). */
 export function formatUsd(n: number): string {
   if (n > 0 && n < 0.01) return "<$0.01";

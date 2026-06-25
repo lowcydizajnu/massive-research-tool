@@ -253,6 +253,13 @@
       "when": 1782135477266,
       "tag": "0035_blue_chronomancer",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1782395841962,
+      "tag": "0036_swift_shinobi_shaw",
+      "breakpoints": true
     }
   ]
 }

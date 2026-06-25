@@ -71,9 +71,11 @@ export function AiChatInput({
         setError(
           res.error === "no_provider_key"
             ? "This study's AI isn't configured yet. Please tell the researcher."
-            : res.error === "throttled"
-              ? "One moment — sending too fast."
-              : "Sorry, the assistant couldn't respond. Try again.",
+            : res.error === "budget_exceeded"
+              ? "This study's AI is temporarily unavailable. Please tell the researcher."
+              : res.error === "throttled"
+                ? "One moment — sending too fast."
+                : "Sorry, the assistant couldn't respond. Try again.",
         );
         setExchange(exchange);
       }
