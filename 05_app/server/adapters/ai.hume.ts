@@ -1,5 +1,5 @@
 import { isHumeLanguage } from "@/lib/ai/hume-languages";
-import type { AIProviderAdapter, AiChatInput, AiChatResult, AiEmotionResult, AiTtsResult } from "@/server/adapters/ai";
+import type { AIProviderAdapter, AiChatInput, AiChatResult, AiEmotionJobStatus, AiEmotionKind, AiEmotionResult, AiTtsResult } from "@/server/adapters/ai";
 
 /**
  * Hume implementation of the AIProviderAdapter (ADR-0066 / ADR-0067). ALL Hume
@@ -30,34 +30,65 @@ async function reachVoices(apiKey: string): Promise<Response> {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
- * Run an Expression Measurement batch job to completion (ADR-0066 H3a). Submit →
- * poll job state → fetch predictions. Endpoints + shapes verified against the
- * Hume Python SDK v0.7.0 (the last release shipping Expression Measurement):
- * `POST /v0/batch/jobs` `{ models, text|urls }` → `{ job_id }`;
- * `GET /v0/batch/jobs/{id}` → `{ state: { status } }`;
- * `GET /v0/batch/jobs/{id}/predictions` → `InferenceSourcePredictResult[]`.
+ * Build an Expression Measurement batch request body (ADR-0066 H3a). Verified
+ * against the Hume Python SDK v0.7.0 (the last release shipping Expression
+ * Measurement): `{ models: { language|prosody }, text|urls, transcription? }`.
+ * Optional BCP-47 `language` rides on `transcription.language` (drops if invalid).
  */
-async function runBatchJob(apiKey: string, body: Record<string, unknown>): Promise<unknown> {
-  const headers = { "X-Hume-Api-Key": apiKey, "content-type": "application/json" };
-  const submit = await fetch(`${API}/batch/jobs`, { method: "POST", headers, body: JSON.stringify(body) });
+function batchBody(
+  kind: AiEmotionKind,
+  payload: { text?: string; audioUrl?: string },
+  language?: string,
+): Record<string, unknown> {
+  const transcription = isHumeLanguage(language) ? { transcription: { language } } : {};
+  return kind === "text"
+    ? { models: { language: {} }, text: [payload.text ?? ""], ...transcription }
+    : { models: { prosody: {} }, urls: [payload.audioUrl ?? ""], ...transcription };
+}
+
+const HUME_HEADERS = (apiKey: string) => ({ "X-Hume-Api-Key": apiKey, "content-type": "application/json" });
+
+/** Submit a batch job → `{ job_id }`. `POST /v0/batch/jobs`. */
+async function submitBatch(apiKey: string, body: Record<string, unknown>): Promise<string> {
+  const submit = await fetch(`${API}/batch/jobs`, { method: "POST", headers: HUME_HEADERS(apiKey), body: JSON.stringify(body) });
   if (!submit.ok) throw new Error(`Hume batch submit failed (${submit.status})`);
   const jobId = ((await submit.json()) as { job_id?: string }).job_id;
   if (!jobId) throw new Error("Hume batch submit returned no job_id.");
+  return jobId;
+}
 
-  // Poll (bounded). Status is COMPLETED | FAILED | IN_PROGRESS | QUEUED.
+/** One status check. `GET /v0/batch/jobs/{id}` → state.status (COMPLETED|FAILED|IN_PROGRESS|QUEUED). */
+async function batchStatus(apiKey: string, jobId: string): Promise<AiEmotionJobStatus> {
+  const res = await fetch(`${API}/batch/jobs/${jobId}`, { headers: HUME_HEADERS(apiKey) });
+  if (!res.ok) throw new Error(`Hume batch status failed (${res.status})`);
+  const status = ((await res.json()) as { state?: { status?: string } }).state?.status;
+  if (status === "COMPLETED") return "completed";
+  if (status === "FAILED") return "failed";
+  return "running";
+}
+
+/** Fetch raw predictions. `GET /v0/batch/jobs/{id}/predictions` → InferenceSourcePredictResult[]. */
+async function batchPredictions(apiKey: string, jobId: string): Promise<unknown> {
+  const preds = await fetch(`${API}/batch/jobs/${jobId}/predictions`, { headers: HUME_HEADERS(apiKey) });
+  if (!preds.ok) throw new Error(`Hume batch predictions failed (${preds.status})`);
+  return preds.json();
+}
+
+/**
+ * Synchronous submit → poll-to-completion → predictions (the convenience path,
+ * used in tests/dev). Production jobs use the stepped primitives instead so the
+ * long poll doesn't block one serverless invocation (ADR-0066 H3a amendment).
+ */
+async function runBatch(apiKey: string, body: Record<string, unknown>): Promise<unknown> {
+  const jobId = await submitBatch(apiKey, body);
   for (let attempt = 0; attempt < 60; attempt++) {
-    const res = await fetch(`${API}/batch/jobs/${jobId}`, { headers });
-    if (!res.ok) throw new Error(`Hume batch status failed (${res.status})`);
-    const status = ((await res.json()) as { state?: { status?: string } }).state?.status;
-    if (status === "COMPLETED") break;
-    if (status === "FAILED") throw new Error("Hume batch job failed.");
+    const status = await batchStatus(apiKey, jobId);
+    if (status === "completed") break;
+    if (status === "failed") throw new Error("Hume batch job failed.");
     if (attempt === 59) throw new Error("Hume batch job timed out.");
     await sleep(2000);
   }
-
-  const preds = await fetch(`${API}/batch/jobs/${jobId}/predictions`, { headers });
-  if (!preds.ok) throw new Error(`Hume batch predictions failed (${preds.status})`);
-  return preds.json();
+  return batchPredictions(apiKey, jobId);
 }
 
 /** Per-segment prediction holding an emotion vector (language + prosody share this shape). */
@@ -158,12 +189,7 @@ export const humeAdapter: AIProviderAdapter = {
    * type); omitted → Hume auto-detects. Invalid codes are dropped, not sent.
    */
   async analyzeText({ apiKey, text, language }): Promise<AiEmotionResult> {
-    const payload = await runBatchJob(apiKey, {
-      models: { language: {} },
-      text: [text],
-      ...(isHumeLanguage(language) ? { transcription: { language } } : {}),
-    });
-    return aggregateEmotions(payload, "language");
+    return aggregateEmotions(await runBatch(apiKey, batchBody("text", { text }, language)), "language");
   },
 
   /**
@@ -172,11 +198,20 @@ export const humeAdapter: AIProviderAdapter = {
    * (BCP-47) sets `transcription.language` for the prosody transcription step.
    */
   async analyzeVoice({ apiKey, audioUrl, language }): Promise<AiEmotionResult> {
-    const payload = await runBatchJob(apiKey, {
-      models: { prosody: {} },
-      urls: [audioUrl],
-      ...(isHumeLanguage(language) ? { transcription: { language } } : {}),
-    });
-    return aggregateEmotions(payload, "prosody");
+    return aggregateEmotions(await runBatch(apiKey, batchBody("voice", { audioUrl }, language)), "prosody");
+  },
+
+  // — Stepped batch primitives (ADR-0066 H3a amendment): submit / poll / fetch as
+  // discrete calls so a job can poll across Inngest steps (Hobby-plan-safe).
+  async startEmotionBatch({ apiKey, kind, text, audioUrl, language }): Promise<{ jobId: string }> {
+    return { jobId: await submitBatch(apiKey, batchBody(kind, { text, audioUrl }, language)) };
+  },
+
+  async pollEmotionBatch({ apiKey, jobId }): Promise<AiEmotionJobStatus> {
+    return batchStatus(apiKey, jobId);
+  },
+
+  async fetchEmotionBatch({ apiKey, jobId, kind }): Promise<AiEmotionResult> {
+    return aggregateEmotions(await batchPredictions(apiKey, jobId), kind === "text" ? "language" : "prosody");
   },
 };

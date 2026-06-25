@@ -9,18 +9,15 @@ import { runOsfWatch } from "@/server/jobs/osf-watch";
 import { runHumeAnalyze } from "@/server/jobs/hume-analyze";
 
 /**
- * Node runtime + a long function budget. The `hume.analyze` job (ADR-0066 H3a)
- * submits a Hume Expression Measurement BATCH job and polls it to completion —
- * up to ~120s in a single invocation. Vercel's default function limit (~10–15s)
- * would kill that mid-poll, leaving the response_item stuck `pending` forever
- * (no terminal write runs when the process is hard-killed; Inngest retries then
- * re-poll and die the same way). 300s comfortably covers the poll ceiling.
- * NOTE: requires a Vercel plan that permits maxDuration ≥ 300 (Pro+); on Hobby
- * this is capped and emotion analysis would still time out — bump the plan or
- * move to step-based polling (the longer-term hardening).
+ * Node runtime + a modest budget. The `hume.analyze` job (ADR-0066 H3a) submits a
+ * Hume Expression Measurement BATCH job and polls it across Inngest STEPS — each
+ * invocation is just a submit / one poll / a fetch, all short, with the waiting
+ * spent in Inngest between invocations. So no single function blocks for the whole
+ * job and this stays within Vercel Hobby's limit (60s); 60 gives ample headroom
+ * for the heaviest single step (R2 presign + batch submit, or predictions fetch).
  */
 export const runtime = "nodejs";
-export const maxDuration = 300;
+export const maxDuration = 60;
 
 /**
  * Inngest serve endpoint. Deliberate lock-in exception (ADR-0007,
@@ -116,8 +113,15 @@ const osfWatch = inngest.createFunction(
 const humeAnalyze = inngest.createFunction(
   { id: "hume-analyze", retries: 2 },
   { event: "hume.analyze" },
-  async ({ event }) => {
-    await runHumeAnalyze(event.data as JobCatalog["hume.analyze"]);
+  async ({ event, step }) => {
+    // Adapt Inngest's step to the job's minimal StepRunner so the batch poll runs
+    // across short invocations (Hobby-safe) instead of one long-lived function.
+    await runHumeAnalyze(event.data as JobCatalog["hume.analyze"], {
+      // step.run returns a Jsonify<T> wrapper; our payloads are strings/void, so
+      // the cast is safe and keeps the job decoupled from Inngest's types.
+      run: <T,>(id: string, fn: () => Promise<T>) => step.run(id, fn) as Promise<T>,
+      sleep: (id: string, ms: number) => step.sleep(id, `${ms}ms`).then(() => undefined),
+    });
     return { ok: true };
   },
 );

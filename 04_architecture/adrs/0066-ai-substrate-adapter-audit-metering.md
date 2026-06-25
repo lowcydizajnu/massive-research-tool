@@ -62,6 +62,14 @@ Two new core blocks where **emotion is the measure, not a side-channel**: `core/
 
 **Honest scope correction vs the original handoff:** the handoff's "required emotion dimensions" and "show emotion scores to the participant" are dropped — Hume returns its full ~50-emotion taxonomy (you cannot request a subset) and Expression Measurement is async batch (no synchronous path), so inline participant-facing scores aren't feasible. Probes are researcher-facing; participants see only the base block's UI.
 
+## Amendment (2026-06-25) — step-based emotion polling + Re-run affordance
+
+**Bug.** Hume Expression Measurement is async **batch** (submit → poll → predictions). The first H3a job polled to completion (up to ~120s) inside ONE serverless invocation. With no `maxDuration` set, Vercel's default (~10–15s) killed it mid-poll; a hard kill runs no `catch`, so the item stayed `pending` forever (Inngest retries re-polled and died the same way). The deploy is **Vercel Hobby**, where `maxDuration` caps below the poll ceiling — so bumping the budget can't fix it.
+
+**Fix — stepped polling.** The batch flow is split into adapter primitives (`startEmotionBatch` / `pollEmotionBatch` / `fetchEmotionBatch`) with matching gateway functions (`startEmotionJob` / `pollEmotionJob` / `finishEmotionJob` + `recordEmotionFailure`). The `hume.analyze` Inngest function now submits in one step, then polls across `step.sleep` + short poll steps — each invocation is brief and Hobby-safe; the waiting happens in Inngest, not a held-open function. Security: the decrypted key and the emotion result are never returned across step boundaries (each step re-derives the key; the result is written to the DB inside the finish step). The synchronous `analyzeText`/`analyzeVoice` (built on the same primitives) remain for tests/dev. Metering is unchanged — one `ai_invocation` row at finish (ok) or via `recordEmotionFailure`.
+
+**Re-run affordance.** `studies.reanalyzeEmotion({ studyId })` re-queues a study's not-yet-`ok` emotion items (resets to `pending` + re-enqueues `hume.analyze`) so rows stuck by a transient error or the pre-fix timeout clear without resubmitting responses. Surfaced as a "Re-run emotion analysis (N)" button on Results (write-member gated), shown only when stuck items exist.
+
 ## Revisit triggers
 
 - We add a provider whose pricing isn't expressible as the current per-token/per-duration table (revisit the cost model).
