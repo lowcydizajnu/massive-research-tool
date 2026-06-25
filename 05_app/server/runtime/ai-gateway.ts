@@ -6,6 +6,7 @@ import {
   providerAdapter,
   type AiChatInput,
   type AiChatResult,
+  type AiEmotionResult,
   type AIInvocationContext,
   type AIModality,
   type AiProvider,
@@ -13,7 +14,7 @@ import {
 } from "@/server/adapters/ai";
 import { db } from "@/server/db/client";
 import { aiInvocation, workspaceAiSettings } from "@/server/db/schema";
-import { costUsdFromTokens, ttsCostUsdFromChars } from "@/lib/ai-pricing";
+import { costUsdFromTokens, emotionCostUsd, ttsCostUsdFromChars } from "@/lib/ai-pricing";
 
 /**
  * AI gateway (ADR-0066) — the single path from feature code to a vendor adapter.
@@ -238,6 +239,66 @@ export async function runTts(
       provider,
       model: "octave",
       modality: "tts",
+      inputTokens: null,
+      outputTokens: null,
+      durationMs: Date.now() - startedAt,
+      costUsd: 0,
+      status: "error",
+      errorCode: err instanceof Error ? err.name : "unknown",
+    });
+    throw err;
+  }
+}
+
+/**
+ * Run an emotion analysis through the gateway (ADR-0066 H3a): enforce policy →
+ * call the provider's analyzeText/analyzeVoice → meter advisory cost → write one
+ * `text`/`voice` audit row with a small result digest (top emotions). Voice is
+ * `pii` sensitivity (biometric), so it requires the workspace's PII opt-in.
+ * Returns the full emotion vector to the caller (the H3a job persists it).
+ */
+export async function runEmotion(
+  ctx: AIInvocationContext,
+  opts: { kind: "text"; text: string } | { kind: "voice"; audioUrl: string },
+  config: { provider?: AiProvider; apiKey: string },
+): Promise<AiEmotionResult> {
+  const provider = config.provider ?? "hume";
+  const adapter = providerAdapter(provider);
+  const modality: AIModality = opts.kind === "text" ? "text" : "voice";
+  if (opts.kind === "text" ? !adapter.analyzeText : !adapter.analyzeVoice) {
+    throw new AiCapabilityUnsupportedError(opts.kind === "text" ? "text-emotion" : "voice-emotion");
+  }
+  await assertAllowed(ctx);
+  const startedAt = Date.now();
+  try {
+    const result =
+      opts.kind === "text"
+        ? await adapter.analyzeText!({ apiKey: config.apiKey, text: opts.text })
+        : await adapter.analyzeVoice!({ apiKey: config.apiKey, audioUrl: opts.audioUrl });
+    const top = Object.entries(result.emotions)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([name, score]) => ({ name, score }));
+    await recordInvocation({
+      ctx,
+      provider,
+      model: opts.kind === "text" ? "language" : "prosody",
+      modality,
+      inputTokens: null,
+      outputTokens: null,
+      durationMs: Date.now() - startedAt,
+      costUsd: emotionCostUsd(opts.kind),
+      status: "ok",
+      resultSummary: { top, emotionCount: Object.keys(result.emotions).length },
+    });
+    return result;
+  } catch (err) {
+    if (err instanceof AiCapabilityUnsupportedError) throw err;
+    await recordInvocation({
+      ctx,
+      provider,
+      model: opts.kind === "text" ? "language" : "prosody",
+      modality,
       inputTokens: null,
       outputTokens: null,
       durationMs: Date.now() - startedAt,

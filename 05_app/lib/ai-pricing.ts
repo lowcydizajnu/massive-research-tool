@@ -81,6 +81,18 @@ export function ttsCostUsdFromChars(chars: number): number {
   return Math.max(0, chars || 0) * TTS_USD_PER_CHAR;
 }
 
+/**
+ * Advisory per-call cost for Hume Expression Measurement (ADR-0066 H3a). Dated
+ * flat estimates — text is sub-cent; voice ≈ a half-cent per short clip. Drives
+ * `ai_invocation.cost_usd` for emotion calls until a precise figure is confirmed.
+ */
+export const EMOTION_USD = { text: 0.001, voice: 0.005 } as const;
+
+/** Advisory USD cost of one emotion-analysis call by modality. */
+export function emotionCostUsd(modality: "text" | "voice"): number {
+  return EMOTION_USD[modality];
+}
+
 /** Format a small USD amount sensibly (e.g. "$0.04", "$1.20", "<$0.01"). */
 export function formatUsd(n: number): string {
   if (n > 0 && n < 0.01) return "<$0.01";

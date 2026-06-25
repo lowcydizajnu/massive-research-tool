@@ -53,11 +53,16 @@ export type AiChatResult = {
   usage?: AiUsage;
 };
 
-/** Result of a voice/text emotion analysis (ADR-0066 contract; Hume implements in V2.1). */
+/**
+ * Result of a voice/text emotion analysis (ADR-0066 contract; Hume implements in
+ * V2.1 H3a). `emotions` is the provider's score vector by name (Hume returns ~53
+ * for language, 48 for prosody). `valence`/`arousal` are OPTIONAL — Hume does not
+ * return them natively; they're derived in the results layer when needed.
+ */
 export type AiEmotionResult = {
   emotions: Record<string, number>;
-  valence: number;
-  arousal: number;
+  valence?: number;
+  arousal?: number;
   transcript?: string;
   usage?: AiUsage;
   durationMs?: number;
@@ -90,7 +95,9 @@ export interface AIProviderAdapter {
   // Declared on the contract so the gateway can offer them uniformly; a provider
   // that lacks a capability simply omits the method and the gateway throws
   // AiCapabilityUnsupportedError.
-  analyzeVoice?(input: { apiKey: string; audioR2Key: string; language?: string }): Promise<AiEmotionResult>;
+  /** Voice emotion (Hume prosody). `audioUrl` is a fetchable URL (gateway presigns the R2 object). */
+  analyzeVoice?(input: { apiKey: string; audioUrl: string; language?: string }): Promise<AiEmotionResult>;
+  /** Text emotion (Hume language model). */
   analyzeText?(input: { apiKey: string; text: string; language?: string }): Promise<AiEmotionResult>;
   synthesizeAudio?(input: {
     apiKey: string;
