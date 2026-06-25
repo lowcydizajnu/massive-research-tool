@@ -31,6 +31,53 @@ export const FONT_LABELS: Record<FontKey, string> = {
 const hex = z.string().regex(/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/);
 const fontKey = z.enum(Object.keys(FONT_STACKS) as [FontKey, ...FontKey[]]);
 
+/**
+ * AI-conversation chat-window appearance (ADR-0065), edited under Design → Chat.
+ * Lives in `theme.chat` so it rides the snapshot + freezes/replicates with the
+ * rest of the look — no migration. Colours/fonts are token-constrained (v0.6
+ * lock): bubble "tone" maps to existing tokens, font reuses the theme fonts.
+ * `chat` is OPTIONAL on the theme (older themes lack it) — read via resolveChat,
+ * which fills every default, so the presets don't need to declare it.
+ */
+const bubbleTone = z.enum(["accent", "surface", "muted"]);
+export type BubbleTone = z.infer<typeof bubbleTone>;
+
+export const chatAppearanceSchema = z.object({
+  assistantName: z.string().max(60).default("Assistant"),
+  /** R2 key (ws/ namespace) of an uploaded/Materials avatar; null = default glyph. */
+  avatarKey: z.string().max(512).nullable().default(null),
+  participantLabel: z.string().max(40).default("You"),
+  assistantBubble: bubbleTone.default("surface"),
+  participantBubble: bubbleTone.default("accent"),
+  bubbleRadius: z.enum(["sharp", "soft", "rounded"]).default("rounded"),
+  density: z.enum(["comfortable", "compact"]).default("comfortable"),
+  /** Override the chat font; undefined inherits the theme body font. */
+  font: fontKey.optional(),
+  aiDisclosure: z.boolean().default(true),
+  aiDisclosureText: z.string().max(140).default("You’re chatting with an AI."),
+  placeholder: z.string().max(60).default("Type your reply…"),
+  typingIndicator: z.boolean().default(true),
+});
+export type ChatAppearance = z.infer<typeof chatAppearanceSchema>;
+
+/** Resolve a theme's chat appearance with every default filled (theme.chat is optional). */
+export function resolveChat(theme: { chat?: unknown }): ChatAppearance {
+  return chatAppearanceSchema.parse((theme?.chat as object) ?? {});
+}
+
+/** A bubble tone → {bg token, text token} for the chat renderer (stays on-brand). */
+export const BUBBLE_TOKENS: Record<BubbleTone, { bg: string; text: string }> = {
+  accent: { bg: "var(--color-primary)", text: "#FFFFFF" },
+  surface: { bg: "var(--color-surface-subtle)", text: "var(--color-text-primary)" },
+  muted: { bg: "var(--color-surface-raised)", text: "var(--color-text-primary)" },
+};
+
+export const RADIUS_PX: Record<ChatAppearance["bubbleRadius"], string> = {
+  sharp: "4px",
+  soft: "10px",
+  rounded: "16px",
+};
+
 export const studyThemeSchema = z.object({
   presetKey: z.enum([
     "academic", "clinical", "modern", "playful",
@@ -71,6 +118,9 @@ export const studyThemeSchema = z.object({
     "instagram", "tiktok", "lifestyle", "forum", "blog",
     "reddit", "linkedin", "youtube", "whatsapp", "discord", "imessage",
   ]).optional(),
+  /** AI-conversation chat-window appearance (ADR-0065). Optional — read via
+   *  resolveChat, which fills defaults; presets don't declare it. */
+  chat: chatAppearanceSchema.optional(),
 });
 export type StudyTheme = z.infer<typeof studyThemeSchema>;
 

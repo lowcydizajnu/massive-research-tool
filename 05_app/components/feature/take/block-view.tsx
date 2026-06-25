@@ -12,6 +12,8 @@ import { SignatureInput } from "@/components/feature/take/signature-input";
 import { FileUploadInput } from "@/components/feature/take/file-upload-input";
 import { VideoRecordInput } from "@/components/feature/take/video-record-input";
 import { AiChatInput } from "@/components/feature/take/ai-chat-input";
+import { ChatWindowPreview } from "@/components/feature/take/chat-window-preview";
+import type { ChatAppearance } from "@/lib/themes/themes";
 import type { RuntimeBlock } from "@/server/runtime/participant";
 
 /**
@@ -27,6 +29,7 @@ export function BlockView({
   namePrefix = "",
   presetKey,
   responseId,
+  chat,
 }: {
   block: RuntimeBlock;
   seed?: string;
@@ -35,41 +38,25 @@ export function BlockView({
   presetKey?: string;
   /** The live response id — needed by interactive server-mediated blocks (ai-chat). */
   responseId?: string;
+  /** Chat-window appearance (ADR-0065) for the AI block. */
+  chat?: ChatAppearance;
 }) {
   const c = block.config;
   const np = namePrefix;
   if (block.key === "ai-chat") {
     // Live chat needs a recorded response + the workspace's AI key, so it only
-    // runs in the real take flow. In preview / no-session, render the chat-window
-    // chrome with the opening message + a disabled composer instead of dropping
-    // to "(question type isn't available)" (bug, 2026-06-22).
+    // runs in the real take flow. In preview / no-session, render the styled
+    // chat window with a disabled composer (ADR-0065), not the live chat.
     if (responseId) {
-      return <AiChatInput config={c} responseId={responseId} blockInstanceId={block.instanceId} np={np} />;
+      return <AiChatInput config={c} responseId={responseId} blockInstanceId={block.instanceId} np={np} chat={chat} />;
     }
     const opening = typeof c.openingMessage === "string" ? c.openingMessage.trim() : "";
     return (
-      <div className="flex flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)]">
-        <div className="border-b border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] px-3 py-2 text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">
-          Assistant
-        </div>
-        <div className="flex flex-col gap-2.5 p-3">
-          {opening ? (
-            <span className="max-w-[80%] whitespace-pre-wrap rounded-2xl rounded-bl-sm bg-[var(--color-surface-subtle)] px-3.5 py-2 text-[length:var(--text-body)] text-[var(--color-text-primary)]">
-              {opening}
-            </span>
-          ) : null}
-          <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-            Live AI conversation — participants chat with the AI here. The preview doesn’t connect to the model.
-          </p>
-        </div>
-        <div className="border-t border-[var(--color-border-subtle)] p-3">
-          <input
-            disabled
-            placeholder="Type your reply…"
-            className="w-full rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-3 py-2 text-[length:var(--text-body)] text-[var(--color-text-muted)] opacity-60"
-          />
-        </div>
-      </div>
+      <ChatWindowPreview
+        chat={chat}
+        openingMessage={opening}
+        note="Live AI conversation — participants chat with the AI here. The preview doesn’t connect to the model."
+      />
     );
   }
   // v1 social-post blocks don't record interactions — render them inert.
