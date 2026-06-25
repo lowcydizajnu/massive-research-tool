@@ -165,16 +165,6 @@ export function AiChatConfig({
         />
       </label>
 
-      <label className="flex flex-col gap-1">
-        <span className={labelCls}>Opening message (shown first)</span>
-        <input
-          value={cfg.openingMessage}
-          onChange={(e) => set({ openingMessage: e.target.value })}
-          placeholder="Hi! I'd love to hear your thoughts — to start, …"
-          className={fieldCls}
-        />
-      </label>
-
       <label className="flex min-w-0 flex-col gap-1">
         <span className={labelCls}>Model</span>
         <select
@@ -190,35 +180,10 @@ export function AiChatConfig({
         </select>
       </label>
 
-      <div className="flex flex-wrap gap-3">
-        <label className="flex w-24 flex-col gap-1">
-          <span className={labelCls}>Max replies</span>
-          <input
-            type="number"
-            min={1}
-            max={50}
-            value={cfg.maxTurns}
-            onChange={(e) => set({ maxTurns: Math.max(1, Math.min(50, Number(e.target.value) || 1)) })}
-            className={`${fieldCls} w-full`}
-          />
-        </label>
-        <label className="flex w-24 flex-col gap-1">
-          <span className={labelCls}>Time limit (min)</span>
-          <input
-            type="number"
-            min={0}
-            max={60}
-            step={1}
-            value={Math.round(cfg.timeLimitSec / 60)}
-            onChange={(e) =>
-              set({ timeLimitSec: Math.max(0, Math.min(60, Number(e.target.value) || 0)) * 60 })
-            }
-            className={`${fieldCls} w-full`}
-          />
-        </label>
-      </div>
-      <p className="-mt-2 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-        Max replies = how many turns the participant gets (the x/8 counter). Time limit: 0 = no limit.
+      <p className="rounded-[var(--radius-md)] bg-[var(--color-surface-subtle)] p-2 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+        Opening message, number of replies, and time limit live in <strong>Design → Chat</strong> (with the
+        chat appearance). Currently {cfg.maxTurns} repl{cfg.maxTurns === 1 ? "y" : "ies"}
+        {cfg.timeLimitSec > 0 ? `, ${Math.round(cfg.timeLimitSec / 60)} min limit` : ", no time limit"}.
       </p>
 
       {(() => {
