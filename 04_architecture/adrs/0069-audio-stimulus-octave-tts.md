@@ -44,6 +44,10 @@ Plainly: the researcher types a line and a delivery note and clicks Generate; we
 - **What we are now committed to.** Generation goes through `runTts()` (never the adapter directly); generated audio lives in `ws/` keyed by content hash; the block stores a media URL, not raw audio; the voice-preset catalog (10 vetted presets) is the only voice selector exposed (full Octave catalog = V2.2).
 - **What we are now precluded from.** Per-participant TTS for a fixed stimulus; storing generated audio in `resp/` (that path is participant data); exposing arbitrary Hume voice IDs in the Builder.
 
+## Amendment (2026-06-26) — per-variant audio generation
+
+A factorial variant can bind the audio-stimulus `script` to a factor (different script per level). Previously the audio (`audioUrl`) was generated once from the base script, so every variant played the same clip — an offered-but-broken customization. Fix (ADR-0058 territory): a new `studies.generateAudioClip({studyId, script, description?})` mutation renders an arbitrary script to a cached `/api/media` clip and returns the URL **without mutating any block** (same R2 cache key as the single-block generator, so identical scripts are free). The variants editor's "Generate audio for each level" button calls it once per level's script and stores the URLs as a system-managed **`audioUrl` variant binding**; the runtime's existing per-cell `resolveConfigForCell` then plays each variant its own clip. `audioUrl`/`audioHash` are also marked `derivedFields` so they're hidden from the manual varying-field picker (you vary the script; the audio follows). No schema/migration change (variant bindings live in `definitionSnapshot`).
+
 ## Revisit triggers
 
 - Per-participant dynamic TTS (e.g. personalized name in the audio) becomes a requirement — that breaks the author-time cache model.

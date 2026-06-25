@@ -7,6 +7,7 @@ import { api } from "@/lib/trpc/react";
 import { cellCount, type VariantBinding, type VariantFactor } from "@/lib/variants/factorial";
 import { getModuleDef } from "@/server/modules/registry";
 import type { StudyDetail } from "@/server/trpc/routers/studies";
+import { PendingButton } from "@/components/ui/pending-button";
 import { READ_ONLY_TITLE } from "@/components/feature/workspace/role-gate";
 
 /**
@@ -101,6 +102,37 @@ export function VariantsSection({ study, canEdit }: { study: StudyDetail; canEdi
   const setBindingValue = (i: number, levelId: string, value: string) =>
     setBindings((bs) => bs.map((b, j) => (j === i ? { ...b, valuesByLevel: { ...b.valuesByLevel, [levelId]: coerce(value) } } : b)));
 
+  // Per-variant audio (ADR-0058/0069 enhance): render each level's script to its
+  // own clip and store the URLs as a system-managed `audioUrl` binding, so each
+  // variant plays its own audio (runtime resolves the bound audioUrl per cell).
+  const genClip = api.studies.generateAudioClip.useMutation();
+  const [audioGen, setAudioGen] = useState<{ key: string; msg: string } | null>(null);
+  async function generateLevelAudio(scriptBinding: VariantBinding) {
+    const f = factors.find((x) => x.id === scriptBinding.factorId);
+    if (!f) return;
+    const blk = study.blocks.find((x) => x.instanceId === scriptBinding.instanceId);
+    const sharedDesc = ((blk?.config as { description?: string } | undefined)?.description ?? "").trim();
+    const descBinding = bindings.find((x) => x.instanceId === scriptBinding.instanceId && x.factorId === scriptBinding.factorId && x.path === "description");
+    const key = `${scriptBinding.instanceId}-${scriptBinding.factorId}`;
+    setAudioGen({ key, msg: "Generating…" });
+    try {
+      const values: Record<string, unknown> = {};
+      for (const l of f.levels) {
+        const scr = String(scriptBinding.valuesByLevel[l.id] ?? "").trim();
+        if (!scr) throw new Error(`Add a script for “${l.name}” first.`);
+        const desc = descBinding ? String(descBinding.valuesByLevel[l.id] ?? sharedDesc).trim() : sharedDesc;
+        const { url } = await genClip.mutateAsync({ studyId: study.id, script: scr, description: desc || undefined });
+        values[l.id] = url;
+      }
+      // Replace any existing audioUrl binding for this block × factor.
+      const others = bindings.filter((x) => !(x.instanceId === scriptBinding.instanceId && x.factorId === scriptBinding.factorId && x.path === "audioUrl"));
+      commit(factors, [...others, { instanceId: scriptBinding.instanceId, path: "audioUrl", factorId: scriptBinding.factorId, valuesByLevel: values }]);
+      setAudioGen({ key, msg: `Generated ${f.levels.length} clip${f.levels.length === 1 ? "" : "s"} ✓` });
+    } catch (e) {
+      setAudioGen({ key, msg: e instanceof Error ? e.message : "Generation failed." });
+    }
+  }
+
   const cells = cellCount(factors);
   const editable = canEdit;
 
@@ -178,10 +210,13 @@ export function VariantsSection({ study, canEdit }: { study: StudyDetail; canEdi
           {bindings.map((b, i) => {
             const f = factors.find((x) => x.id === b.factorId);
             const bindBlk = study.blocks.find((x) => x.instanceId === b.instanceId);
-            // Honest interim note: varying an audio-stimulus script/description does
-            // not yet auto-generate a clip per level (per-variant voice gen is the
-            // next H5 enhancement) — until then all levels play the base audio.
-            const needsPerVariantAudio = bindBlk?.key === "audio-stimulus" && (b.path === "script" || b.path === "description");
+            // `audioUrl` bindings are system-managed (set by "Generate audio for each
+            // level") — hide them from the editable list; they're plumbing.
+            if (bindBlk?.key === "audio-stimulus" && b.path === "audioUrl") return null;
+            // Audio-stimulus script/description: offer per-level voice generation so
+            // each variant plays its own clip (otherwise all share the base audio).
+            const isAudioScript = bindBlk?.key === "audio-stimulus" && (b.path === "script" || b.path === "description");
+            const hasAudioBinding = bindings.some((x) => x.instanceId === b.instanceId && x.factorId === b.factorId && x.path === "audioUrl");
             return (
               <div key={`${b.instanceId}-${b.path}-${i}`} className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-3">
                 <div className="flex items-center justify-between gap-2">
@@ -211,10 +246,31 @@ export function VariantsSection({ study, canEdit }: { study: StudyDetail; canEdi
                     </label>
                   ))}
                 </div>
-                {needsPerVariantAudio ? (
-                  <p className="text-[length:var(--text-small)] text-[var(--color-warning-text-on-subtle)]">
-                    Heads up: per-level audio isn’t generated yet — every variant currently plays the block’s base clip.
-                    Per-variant voice generation is coming next; until then, vary the script only if you’ll regenerate audio per level.
+                {isAudioScript && b.path === "script" ? (
+                  <div className="flex flex-col gap-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <PendingButton
+                        variant="secondary"
+                        pending={genClip.isPending && audioGen?.key === `${b.instanceId}-${b.factorId}`}
+                        idleLabel={hasAudioBinding ? "Regenerate audio for each level" : "Generate audio for each level"}
+                        pendingLabel="Generating…"
+                        disabled={!editable}
+                        onClick={() => generateLevelAudio(b)}
+                        className="px-2.5 py-1 text-[length:var(--text-small)]"
+                      />
+                      {audioGen?.key === `${b.instanceId}-${b.factorId}` ? (
+                        <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">{audioGen.msg}</span>
+                      ) : hasAudioBinding ? (
+                        <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">Per-level audio generated ✓</span>
+                      ) : null}
+                    </div>
+                    <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                      Renders each level’s script to its own clip (Hume Octave · your key). Regenerate after editing a script — until you do, all variants play the block’s base audio.
+                    </p>
+                  </div>
+                ) : isAudioScript ? (
+                  <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                    Regenerate per-level audio from the script row after changing this.
                   </p>
                 ) : null}
               </div>

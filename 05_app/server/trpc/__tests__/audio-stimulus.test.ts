@@ -122,3 +122,32 @@ describe("studies.generateStimulusAudio (ADR-0069)", () => {
     expect(synth).not.toHaveBeenCalled();
   });
 });
+
+describe("studies.generateAudioClip (ADR-0058/0069 — per-variant audio)", () => {
+  it("renders an arbitrary script to a cached URL without touching any block", async () => {
+    const { caller, studyId, instanceId, workspaceId } = await seed(true);
+    const res = await caller.studies.generateAudioClip({ studyId, script: "Variant A script", description: "calm" });
+
+    expect(res.cached).toBe(false);
+    expect(res.url).toContain(`/api/media/ws/${workspaceId}/audio-stimulus/`);
+    expect(synth).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/put/"), expect.objectContaining({ method: "PUT" }));
+    // The block config is NOT mutated (audioUrl stays empty — this is variant plumbing).
+    const study = await caller.studies.get({ id: studyId });
+    const block = study.blocks.find((b) => b.instanceId === instanceId)!;
+    expect((block.config as { audioUrl: string }).audioUrl).toBe("");
+  });
+
+  it("two levels with distinct scripts get distinct cached URLs", async () => {
+    const { caller, studyId } = await seed(true);
+    const a = await caller.studies.generateAudioClip({ studyId, script: "Level A" });
+    const b = await caller.studies.generateAudioClip({ studyId, script: "Level B" });
+    expect(a.url).not.toBe(b.url); // hash differs by script → per-variant audio
+  });
+
+  it("rejects without a Hume connection", async () => {
+    const { caller, studyId } = await seed(false);
+    await expect(caller.studies.generateAudioClip({ studyId, script: "x" })).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+    expect(synth).not.toHaveBeenCalled();
+  });
+});
