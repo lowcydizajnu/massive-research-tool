@@ -739,7 +739,7 @@ export type ResultsSummary = {
     optionCounts: { value: string; count: number }[];
     /** V2.1 (ADR-0066 H3a): emotion-analysis aggregate when enabled on this
      *  block — mean emotion vector (top-N) + ok/failed/pending counts. */
-    emotion?: { n: number; failed: number; pending: number; names: string[]; top: { name: string; score: number }[] };
+    emotion?: { n: number; failed: number; pending: number; names: string[]; top: { name: string; score: number }[]; error?: string };
     /** Spatial overlay — the stimulus image + aggregated clicks/region hits
      *  (inline on Results, ADR-0041) plus per-respondent rows for the dedicated
      *  Explore surface (ADR-0041 amendment). `points`/`regions` stay pooled and
@@ -4573,6 +4573,7 @@ export const studiesRouter = router({
           let ok = 0;
           let failed = 0;
           let pending = 0;
+          let error: string | undefined; // a sample failure reason to show in Results
           for (const r of rows) {
             // Per-respondent emotion lands in the export matrix via answersByResponse:
             // a `emostatus:<inst>` status cell + one `emo:<inst>:<name>` score cell per
@@ -4588,8 +4589,11 @@ export const studiesRouter = router({
                   row[`emo:${q.instanceId}:${name}`] = score.toFixed(4);
                 }
               }
-            } else if (r.emotionStatus === "failed") failed++;
-            else if (r.emotionStatus === "pending" || r.emotionStatus == null) pending++;
+            } else if (r.emotionStatus === "failed") {
+              failed++;
+              const e = (r.emotionAnalysis as { error?: unknown } | null)?.error;
+              if (!error && typeof e === "string" && e) error = e;
+            } else if (r.emotionStatus === "pending" || r.emotionStatus == null) pending++;
             row[`emostatus:${q.instanceId}`] = r.emotionStatus ?? "pending";
             answersByResponse.set(r.responseId, row);
           }
@@ -4602,6 +4606,7 @@ export const studiesRouter = router({
               .map(([name, total]) => ({ name, score: total / Math.max(1, ok) }))
               .sort((a, b) => b.score - a.score)
               .slice(0, 7),
+            ...(error ? { error } : {}),
           };
         }
       }
