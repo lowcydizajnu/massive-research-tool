@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 
 import type { StudyBlock } from "@/server/trpc/routers/studies";
 import { api } from "@/lib/trpc/react";
+import { EMOTION_ANALYSIS_AVAILABLE, EMOTION_UNAVAILABLE_REASON } from "@/lib/ai/emotion-availability";
 import { HUME_LANGUAGES } from "@/lib/ai/hume-languages";
 import { AiChatConfig } from "@/components/feature/builder/ai-chat-config";
 import { AudioStimulusConfig } from "@/components/feature/builder/audio-stimulus-config";
@@ -955,6 +956,20 @@ function EmotionAnalysisToggle({
   const list = api.ai.connections.list.useQuery();
   const humeConnected = (list.data ?? []).some((c) => c.provider === "hume");
   const isVoice = block.key === "audio-record" || block.key === "voice-emotion-probe";
+
+  // Provider gate: emotion analysis is paused (Hume EM discontinued). Show why and
+  // don't let a researcher newly enable a feature that can't run.
+  if (!EMOTION_ANALYSIS_AVAILABLE) {
+    return (
+      <div className="flex flex-col gap-1 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] p-2.5">
+        <span className="text-[length:var(--text-body)] font-medium text-[var(--color-text-muted)]">
+          Emotion analysis (paused)
+        </span>
+        <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">{EMOTION_UNAVAILABLE_REASON}</span>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-1 rounded-[var(--radius-md)] bg-[var(--color-surface-subtle)] p-2.5">
       {alwaysOn ? (

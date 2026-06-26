@@ -70,6 +70,14 @@ Two new core blocks where **emotion is the measure, not a side-channel**: `core/
 
 **Re-run affordance.** `studies.reanalyzeEmotion({ studyId })` re-queues a study's not-yet-`ok` emotion items (resets to `pending` + re-enqueues `hume.analyze`) so rows stuck by a transient error or the pre-fix timeout clear without resubmitting responses. Surfaced as a "Re-run emotion analysis (N)" button on Results (write-member gated), shown only when stuck items exist.
 
+## Amendment (2026-06-26) — Hume Expression Measurement discontinued; emotion analysis paused
+
+Hume **discontinued the Expression Measurement API** (batch + streaming) — last usable day 2026-06-14; it now returns `403 "The Expression Measurement API has been discontinued and is no longer available."` This is the backend H3a (free-text/audio-record toggle) and the H3b/H4b probe blocks were built on. It was real and verified against the SDK when built; the vendor retired the product. Octave TTS is a separate product and is unaffected (audio-stimulus + per-variant voice still work).
+
+**Interim:** a one-line kill-switch `lib/ai/emotion-availability.ts → EMOTION_ANALYSIS_AVAILABLE=false`. The Builder emotion panel shows "paused" with the reason (no new enabling); the `hume.analyze` job fails fast with the reason (no dead API calls); the Results panel surfaces the reason. Nothing else is affected. Flip the flag to `true` in the same change that lands a working emotion provider.
+
+**Re-platform options (owner decision pending):** (a) emotion via the AI substrate using an LLM (text works now; voice = transcript-only, loses prosody) — note an LLM score is not a validated psychometric, so it stays the "exploratory" measure the UI already labels; (b) a dedicated emotion vendor (esp. for voice/prosody); (c) Hume EVI's embedded expression (voice-conversation only — Hume's own migration path); (d) leave paused. The provider-agnostic gateway/adapter (this ADR) is exactly what keeps any of these a localized change.
+
 ## Revisit triggers
 
 - We add a provider whose pricing isn't expressible as the current per-token/per-duration table (revisit the cost model).
