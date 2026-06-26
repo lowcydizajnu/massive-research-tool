@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { Card, PreviewRibbon } from "@/components/feature/take/parts";
+import { PanelRedirect } from "@/components/feature/take/panel-redirect";
 import { getCompletionInfo } from "@/server/runtime/participant";
 
 /**
@@ -34,13 +35,18 @@ export default async function CompletePage({
 
   return (
     <Card>
+      {/* External-panel completion redirect (ADR-0071) takes precedence: sticky
+          box + auto-redirect. The end-redirect block button is suppressed. */}
+      {info.panelRedirect ? (
+        <PanelRedirect url={info.panelRedirect.url} delaySec={info.panelRedirect.delaySec} stickyText={info.panelRedirect.stickyText} />
+      ) : null}
       <h1 className="font-serif text-[length:var(--text-display)] font-medium text-[var(--color-text-primary)]">
         {info.uiCopy.thankYouTitle}
       </h1>
       <p className="text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
-        {info.uiCopy.thankYouBody}{info.redirect ? "" : " You may now close this tab."}
+        {info.uiCopy.thankYouBody}{info.redirect || info.panelRedirect ? "" : " You may now close this tab."}
       </p>
-      {info.redirect ? (
+      {info.redirect && !info.panelRedirect ? (
         <div className="flex flex-col gap-2">
           {info.redirect.code ? (
             <p className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">

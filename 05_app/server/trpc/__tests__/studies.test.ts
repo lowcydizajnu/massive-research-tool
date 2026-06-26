@@ -1348,6 +1348,40 @@ describe("studies.changelog (Dashboard — when/what/who)", () => {
   });
 });
 
+describe("studies.setPanelIntegration (ADR-0071)", () => {
+  it("defaults to standard flow; persists sanitized config; rejects other workspace", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const a = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await a.studies.create({ kind: "blank", title: "S" });
+
+    // Empty by default → resolved defaults.
+    const d0 = await a.studies.get({ id });
+    expect(d0.panelIntegration.respondentIdParam).toBe("res_id");
+    expect(d0.panelIntegration.completionUrl).toBe("");
+
+    await a.studies.setPanelIntegration({
+      studyId: id,
+      config: {
+        respondentIdParam: "PID",
+        completionUrl: "https://panel.example.com/done?id={ext_id}",
+        completionDelaySec: 30,
+        refusalUrl: "javascript:bad", // dropped
+        skipRefusalScreen: true,
+      },
+    });
+    const d1 = await a.studies.get({ id });
+    expect(d1.panelIntegration.respondentIdParam).toBe("PID");
+    expect(d1.panelIntegration.completionUrl).toBe("https://panel.example.com/done?id={ext_id}");
+    expect(d1.panelIntegration.completionDelaySec).toBe(30);
+    expect(d1.panelIntegration.refusalUrl).toBe(""); // sanitized away
+    expect(d1.panelIntegration.skipRefusalScreen).toBe(true);
+
+    await seedUserWithWorkspace("ext_b", "Beta");
+    const b = createCaller({ authUser: authUser("ext_b") });
+    await expect(b.studies.setPanelIntegration({ studyId: id, config: {} })).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+});
+
 describe("studies.getVersion + restoreVersion (ADR-0019)", () => {
   it("previews a frozen version's blocks read-only", async () => {
     await seedUserWithWorkspace("ext_a", "Alpha");

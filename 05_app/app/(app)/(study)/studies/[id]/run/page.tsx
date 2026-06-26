@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 
+import { ExternalPanelCard } from "@/components/feature/run/external-panel-card";
 import { ProlificRecruitCard } from "@/components/feature/run/prolific-recruit-card";
 import { RunPanel } from "@/components/feature/run/run-panel";
 import { ReadOnlyBanner } from "@/components/feature/workspace/role-gate";
@@ -63,6 +64,7 @@ export default async function RunStagePage({
       </div>
 
       {info.runnable ? <ProlificRecruitCard studyId={study.id} studyTitle={study.title} /> : null}
+      <ExternalPanelCard studyId={study.id} initial={study.panelIntegration} />
     </main>
   );
 }

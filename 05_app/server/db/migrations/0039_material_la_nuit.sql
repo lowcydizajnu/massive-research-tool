@@ -1,0 +1,1 @@
+ALTER TABLE "experiment" ADD COLUMN "panel_integration" jsonb DEFAULT '{}'::jsonb NOT NULL;

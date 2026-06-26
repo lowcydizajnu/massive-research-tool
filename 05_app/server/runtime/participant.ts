@@ -18,6 +18,7 @@ import { jobs } from "@/server/adapters/jobs";
 import { pickCell, resolveConfigForCell, type VariantBinding, type VariantCell } from "@/lib/variants/factorial";
 import { readTheme, type StudyTheme } from "@/lib/themes/themes";
 import { readBlockCopy, resolveUiCopy, type BlockCopyKey, type UiCopyKey } from "@/lib/take/ui-copy";
+import { fillPanelPlaceholders, resolvePanelIntegration, type PanelIntegration } from "@/lib/take/panel-integration";
 import { getModuleDef } from "@/server/modules/registry";
 
 /**
@@ -281,10 +282,10 @@ export async function setRecruitmentStatus(
  * when the study isn't preregistered or recruitment isn't open.
  */
 export async function resolveOpenRecruitment(studyId: string): Promise<
-  { recruitmentSessionId: string; versionId: string; studyTitle: string; consent: StudyConsent; embeddedParams: string[] } | null
+  { recruitmentSessionId: string; versionId: string; studyTitle: string; consent: StudyConsent; embeddedParams: string[]; panelIntegration: PanelIntegration } | null
 > {
   const [study] = await db
-    .select({ title: experiment.title })
+    .select({ title: experiment.title, panelIntegration: experiment.panelIntegration })
     .from(experiment)
     .where(eq(experiment.id, studyId))
     .limit(1);
@@ -321,7 +322,7 @@ export async function resolveOpenRecruitment(studyId: string): Promise<
     .flatMap((b) => (Array.isArray(b.config?.params) ? (b.config!.params as unknown[]) : []))
     .map(String)
     .filter((n) => n.trim() !== "");
-  return { recruitmentSessionId: rs.id, versionId: ver.id, studyTitle: study.title, consent: readConsent(ver.snapshot), embeddedParams };
+  return { recruitmentSessionId: rs.id, versionId: ver.id, studyTitle: study.title, consent: readConsent(ver.snapshot), embeddedParams, panelIntegration: resolvePanelIntegration(study.panelIntegration) };
 }
 
 /**
@@ -749,17 +750,21 @@ export async function getCompletionInfo(
   mode: ResponseMode;
   completed: boolean;
   redirect: { url: string; code: string; label: string } | null;
+  /** External-panel completion redirect (ADR-0071) — auto-redirect with delay +
+   *  sticky box. Takes precedence over `redirect` when set. */
+  panelRedirect: { url: string; delaySec: number; stickyText: string } | null;
   uiCopy: Record<UiCopyKey, string>;
 } | null> {
   const [resp] = await db
-    .select({ status: response.status, mode: response.mode, versionId: response.experimentVersionId })
+    .select({ status: response.status, mode: response.mode, versionId: response.experimentVersionId, externalPid: response.externalPid })
     .from(response)
     .where(eq(response.id, responseId))
     .limit(1);
   if (!resp) return null;
   const [ver] = await db
-    .select({ snapshot: experimentVersion.definitionSnapshot })
+    .select({ snapshot: experimentVersion.definitionSnapshot, panelIntegration: experiment.panelIntegration })
     .from(experimentVersion)
+    .innerJoin(experiment, eq(experimentVersion.experimentId, experiment.id))
     .where(eq(experimentVersion.id, resp.versionId))
     .limit(1);
   const er = ver ? readBlocks(ver.snapshot).find((b) => b.key === "end-redirect") : undefined;
@@ -779,10 +784,22 @@ export async function getCompletionInfo(
       redirect = null; // invalid URL → no button (the code still shows)
     }
   }
+  // External-panel completion redirect (ADR-0071) — only on a real (non-preview)
+  // completed response; fills {ext_id}/{session_id} and rides the delay/sticky box.
+  let panelRedirect: { url: string; delaySec: number; stickyText: string } | null = null;
+  const panel = ver ? resolvePanelIntegration(ver.panelIntegration) : null;
+  if (panel?.completionUrl && resp.mode !== "preview") {
+    panelRedirect = {
+      url: fillPanelPlaceholders(panel.completionUrl, { extId: resp.externalPid, sessionId: responseId }),
+      delaySec: panel.completionDelaySec,
+      stickyText: panel.completionStickyText,
+    };
+  }
   return {
     mode: resp.mode as ResponseMode,
     completed: resp.status === "completed",
     redirect,
+    panelRedirect,
     uiCopy: resolveUiCopy((ver?.snapshot as { uiCopy?: unknown } | null)?.uiCopy),
   };
 }

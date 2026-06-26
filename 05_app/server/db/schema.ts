@@ -309,6 +309,11 @@ export const experiment = pgTable(
     /** Seeded demo study (ADR-0023) — excluded from /browse + public aggregates;
      *  shown in its workspace only when workspace.show_demo_content is on. */
     isDemo: boolean("is_demo").notNull().default(false),
+    /** External research-panel / agency integration (ADR-0071) — operational
+     *  recruitment config (NOT frozen with the version): respondent-id URL param,
+     *  completion + consent-refusal redirects with delay/sticky-box, skip-refusal.
+     *  Empty {} = standard flow. Structured fields only (no arbitrary code). */
+    panelIntegration: jsonb("panel_integration").notNull().default({}),
   },
   () => [
     check(

@@ -1,5 +1,6 @@
 import { Card, PreviewRibbon } from "@/components/feature/take/parts";
 import { resolveOpenRecruitment } from "@/server/runtime/participant";
+import { fillPanelPlaceholders } from "@/lib/take/panel-integration";
 
 import { beginAction } from "../actions";
 
@@ -35,6 +36,26 @@ export default async function StartPage({
 
   const preview = sp.preview === "true";
 
+  // Agency panel integration (ADR-0071): capture the respondent-id from the
+  // configured URL param (falls back to PROLIFIC_PID); route the decline either
+  // straight to the refusal URL (skip screen) or to the local declined screen
+  // carrying ext_id so it can redirect from there.
+  const panel = open.panelIntegration;
+  const paramVal = typeof sp[panel.respondentIdParam] === "string" ? (sp[panel.respondentIdParam] as string) : "";
+  const extId = paramVal || (typeof sp.PROLIFIC_PID === "string" ? sp.PROLIFIC_PID : "");
+  const declineHref =
+    panel.refusalUrl && panel.skipRefusalScreen
+      ? fillPanelPlaceholders(panel.refusalUrl, { extId, sessionId: "" })
+      : `/take/${studyId}/declined${
+          (() => {
+            const q = new URLSearchParams();
+            if (preview) q.set("preview", "true");
+            if (extId) q.set("ext_id", extId);
+            const s = q.toString();
+            return s ? `?${s}` : "";
+          })()
+        }`;
+
   return (
     <Card>
       {preview ? <PreviewRibbon /> : null}
@@ -59,9 +80,7 @@ export default async function StartPage({
         <input type="hidden" name="studyId" value={studyId} />
         <input type="hidden" name="recruitmentSessionId" value={open.recruitmentSessionId} />
         <input type="hidden" name="mode" value={preview ? "preview" : "run"} />
-        {sp.PROLIFIC_PID ? (
-          <input type="hidden" name="externalPid" value={sp.PROLIFIC_PID} />
-        ) : null}
+        {extId ? <input type="hidden" name="externalPid" value={extId} /> : null}
         {/* Embedded data (ADR-0042): only the researcher-declared param names. */}
         {open.embeddedParams.map((name) =>
           typeof sp[name] === "string" ? (
@@ -75,9 +94,11 @@ export default async function StartPage({
           >
             {open.consent.agreeLabel}
           </button>
-          {/* Declining is a plain link — nothing recorded, no tracking (ADR-0035). */}
+          {/* Declining is a plain link — nothing recorded, no tracking (ADR-0035).
+              With an agency refusal redirect + skip-screen, it points straight at
+              the panel's screen-out URL (ADR-0071). */}
           <a
-            href={`/take/${studyId}/declined${preview ? "?preview=true" : ""}`}
+            href={declineHref}
             className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-5 py-2.5 text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
           >
             {open.consent.disagreeLabel}
