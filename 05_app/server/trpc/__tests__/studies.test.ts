@@ -1301,6 +1301,7 @@ describe("studies.listVersions (V1.7.1 item 3)", () => {
     versions = await caller.studies.listVersions({ studyId: id });
     expect(versions.map((v) => v.kind)).toEqual(["autosave", "named"]);
     expect(versions[1]).toMatchObject({ kind: "named", versionNumber: 1, name: "Pilot" });
+    expect(versions[1].author).toBe("ext_a"); // changelog "by who" (creator's display name)
     // The autosave tip is the working copy; the named snapshot is the latest saved.
     // Right after saving, the working copy matches it → no unsaved changes.
     expect(versions[0]).toMatchObject({ isWorkingCopy: true, hasUnsavedChanges: false });
