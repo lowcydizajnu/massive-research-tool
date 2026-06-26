@@ -1,60 +1,64 @@
 /* =========================================================================
    Massive Research Tool — design tokens
-   Source of truth: 03_design/design-system/tokens.md (brief v0.6)
+   Source of truth: 03_design/design-system/tokens.md (brief v0.7)
    Light values on :root; Dark values via [data-theme="dark"] selector.
    Hover/active states use opacity overlays, never a third hue.
+
+   v0.7 (2026-06-22): identity shift from warm-parchment-light-only to
+   dark+light dual mode with emerald accent. Color values updated; all
+   variable NAMES + all non-color tokens (type/spacing/radius/motion)
+   preserved for backward compatibility. v0.6 archived at
+   99_archive/v06-design-language-2026-06-22/. Revert path documented there.
    ========================================================================= */
 
 :root {
   /* Native form controls (date picker, select arrow, scrollbars) follow the
      theme — fixes the invisible dark-on-dark calendar icon. */
   color-scheme: light;
-  /* Surface neutrals — warm parchment ladder */
-  --color-surface-page: #F7F2E8;
+  /* Surface neutrals — near-white with faint green-warm undertone */
+  --color-surface-page: #F8F9F7;
   --color-surface-canvas: #FFFFFF;
-  --color-surface-panel: #FCFAF3;
+  --color-surface-panel: #FFFFFF;
   --color-surface-raised: #FFFFFF;
-  --color-surface-subtle: #F2EEE3;
+  --color-surface-subtle: #F1F3F0;
 
-  /* Text */
-  --color-text-primary: #1A1F2C;
-  --color-text-secondary: #3F4654;
-  --color-text-muted: #6E7480;
-  --color-ink-deep: #0F2A47;
+  /* Text — near-black with green undertone */
+  --color-text-primary: #0E1410;
+  --color-text-secondary: #5C625C;
+  --color-text-muted: #8A908A;
+  --color-ink-deep: #0E1410;
 
-  /* Primary — action color */
-  --color-primary: #1747C9;
-  --color-primary-subtle: #EAF0FD;
-  --color-primary-text-on-subtle: #0B2A7A;
+  /* Primary — emerald (the v0.7 brand accent) */
+  --color-primary: #0AB667;
+  --color-primary-subtle: rgba(10, 182, 103, 0.14);
+  --color-primary-text-on-subtle: #047144;
 
-  /* Accent — energy */
-  --color-accent: #0EA5E9;
-  --color-accent-subtle: #E0F4FE;
-  --color-accent-text-on-subtle: #0E5879;
+  /* Accent — kept as secondary cool hue (info-ish blue-teal) for breadth */
+  --color-accent: #0E7490;
+  --color-accent-subtle: rgba(14, 116, 144, 0.12);
+  --color-accent-text-on-subtle: #0C536A;
 
-  /* Success — true emerald */
-  --color-success: #22C55E;
-  --color-success-subtle: #E6F6DC;
-  --color-success-text-on-subtle: #14532D;
+  /* Success — same as primary in v0.7 (running = brand) */
+  --color-success: #0AB667;
+  --color-success-subtle: rgba(10, 182, 103, 0.14);
+  --color-success-text-on-subtle: #047144;
 
   /* Warning — amber */
-  --color-warning: #F59E0B;
-  --color-warning-subtle: #FBEFCF;
-  --color-warning-text-on-subtle: #78350F;
+  --color-warning: #D97706;
+  --color-warning-subtle: rgba(217, 119, 6, 0.12);
+  --color-warning-text-on-subtle: #7D5C0D;
 
   /* Danger — true red */
-  --color-danger: #EF4444;
-  --color-danger-subtle: #FBE0DA;
-  --color-danger-text-on-subtle: #7F1D1D;
+  --color-danger: #DC2626;
+  --color-danger-subtle: rgba(220, 38, 38, 0.10);
+  --color-danger-text-on-subtle: #B91C1C;
 
-  /* Info — uses accent */
-  --color-info: #0EA5E9;
-  --color-info-subtle: #DDEFFB;
-  --color-info-text-on-subtle: #0E5879;
+  /* Info — cool blue-teal */
+  --color-info: #0E7490;
+  --color-info-subtle: rgba(14, 116, 144, 0.12);
+  --color-info-text-on-subtle: #0C536A;
 
-  /* Condition categorical palette (ADR-0057) — distinct hues per experimental
-     condition on the study flow diagram; cycled by condition index. Each is a
-     subtle chip background + a readable text colour. */
+  /* Condition categorical palette (ADR-0057) — subtle chip backgrounds + readable text. */
   --color-cond-1: #E7E9FD; --color-cond-1-text: #312E81;
   --color-cond-2: #D5F0EC; --color-cond-2-text: #115E59;
   --color-cond-3: #FBEACB; --color-cond-3-text: #854D0E;
@@ -62,61 +66,61 @@
   --color-cond-5: #F1E4FB; --color-cond-5-text: #5B21B6;
   --color-cond-6: #D9EEF8; --color-cond-6-text: #155E75;
 
-  /* Borders — three tiers, vertical use restricted */
-  --color-border-heavy: #1A1F2C;
-  --color-border-medium: #94A0B5;
-  --color-border-subtle: #E6DFD2;
+  /* Borders — three tiers; v0.7 leans on tonal lift, but tokens preserved for legacy callers */
+  --color-border-heavy: rgba(14, 20, 16, 0.25);
+  --color-border-medium: rgba(14, 20, 16, 0.15);
+  --color-border-subtle: rgba(14, 20, 16, 0.08);
 
-  /* Shadow elevation */
-  --shadow-sm: 0 1px 2px rgba(15, 42, 71, 0.04);
-  --shadow-md: 0 4px 16px rgba(15, 42, 71, 0.08);
-  --shadow-lg: 0 12px 32px rgba(15, 42, 71, 0.12);
+  /* Shadow elevation — subtler in v0.7 (tonal layering does most of the work) */
+  --shadow-sm: 0 1px 2px rgba(14, 20, 16, 0.04);
+  --shadow-md: 0 4px 12px rgba(14, 20, 16, 0.08);
+  --shadow-lg: 0 8px 24px rgba(14, 20, 16, 0.10);
 }
 
 [data-theme="dark"] {
   color-scheme: dark;
-  /* Surface neutrals — warm-dark, not cool slate */
-  --color-surface-page: #161514;
-  --color-surface-canvas: #1F1D1B;
-  --color-surface-panel: #1B1A18;
-  --color-surface-raised: #272421;
-  --color-surface-subtle: #2A2724;
+  /* Surface neutrals — near-black with faint green-warm undertone (matches light's direction) */
+  --color-surface-page: #0A0E0C;
+  --color-surface-canvas: #161B19;
+  --color-surface-panel: #161B19;
+  --color-surface-raised: #1D2421;
+  --color-surface-subtle: rgba(255, 255, 255, 0.04);
 
-  /* Text — warm off-white, not pure white */
-  --color-text-primary: #F5F1E8;
-  --color-text-secondary: #C9C5BE;
-  --color-text-muted: #8E8B86;
-  --color-ink-deep: #F5F1E8;
+  /* Text — off-white with green undertone */
+  --color-text-primary: #F4F8F4;
+  --color-text-secondary: #8E948E;
+  --color-text-muted: #5C625C;
+  --color-ink-deep: #F4F8F4;
 
-  /* Primary — brightened for dark surfaces */
-  --color-primary: #3D78E8;
-  --color-primary-subtle: rgba(23, 71, 201, 0.25);
-  --color-primary-text-on-subtle: #A8C0F0;
+  /* Primary — same emerald, lighter text variant for chip surfaces */
+  --color-primary: #0AB667;
+  --color-primary-subtle: rgba(10, 182, 103, 0.16);
+  --color-primary-text-on-subtle: #4AD693;
 
-  /* Accent */
-  --color-accent: #38BDF8;
-  --color-accent-subtle: rgba(14, 165, 233, 0.22);
-  --color-accent-text-on-subtle: #92D5F0;
+  /* Accent — brightened blue-teal for dark */
+  --color-accent: #22D3EE;
+  --color-accent-subtle: rgba(34, 211, 238, 0.16);
+  --color-accent-text-on-subtle: #67E8F9;
 
-  /* Success */
-  --color-success: #4ADE80;
-  --color-success-subtle: rgba(34, 197, 94, 0.18);
-  --color-success-text-on-subtle: #88E0A8;
+  /* Success — same emerald */
+  --color-success: #0AB667;
+  --color-success-subtle: rgba(10, 182, 103, 0.16);
+  --color-success-text-on-subtle: #4AD693;
 
-  /* Warning */
-  --color-warning: #FBBF24;
-  --color-warning-subtle: rgba(245, 158, 11, 0.22);
-  --color-warning-text-on-subtle: #FCD68A;
+  /* Warning — yellow (warmer than amber in dark) */
+  --color-warning: #FCD34D;
+  --color-warning-subtle: rgba(252, 211, 77, 0.14);
+  --color-warning-text-on-subtle: #FCD34D;
 
-  /* Danger */
+  /* Danger — lighter red for dark */
   --color-danger: #F87171;
-  --color-danger-subtle: rgba(239, 68, 68, 0.2);
-  --color-danger-text-on-subtle: #F5A0A0;
+  --color-danger-subtle: rgba(248, 113, 113, 0.14);
+  --color-danger-text-on-subtle: #F87171;
 
-  /* Info */
-  --color-info: #38BDF8;
-  --color-info-subtle: rgba(14, 165, 233, 0.22);
-  --color-info-text-on-subtle: #92D5F0;
+  /* Info — brightened blue-teal */
+  --color-info: #22D3EE;
+  --color-info-subtle: rgba(34, 211, 238, 0.16);
+  --color-info-text-on-subtle: #67E8F9;
 
   /* Condition categorical palette (ADR-0057) — dark-mode tints + readable text. */
   --color-cond-1: rgba(99, 102, 241, 0.22); --color-cond-1-text: #C7C9F7;
@@ -126,10 +130,10 @@
   --color-cond-5: rgba(139, 92, 246, 0.22); --color-cond-5-text: #CBB2F2;
   --color-cond-6: rgba(6, 182, 212, 0.22); --color-cond-6-text: #8ED6E8;
 
-  /* Borders */
-  --color-border-heavy: #F5F1E8;
-  --color-border-medium: #5F5B55;
-  --color-border-subtle: #322E2A;
+  /* Borders — alpha-on-white in dark mode */
+  --color-border-heavy: rgba(255, 255, 255, 0.18);
+  --color-border-medium: rgba(255, 255, 255, 0.12);
+  --color-border-subtle: rgba(255, 255, 255, 0.06);
 
   /* Shadow — heavier in dark mode */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
@@ -139,6 +143,8 @@
 
 /* =========================================================================
    Non-color tokens — identical in both modes
+   v0.7 preserved v0.6 values for backward compat. Type-scale bumps and
+   spacing/radius adjustments can land later as separate coordinated changes.
    ========================================================================= */
 
 :root {
