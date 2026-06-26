@@ -22,20 +22,18 @@ describe("customization guards (variants varying-field + condition source)", () 
 });
 
 describe("emotion-probe blocks (ADR-0066 H3b/H4b)", () => {
-  it("voice-emotion-probe forces emotion analysis ON (voice) and reuses audio-record's response schema", () => {
+  it("voice-emotion-probe is ARCHIVED (hidden from the picker) — vocal emotion has no provider", () => {
     const m = getModuleDef("core", "voice-emotion-probe", "1.0.0")!;
-    expect(m.collectsResponse).toBe(true);
-    const ea = (m.defaultConfig as { emotionAnalysis?: { enabled?: boolean; modality?: string; provider?: string } }).emotionAnalysis;
-    expect(ea).toMatchObject({ enabled: true, provider: "hume", modality: "voice" });
-    // Inherited audio-record response schema: accepts an r2Key + duration.
-    expect(m.responseSchema!.safeParse({ r2Key: "resp/abc/clip.webm", durationMs: 4000 }).success).toBe(true);
+    expect(m.archived).toBe(true);
+    expect(m.collectsResponse).toBe(true); // still resolves for any legacy study
   });
 
-  it("text-emotion-probe forces emotion analysis ON (text) and reuses free-text's response schema", () => {
+  it("text-emotion-probe forces emotion analysis ON (text, Claude) and reuses free-text's response schema", () => {
     const m = getModuleDef("core", "text-emotion-probe", "1.0.0")!;
     expect(m.collectsResponse).toBe(true);
-    const ea = (m.defaultConfig as { emotionAnalysis?: { enabled?: boolean; modality?: string } }).emotionAnalysis;
-    expect(ea).toMatchObject({ enabled: true, provider: "hume", modality: "text" });
+    expect(m.archived).toBeFalsy();
+    const ea = (m.defaultConfig as { emotionAnalysis?: { enabled?: boolean; modality?: string; provider?: string } }).emotionAnalysis;
+    expect(ea).toMatchObject({ enabled: true, provider: "anthropic", modality: "text" });
     expect(m.responseSchema!.safeParse({ text: "I felt uneasy reading that." }).success).toBe(true);
   });
 
