@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { HelpCircle, Plus, Trash2, X } from "lucide-react";
+import { ChevronDown, ChevronRight, HelpCircle, Plus, Trash2, X } from "lucide-react";
 
 import { api } from "@/lib/trpc/react";
 import { cellCount, type VariantBinding, type VariantFactor } from "@/lib/variants/factorial";
@@ -88,6 +88,8 @@ export function VariantsSection({ study, canEdit }: { study: StudyDetail; canEdi
   const [newPath, setNewPath] = useState("");
   const [newFactor, setNewFactor] = useState("");
   const [helpOpen, setHelpOpen] = useState(false);
+  // Collapsed by default — the section gets long once factors/bindings exist.
+  const [open, setOpen] = useState(false);
   const newBlk = study.blocks.find((b) => b.instanceId === newBlock);
   const newBlockFields = configFieldKeys(
     newBlk?.config,
@@ -140,7 +142,15 @@ export function VariantsSection({ study, canEdit }: { study: StudyDetail; canEdi
     <section className="flex flex-col gap-3">
       <div className="flex items-center justify-between border-b border-[var(--color-border-subtle)] pb-1">
         <div className="flex items-center gap-1.5">
-          <h2 className="font-serif text-[17px] font-medium text-[var(--color-text-primary)]">Variants</h2>
+          <button
+            type="button"
+            aria-expanded={open}
+            onClick={() => setOpen((v) => !v)}
+            className="flex items-center gap-1.5 text-left"
+          >
+            {open ? <ChevronDown className="size-4 text-[var(--color-text-muted)]" aria-hidden /> : <ChevronRight className="size-4 text-[var(--color-text-muted)]" aria-hidden />}
+            <h2 className="font-serif text-[17px] font-medium text-[var(--color-text-primary)]">Variants</h2>
+          </button>
           <button
             type="button"
             aria-label="What are variants? Help"
@@ -156,6 +166,9 @@ export function VariantsSection({ study, canEdit }: { study: StudyDetail; canEdi
           {cells > 12 ? " — large; consider fewer levels" : ""}
         </span>
       </div>
+
+      {open ? (
+      <>
       <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
         A/B &amp; factorial designs: each participant is randomly assigned one combination. Define factors and bind the fields that vary —
         everything else stays shared (edit it in Blocks).
@@ -314,6 +327,8 @@ export function VariantsSection({ study, canEdit }: { study: StudyDetail; canEdi
             Pick the field that should differ between levels (the list comes from that block&rsquo;s settings). Numeric values are stored as numbers.
           </p>
         </div>
+      ) : null}
+      </>
       ) : null}
 
       {helpOpen ? (

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { UI_COPY_DEFAULTS, formatProgress, resolveUiCopy, sanitizeUiCopy } from "@/lib/take/ui-copy";
+import { BLOCK_COPY_DEFAULTS, UI_COPY_DEFAULTS, formatProgress, readBlockCopy, resolveUiCopy, sanitizeUiCopy } from "@/lib/take/ui-copy";
 
 describe("ui-copy (editable participant chrome)", () => {
   it("resolves overrides over defaults; blank/missing/unknown fall back", () => {
@@ -24,5 +24,19 @@ describe("ui-copy (editable participant chrome)", () => {
   it("sanitize keeps only known non-empty keys, trimmed + capped", () => {
     const s = sanitizeUiCopy({ continueButton: "  Go  ", backButton: "   ", nope: "x" });
     expect(s).toEqual({ continueButton: "Go" });
+  });
+
+  it("sanitize also keeps block-internal keys (social-post labels)", () => {
+    const s = sanitizeUiCopy({ postLike: "Polub", postShare: "  ", nope: "x" });
+    expect(s).toEqual({ postLike: "Polub" });
+  });
+
+  it("readBlockCopy returns only SET overrides (no defaults — blank = native)", () => {
+    expect(readBlockCopy({ postCommentPlaceholder: "Napisz komentarz" })).toEqual({
+      postCommentPlaceholder: "Napisz komentarz",
+    });
+    expect(readBlockCopy(undefined)).toEqual({}); // nothing set → native everywhere
+    expect(readBlockCopy({ postLike: "  " })).toEqual({}); // blank → native
+    expect(Object.keys(BLOCK_COPY_DEFAULTS)).toContain("postLike");
   });
 });

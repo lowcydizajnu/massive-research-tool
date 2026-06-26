@@ -17,7 +17,7 @@ import { readBlocks, readGroups, readFactors, readVariantBindings, type BlockIns
 import { jobs } from "@/server/adapters/jobs";
 import { pickCell, resolveConfigForCell, type VariantBinding, type VariantCell } from "@/lib/variants/factorial";
 import { readTheme, type StudyTheme } from "@/lib/themes/themes";
-import { resolveUiCopy, type UiCopyKey } from "@/lib/take/ui-copy";
+import { readBlockCopy, resolveUiCopy, type BlockCopyKey, type UiCopyKey } from "@/lib/take/ui-copy";
 import { getModuleDef } from "@/server/modules/registry";
 
 /**
@@ -561,6 +561,8 @@ export type RuntimeScreenView = {
   mayContinue: boolean;
   /** Resolved participant-facing chrome copy (study overrides + defaults). */
   uiCopy: Record<UiCopyKey, string>;
+  /** Set block-internal copy overrides (e.g. social-post labels); blank = native. */
+  blockCopy: Partial<Record<BlockCopyKey, string>>;
 };
 
 /**
@@ -613,6 +615,7 @@ export async function getRuntimeScreen(input: {
     // Only worth computing on the last known screen — earlier screens already show "Continue".
     mayContinue: isLastKnown && pathMayExtend(row.snapshot, row.conditionSlug, answers, screen),
     uiCopy: resolveUiCopy((row.snapshot as { uiCopy?: unknown } | null)?.uiCopy),
+    blockCopy: readBlockCopy((row.snapshot as { uiCopy?: unknown } | null)?.uiCopy),
   };
 }
 
