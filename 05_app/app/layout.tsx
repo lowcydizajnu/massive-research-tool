@@ -18,6 +18,7 @@ import "@fontsource/ibm-plex-mono/400.css";
 import "@fontsource/ibm-plex-mono/500.css";
 
 import { ThemeProvider } from "@/components/theme-provider";
+import { CookieBanner } from "@/components/feature/legal/cookie-banner";
 
 import "./globals.css";
 
@@ -33,7 +34,10 @@ export default function RootLayout({
     <ClerkProvider signInUrl="/signin" signUpUrl="/signup">
       <html lang="en" suppressHydrationWarning>
         <body>
-          <ThemeProvider>{children}</ThemeProvider>
+          <ThemeProvider>
+            {children}
+            <CookieBanner />
+          </ThemeProvider>
         </body>
       </html>
     </ClerkProvider>

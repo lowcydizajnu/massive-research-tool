@@ -1159,6 +1159,29 @@ export const activityEvent = pgTable(
   ],
 );
 
+// Cookie-consent ledger (legal-baseline LG2, ADR-0072 prereq). One row per
+// consent choice; `user_id` null for pre-signup choices (matched on signup via
+// the `pre_signup_id` carried in localStorage). PII-safe (ADR-0014): only a
+// one-way UA hash + coarse country, never raw IP/UA.
+export const cookieConsent = pgTable(
+  "cookie_consent",
+  {
+    id: text("id").primaryKey(), // ULID
+    userId: uuid("user_id").references(() => user.id, { onDelete: "cascade" }),
+    preSignupId: text("pre_signup_id"),
+    choice: text("choice").notNull(),
+    cookiePolicyVersion: integer("cookie_policy_version").notNull(),
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+    userAgentHash: text("user_agent_hash"),
+    ipCountry: text("ip_country"),
+  },
+  (t) => [
+    check("cookie_consent_choice", sql`${t.choice} IN ('all', 'necessary')`),
+    index("idx_cookie_consent_user").on(t.userId, t.recordedAt.desc()),
+    index("idx_cookie_consent_presignup").on(t.preSignupId, t.recordedAt.desc()),
+  ],
+);
+
 // A user's follow targets (tag / author / framework / study / module).
 export const follow = pgTable(
   "follow",
