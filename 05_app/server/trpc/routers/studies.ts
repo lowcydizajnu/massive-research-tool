@@ -4032,18 +4032,17 @@ export const studiesRouter = router({
         .from(recruitmentSession)
         .innerJoin(experimentVersion, eq(recruitmentSession.experimentVersionId, experimentVersion.id))
         .where(eq(experimentVersion.experimentId, input.studyId));
+      // Recruitment open/close aren't activity events — synthesize from the
+      // LATEST session only (the one the Dashboard reflects). Reopening makes a
+      // NEW session, so older closed sessions would otherwise surface a stale
+      // "Closed recruitment" while currently recruiting (owner bug). Pause sets
+      // closedAt=null (no timestamp), so only open + actual-close are shown.
       const recruitmentEntries: ChangelogEntry[] = [];
-      for (const s of sessions) {
-        recruitmentEntries.push({ id: `r:${s.id}:open`, at: s.openedAt.toISOString(), actor: null, kind: "event", title: "Opened recruitment", detail: [] });
-        if (s.closedAt) {
-          recruitmentEntries.push({
-            id: `r:${s.id}:close`,
-            at: s.closedAt.toISOString(),
-            actor: null,
-            kind: "event",
-            title: s.status === "paused" ? "Paused recruitment" : "Closed recruitment",
-            detail: [],
-          });
+      const latestSession = [...sessions].sort((a, b) => b.openedAt.getTime() - a.openedAt.getTime())[0];
+      if (latestSession) {
+        recruitmentEntries.push({ id: `r:${latestSession.id}:open`, at: latestSession.openedAt.toISOString(), actor: null, kind: "event", title: "Opened recruitment", detail: [] });
+        if (latestSession.status === "closed" && latestSession.closedAt) {
+          recruitmentEntries.push({ id: `r:${latestSession.id}:close`, at: latestSession.closedAt.toISOString(), actor: null, kind: "event", title: "Closed recruitment", detail: [] });
         }
       }
 
