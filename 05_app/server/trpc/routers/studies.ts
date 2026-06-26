@@ -77,6 +77,7 @@ import { decryptSecret } from "@/server/crypto/tokens";
 import { storage } from "@/server/adapters/storage";
 import { runTts, AiBudgetExceededError } from "@/server/runtime/ai-gateway";
 import { applyVisualContext, readTheme, requiresAcknowledgment, studyThemeSchema } from "@/lib/themes/themes";
+import { sanitizeUiCopy } from "@/lib/take/ui-copy";
 import { diffLines } from "@/lib/diff-lines";
 import { publicProcedure, router, workspaceProcedure, writeProcedure } from "@/server/trpc/trpc";
 import type { MemberRole } from "@/server/workspace/active";
@@ -549,6 +550,8 @@ export type StudyDetail = {
   /** Factorial variants (ADR-0058) — factors/levels + field→factor bindings; empty = single-variant. */
   factors: import("@/lib/variants/factorial").VariantFactor[];
   variantBindings: import("@/lib/variants/factorial").VariantBinding[];
+  /** Participant-facing chrome copy overrides (ADR-0066 labels slice); empty keys = default. */
+  uiCopy: Record<string, string>;
   /** Participant-facing theme (ADR-0024); Academic defaults when never set. */
   theme: import("@/lib/themes/themes").StudyTheme;
   /** The caller's role in the owning workspace — drives client-side write gating (mirrors writeProcedure: viewers are read-only). */
@@ -1635,6 +1638,7 @@ export const studiesRouter = router({
         groups: readGroups(row.version?.definitionSnapshot),
         factors: readFactors(row.version?.definitionSnapshot),
         variantBindings: readVariantBindings(row.version?.definitionSnapshot),
+        uiCopy: ((row.version?.definitionSnapshot as { uiCopy?: Record<string, string> } | null)?.uiCopy) ?? {},
         theme: readTheme(row.version?.definitionSnapshot),
         viewerRole: ctx.role as MemberRole,
       };
@@ -2368,6 +2372,28 @@ export const studiesRouter = router({
       await db
         .update(experimentVersion)
         .set({ definitionSnapshot: { ...snap, factors, variantBindings } })
+        .where(eq(experimentVersion.id, tip.version.id));
+      await db.update(experiment).set({ updatedAt: new Date() }).where(eq(experiment.id, input.studyId));
+      return { ok: true };
+    }),
+
+  /**
+   * Set participant-facing chrome copy overrides (editable labels, ADR-0066 slice:
+   * Continue/Finish/Back, the required-answer error, progress, thank-you). Stored on
+   * the version snapshot as `uiCopy`; the take runtime resolves overrides over the
+   * defaults. Blank/unknown keys are dropped so a cleared field reverts to default.
+   */
+  setUiCopy: writeProcedure
+    .input(z.object({ studyId: z.string().uuid(), uiCopy: z.record(z.string(), z.string()) }))
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+      const snap =
+        tip.version.definitionSnapshot && typeof tip.version.definitionSnapshot === "object"
+          ? (tip.version.definitionSnapshot as Record<string, unknown>)
+          : {};
+      await db
+        .update(experimentVersion)
+        .set({ definitionSnapshot: { ...snap, uiCopy: sanitizeUiCopy(input.uiCopy) } })
         .where(eq(experimentVersion.id, tip.version.id));
       await db.update(experiment).set({ updatedAt: new Date() }).where(eq(experiment.id, input.studyId));
       return { ok: true };
