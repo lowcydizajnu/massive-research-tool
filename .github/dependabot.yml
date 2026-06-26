@@ -1,0 +1,16 @@
+# Dependency updates (ADR-0072 PF1.2). Weekly; minor/patch grouped to keep PR
+# noise low; the app lives in /05_app. GitHub Actions ecosystem watched too.
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/05_app"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
