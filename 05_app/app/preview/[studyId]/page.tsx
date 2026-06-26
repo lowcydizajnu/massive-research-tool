@@ -89,7 +89,7 @@ export default async function PublicPreviewPage({
             {payload.blocks.map((b) => (
               <li key={b.instanceId}>
                 <Card>
-                  <BlockView block={b} seed={studyId} chat={payload.chat} />
+                  <BlockView block={b} seed={studyId} chat={payload.chat} blockCopy={payload.blockCopy} />
                 </Card>
               </li>
             ))}
@@ -101,7 +101,7 @@ export default async function PublicPreviewPage({
               <div className="flex flex-col gap-[var(--take-block-gap,1.5rem)]">
                 {screens[idx].map((b) => {
                   const prefix = screens[idx].length > 1 ? `${b.instanceId}__` : "";
-                  return <BlockView key={b.instanceId} block={b} seed={studyId} namePrefix={prefix} chat={payload.chat} />;
+                  return <BlockView key={b.instanceId} block={b} seed={studyId} namePrefix={prefix} chat={payload.chat} blockCopy={payload.blockCopy} />;
                 })}
               </div>
             </Card>

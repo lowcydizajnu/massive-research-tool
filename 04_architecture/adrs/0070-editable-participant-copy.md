@@ -45,7 +45,7 @@ The first revisit trigger fired: researchers need to translate/reword strings re
 
 Trade-off (recorded so we don't relitigate): we apply an overridden Like/Share/Comment **word** only where a skin already renders a word; icon-only reaction glyphs (♥, ▲, 🔁, ❤️) keep their glyph to preserve the locked platform mimicry (design language v0.6). The comment placeholder is editable on every skin. This honors "make block strings editable" without eroding the platform-fidelity that the social-post presets exist for. Extending to other blocks = add a key + thread it (same as chrome). We chose prop-threading (`blockCopy` down through `BlockView`) over a client `UiCopyProvider` context because the social-post renderers are server components and compose the label strings inline — no client context needed.
 
-The **Builder live-preview pane** does not yet reflect block-internal overrides (it loads via a separate preview-token payload); the participant take is the source of truth. Surfacing overrides in the preview payload is a follow-up.
+**Preview parity.** The Builder live-preview pane and the full-screen Preview stage both run the REAL take runtime in an iframe (an ephemeral `mode:"preview"` response on the working draft), so they reflect block-copy overrides for free via `getRuntimeScreen` → `blockCopy`. The only surface that rendered blocks outside the runtime was the **shared token preview** (`/preview/[studyId]?token=…`, `loadPreviewByToken`); its `PreviewPayload` now carries `blockCopy: readBlockCopy(snapshot.uiCopy)` and threads it to `BlockView`, so all preview surfaces are consistent.
 
 ## Revisit triggers
 
@@ -55,5 +55,5 @@ The **Builder live-preview pane** does not yet reflect block-internal overrides 
 
 ## References
 
-- `lib/take/ui-copy.ts` (chrome + block keys, defaults, `resolveUiCopy`/`readBlockCopy`, `WORDING_GROUPS`, `formatProgress`, `sanitizeUiCopy`); `server/trpc/routers/studies.ts` (`setUiCopy`, `StudyDetail.uiCopy`); `server/runtime/participant.ts` (`getRuntimeScreen` attaches `uiCopy` + `blockCopy`); take pages + `components/feature/take/parts.tsx`; `components/feature/take/block-view.tsx` + `block-overrides.tsx` (social-post skins consume `blockCopy`); `components/feature/builder/wording-section.tsx` (grouped, columned, real-text, collapsible editor).
+- `lib/take/ui-copy.ts` (chrome + block keys, defaults, `resolveUiCopy`/`readBlockCopy`, `WORDING_GROUPS`, `formatProgress`, `sanitizeUiCopy`); `server/trpc/routers/studies.ts` (`setUiCopy`, `StudyDetail.uiCopy`); `server/runtime/participant.ts` (`getRuntimeScreen` attaches `uiCopy` + `blockCopy`); take pages + `components/feature/take/parts.tsx`; `components/feature/take/block-view.tsx` + `block-overrides.tsx` (social-post skins consume `blockCopy`); `server/runtime/preview.ts` + `app/preview/[studyId]/page.tsx` (token preview payload carries `blockCopy`); `components/feature/builder/wording-section.tsx` (grouped, columned, real-text, collapsible editor).
 - ADR-0024 (per-study theme on snapshot), ADR-0058 (variant bindings on snapshot), ADR-0028 (screens/runtime).
