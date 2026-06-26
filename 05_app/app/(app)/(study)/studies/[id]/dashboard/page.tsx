@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 
 import { StageTabs } from "@/components/chrome/stage-tabs";
 import { getServerApi } from "@/server/trpc/server";
-import type { StudyDashboardData } from "@/server/trpc/routers/studies";
+import type { ChangelogEntry, StudyDashboardData } from "@/server/trpc/routers/studies";
 
 /**
  * Study Dashboard — the FIRST stage tab (ADR-0056). "Where are we with this
@@ -25,8 +25,14 @@ export default async function StudyDashboardPage({ params }: { params: Promise<{
   const { id } = await params;
   const api = await getServerApi();
   let d: StudyDashboardData;
+  let changelog: ChangelogEntry[] = [];
   try {
-    d = await api.studies.studyDashboard({ studyId: id });
+    const [dash, log] = await Promise.all([
+      api.studies.studyDashboard({ studyId: id }),
+      api.studies.changelog({ studyId: id, limit: 20 }),
+    ]);
+    d = dash;
+    changelog = log;
   } catch {
     notFound();
   }
@@ -105,15 +111,49 @@ export default async function StudyDashboardPage({ params }: { params: Promise<{
           </section>
         ) : null}
 
-        {/* Activity timeline */}
-        {d.activity.length > 0 ? (
+        {/* Changelog — when / what / who, merging version saves + lifecycle events */}
+        {changelog.length > 0 ? (
           <section className="flex flex-col gap-2">
-            <h2 className="text-[length:var(--text-small)] font-medium uppercase tracking-wide text-[var(--color-text-muted)]">Recent activity</h2>
-            <ul className="flex flex-col gap-1">
-              {d.activity.map((e) => (
-                <li key={e.id} className="flex items-center justify-between gap-2 text-[length:var(--text-small)]">
-                  <span className="text-[var(--color-text-secondary)]">{e.type.replace(/_/g, " ")}</span>
-                  <span className="text-[var(--color-text-muted)]">{new Date(e.at).toLocaleDateString()}</span>
+            <h2 className="text-[length:var(--text-small)] font-medium uppercase tracking-wide text-[var(--color-text-muted)]">Changelog</h2>
+            <ul className="flex flex-col">
+              {changelog.map((e, i) => (
+                <li
+                  key={e.id}
+                  className={
+                    "flex flex-col gap-1 py-2.5" +
+                    (i < changelog.length - 1 ? " border-b border-[var(--color-border-subtle)]" : "")
+                  }
+                >
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="flex items-center gap-2 text-[length:var(--text-body)] text-[var(--color-text-primary)]">
+                      <span
+                        aria-hidden
+                        className={
+                          "inline-block size-1.5 shrink-0 rounded-full " +
+                          (e.kind === "version" ? "bg-[var(--color-primary)]" : "bg-[var(--color-text-muted)]")
+                        }
+                      />
+                      {e.title}
+                    </span>
+                    <span className="shrink-0 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                      {new Date(e.at).toLocaleDateString()}
+                      {e.actor ? ` · ${e.actor}` : ""}
+                    </span>
+                  </div>
+                  {e.detail.length > 0 ? (
+                    <ul className="ml-3.5 flex flex-col gap-0.5">
+                      {e.detail.slice(0, 5).map((line, j) => (
+                        <li key={j} className="text-[length:var(--text-small)] leading-snug text-[var(--color-text-secondary)]">
+                          {line}
+                        </li>
+                      ))}
+                      {e.detail.length > 5 ? (
+                        <li className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                          +{e.detail.length - 5} more change{e.detail.length - 5 === 1 ? "" : "s"}
+                        </li>
+                      ) : null}
+                    </ul>
+                  ) : null}
                 </li>
               ))}
             </ul>
