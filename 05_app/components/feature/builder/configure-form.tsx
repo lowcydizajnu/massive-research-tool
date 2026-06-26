@@ -306,8 +306,10 @@ export function ConfigureForm({
       </div>
 
       {/* Emotion analysis runs on Claude (text only) since Hume EM was discontinued —
-          voice-emotion is archived, so only text blocks offer it (ADR-0066 amendment). */}
-      {["free-text", "text-emotion-probe"].includes(block.key) ? (
+          voice-emotion is archived. Offered on text blocks + on a social-post when it
+          collects a comment (the comment is scored) (ADR-0066 amendment). */}
+      {["free-text", "text-emotion-probe"].includes(block.key) ||
+      (block.key === "social-post" && (draft as { allowComments?: boolean }).allowComments !== false) ? (
         (() => {
           const ea = draft.emotionAnalysis as { enabled?: boolean } | undefined;
           // The dedicated text-emotion-probe forces emotion ON — no toggle.
@@ -938,7 +940,7 @@ function clampedCentered(n: number): { x: number; y: number; w: number; h: numbe
  * opens setup + how-to-read-the-data guidance.
  */
 function EmotionAnalysisToggle({
-  block: _block,
+  block,
   enabled,
   alwaysOn = false,
   onToggle,
@@ -951,6 +953,7 @@ function EmotionAnalysisToggle({
   const list = api.ai.connections.list.useQuery();
   const claudeConnected = (list.data ?? []).some((c) => c.provider === "anthropic");
   const [helpOpen, setHelpOpen] = useState(false);
+  const subject = block.key === "social-post" ? "comment" : "answer"; // what gets scored
 
   // Provider gate (flip in lib/ai/emotion-availability.ts to pause the feature).
   if (!EMOTION_ANALYSIS_AVAILABLE) {
@@ -986,7 +989,7 @@ function EmotionAnalysisToggle({
       </div>
 
       <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-        After each participant submits, their answer is scored on eight emotions; results appear under “Emotion” in Results
+        After each participant submits, their {subject} is scored on eight emotions; results appear under “Emotion” in Results
         and in the CSV export. Sensitivity: participant data. ≈ $0.001 per response, billed to your Claude key.
       </span>
 

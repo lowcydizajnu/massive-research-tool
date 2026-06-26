@@ -103,6 +103,35 @@ describe("runHumeAnalyze — Claude text emotion (ADR-0066 amendment)", () => {
     await runHumeAnalyze({ responseId, blockInstanceId: instanceId });
     expect(analyzeText).toHaveBeenCalledOnce();
   });
+
+  it("scores a social-post participant COMMENT (not the post body)", async () => {
+    const n = ++seq;
+    const ext = `sp${n}`;
+    const [u] = await db.insert(user).values({ externalId: ext, email: `${ext}@e.com`, displayName: ext }).returning();
+    const [ws] = await db.insert(workspace).values({ name: `Lab sp${n}`, slug: `lab-sp-${n}`, ownerId: u.id }).returning();
+    await db.insert(member).values({ workspaceId: ws.id, userId: u.id, role: "owner", status: "active" });
+    await db.insert(aiProviderConnection).values({ id: `csp${n}`, workspaceId: ws.id, userId: u.id, provider: "anthropic", apiKey: encryptSecret("ak"), keyHint: "k", status: "active" });
+    const caller = createCaller({ authUser: authUser(ext) });
+    const { id: studyId } = await caller.studies.create({ kind: "blank", title: "SP" });
+    const { instanceId } = await caller.studies.addBlock({ studyId, source: "core", key: "social-post", version: "2.0.0" });
+    await caller.studies.updateBlockConfig({
+      studyId,
+      instanceId,
+      config: { headline: "Big claim", body: "b", source: "src", veracityGroundTruth: "false", topicTags: [], imageUrl: "", allowComments: true, emotionAnalysis: { enabled: true, provider: "anthropic", modality: "text" } },
+    });
+    await caller.studies.preregister({ studyId });
+    const [exp] = await db.select({ v: experiment.currentVersionId }).from(experiment).where(eq(experiment.id, studyId));
+    const rs = await openRecruitment(exp.v!);
+    const started = await startResponse({ recruitmentSessionId: rs.id, mode: "run", externalPid: null });
+    const responseId = (started as { responseId: string }).responseId;
+    await recordScreenAnswers({ responseId, screenIndex: 0, answers: { [instanceId]: { liked: false, shared: false, comment: "This makes me furious." } } });
+
+    await runHumeAnalyze({ responseId, blockInstanceId: instanceId });
+    expect(analyzeText).toHaveBeenCalledOnce();
+    expect(analyzeText.mock.calls[0]![0].text).toBe("This makes me furious."); // the comment, not the headline
+    const [item] = await db.select().from(responseItem).where(eq(responseItem.blockInstanceId, instanceId));
+    expect(item.emotionStatus).toBe("ok");
+  });
 });
 
 describe("studies.reanalyzeEmotion (ADR-0066 H3a amendment — Re-run affordance)", () => {

@@ -78,6 +78,36 @@ export type CoreModuleDef = {
  *  ("/api/media/…", ADR-0003) — zod's .url() alone rejects the relative form. */
 const mediaUrl = z.union([z.string().url(), z.string().regex(/^\/api\/media\/ws\/[A-Za-z0-9/_.-]+$/), z.literal("")]);
 
+/**
+ * Shared optional emotion-analysis config (ADR-0066) added to emotion-eligible
+ * blocks (free-text, text-emotion-probe, social-post comment). When `enabled`, the
+ * participant runtime enqueues the analysis job after submit; text is scored on
+ * Claude (Plutchik-8) and the result lands on `response_item.emotion_analysis`.
+ * `provider` allows the legacy "hume" value so old configs still validate.
+ */
+const emotionAnalysisConfig = z
+  .object({
+    enabled: z.boolean(),
+    provider: z.enum(["anthropic", "hume"]),
+    modality: z.enum(["text", "voice"]),
+    participantAudioRetention: z.enum(["never", "session", "retained"]).optional(),
+    // Legacy Hume transcription language (unused by Claude; kept so old configs validate).
+    language: z.enum(HUME_LANGUAGE_CODES).optional(),
+  })
+  .optional();
+
+const emotionAnalysisJsonSchema = {
+  type: "object",
+  properties: {
+    enabled: { type: "boolean" },
+    provider: { type: "string" },
+    modality: { type: "string" },
+    participantAudioRetention: { type: "string" },
+    language: { type: "string" },
+  },
+  additionalProperties: false,
+} as const;
+
 const socialPost: CoreModuleDef = {
   source: "core",
   key: "social-post",
@@ -188,6 +218,8 @@ const socialPostV2: CoreModuleDef = {
     allowComments: z.boolean().optional(),
     /** Participant may pick ONLY ONE reaction (Like OR Share) when true. */
     singleReaction: z.boolean().optional(),
+    /** Optional Claude emotion analysis of the participant's COMMENT (ADR-0066). */
+    emotionAnalysis: emotionAnalysisConfig,
   }),
   defaultConfig: {
     headline: "",
@@ -221,6 +253,7 @@ const socialPostV2: CoreModuleDef = {
       timeLabel: { type: "string" },
       allowComments: { type: "boolean" },
       singleReaction: { type: "boolean" },
+      emotionAnalysis: emotionAnalysisJsonSchema,
     },
     required: ["headline", "source", "veracityGroundTruth"],
     additionalProperties: false,
@@ -302,40 +335,6 @@ const multipleChoice: CoreModuleDef = {
 };
 
 // Free-text response (short input or long textarea).
-/**
- * Shared optional "Analyze emotion (Hume)" config (ADR-0066 H3a) added to
- * emotion-eligible blocks (free-text, audio-record). When `enabled`, the
- * participant runtime enqueues `hume.analyze` after submit; the gateway meters +
- * audits and the result lands on `response_item.emotion_analysis`. Voice =
- * biometric (pii); `participantAudioRetention` is the per-block retention choice.
- */
-const emotionAnalysisConfig = z
-  .object({
-    enabled: z.boolean(),
-    // "anthropic" (Claude, text) is the provider after Hume EM was discontinued;
-    // "hume" kept so legacy configs still validate.
-    provider: z.enum(["anthropic", "hume"]),
-    modality: z.enum(["text", "voice"]),
-    participantAudioRetention: z.enum(["never", "session", "retained"]).optional(),
-    // Optional BCP-47 transcription language (ADR-0066 H3a language selector).
-    // Absent = Hume auto-detects; a known language can improve accuracy. Verified
-    // against the Hume SDK v0.7.0 Transcription.language tag set.
-    language: z.enum(HUME_LANGUAGE_CODES).optional(),
-  })
-  .optional();
-
-const emotionAnalysisJsonSchema = {
-  type: "object",
-  properties: {
-    enabled: { type: "boolean" },
-    provider: { type: "string" },
-    modality: { type: "string" },
-    participantAudioRetention: { type: "string" },
-    language: { type: "string" },
-  },
-  additionalProperties: false,
-} as const;
-
 const freeText: CoreModuleDef = {
   source: "core",
   key: "free-text",

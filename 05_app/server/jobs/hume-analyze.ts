@@ -90,8 +90,10 @@ export async function runHumeAnalyze(payload: { responseId: string; blockInstanc
   const cfg = (block?.config as { emotionAnalysis?: { enabled?: boolean; language?: string } } | undefined)?.emotionAnalysis;
   if (!cfg?.enabled) return; // analysis disabled — nothing to do
 
-  // Text only (voice emotion archived). Non-text answers can't be scored.
-  const text = (item.answer as { text?: string })?.text ?? "";
+  // The text to score: a free-text answer's `text`, or a social-post's participant
+  // `comment` (ADR-0066). Voice emotion is archived, so non-text answers can't be scored.
+  const answer = (item.answer ?? {}) as { text?: string; comment?: string };
+  const text = (item.moduleKey === "social-post" ? answer.comment : answer.text) ?? "";
   if (!text.trim()) {
     await fail("No text to analyze.");
     return;
