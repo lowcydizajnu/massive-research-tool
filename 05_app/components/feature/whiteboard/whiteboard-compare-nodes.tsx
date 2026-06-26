@@ -77,7 +77,11 @@ export function CompareBlockNode({ data }: NodeProps<CompareNodeType>) {
           title={data.changes.join("\n")}
         >
           {data.changes.slice(0, MAX_CHANGE_LINES).map((line, i) => (
-            <li key={i} className="text-[length:var(--text-small)] leading-snug text-[var(--color-text-secondary)]">
+            <li
+              key={i}
+              title={line}
+              className="overflow-hidden text-ellipsis whitespace-nowrap text-[length:var(--text-small)] leading-snug text-[var(--color-text-secondary)]"
+            >
               {line}
             </li>
           ))}

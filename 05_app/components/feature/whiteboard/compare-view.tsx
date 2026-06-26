@@ -32,7 +32,15 @@ function toFlow(nodes: CompareNode[]): { rfNodes: Node[]; rfEdges: Edge[] } {
     data: { label: `Condition: ${slug}` },
   }));
 
-  const heightOf = (n: CompareNode) => 96 + Math.min(n.changes?.length ?? 0, 5) * 18;
+  // Height estimate must cover the rendered card so column layout never overlaps.
+  // Change lines are truncated to ONE row each (whiteboard-compare-nodes), so a
+  // fixed per-line allotment holds; +1 row for the "+ n more" footer when capped.
+  const heightOf = (n: CompareNode) => {
+    const count = n.changes?.length ?? 0;
+    if (count === 0) return 104;
+    const shown = Math.min(count, 5) + (count > 5 ? 1 : 0);
+    return 112 + shown * 20;
+  };
   const PAD = 16;
   const HEADER = 26;
   const GAP = 14;
@@ -251,23 +259,34 @@ function TextDiff({
       </p>
       <div className="overflow-auto rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)]">
         <pre className="m-0 p-0 font-mono text-[length:var(--text-mono)] leading-relaxed">
-          {lines.map((l, i) => (
-            <div
-              key={i}
-              className={
-                l.type === "added"
-                  ? "bg-[var(--color-success-subtle)] px-3 text-[var(--color-success-text-on-subtle)]"
-                  : l.type === "removed"
-                    ? "bg-[var(--color-danger-subtle)] px-3 text-[var(--color-danger-text-on-subtle)]"
-                    : "px-3 text-[var(--color-text-secondary)]"
-              }
-            >
-              <span aria-hidden className="inline-block w-4 select-none opacity-70">
-                {l.type === "added" ? "+" : l.type === "removed" ? "−" : " "}
-              </span>
-              {l.text || " "}
-            </div>
-          ))}
+          {lines.map((l, i) => {
+            // Human-worded explanation on hover for changed rows (owner request).
+            const snippet = l.text.trim() ? `: “${l.text.trim().slice(0, 80)}”` : "";
+            const tip =
+              l.type === "added"
+                ? `Added in ${newLabel} — this line is new (wasn’t in ${oldLabel})${snippet}`
+                : l.type === "removed"
+                  ? `Removed — this line was in ${oldLabel} but is gone in ${newLabel}${snippet}`
+                  : undefined;
+            return (
+              <div
+                key={i}
+                title={tip}
+                className={
+                  l.type === "added"
+                    ? "cursor-help bg-[var(--color-success-subtle)] px-3 text-[var(--color-success-text-on-subtle)]"
+                    : l.type === "removed"
+                      ? "cursor-help bg-[var(--color-danger-subtle)] px-3 text-[var(--color-danger-text-on-subtle)]"
+                      : "px-3 text-[var(--color-text-secondary)]"
+                }
+              >
+                <span aria-hidden className="inline-block w-4 select-none opacity-70">
+                  {l.type === "added" ? "+" : l.type === "removed" ? "−" : " "}
+                </span>
+                {l.text || " "}
+              </div>
+            );
+          })}
         </pre>
       </div>
     </div>

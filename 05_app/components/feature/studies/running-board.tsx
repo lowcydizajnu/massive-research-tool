@@ -237,7 +237,12 @@ function Row({
     <tr className="border-b border-[var(--color-border-subtle)] align-top text-[length:var(--text-small)]">
       {/* Study + condition count. */}
       <td className="py-3 pr-3">
-        <span className="block text-[length:var(--text-body)] text-[var(--color-text-primary)]">{r.title}</span>
+        <Link
+          href={`/studies/${r.studyId}/dashboard` as Route}
+          className="block text-[length:var(--text-body)] text-[var(--color-text-primary)] hover:text-[var(--color-primary)] hover:underline"
+        >
+          {r.title}
+        </Link>
         <span className="text-[var(--color-text-muted)]">
           {r.conditionCount} condition{r.conditionCount === 1 ? "" : "s"}
         </span>
