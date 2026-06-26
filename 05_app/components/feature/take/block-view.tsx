@@ -15,7 +15,11 @@ import { VideoRecordInput } from "@/components/feature/take/video-record-input";
 import { AiChatInput } from "@/components/feature/take/ai-chat-input";
 import { ChatWindowPreview } from "@/components/feature/take/chat-window-preview";
 import type { ChatAppearance } from "@/lib/themes/themes";
+import { BLOCK_COPY_DEFAULTS, type BlockCopyKey } from "@/lib/take/ui-copy";
 import type { RuntimeBlock } from "@/server/runtime/participant";
+
+/** Block-internal copy overrides (blank = native); shared by social-post skins. */
+export type BlockCopy = Partial<Record<BlockCopyKey, string>>;
 
 /**
  * Participant-facing render of a block (participant-runtime.md). Server
@@ -31,6 +35,7 @@ export function BlockView({
   presetKey,
   responseId,
   chat,
+  blockCopy,
 }: {
   block: RuntimeBlock;
   seed?: string;
@@ -41,6 +46,8 @@ export function BlockView({
   responseId?: string;
   /** Chat-window appearance (ADR-0065) for the AI block. */
   chat?: ChatAppearance;
+  /** Editable block-internal copy (social-post labels); blank keys = native (ADR-0070). */
+  blockCopy?: BlockCopy;
 }) {
   const c = block.config;
   const np = namePrefix;
@@ -63,8 +70,8 @@ export function BlockView({
   // v1 social-post blocks don't record interactions — render them inert.
   const interactive = block.key !== "social-post" || block.version !== "1.0.0";
   const Override = getBlockOverride(presetKey, block.key);
-  if (Override) return <>{Override({ config: c, np, interactive })}</>;
-  if (block.key === "social-post") return <SocialPostView config={c} np={np} interactive={interactive} />;
+  if (Override) return <>{Override({ config: c, np, interactive, blockCopy })}</>;
+  if (block.key === "social-post") return <SocialPostView config={c} np={np} interactive={interactive} blockCopy={blockCopy} />;
   if (block.key === "likert-7") return <Likert7Input config={c} np={np} />;
   if (block.key === "multiple-choice") return <MultipleChoiceInput config={c} seed={seed} np={np} />;
   if (block.key === "free-text") return <FreeTextInput config={c} np={np} />;
@@ -164,11 +171,14 @@ function SocialPostView({
   config,
   np = "",
   interactive = true,
+  blockCopy,
 }: {
   config: Record<string, unknown>;
   np?: string;
   interactive?: boolean;
+  blockCopy?: BlockCopy;
 }) {
+  const cp = blockCopy ?? {};
   const headline = str(config.headline);
   const body = str(config.body);
   const source = str(config.source);
@@ -201,15 +211,15 @@ function SocialPostView({
       ) : null}
       {interactive ? (
         <div className="flex items-center gap-4 border-t border-[var(--color-border-subtle)] pt-2 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
-          <ReactionButton kind="liked" label="👍 Like" count={likes} activeCls="text-[var(--color-primary)]" />
-          <ReactionButton kind="shared" label="↪ Share" count={shares} activeCls="text-[var(--color-primary)]" />
+          <ReactionButton kind="liked" label={`👍 ${cp.postLike ?? BLOCK_COPY_DEFAULTS.postLike}`} count={likes} activeCls="text-[var(--color-primary)]" />
+          <ReactionButton kind="shared" label={`↪ ${cp.postShare ?? BLOCK_COPY_DEFAULTS.postShare}`} count={shares} activeCls="text-[var(--color-primary)]" />
         </div>
       ) : null}
       {interactive && allowComments ? (
         <input
           type="text"
           name={`${np}comment`}
-          placeholder="Write a comment…"
+          placeholder={cp.postCommentPlaceholder ?? BLOCK_COPY_DEFAULTS.postCommentPlaceholder}
           className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-3 py-1.5 text-[length:var(--text-small)] text-[var(--color-text-primary)] outline-none"
         />
       ) : null}

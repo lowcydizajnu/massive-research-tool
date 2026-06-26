@@ -36,6 +36,17 @@ We will use a per-study **`uiCopy` override map** on the version snapshot, resol
 - **What we are now committed to.** Participant copy lives in the study (`definitionSnapshot.uiCopy`), not in app locale files; the resolver is the single source for defaults; blank override ⇒ default.
 - **What we are now precluded from.** Treating these strings as app-level i18n; silently changing a default (it would shift every study that didn't override it — change deliberately).
 
+## Amendment 1 (2026-06-26) — Slice 2: block-internal social-post copy
+
+The first revisit trigger fired: researchers need to translate/reword strings rendered *inside* a block — specifically the social-post **Like / Share / Comment** labels and the **comment-box placeholder**. We added these as block-internal keys (`postLike`, `postShare`, `postComment`, `postCommentPlaceholder`) alongside the chrome keys, with a deliberately different default rule:
+
+- **Chrome keys** have a real default; blank override ⇒ that default.
+- **Block-internal keys** have NO universal default — each mimicking preset (Facebook, X, Reddit, …) has its own native label (Repost, Forward, ▲, ♥). So **blank ⇒ the skin's native text**; a set value applies everywhere. `readBlockCopy()` returns only the SET keys (no defaults), and the take runtime threads them to the renderers as `RuntimeScreenView.blockCopy`.
+
+Trade-off (recorded so we don't relitigate): we apply an overridden Like/Share/Comment **word** only where a skin already renders a word; icon-only reaction glyphs (♥, ▲, 🔁, ❤️) keep their glyph to preserve the locked platform mimicry (design language v0.6). The comment placeholder is editable on every skin. This honors "make block strings editable" without eroding the platform-fidelity that the social-post presets exist for. Extending to other blocks = add a key + thread it (same as chrome). We chose prop-threading (`blockCopy` down through `BlockView`) over a client `UiCopyProvider` context because the social-post renderers are server components and compose the label strings inline — no client context needed.
+
+The **Builder live-preview pane** does not yet reflect block-internal overrides (it loads via a separate preview-token payload); the participant take is the source of truth. Surfacing overrides in the preview payload is a follow-up.
+
 ## Revisit triggers
 
 - We need true multi-language studies (participant picks/assigned a language) → extend `uiCopy` to per-language sets (a `uiCopyByLang` map) rather than a flat map.
@@ -44,5 +55,5 @@ We will use a per-study **`uiCopy` override map** on the version snapshot, resol
 
 ## References
 
-- `lib/take/ui-copy.ts` (keys, defaults, resolver, `formatProgress`, `sanitizeUiCopy`); `server/trpc/routers/studies.ts` (`setUiCopy`, `StudyDetail.uiCopy`); `server/runtime/participant.ts` (`getRuntimeScreen`/`getCompletionInfo` attach resolved copy); take pages + `components/feature/take/parts.tsx`; `components/feature/builder/wording-section.tsx`.
+- `lib/take/ui-copy.ts` (chrome + block keys, defaults, `resolveUiCopy`/`readBlockCopy`, `WORDING_GROUPS`, `formatProgress`, `sanitizeUiCopy`); `server/trpc/routers/studies.ts` (`setUiCopy`, `StudyDetail.uiCopy`); `server/runtime/participant.ts` (`getRuntimeScreen` attaches `uiCopy` + `blockCopy`); take pages + `components/feature/take/parts.tsx`; `components/feature/take/block-view.tsx` + `block-overrides.tsx` (social-post skins consume `blockCopy`); `components/feature/builder/wording-section.tsx` (grouped, columned, real-text, collapsible editor).
 - ADR-0024 (per-study theme on snapshot), ADR-0058 (variant bindings on snapshot), ADR-0028 (screens/runtime).

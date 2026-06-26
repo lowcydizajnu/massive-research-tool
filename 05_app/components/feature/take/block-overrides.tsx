@@ -7,6 +7,12 @@
  */
 
 import { ReactionButton, ReactionGroup } from "@/components/feature/take/reaction-toggles";
+import type { BlockCopyKey } from "@/lib/take/ui-copy";
+
+/** Set block-internal copy overrides (blank/missing key = the skin's native text). */
+type BlockCopy = Partial<Record<BlockCopyKey, string>>;
+/** Resolve one overridable label: the override if set, else the skin's native word. */
+const lab = (bc: BlockCopy | undefined, key: BlockCopyKey, native: string): string => bc?.[key] ?? native;
 
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
 const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) && v > 0 ? v : null);
@@ -20,6 +26,8 @@ type OverrideProps = {
   np?: string;
   /** social-post v1 blocks don't record interactions — render them inert. */
   interactive?: boolean;
+  /** Editable Like/Share/Comment labels + comment placeholder (ADR-0070); blank = native. */
+  blockCopy?: BlockCopy;
 };
 
 /** Single-reaction mode (social-post config): only one of Like/Share allowed. */
@@ -46,7 +54,7 @@ function PostImage({ config, className = "" }: { config: Record<string, unknown>
 }
 
 /** Facebook-style feed post (social-post stimulus under the facebook preset). */
-function FacebookSocialPost({ config, np = "", interactive = true }: OverrideProps) {
+function FacebookSocialPost({ config, np = "", interactive = true, blockCopy: bc }: OverrideProps) {
   const source = str(config.source) || "Shared page";
   const headline = str(config.headline);
   const body = str(config.body);
@@ -77,15 +85,15 @@ function FacebookSocialPost({ config, np = "", interactive = true }: OverridePro
         </span>
       ) : null}
       <div className="flex items-center justify-between border-t border-[#E4E6EB] pt-1 text-[13px] text-[#65676B]">
-        <ReactionButton kind="liked" label="👍 Like" count={e.likes} activeCls="text-[#0866FF]" />
-        {e.allowComments ? <span>💬 Comment{e.comments ? ` ${fmt(e.comments)}` : ""}</span> : null}
-        <ReactionButton kind="shared" label="↪ Share" count={e.shares} activeCls="text-[#0866FF]" />
+        <ReactionButton kind="liked" label={`👍 ${lab(bc, "postLike", "Like")}`} count={e.likes} activeCls="text-[#0866FF]" />
+        {e.allowComments ? <span>💬 {lab(bc, "postComment", "Comment")}{e.comments ? ` ${fmt(e.comments)}` : ""}</span> : null}
+        <ReactionButton kind="shared" label={`↪ ${lab(bc, "postShare", "Share")}`} count={e.shares} activeCls="text-[#0866FF]" />
       </div>
       {e.allowComments && interactive ? (
         <input
           type="text"
           name={`${np}comment`}
-          placeholder="Write a comment…"
+          placeholder={lab(bc, "postCommentPlaceholder", "Write a comment…")}
           className="rounded-full border border-[#E4E6EB] bg-[#F0F2F5] px-3 py-1.5 text-[13px] text-[#050505] outline-none"
         />
       ) : null}
@@ -95,7 +103,7 @@ function FacebookSocialPost({ config, np = "", interactive = true }: OverridePro
 }
 
 /** X (Twitter)-style post (social-post stimulus under the x preset). */
-function XSocialPost({ config, np = "", interactive = true }: OverrideProps) {
+function XSocialPost({ config, np = "", interactive = true, blockCopy: bc }: OverrideProps) {
   const source = str(config.source) || "account";
   const e = engagement(config);
   const handle = (e.handle || source.toLowerCase().replace(/[^a-z0-9_]+/g, "_")).replace(/^@/, "").slice(0, 15) || "account";
@@ -128,7 +136,7 @@ function XSocialPost({ config, np = "", interactive = true }: OverrideProps) {
           <input
             type="text"
             name={`${np}comment`}
-            placeholder="Post your reply"
+            placeholder={lab(bc, "postCommentPlaceholder", "Post your reply")}
             className="mt-1 rounded-full border border-[#2F3336] bg-transparent px-3 py-1.5 text-[13px] text-[#E7E9EA] outline-none placeholder:text-[#71767B]"
           />
         ) : null}
@@ -139,7 +147,7 @@ function XSocialPost({ config, np = "", interactive = true }: OverrideProps) {
 }
 
 /** Instagram-style post card (social-post under the instagram preset). */
-function InstagramSocialPost({ config, np = "", interactive = true }: OverrideProps) {
+function InstagramSocialPost({ config, np = "", interactive = true, blockCopy: bc }: OverrideProps) {
   const source = str(config.source) || "account";
   const e = engagement(config);
   const handle = (e.handle || source.toLowerCase().replace(/[^a-z0-9_.]+/g, "_")).replace(/^@/, "").slice(0, 20) || "account";
@@ -181,7 +189,7 @@ function InstagramSocialPost({ config, np = "", interactive = true }: OverridePr
           <input
             type="text"
             name={`${np}comment`}
-            placeholder="Add a comment…"
+            placeholder={lab(bc, "postCommentPlaceholder", "Add a comment…")}
             className="border-t border-[#EFEFEF] pt-2 text-[13px] text-[#262626] outline-none placeholder:text-[#8E8E8E]"
           />
         ) : null}
@@ -192,7 +200,7 @@ function InstagramSocialPost({ config, np = "", interactive = true }: OverridePr
 }
 
 /** Forum-thread post (social-post under the forum preset). */
-function ForumSocialPost({ config, np = "", interactive = true }: OverrideProps) {
+function ForumSocialPost({ config, np = "", interactive = true, blockCopy: bc }: OverrideProps) {
   const source = str(config.source) || "user";
   const e = engagement(config);
   const headline = str(config.headline);
@@ -212,15 +220,15 @@ function ForumSocialPost({ config, np = "", interactive = true }: OverrideProps)
         {body ? <span className="text-[14px] leading-snug">{body}</span> : null}
         <PostImage config={config} className="rounded-[4px]" />
         <span className="flex items-center gap-2 pt-1 text-[12px] font-semibold text-[#787C7E]">
-          {e.allowComments ? <span>💬 {e.comments ? `${fmt(e.comments)} comments` : "Comments"}</span> : null}
-          <ReactionButton kind="shared" label="↗ Share" count={e.shares} activeCls="text-[#3B6EBF]" />
+          {e.allowComments ? <span>💬 {e.comments ? `${fmt(e.comments)} comments` : lab(bc, "postComment", "Comments")}</span> : null}
+          <ReactionButton kind="shared" label={`↗ ${lab(bc, "postShare", "Share")}`} count={e.shares} activeCls="text-[#3B6EBF]" />
           <span>⋯</span>
         </span>
         {e.allowComments && interactive ? (
           <input
             type="text"
             name={`${np}comment`}
-            placeholder="Add a comment"
+            placeholder={lab(bc, "postCommentPlaceholder", "Add a comment")}
             className="rounded-[4px] border border-[#CCCCCC] px-2 py-1 text-[13px] text-[#1A1A1B] outline-none"
           />
         ) : null}
@@ -231,7 +239,7 @@ function ForumSocialPost({ config, np = "", interactive = true }: OverrideProps)
 }
 
 /** Reddit-style post (social-post under the reddit preset). */
-function RedditSocialPost({ config, np = "", interactive = true }: OverrideProps) {
+function RedditSocialPost({ config, np = "", interactive = true, blockCopy: bc }: OverrideProps) {
   const source = str(config.source) || "user";
   const e = engagement(config);
   const headline = str(config.headline);
@@ -253,12 +261,12 @@ function RedditSocialPost({ config, np = "", interactive = true }: OverrideProps
         {body ? <span className="text-[14px] leading-snug">{body}</span> : null}
         <PostImage config={config} className="rounded-[8px]" />
         <span className="flex items-center gap-3 pt-1 text-[12px] font-bold text-[#878A8C]">
-          {e.allowComments ? <span>💬 {e.comments ? fmt(e.comments) : ""} Comments</span> : null}
-          <ReactionButton kind="shared" label="↗ Share" count={e.shares} activeCls="text-[#FF4500]" />
+          {e.allowComments ? <span>💬 {e.comments ? fmt(e.comments) : ""} {lab(bc, "postComment", "Comments")}</span> : null}
+          <ReactionButton kind="shared" label={`↗ ${lab(bc, "postShare", "Share")}`} count={e.shares} activeCls="text-[#FF4500]" />
           <span>⋯</span>
         </span>
         {e.allowComments && interactive ? (
-          <input type="text" name={`${np}comment`} placeholder="Add a comment" className="rounded-[4px] border border-[#EDEFF1] bg-[#F6F7F8] px-2 py-1 text-[13px] outline-none" />
+          <input type="text" name={`${np}comment`} placeholder={lab(bc, "postCommentPlaceholder", "Add a comment")} className="rounded-[4px] border border-[#EDEFF1] bg-[#F6F7F8] px-2 py-1 text-[13px] outline-none" />
         ) : null}
       </div>
       </ReactionGroup>
@@ -267,7 +275,7 @@ function RedditSocialPost({ config, np = "", interactive = true }: OverrideProps
 }
 
 /** LinkedIn-style update (social-post under the linkedin preset). */
-function LinkedInSocialPost({ config, np = "", interactive = true }: OverrideProps) {
+function LinkedInSocialPost({ config, np = "", interactive = true, blockCopy: bc }: OverrideProps) {
   const source = str(config.source) || "A connection";
   const e = engagement(config);
   const headline = str(config.headline);
@@ -295,13 +303,13 @@ function LinkedInSocialPost({ config, np = "", interactive = true }: OverridePro
         </span>
       ) : null}
       <div className="flex items-center justify-around border-t border-[#E0DFDC] pt-1 text-[13px] font-semibold text-[#666666]">
-        <ReactionButton kind="liked" label="👍 Like" activeCls="text-[#0A66C2]" />
-        {e.allowComments ? <span>💬 Comment</span> : null}
-        <ReactionButton kind="shared" label="🔁 Repost" activeCls="text-[#0A66C2]" />
+        <ReactionButton kind="liked" label={`👍 ${lab(bc, "postLike", "Like")}`} activeCls="text-[#0A66C2]" />
+        {e.allowComments ? <span>💬 {lab(bc, "postComment", "Comment")}</span> : null}
+        <ReactionButton kind="shared" label={`🔁 ${lab(bc, "postShare", "Repost")}`} activeCls="text-[#0A66C2]" />
         <span>➤ Send</span>
       </div>
       {e.allowComments && interactive ? (
-        <input type="text" name={`${np}comment`} placeholder="Add a comment…" className="rounded-full border border-[#666666]/40 px-3 py-1.5 text-[13px] outline-none" />
+        <input type="text" name={`${np}comment`} placeholder={lab(bc, "postCommentPlaceholder", "Add a comment…")} className="rounded-full border border-[#666666]/40 px-3 py-1.5 text-[13px] outline-none" />
       ) : null}
       </ReactionGroup>
     </article>
@@ -309,7 +317,7 @@ function LinkedInSocialPost({ config, np = "", interactive = true }: OverridePro
 }
 
 /** YouTube-style video page (social-post under the youtube preset). */
-function YouTubeSocialPost({ config, np = "", interactive = true }: OverrideProps) {
+function YouTubeSocialPost({ config, np = "", interactive = true, blockCopy: bc }: OverrideProps) {
   const source = str(config.source) || "Channel";
   const e = engagement(config);
   const headline = str(config.headline);
@@ -338,12 +346,12 @@ function YouTubeSocialPost({ config, np = "", interactive = true }: OverrideProp
             <span className="text-[#D9D9D9]">|</span>
             <span>👎</span>
           </span>
-          <ReactionButton kind="shared" label="↗ Share" activeCls="text-[#FF0000]" className="rounded-full bg-[#F2F2F2] px-3 py-1.5" />
+          <ReactionButton kind="shared" label={`↗ ${lab(bc, "postShare", "Share")}`} activeCls="text-[#FF0000]" className="rounded-full bg-[#F2F2F2] px-3 py-1.5" />
         </span>
       </div>
       {body ? <p className="rounded-[12px] bg-[#F2F2F2] p-2.5 text-[13px] leading-snug">{body}</p> : null}
       {e.allowComments && interactive ? (
-        <input type="text" name={`${np}comment`} placeholder={e.comments ? `Add a comment — ${fmt(e.comments)} comments` : "Add a comment…"} className="border-b border-[#E5E5E5] pb-1 text-[13px] outline-none" />
+        <input type="text" name={`${np}comment`} placeholder={bc?.postCommentPlaceholder ?? (e.comments ? `Add a comment — ${fmt(e.comments)} comments` : "Add a comment…")} className="border-b border-[#E5E5E5] pb-1 text-[13px] outline-none" />
       ) : null}
       </ReactionGroup>
     </article>
@@ -359,7 +367,7 @@ function ChatSocialPost(variant: "whatsapp" | "discord" | "imessage") {
     discord: { bubble: "bg-[#383A40] text-[#F2F3F5] rounded-[8px]", meta: "text-[#949BA4]", like: "text-[#5865F2]" },
     imessage: { bubble: "bg-[#E9E9EB] text-black rounded-[18px] rounded-tl-[4px]", meta: "text-[#8E8E93]", like: "text-[#007AFF]" },
   }[variant];
-  return function ChatPost({ config, np = "", interactive = true }: OverrideProps) {
+  return function ChatPost({ config, np = "", interactive = true, blockCopy: bc }: OverrideProps) {
     const source = str(config.source) || "Contact";
     const e = engagement(config);
     const headline = str(config.headline);
@@ -376,10 +384,10 @@ function ChatSocialPost(variant: "whatsapp" | "discord" | "imessage") {
         </div>
         <span className={`flex items-center gap-3 text-[13px] ${styles.meta}`}>
           <ReactionButton kind="liked" label="❤️" count={e.likes} activeCls={styles.like} />
-          <ReactionButton kind="shared" label="↪ Forward" count={e.shares} activeCls={styles.like} />
+          <ReactionButton kind="shared" label={`↪ ${lab(bc, "postShare", "Forward")}`} count={e.shares} activeCls={styles.like} />
         </span>
         {e.allowComments && interactive ? (
-          <input type="text" name={`${np}comment`} placeholder="Reply…" className={`rounded-full border border-current/20 bg-transparent px-3 py-1.5 text-[13px] outline-none ${styles.meta}`} />
+          <input type="text" name={`${np}comment`} placeholder={lab(bc, "postCommentPlaceholder", "Reply…")} className={`rounded-full border border-current/20 bg-transparent px-3 py-1.5 text-[13px] outline-none ${styles.meta}`} />
         ) : null}
         </ReactionGroup>
       </div>
