@@ -38,16 +38,21 @@ export function BuildDriftBanner({ studyId }: { studyId: string }) {
           </>
         ) : (
           <>
-            Version {data.liveVersionNumber} is frozen and {recruiting ? "recruiting" : "live"}. Editing here starts a new draft — participants keep getting v{data.liveVersionNumber} until you {next}.
+            Version {data.liveVersionNumber} is frozen and {recruiting ? "recruiting" : "live"}. Editing here starts a new draft — participants keep getting v{data.liveVersionNumber} until you {next}. <span className="text-[var(--color-text-muted)]">Nothing to publish right now — your draft matches the live version.</span>
           </>
         )}
       </span>
-      <Link
-        href={`/studies/${studyId}/${data.versionKind === "preregistered" ? "preregister" : "run"}`}
-        className="font-medium underline hover:opacity-80"
-      >
-        Go to {data.versionKind === "preregistered" ? "Preregister" : "Run"} →
-      </Link>
+      {/* Action link ONLY when there's something to make live — otherwise it's a
+          dead-end (the make-live control on Run/Preregister only appears under
+          drift). The not-diverged banner is purely informational. */}
+      {diverged ? (
+        <Link
+          href={`/studies/${studyId}/${data.versionKind === "preregistered" ? "preregister" : "run"}`}
+          className="font-medium underline hover:opacity-80"
+        >
+          {data.versionKind === "preregistered" ? "File an amendment in Preregister →" : "Make it live in Run →"}
+        </Link>
+      ) : null}
     </div>
   );
 }
