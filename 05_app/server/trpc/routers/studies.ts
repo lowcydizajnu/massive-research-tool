@@ -719,6 +719,43 @@ export type StudyDashboardData = {
   activity: { id: string; type: string; at: string }[];
 };
 
+/** One row of the study changelog (ADR-0033 + ADR-0056): a frozen version save
+ *  OR a non-versioned lifecycle event (recruitment, OSF push, finished, …),
+ *  merged into one when/what/who timeline. */
+export type ChangelogEntry = {
+  id: string;
+  at: string;
+  /** Who did it (display name); null when the actor is unknown/gone. */
+  actor: string | null;
+  kind: "version" | "event";
+  /** Headline — "Saved v2 — Pilot", "Opened recruitment", … */
+  title: string;
+  /** For version saves: the auto-changelog lines of what changed. */
+  detail: string[];
+};
+
+/** Researcher-readable label for an activity_event type in the study changelog. */
+function humanizeEventType(type: string): string {
+  const MAP: Record<string, string> = {
+    study_finished: "Marked the study finished",
+    osf_push_complete: "Pushed to OSF",
+    osf_registration_withdrawn: "Withdrew the OSF registration",
+    fork: "Replicated to another workspace",
+    review_request: "Requested a review",
+    proposal_open: "Change proposed",
+    proposal_decided: "Change proposal decided",
+    comment_on_your_study: "New comment",
+    comment_resolved: "Comment resolved",
+    template_published: "Published as a template",
+    template_used: "Used as a template",
+    ownership_transferred: "Ownership transferred",
+    member_role_changed: "Member role changed",
+    member_left: "Member left the workspace",
+    member_removed: "Member removed",
+  };
+  return MAP[type] ?? type.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
+}
+
 /** Per-condition + per-question results, plus per-response rows for CSV export. */
 export type ResultsSummary = {
   /** The latest runnable version number (canonical label). */
@@ -3914,6 +3951,105 @@ export const studiesRouter = router({
         nextActions,
         activity: events.map((e) => ({ id: e.id, type: e.type, at: e.createdAt.toISOString() })),
       };
+    }),
+
+  /**
+   * Study changelog (ADR-0033 + ADR-0056) — one when/what/who timeline merging
+   * frozen version saves (with their auto-changelog) and non-versioned lifecycle
+   * events (recruitment opened/closed, OSF push, finished, replication, …).
+   * The Versions sub-tab shows only saves; the Dashboard shows this fuller story.
+   */
+  changelog: workspaceProcedure
+    .input(z.object({ studyId: z.string().uuid(), limit: z.number().int().min(1).max(100).default(30) }))
+    .query(async ({ ctx, input }): Promise<ChangelogEntry[]> => {
+      const [exp] = await db
+        .select({ id: experiment.id })
+        .from(experiment)
+        .where(and(eq(experiment.id, input.studyId), eq(experiment.tenantId, ctx.workspace.id)))
+        .limit(1);
+      if (!exp) throw new TRPCError({ code: "NOT_FOUND" });
+
+      // Frozen version saves (skip the autosave draft — it isn't a recorded
+      // change yet). Author + snapshot, oldest→newest so the diff is vs the
+      // previous frozen version.
+      const vrows = await db
+        .select({
+          id: experimentVersion.id,
+          kind: experimentVersion.kind,
+          versionNumber: experimentVersion.versionNumber,
+          name: experimentVersion.name,
+          createdAt: experimentVersion.createdAt,
+          snapshot: experimentVersion.definitionSnapshot,
+          author: user.displayName,
+        })
+        .from(experimentVersion)
+        .leftJoin(user, eq(experimentVersion.createdBy, user.id))
+        .where(and(eq(experimentVersion.experimentId, input.studyId), sql`${experimentVersion.kind} <> 'autosave'`))
+        .orderBy(experimentVersion.createdAt);
+
+      const versionEntries: ChangelogEntry[] = vrows.map((r, i) => {
+        const title =
+          r.kind === "preregistered"
+            ? `Preregistered v${r.versionNumber}${r.name ? ` — ${r.name}` : ""}`
+            : r.kind === "published"
+              ? `Published v${r.versionNumber}${r.name ? ` — ${r.name}` : ""}`
+              : `Saved v${r.versionNumber}${r.name ? ` — ${r.name}` : ""}`;
+        const detail = i === 0 ? initialVersionSummary(r.snapshot) : changelogBetween(vrows[i - 1].snapshot, r.snapshot);
+        return { id: `v:${r.id}`, at: r.createdAt.toISOString(), actor: r.author ?? null, kind: "version", title, detail };
+      });
+
+      // Non-versioned lifecycle events. Skip the types that merely echo a version
+      // save (those are already version entries above) to avoid duplicate rows.
+      const ECHOES_VERSION = new Set(["new_named_version", "preregister_complete"]);
+      const erows = await db
+        .select({
+          id: activityEvent.id,
+          type: activityEvent.type,
+          createdAt: activityEvent.createdAt,
+          actor: user.displayName,
+        })
+        .from(activityEvent)
+        .leftJoin(user, eq(activityEvent.actorUserId, user.id))
+        .where(eq(activityEvent.relatedStudyId, input.studyId))
+        .orderBy(desc(activityEvent.createdAt))
+        .limit(input.limit);
+
+      const eventEntries: ChangelogEntry[] = erows
+        .filter((e) => !ECHOES_VERSION.has(e.type))
+        .map((e) => ({
+          id: `e:${e.id}`,
+          at: e.createdAt.toISOString(),
+          actor: e.actor ?? null,
+          kind: "event" as const,
+          title: humanizeEventType(e.type),
+          detail: [],
+        }));
+
+      // Recruitment open/close aren't activity events — synthesize them from the
+      // session rows so "start/stop" shows in the timeline (owner request).
+      const sessions = await db
+        .select({ id: recruitmentSession.id, status: recruitmentSession.status, openedAt: recruitmentSession.openedAt, closedAt: recruitmentSession.closedAt })
+        .from(recruitmentSession)
+        .innerJoin(experimentVersion, eq(recruitmentSession.experimentVersionId, experimentVersion.id))
+        .where(eq(experimentVersion.experimentId, input.studyId));
+      const recruitmentEntries: ChangelogEntry[] = [];
+      for (const s of sessions) {
+        recruitmentEntries.push({ id: `r:${s.id}:open`, at: s.openedAt.toISOString(), actor: null, kind: "event", title: "Opened recruitment", detail: [] });
+        if (s.closedAt) {
+          recruitmentEntries.push({
+            id: `r:${s.id}:close`,
+            at: s.closedAt.toISOString(),
+            actor: null,
+            kind: "event",
+            title: s.status === "paused" ? "Paused recruitment" : "Closed recruitment",
+            detail: [],
+          });
+        }
+      }
+
+      return [...versionEntries, ...eventEntries, ...recruitmentEntries]
+        .sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0))
+        .slice(0, input.limit);
     }),
 
   /**

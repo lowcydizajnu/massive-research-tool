@@ -1314,6 +1314,40 @@ describe("studies.listVersions (V1.7.1 item 3)", () => {
   });
 });
 
+describe("studies.changelog (Dashboard — when/what/who)", () => {
+  it("merges frozen saves (with author + diff) newest-first; excludes the autosave draft", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    await caller.studies.addBlock({ studyId: id, source: "core", key: "social-post", version: "1.0.0" });
+    await caller.studies.saveAsNamed({ studyId: id, name: "Pilot" });
+    await caller.studies.addBlock({ studyId: id, source: "core", key: "free-text", version: "1.0.0" });
+    await caller.studies.saveAsNamed({ studyId: id, name: "Round 2" });
+
+    const log = await caller.studies.changelog({ studyId: id });
+    // Only the two frozen saves are version entries — the autosave draft is not.
+    const versions = log.filter((e) => e.kind === "version");
+    expect(versions).toHaveLength(2);
+    // Newest first.
+    expect(versions[0].title).toContain("Round 2");
+    expect(versions[1].title).toContain("Pilot");
+    // "By who" comes through.
+    expect(versions[0].actor).toBe("ext_a");
+    // "What" — the newest save added a block; the first describes the initial version.
+    expect(versions[0].detail.join(" ")).toMatch(/Added/i);
+    expect(versions[1].detail.join(" ")).toMatch(/Initial/i);
+  });
+
+  it("rejects another workspace", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    await seedUserWithWorkspace("ext_b", "Beta");
+    const a = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await a.studies.create({ kind: "blank", title: "S" });
+    const b = createCaller({ authUser: authUser("ext_b") });
+    await expect(b.studies.changelog({ studyId: id })).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+});
+
 describe("studies.getVersion + restoreVersion (ADR-0019)", () => {
   it("previews a frozen version's blocks read-only", async () => {
     await seedUserWithWorkspace("ext_a", "Alpha");
