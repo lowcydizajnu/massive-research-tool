@@ -651,6 +651,12 @@ export type VersionCompare = {
   rightLabel: string;
   left: CompareNode[];
   right: CompareNode[];
+  /** Saved Whiteboard node positions per side (keyed by instanceId / `cond:slug`),
+   *  so the compare mirrors how the researcher arranged each version's canvas.
+   *  Empty when that version was never laid out → the view falls back to a tidy
+   *  auto-layout. */
+  leftPositions: Record<string, { x: number; y: number }>;
+  rightPositions: Record<string, { x: number; y: number }>;
   /** GitHub-style protocol-text diff (ADR-0031): old = right, new = left. */
   textDiff: import("@/lib/diff-lines").DiffLine[];
 };
@@ -2169,8 +2175,14 @@ export const studiesRouter = router({
 
       // vs = "origin" → juxtapose a replication against the study it was
       // replicated from (ADR-0018 gating: visible if public or same workspace).
+      // Saved canvas positions per side (ADR-0020) → the compare mirrors how each
+      // version was arranged on the Whiteboard. Empty = never laid out.
+      const posOf = (vp: unknown): Record<string, { x: number; y: number }> =>
+        ((vp as WhiteboardViewport | null)?.nodePositions ?? {}) as Record<string, { x: number; y: number }>;
+
       let rightBlocks: BlockInstance[];
       let rightSnapshot: unknown;
+      let rightViewport: unknown = {};
       let verLabel: string;
       if (input.vs === "origin") {
         if (!exp.forkOfExperimentId) throw new TRPCError({ code: "BAD_REQUEST", message: "Not a replication." });
@@ -2180,6 +2192,14 @@ export const studiesRouter = router({
         }
         rightBlocks = meta.blocks;
         rightSnapshot = await studyTipSnapshot(meta.exp);
+        if (meta.exp.currentVersionId) {
+          const [ov] = await db
+            .select({ vp: experimentVersion.whiteboardViewport })
+            .from(experimentVersion)
+            .where(eq(experimentVersion.id, meta.exp.currentVersionId))
+            .limit(1);
+          rightViewport = ov?.vp ?? {};
+        }
         verLabel = `Original — “${meta.exp.title}”`;
       } else {
         const [ver] = await db
@@ -2188,6 +2208,7 @@ export const studiesRouter = router({
             versionNumber: experimentVersion.versionNumber,
             name: experimentVersion.name,
             snapshot: experimentVersion.definitionSnapshot,
+            viewport: experimentVersion.whiteboardViewport,
           })
           .from(experimentVersion)
           .where(
@@ -2197,6 +2218,7 @@ export const studiesRouter = router({
         if (!ver) throw new TRPCError({ code: "NOT_FOUND" });
         rightBlocks = readBlocks(ver.snapshot);
         rightSnapshot = ver.snapshot;
+        rightViewport = ver.viewport ?? {};
         verLabel =
           ver.kind === "autosave"
             ? "Draft"
@@ -2209,6 +2231,15 @@ export const studiesRouter = router({
 
       const leftSnapshot = await studyTipSnapshot(exp); // working copy (child)
       const leftBlocks = readBlocks(leftSnapshot);
+      let leftViewport: unknown = {};
+      if (exp.currentVersionId) {
+        const [lv] = await db
+          .select({ vp: experimentVersion.whiteboardViewport })
+          .from(experimentVersion)
+          .where(eq(experimentVersion.id, exp.currentVersionId))
+          .limit(1);
+        leftViewport = lv?.vp ?? {};
+      }
       // Forks made in the product preserve instanceIds, but seeded/imported ones
       // may not — align by content first so identical blocks pair up (ADR-0018).
       const { aligned: alignedLeft, idMap } = alignBlocksForDiff(rightBlocks, leftBlocks);
@@ -2267,6 +2298,8 @@ export const studiesRouter = router({
         rightLabel: verLabel,
         left: leftBlocks.map((b) => toNode(b, "left")),
         right: rightBlocks.map((b) => toNode(b, "right")),
+        leftPositions: posOf(leftViewport),
+        rightPositions: posOf(rightViewport),
         // GitHub-style protocol text diff (ADR-0031): old = the chosen version /
         // original, new = the working copy.
         textDiff: diffLines(protocolText(rightSnapshot), protocolText(leftSnapshot)),
