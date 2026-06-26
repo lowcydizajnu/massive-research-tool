@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
 
-import { StageTabs } from "@/components/chrome/stage-tabs";
 import { ShareWorkspace } from "@/components/feature/share/share-workspace";
 import { getCurrentDbUser } from "@/server/auth/current-db-user";
 import { getServerApi } from "@/server/trpc/server";
@@ -31,8 +30,7 @@ export default async function ShareStagePage({
   if (!dbUser) notFound();
 
   return (
-    <main className="flex min-w-0 flex-1 flex-col gap-3">
-      <StageTabs studyId={study.id} active="Share" />
+    <main className="mx-auto flex w-full max-w-5xl flex-col gap-3">
       <div className="flex min-w-0 gap-3">
         <ShareWorkspace study={study} currentUserId={dbUser.id} />
       </div>

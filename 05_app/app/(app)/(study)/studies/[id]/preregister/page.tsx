@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { StageTabs } from "@/components/chrome/stage-tabs";
 import { PreflightChecklist } from "@/components/feature/run/preflight-checklist";
 import { AmendButton } from "@/components/feature/preregister/amend-button";
 import { PushToOsfButton } from "@/components/feature/study-record/push-to-osf-button";
@@ -92,9 +91,7 @@ export default async function PreregisterStagePage({
     : { connected: false, connectedAt: null };
 
   return (
-    <main className="flex min-w-0 flex-1 flex-col gap-3">
-      <StageTabs studyId={study.id} active="Preregister" />
-
+    <main className="mx-auto flex w-full max-w-5xl flex-col gap-3">
       <div className="flex flex-1 flex-col gap-5 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6">
         {/* Header */}
         <div className="min-w-0">

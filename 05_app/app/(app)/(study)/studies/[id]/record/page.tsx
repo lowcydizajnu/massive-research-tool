@@ -2,7 +2,6 @@ import Link from "next/link";
 import type { Route } from "next";
 import { notFound } from "next/navigation";
 
-import { StageTabs } from "@/components/chrome/stage-tabs";
 import { RecordComposer } from "@/components/feature/study-record/record-composer";
 import { getServerApi } from "@/server/trpc/server";
 import type { StudyDetail } from "@/server/trpc/routers/studies";
@@ -27,8 +26,7 @@ export default async function RecordStagePage({ params }: { params: Promise<{ id
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <StageTabs studyId={study.id} active="Record" />
+      <div className="flex flex-wrap items-center justify-end gap-2">
         {study.forkableBy === "public" ? (
           <Link
             href={`/browse/${study.id}` as Route}

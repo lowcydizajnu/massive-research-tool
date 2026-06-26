@@ -5,7 +5,6 @@ import Link from "next/link";
 import type { Route } from "next";
 import { useEffect, useState } from "react";
 
-import { StageTabs } from "@/components/chrome/stage-tabs";
 import { BlockVisibilityField } from "@/components/feature/builder/block-visibility-field";
 import { ConfigureForm } from "@/components/feature/builder/configure-form";
 import { ModeToggle } from "@/components/feature/builder/mode-toggle";
@@ -182,7 +181,6 @@ export function WhiteboardWorkspace({ study: initial }: { study: StudyDetail }) 
 
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-3">
-      <StageTabs studyId={study.id} active="Build" />
       <ReadOnlyBanner role={study.viewerRole} />
       <div className="flex flex-1 gap-3">
         <section className="flex min-w-0 flex-1 flex-col gap-5 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6">
