@@ -21,9 +21,39 @@ const nodeTypes = { compareBlock: CompareBlockNode, condition: ConditionNode, gr
  * (ADR-0028), mirroring the live whiteboard; modified nodes grow with their
  * change lines, so the layout advances past each node's real height.
  */
-function toFlow(nodes: CompareNode[]): { rfNodes: Node[]; rfEdges: Edge[] } {
+type Positions = Record<string, { x: number; y: number }>;
+
+function toFlow(nodes: CompareNode[], positions: Positions = {}): { rfNodes: Node[]; rfEdges: Edge[] } {
   const condOrder: string[] = [];
   for (const n of nodes) for (const s of n.showIfCondition) if (!condOrder.includes(s)) condOrder.push(s);
+
+  const rfEdges: Edge[] = nodes.flatMap((n) =>
+    n.showIfCondition.map((slug) => ({
+      id: `e:${slug}->${n.instanceId}`,
+      source: conditionNodeId(slug),
+      target: n.instanceId,
+      markerEnd: { type: MarkerType.ArrowClosed },
+    })),
+  );
+
+  // Absolute mode — mirror the researcher's saved Whiteboard arrangement (ADR-0020):
+  // place each node at its persisted coordinate. Used when this version was laid
+  // out; any node missing a saved spot gets a tidy fallback so nothing overlaps.
+  if (Object.keys(positions).length > 0) {
+    const condNodes: Node[] = condOrder.map((slug, i) => ({
+      id: conditionNodeId(slug),
+      type: "condition",
+      position: positions[conditionNodeId(slug)] ?? { x: 0, y: i * 110 },
+      data: { label: `Condition: ${slug}` },
+    }));
+    const blockNodes: Node[] = nodes.map((n, i) => ({
+      id: n.instanceId,
+      type: "compareBlock",
+      position: positions[n.instanceId] ?? { x: 300, y: i * 130 },
+      data: { label: n.name, ref: n.ref, status: n.status, changes: n.changes },
+    }));
+    return { rfNodes: [...condNodes, ...blockNodes], rfEdges };
+  }
 
   const condNodes: Node[] = condOrder.map((slug, i) => ({
     id: conditionNodeId(slug),
@@ -91,19 +121,11 @@ function toFlow(nodes: CompareNode[]): { rfNodes: Node[]; rfEdges: Edge[] } {
     }
   }
 
-  const rfEdges: Edge[] = nodes.flatMap((n) =>
-    n.showIfCondition.map((slug) => ({
-      id: `e:${slug}->${n.instanceId}`,
-      source: conditionNodeId(slug),
-      target: n.instanceId,
-      markerEnd: { type: MarkerType.ArrowClosed },
-    })),
-  );
   return { rfNodes: out, rfEdges };
 }
 
-function CompareSide({ label, nodes }: { label: string; nodes: CompareNode[] }) {
-  const { rfNodes, rfEdges } = useMemo(() => toFlow(nodes), [nodes]);
+function CompareSide({ label, nodes, positions }: { label: string; nodes: CompareNode[]; positions?: Positions }) {
+  const { rfNodes, rfEdges } = useMemo(() => toFlow(nodes, positions ?? {}), [nodes, positions]);
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-2">
       <h2 className="font-serif text-[17px] font-medium text-[var(--color-text-primary)]">{label}</h2>
@@ -231,8 +253,8 @@ export function CompareView({ studyId, initialVs }: { studyId: string; initialVs
         />
       ) : (
         <div className="flex flex-col gap-3 md:flex-row">
-          <CompareSide label={cmp.data.leftLabel} nodes={cmp.data.left} />
-          <CompareSide label={cmp.data.rightLabel} nodes={cmp.data.right} />
+          <CompareSide label={cmp.data.leftLabel} nodes={cmp.data.left} positions={cmp.data.leftPositions} />
+          <CompareSide label={cmp.data.rightLabel} nodes={cmp.data.right} positions={cmp.data.rightPositions} />
         </div>
       )}
     </div>
