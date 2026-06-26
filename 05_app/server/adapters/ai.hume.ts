@@ -48,10 +48,34 @@ function batchBody(
 
 const HUME_HEADERS = (apiKey: string) => ({ "X-Hume-Api-Key": apiKey, "content-type": "application/json" });
 
+/**
+ * fetch with a hard timeout + a descriptive error that includes the response body
+ * (Hume puts the real reason — auth, plan, validation — in the body). A timeout
+ * throws fast instead of letting a hung request burn the whole serverless budget
+ * across Inngest retries (the 1m44s "hume-submit" failure we saw).
+ */
+async function humeFetch(url: string, init: RequestInit, label: string, timeoutMs = 30_000): Promise<Response> {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), timeoutMs);
+  let res: Response;
+  try {
+    res = await fetch(url, { ...init, signal: ctl.signal });
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") throw new Error(`Hume ${label} timed out after ${timeoutMs / 1000}s.`);
+    throw new Error(`Hume ${label} request failed: ${err instanceof Error ? err.message : String(err)}`);
+  } finally {
+    clearTimeout(timer);
+  }
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`Hume ${label} failed (${res.status})${detail ? `: ${detail.slice(0, 300)}` : ""}`);
+  }
+  return res;
+}
+
 /** Submit a batch job → `{ job_id }`. `POST /v0/batch/jobs`. */
 async function submitBatch(apiKey: string, body: Record<string, unknown>): Promise<string> {
-  const submit = await fetch(`${API}/batch/jobs`, { method: "POST", headers: HUME_HEADERS(apiKey), body: JSON.stringify(body) });
-  if (!submit.ok) throw new Error(`Hume batch submit failed (${submit.status})`);
+  const submit = await humeFetch(`${API}/batch/jobs`, { method: "POST", headers: HUME_HEADERS(apiKey), body: JSON.stringify(body) }, "batch submit");
   const jobId = ((await submit.json()) as { job_id?: string }).job_id;
   if (!jobId) throw new Error("Hume batch submit returned no job_id.");
   return jobId;
@@ -59,8 +83,7 @@ async function submitBatch(apiKey: string, body: Record<string, unknown>): Promi
 
 /** One status check. `GET /v0/batch/jobs/{id}` → state.status (COMPLETED|FAILED|IN_PROGRESS|QUEUED). */
 async function batchStatus(apiKey: string, jobId: string): Promise<AiEmotionJobStatus> {
-  const res = await fetch(`${API}/batch/jobs/${jobId}`, { headers: HUME_HEADERS(apiKey) });
-  if (!res.ok) throw new Error(`Hume batch status failed (${res.status})`);
+  const res = await humeFetch(`${API}/batch/jobs/${jobId}`, { headers: HUME_HEADERS(apiKey) }, "batch status");
   const status = ((await res.json()) as { state?: { status?: string } }).state?.status;
   if (status === "COMPLETED") return "completed";
   if (status === "FAILED") return "failed";
@@ -69,8 +92,7 @@ async function batchStatus(apiKey: string, jobId: string): Promise<AiEmotionJobS
 
 /** Fetch raw predictions. `GET /v0/batch/jobs/{id}/predictions` → InferenceSourcePredictResult[]. */
 async function batchPredictions(apiKey: string, jobId: string): Promise<unknown> {
-  const preds = await fetch(`${API}/batch/jobs/${jobId}/predictions`, { headers: HUME_HEADERS(apiKey) });
-  if (!preds.ok) throw new Error(`Hume batch predictions failed (${preds.status})`);
+  const preds = await humeFetch(`${API}/batch/jobs/${jobId}/predictions`, { headers: HUME_HEADERS(apiKey) }, "batch predictions");
   return preds.json();
 }
 

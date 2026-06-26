@@ -109,13 +109,18 @@ export async function runHumeAnalyze(
     sensitivity: (isVoice ? "pii" : "participant_data") as "pii" | "participant_data",
   };
 
-  const fail = () => db.update(responseItem).set({ emotionStatus: "failed" }).where(eq(responseItem.id, item.id));
+  // On failure, store WHY (truncated) so Results can show the reason instead of a
+  // bare "failed" — Hume puts the real cause (auth/plan/validation) in the message.
+  const fail = (error?: string) =>
+    db.update(responseItem)
+      .set({ emotionStatus: "failed", emotionAnalysis: error ? { error: error.slice(0, 300) } : null })
+      .where(eq(responseItem.id, item.id));
   const writeOk = (emotions: Record<string, number>, transcript: string | null) =>
     db.update(responseItem).set({ emotionAnalysis: { emotions, transcript }, emotionStatus: "ok" }).where(eq(responseItem.id, item.id));
 
   // No connection → mark failed (analysis can't run without a key).
   if (!(await loadHumeKey(workspaceId))) {
-    await fail();
+    await fail("No Hume connection for this workspace.");
     return;
   }
 
@@ -141,8 +146,8 @@ export async function runHumeAnalyze(
       const apiKey = (await loadHumeKey(workspaceId))!;
       const result = await runEmotion(ctx, await buildOpts(), { provider: "hume", apiKey });
       await writeOk(result.emotions, result.transcript ?? null);
-    } catch {
-      await fail();
+    } catch (e) {
+      await fail(e instanceof Error ? e.message : "Analysis failed.");
     }
     return;
   }
@@ -160,7 +165,7 @@ export async function runHumeAnalyze(
   } catch (err) {
     await step.run("hume-submit-failed", async () => {
       await recordEmotionFailure(ctx, { kind }, "hume", startedAtMs, err);
-      await fail();
+      await fail(err instanceof Error ? err.message : "Submit failed.");
     });
     return;
   }
@@ -185,7 +190,7 @@ export async function runHumeAnalyze(
       if (status === "failed") {
         await step.run(`hume-failed-${i}`, async () => {
           await recordEmotionFailure(ctx, { kind }, "hume", startedAtMs, new Error("Hume batch job failed"));
-          await fail();
+          await fail("Hume reported the analysis job failed.");
         });
         return;
       }
@@ -193,7 +198,7 @@ export async function runHumeAnalyze(
     if (!completed) {
       await step.run("hume-timeout", async () => {
         await recordEmotionFailure(ctx, { kind }, "hume", startedAtMs, new Error("Hume batch job timed out"));
-        await fail();
+        await fail("Analysis didn’t finish in time — re-run to retry.");
       });
       return;
     }
@@ -201,20 +206,20 @@ export async function runHumeAnalyze(
     await step.run("hume-finish", async () => {
       const apiKey = await loadHumeKey(workspaceId);
       if (!apiKey) {
-        await fail();
+        await fail("No Hume connection for this workspace.");
         return;
       }
       try {
         const result = await finishEmotionJob(ctx, { kind }, { provider: "hume", apiKey }, jobId, startedAtMs);
         await writeOk(result.emotions, result.transcript ?? null);
-      } catch {
-        await fail();
+      } catch (e) {
+        await fail(e instanceof Error ? e.message : "Couldn’t fetch results.");
       }
     });
-  } catch {
+  } catch (e) {
     await step.run("hume-uncaught-failed", async () => {
-      await recordEmotionFailure(ctx, { kind }, "hume", startedAtMs, new Error("Hume analysis errored"));
-      await fail();
+      await recordEmotionFailure(ctx, { kind }, "hume", startedAtMs, e);
+      await fail(e instanceof Error ? e.message : "Analysis errored.");
     });
   }
 }

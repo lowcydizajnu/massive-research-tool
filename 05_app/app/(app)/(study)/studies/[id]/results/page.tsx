@@ -234,6 +234,11 @@ export default async function ResultsStagePage({
                             {q.emotion.pending ? ` · ${q.emotion.pending} pending` : ""}
                             {q.emotion.failed ? ` · ${q.emotion.failed} failed` : ""}
                           </span>
+                          {q.emotion.failed && q.emotion.error ? (
+                            <span className="text-[length:var(--text-small)] text-[var(--color-danger-text-on-subtle)]">
+                              Last error: {q.emotion.error}
+                            </span>
+                          ) : null}
                           {q.emotion.top.length ? (
                             <ul className="flex flex-col gap-0.5">
                               {q.emotion.top.map((e) => (
