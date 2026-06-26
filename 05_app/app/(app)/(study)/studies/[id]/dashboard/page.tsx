@@ -108,11 +108,14 @@ export default async function StudyDashboardPage({ params }: { params: Promise<{
           </section>
         ) : null}
 
-        {/* Changelog — when / what / who, merging version saves + lifecycle events */}
-        {changelog.length > 0 ? (
-          <section className="flex flex-col gap-2">
-            <h2 className="text-[length:var(--text-small)] font-medium uppercase tracking-wide text-[var(--color-text-muted)]">Changelog</h2>
-            <ul className="flex flex-col">
+      </div>
+
+      {/* Changelog — its own widget card (a second dashboard widget, like the
+          Prolific card on Run). When / what / who: version saves + lifecycle events. */}
+      {changelog.length > 0 ? (
+        <div className="flex flex-col gap-2 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6">
+          <h2 className="text-[length:var(--text-small)] font-medium uppercase tracking-wide text-[var(--color-text-muted)]">Changelog</h2>
+          <ul className="flex flex-col">
               {changelog.map((e, i) => (
                 <li
                   key={e.id}
@@ -154,9 +157,8 @@ export default async function StudyDashboardPage({ params }: { params: Promise<{
                 </li>
               ))}
             </ul>
-          </section>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
     </main>
   );
 }

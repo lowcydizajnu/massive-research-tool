@@ -19,8 +19,9 @@ function hrefFor(stage: Stage, studyId: string): Route {
   const base = `/studies/${studyId}`;
   switch (stage) {
     case "Preview":
-      // Preview opens the side-by-side builder preview (full-screen reachable from there).
-      return `${base}/build?preview=1` as Route;
+      // Preview opens the full-screen participant preview by default (side-by-side
+      // in the Builder is offered from there).
+      return `${base}/preview` as Route;
     // "Comment" is the peer-review + comments surface — still served by /share.
     case "Comment":
       return `${base}/share` as Route;
@@ -52,7 +53,7 @@ export function StudyStageNav({ studyId }: { studyId: string }) {
   const active = activeStage(pathname, studyId, isPreview);
 
   return (
-    <div className="flex w-full justify-center border-b border-[var(--color-border-subtle)] px-3 pb-2">
+    <div className="flex w-full justify-center border-b border-[var(--color-border-subtle)] px-3 pb-2 pt-2">
       <nav role="tablist" aria-label="Study stage" className="flex flex-wrap items-center justify-center gap-1">
         {STAGES.map((stage) => {
           const isActive = stage === active;
