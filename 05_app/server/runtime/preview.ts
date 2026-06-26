@@ -7,6 +7,7 @@ import { experiment, experimentVersion, previewToken } from "@/server/db/schema"
 import { readBlocks, readGroups, type BlockInstance } from "@/server/modules/blocks";
 import { deriveScreens } from "@/lib/whiteboard/screens";
 import { readTheme, resolveChat, type ChatAppearance } from "@/lib/themes/themes";
+import { readBlockCopy, type BlockCopyKey } from "@/lib/take/ui-copy";
 import type { RuntimeBlock } from "@/server/runtime/participant";
 
 const toRuntime = (b: BlockInstance): RuntimeBlock => ({
@@ -35,6 +36,8 @@ export type PreviewPayload = {
    *  preview. No condition filtering — preview has no answers, so all screens show. */
   screens: RuntimeBlock[][];
   chat: ChatAppearance;
+  /** Set block-internal copy overrides (social-post labels); blank = native (ADR-0070). */
+  blockCopy: Partial<Record<BlockCopyKey, string>>;
 };
 
 /**
@@ -69,5 +72,11 @@ export async function loadPreviewByToken(
   const raw = readBlocks(row.snapshot);
   const blocks: RuntimeBlock[] = raw.map(toRuntime);
   const screens = deriveScreens(raw, readGroups(row.snapshot)).map((s) => s.blocks.map(toRuntime));
-  return { title: row.title, blocks, screens, chat: resolveChat(readTheme(row.snapshot)) };
+  return {
+    title: row.title,
+    blocks,
+    screens,
+    chat: resolveChat(readTheme(row.snapshot)),
+    blockCopy: readBlockCopy((row.snapshot as { uiCopy?: unknown } | null)?.uiCopy),
+  };
 }
