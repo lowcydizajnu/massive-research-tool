@@ -1,5 +1,6 @@
 import { aiRouter } from "@/server/trpc/routers/ai";
 import { commentsRouter } from "@/server/trpc/routers/comments";
+import { cookieConsentRouter } from "@/server/trpc/routers/cookie-consent";
 import { dashboardRouter } from "@/server/trpc/routers/dashboard";
 import { followsRouter } from "@/server/trpc/routers/follows";
 import { materialsRouter } from "@/server/trpc/routers/materials";
@@ -39,6 +40,7 @@ export const appRouter = router({
   templates: templatesRouter,
   materials: materialsRouter,
   comments: commentsRouter,
+  cookieConsent: cookieConsentRouter,
   notifications: notificationsRouter,
   follows: followsRouter,
   me: meRouter,
