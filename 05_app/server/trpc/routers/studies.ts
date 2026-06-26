@@ -78,6 +78,7 @@ import { storage } from "@/server/adapters/storage";
 import { runTts, AiBudgetExceededError } from "@/server/runtime/ai-gateway";
 import { applyVisualContext, readTheme, requiresAcknowledgment, studyThemeSchema } from "@/lib/themes/themes";
 import { sanitizeUiCopy } from "@/lib/take/ui-copy";
+import { resolvePanelIntegration, sanitizePanelIntegration } from "@/lib/take/panel-integration";
 import { diffLines } from "@/lib/diff-lines";
 import { publicProcedure, router, workspaceProcedure, writeProcedure } from "@/server/trpc/trpc";
 import type { MemberRole } from "@/server/workspace/active";
@@ -552,6 +553,8 @@ export type StudyDetail = {
   variantBindings: import("@/lib/variants/factorial").VariantBinding[];
   /** Participant-facing chrome copy overrides (ADR-0066 labels slice); empty keys = default. */
   uiCopy: Record<string, string>;
+  /** External research-panel / agency integration (ADR-0071) — operational recruitment config. */
+  panelIntegration: import("@/lib/take/panel-integration").PanelIntegration;
   /** Participant-facing theme (ADR-0024); Academic defaults when never set. */
   theme: import("@/lib/themes/themes").StudyTheme;
   /** The caller's role in the owning workspace — drives client-side write gating (mirrors writeProcedure: viewers are read-only). */
@@ -1684,6 +1687,7 @@ export const studiesRouter = router({
         factors: readFactors(row.version?.definitionSnapshot),
         variantBindings: readVariantBindings(row.version?.definitionSnapshot),
         uiCopy: ((row.version?.definitionSnapshot as { uiCopy?: Record<string, string> } | null)?.uiCopy) ?? {},
+        panelIntegration: resolvePanelIntegration(row.experiment.panelIntegration),
         theme: readTheme(row.version?.definitionSnapshot),
         viewerRole: ctx.role as MemberRole,
       };
@@ -2476,6 +2480,28 @@ export const studiesRouter = router({
         .set({ definitionSnapshot: { ...snap, uiCopy: sanitizeUiCopy(input.uiCopy) } })
         .where(eq(experimentVersion.id, tip.version.id));
       await db.update(experiment).set({ updatedAt: new Date() }).where(eq(experiment.id, input.studyId));
+      return { ok: true };
+    }),
+
+  /**
+   * Set the external research-panel / agency integration config (ADR-0071).
+   * Operational recruitment settings stored on the experiment (NOT the version
+   * snapshot — swapping the agency mid-study shouldn't fork the protocol). The
+   * input is sanitized (URLs validated, delays clamped, no arbitrary code).
+   */
+  setPanelIntegration: writeProcedure
+    .input(z.object({ studyId: z.string().uuid(), config: z.record(z.string(), z.unknown()) }))
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      const [exp] = await db
+        .select({ id: experiment.id })
+        .from(experiment)
+        .where(and(eq(experiment.id, input.studyId), eq(experiment.tenantId, ctx.workspace.id)))
+        .limit(1);
+      if (!exp) throw new TRPCError({ code: "NOT_FOUND" });
+      await db
+        .update(experiment)
+        .set({ panelIntegration: sanitizePanelIntegration(input.config), updatedAt: new Date() })
+        .where(eq(experiment.id, input.studyId));
       return { ok: true };
     }),
 
