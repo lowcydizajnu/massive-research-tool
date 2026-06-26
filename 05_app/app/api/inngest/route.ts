@@ -9,12 +9,9 @@ import { runOsfWatch } from "@/server/jobs/osf-watch";
 import { runHumeAnalyze } from "@/server/jobs/hume-analyze";
 
 /**
- * Node runtime + a modest budget. The `hume.analyze` job (ADR-0066 H3a) submits a
- * Hume Expression Measurement BATCH job and polls it across Inngest STEPS — each
- * invocation is just a submit / one poll / a fetch, all short, with the waiting
- * spent in Inngest between invocations. So no single function blocks for the whole
- * job and this stays within Vercel Hobby's limit (60s); 60 gives ample headroom
- * for the heaviest single step (R2 presign + batch submit, or predictions fetch).
+ * Node runtime + a modest budget. The `hume.analyze` job (ADR-0066) now scores text
+ * emotion via Claude (Anthropic) in a single synchronous call (seconds) — well
+ * within Vercel Hobby's 60s limit. 60 leaves headroom for a slow model response.
  */
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -113,15 +110,10 @@ const osfWatch = inngest.createFunction(
 const humeAnalyze = inngest.createFunction(
   { id: "hume-analyze", retries: 2 },
   { event: "hume.analyze" },
-  async ({ event, step }) => {
-    // Adapt Inngest's step to the job's minimal StepRunner so the batch poll runs
-    // across short invocations (Hobby-safe) instead of one long-lived function.
-    await runHumeAnalyze(event.data as JobCatalog["hume.analyze"], {
-      // step.run returns a Jsonify<T> wrapper; our payloads are strings/void, so
-      // the cast is safe and keeps the job decoupled from Inngest's types.
-      run: <T,>(id: string, fn: () => Promise<T>) => step.run(id, fn) as Promise<T>,
-      sleep: (id: string, ms: number) => step.sleep(id, `${ms}ms`).then(() => undefined),
-    });
+  async ({ event }) => {
+    // Emotion now runs on Claude (Anthropic) synchronously — one short call, no
+    // batch/poll. (Event + function id kept stable to avoid an Inngest re-sync.)
+    await runHumeAnalyze(event.data as JobCatalog["hume.analyze"]);
     return { ok: true };
   },
 );

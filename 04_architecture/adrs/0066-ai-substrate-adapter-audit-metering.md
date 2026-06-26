@@ -78,6 +78,12 @@ Hume **discontinued the Expression Measurement API** (batch + streaming) — las
 
 **Re-platform options (owner decision pending):** (a) emotion via the AI substrate using an LLM (text works now; voice = transcript-only, loses prosody) — note an LLM score is not a validated psychometric, so it stays the "exploratory" measure the UI already labels; (b) a dedicated emotion vendor (esp. for voice/prosody); (c) Hume EVI's embedded expression (voice-conversation only — Hume's own migration path); (d) leave paused. The provider-agnostic gateway/adapter (this ADR) is exactly what keeps any of these a localized change.
 
+### Resolution (2026-06-26) — text emotion re-platformed on Claude; voice archived
+
+Owner chose (a) for text, leave voice paused. **Text emotion now runs on Claude (Anthropic)** via the substrate: a new `anthropicAdapter.analyzeText` prompts Claude to score the answer on **Plutchik's eight primary emotions** (stable, citable taxonomy) and returns the vector. It's **synchronous** (one call), so the `hume.analyze` job (event id kept stable to avoid an Inngest re-sync) dropped all the batch/step/poll machinery and just scores + writes — the Hume batch primitives + gateway start/poll/finish stay dormant for a future prosody provider. `EMOTION_ANALYSIS_AVAILABLE=true`. BYO Anthropic key per workspace (same connection as ai-chat). Sensitivity = participant_data; labelled exploratory + lexical in the UI (lightbulb help: setup + how to read the data).
+
+**Voice/prosody emotion ARCHIVED** (no LLM substitute): `voice-emotion-probe` marked `archived` (registry flag → seed sets `deprecatedAt` → hidden from the picker; existing studies still resolve) and the audio-record emotion toggle removed. Kept in the registry for a future vocal-emotion provider. Requires `db:seed:prod` to deprecate the prod catalogue row.
+
 ## Revisit triggers
 
 - We add a provider whose pricing isn't expressible as the current per-token/per-duration table (revisit the cost model).

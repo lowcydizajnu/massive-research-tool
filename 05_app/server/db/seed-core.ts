@@ -27,6 +27,10 @@ export async function seedCoreModules(): Promise<void> {
       })
       .returning();
 
+    // Archived modules (e.g. voice-emotion-probe after Hume EM was discontinued)
+    // are seeded but marked deprecated so the Builder picker (deprecatedAt IS NULL)
+    // hides them; existing studies still resolve. Re-seeding syncs the flag.
+    const deprecatedAt = def.archived ? new Date() : null;
     await db
       .insert(moduleVersion)
       .values({
@@ -35,9 +39,11 @@ export async function seedCoreModules(): Promise<void> {
         name: def.name,
         schema: def.jsonSchema,
         defaultConfig: def.defaultConfig,
+        deprecatedAt,
       })
-      .onConflictDoNothing({
+      .onConflictDoUpdate({
         target: [moduleVersion.moduleId, moduleVersion.version],
+        set: { deprecatedAt },
       });
   }
 }

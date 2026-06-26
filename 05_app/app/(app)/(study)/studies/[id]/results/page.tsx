@@ -230,7 +230,7 @@ export default async function ResultsStagePage({
                       {q.emotion ? (
                         <div className="flex flex-col gap-1 pt-1">
                           <span className="text-[length:var(--text-label)] uppercase tracking-wide text-[var(--color-text-muted)]">
-                            Emotion (Hume) · {q.emotion.n} analyzed
+                            Emotion (Claude) · {q.emotion.n} analyzed
                             {q.emotion.pending ? ` · ${q.emotion.pending} pending` : ""}
                             {q.emotion.failed ? ` · ${q.emotion.failed} failed` : ""}
                           </span>

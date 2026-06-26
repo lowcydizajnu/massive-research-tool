@@ -1,12 +1,11 @@
 "use client";
 
-import { Eye, EyeOff, X } from "lucide-react";
+import { Eye, EyeOff, Lightbulb, X } from "lucide-react";
 import { useRef, useState } from "react";
 
 import type { StudyBlock } from "@/server/trpc/routers/studies";
 import { api } from "@/lib/trpc/react";
 import { EMOTION_ANALYSIS_AVAILABLE, EMOTION_UNAVAILABLE_REASON } from "@/lib/ai/emotion-availability";
-import { HUME_LANGUAGES } from "@/lib/ai/hume-languages";
 import { AiChatConfig } from "@/components/feature/builder/ai-chat-config";
 import { AudioStimulusConfig } from "@/components/feature/builder/audio-stimulus-config";
 import { PickFromMaterialsButton } from "@/components/feature/builder/pick-from-materials-button";
@@ -306,17 +305,18 @@ export function ConfigureForm({
         })}
       </div>
 
-      {["free-text", "audio-record", "voice-emotion-probe", "text-emotion-probe"].includes(block.key) ? (
+      {/* Emotion analysis runs on Claude (text only) since Hume EM was discontinued —
+          voice-emotion is archived, so only text blocks offer it (ADR-0066 amendment). */}
+      {["free-text", "text-emotion-probe"].includes(block.key) ? (
         (() => {
-          const ea = draft.emotionAnalysis as { enabled?: boolean; language?: string } | undefined;
-          // Dedicated probe blocks (ADR-0066 H3b/H4b) have emotion forced ON — no toggle.
-          const alwaysOn = block.key === "voice-emotion-probe" || block.key === "text-emotion-probe";
-          const modality = block.key === "audio-record" || block.key === "voice-emotion-probe" ? "voice" : "text";
-          // Merge-write so toggling/relanguaging never drops the other fields.
+          const ea = draft.emotionAnalysis as { enabled?: boolean } | undefined;
+          // The dedicated text-emotion-probe forces emotion ON — no toggle.
+          const alwaysOn = block.key === "text-emotion-probe";
+          // Merge-write so toggling never drops the other fields. Provider is Claude.
           const write = (patch: Record<string, unknown>) => {
-            const nextEa: Record<string, unknown> = { provider: "hume", modality, enabled: alwaysOn || Boolean(ea?.enabled), ...(ea ?? {}), ...patch };
-            if (alwaysOn) nextEa.enabled = true; // probe blocks can never disable analysis
-            if (!nextEa.language) delete nextEa.language; // absent = Hume auto-detect
+            const nextEa: Record<string, unknown> = { provider: "anthropic", modality: "text", enabled: alwaysOn || Boolean(ea?.enabled), ...(ea ?? {}), ...patch };
+            if (alwaysOn) nextEa.enabled = true;
+            delete nextEa.language; // language no longer applies (Claude is multilingual natively)
             const next = { ...draft, emotionAnalysis: nextEa };
             setDraft(next);
             onChange(next);
@@ -326,9 +326,7 @@ export function ConfigureForm({
               block={block}
               alwaysOn={alwaysOn}
               enabled={alwaysOn || Boolean(ea?.enabled)}
-              language={typeof ea?.language === "string" ? ea.language : ""}
               onToggle={(enabled) => write({ enabled })}
-              onLanguageChange={(language) => write({ language })}
             />
           );
         })()
@@ -933,90 +931,89 @@ function clampedCentered(n: number): { x: number; y: number; w: number; h: numbe
 }
 
 /**
- * "Analyze emotion (Hume)" toggle (ADR-0066 H3a) shown on emotion-eligible blocks
- * (free-text, audio-record). Flips the block's `emotionAnalysis.enabled`; the
- * participant runtime then enqueues the `hume.analyze` job on submit. Voice =
- * biometric (pii) — needs the workspace PII opt-in; both need a Hume connection.
+ * "Analyze emotion (Claude)" toggle (ADR-0066 amendment) on text blocks (free-text,
+ * text-emotion-probe). Flips `emotionAnalysis.enabled`; the participant runtime then
+ * enqueues the analysis job on submit, which scores the text on Claude. Text only —
+ * vocal-prosody emotion was archived when Hume EM was discontinued. The lightbulb
+ * opens setup + how-to-read-the-data guidance.
  */
 function EmotionAnalysisToggle({
-  block,
+  block: _block,
   enabled,
-  language,
   alwaysOn = false,
   onToggle,
-  onLanguageChange,
 }: {
   block: StudyBlock;
   enabled: boolean;
-  language: string;
   alwaysOn?: boolean;
   onToggle: (enabled: boolean) => void;
-  onLanguageChange: (language: string) => void;
 }) {
   const list = api.ai.connections.list.useQuery();
-  const humeConnected = (list.data ?? []).some((c) => c.provider === "hume");
-  const isVoice = block.key === "audio-record" || block.key === "voice-emotion-probe";
+  const claudeConnected = (list.data ?? []).some((c) => c.provider === "anthropic");
+  const [helpOpen, setHelpOpen] = useState(false);
 
-  // Provider gate: emotion analysis is paused (Hume EM discontinued). Show why and
-  // don't let a researcher newly enable a feature that can't run.
+  // Provider gate (flip in lib/ai/emotion-availability.ts to pause the feature).
   if (!EMOTION_ANALYSIS_AVAILABLE) {
     return (
       <div className="flex flex-col gap-1 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] p-2.5">
-        <span className="text-[length:var(--text-body)] font-medium text-[var(--color-text-muted)]">
-          Emotion analysis (paused)
-        </span>
+        <span className="text-[length:var(--text-body)] font-medium text-[var(--color-text-muted)]">Emotion analysis (paused)</span>
         <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">{EMOTION_UNAVAILABLE_REASON}</span>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-1 rounded-[var(--radius-md)] bg-[var(--color-surface-subtle)] p-2.5">
-      {alwaysOn ? (
-        <span className="text-[length:var(--text-body)] font-medium text-[var(--color-text-primary)]">
-          Emotion analysis (Hume) · always on
-        </span>
-      ) : (
-        <label className="flex items-center gap-2">
-          <input type="checkbox" checked={enabled} onChange={(e) => onToggle(e.target.checked)} />
-          <span className="text-[length:var(--text-body)] font-medium text-[var(--color-text-primary)]">
-            Analyze emotion (Hume)
-          </span>
-        </label>
-      )}
+    <div className="flex flex-col gap-1.5 rounded-[var(--radius-md)] bg-[var(--color-surface-subtle)] p-2.5">
+      <div className="flex items-center justify-between gap-2">
+        {alwaysOn ? (
+          <span className="text-[length:var(--text-body)] font-medium text-[var(--color-text-primary)]">Emotion analysis (Claude) · always on</span>
+        ) : (
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked={enabled} onChange={(e) => onToggle(e.target.checked)} />
+            <span className="text-[length:var(--text-body)] font-medium text-[var(--color-text-primary)]">Analyze emotion (Claude)</span>
+          </label>
+        )}
+        <button
+          type="button"
+          onClick={() => setHelpOpen((v) => !v)}
+          aria-label="How emotion analysis works"
+          aria-expanded={helpOpen}
+          title="How it works"
+          className="shrink-0 rounded-full p-0.5 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-canvas)] hover:text-[var(--color-text-secondary)]"
+        >
+          <Lightbulb className="size-4" aria-hidden />
+        </button>
+      </div>
+
       <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-        After each participant submits, their {isVoice ? "audio" : "answer"} is analyzed for emotional content; scores
-        appear in Results. Sensitivity: {isVoice ? "PII (biometric voice)" : "participant data"}. ≈{" "}
-        {isVoice ? "$0.005" : "$0.001"} per response, billed to your Hume key.
+        After each participant submits, their answer is scored on eight emotions; results appear under “Emotion” in Results
+        and in the CSV export. Sensitivity: participant data. ≈ $0.001 per response, billed to your Claude key.
       </span>
-      {enabled ? (
-        <label className="mt-1 flex flex-col gap-1">
-          <span className="text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)]">Language</span>
-          <select
-            value={language}
-            onChange={(e) => onLanguageChange(e.target.value)}
-            className="rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-1 text-[length:var(--text-body)] text-[var(--color-text-primary)]"
-          >
-            <option value="">Auto-detect (recommended)</option>
-            {HUME_LANGUAGES.map((l) => (
-              <option key={l.code} value={l.code}>
-                {l.label}
-              </option>
-            ))}
-          </select>
-          <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-            Hume auto-detects by default; pick a language to improve accuracy when you know it.
-          </span>
-        </label>
+
+      {helpOpen ? (
+        <div className="flex flex-col gap-1.5 rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-2.5 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+          <p>
+            <strong className="text-[var(--color-text-primary)]">Set it up.</strong> Connect Claude in Settings → Workspace →
+            AI providers (your Anthropic API key). Then enable this on any text block — analysis runs automatically a few
+            seconds after each participant submits; no extra step.
+          </p>
+          <p>
+            <strong className="text-[var(--color-text-primary)]">Read the data.</strong> Each answer gets a 0–1 score for
+            Plutchik’s eight primary emotions — Joy, Trust, Fear, Surprise, Sadness, Disgust, Anger, Anticipation. Higher =
+            more strongly expressed in the text. Results shows the top emotions per question; the export has one column each
+            (<span className="font-mono">…_emo_joy</span>, etc.).
+          </p>
+          <p>
+            <strong className="text-[var(--color-text-primary)]">Caveat.</strong> This is an exploratory, <em>lexical</em>
+            {" "}measure — it reads the words, not tone of voice — and isn’t a validated psychometric instrument. Validate with
+            self-report where the construct matters.
+          </p>
+        </div>
       ) : null}
-      {enabled && !humeConnected ? (
+
+      {enabled && !claudeConnected ? (
         <span className="text-[length:var(--text-small)] text-[var(--color-danger-text-on-subtle)]">
-          Connect Hume in Settings → Workspace → AI providers to run this.
-        </span>
-      ) : null}
-      {enabled && isVoice ? (
-        <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-          Voice analysis requires the workspace PII opt-in (Settings → Workspace).
+          Connect Claude (Anthropic) in Settings → Workspace → AI providers to run this.
         </span>
       ) : null}
     </div>

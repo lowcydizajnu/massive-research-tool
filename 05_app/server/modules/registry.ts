@@ -25,6 +25,13 @@ export type CoreModuleDef = {
    * (varying a generated value by hand is nonsensical — ADR-0058/0069). Optional.
    */
   derivedFields?: readonly string[];
+  /**
+   * Archived modules stay in the registry (so existing studies still render) but
+   * are hidden from the Builder picker — seeding marks the version `deprecatedAt`
+   * and the catalogue query filters those out. E.g. `voice-emotion-probe` after
+   * Hume's vocal Expression Measurement was discontinued (ADR-0066 amendment).
+   */
+  archived?: boolean;
   /** Runtime validation schema (structural). */
   configSchema: z.ZodType<Record<string, unknown>>;
   /** Valid starting config for a freshly-added block. */
@@ -305,7 +312,9 @@ const multipleChoice: CoreModuleDef = {
 const emotionAnalysisConfig = z
   .object({
     enabled: z.boolean(),
-    provider: z.literal("hume"),
+    // "anthropic" (Claude, text) is the provider after Hume EM was discontinued;
+    // "hume" kept so legacy configs still validate.
+    provider: z.enum(["anthropic", "hume"]),
     modality: z.enum(["text", "voice"]),
     participantAudioRetention: z.enum(["never", "session", "retained"]).optional(),
     // Optional BCP-47 transcription language (ADR-0066 H3a language selector).
@@ -980,12 +989,16 @@ const audioRecordBlock: CoreModuleDef = {
  * Reuses the entire H3a pipeline (enqueue → hume.analyze voice → Results → export)
  * via the shared `emotionAnalysis` config; take view reuses AudioRecordInput.
  */
+// ARCHIVED (ADR-0066 amendment): vocal-prosody emotion relied on Hume's
+// discontinued Expression Measurement; no LLM substitute. Kept in the registry for
+// a future prosody provider but hidden from the picker (archived → deprecated).
 const voiceEmotionProbe: CoreModuleDef = {
   ...audioRecordBlock,
   key: "voice-emotion-probe",
   name: "Voice emotion probe",
-  description: "Participants speak an answer; Hume scores the emotion in their voice. Analysis is always on — emotion is the measure.",
+  description: "Participants speak an answer; emotion is scored from their voice. Archived — awaiting a vocal-emotion provider.",
   categoryTags: ["measurement", "media", "ai"],
+  archived: true,
   defaultConfig: {
     prompt: "",
     maxDurationSeconds: 60,
@@ -1003,14 +1016,14 @@ const textEmotionProbe: CoreModuleDef = {
   ...freeText,
   key: "text-emotion-probe",
   name: "Text emotion probe",
-  description: "Participants type an answer; Hume scores the emotion in their words. Analysis is always on — emotion is the measure.",
+  description: "Participants type an answer; Claude scores the emotion in their words (exploratory). Analysis is always on — emotion is the measure.",
   categoryTags: ["measurement", "open-ended", "ai"],
   defaultConfig: {
     prompt: "",
     longForm: true,
     required: true,
     maxLength: 1000,
-    emotionAnalysis: { enabled: true, provider: "hume", modality: "text" },
+    emotionAnalysis: { enabled: true, provider: "anthropic", modality: "text" },
   },
 };
 
