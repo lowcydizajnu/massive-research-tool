@@ -2293,13 +2293,18 @@ export const studiesRouter = router({
         };
       };
 
+      const leftPos = posOf(leftViewport);
+      const rightPos = posOf(rightViewport);
       return {
         leftLabel: input.vs === "origin" ? "Your replication (working copy)" : "Working copy",
         rightLabel: verLabel,
         left: leftBlocks.map((b) => toNode(b, "left")),
         right: rightBlocks.map((b) => toNode(b, "right")),
-        leftPositions: posOf(leftViewport),
-        rightPositions: posOf(rightViewport),
+        // Block instanceIds are stable across versions, so a version that was never
+        // laid out on the Whiteboard (empty viewport — e.g. older frozen versions)
+        // borrows the working copy's layout, keeping both sides mirroring the canvas.
+        leftPositions: leftPos,
+        rightPositions: Object.keys(rightPos).length ? rightPos : leftPos,
         // GitHub-style protocol text diff (ADR-0031): old = the chosen version /
         // original, new = the working copy.
         textDiff: diffLines(protocolText(rightSnapshot), protocolText(leftSnapshot)),
@@ -3303,6 +3308,7 @@ export const studiesRouter = router({
           kind: "named",
           name: input.name,
           definitionSnapshot: tip.version.definitionSnapshot,
+          whiteboardViewport: tip.version.whiteboardViewport,
           moduleVersionLocks: tip.version.moduleVersionLocks,
           createdBy: ctx.dbUser.id,
         })
@@ -3392,6 +3398,7 @@ export const studiesRouter = router({
           kind: "named",
           name: input.name,
           definitionSnapshot: tip.version.definitionSnapshot,
+          whiteboardViewport: tip.version.whiteboardViewport,
           moduleVersionLocks: tip.version.moduleVersionLocks,
           createdBy: ctx.dbUser.id,
         })
@@ -3462,6 +3469,7 @@ export const studiesRouter = router({
             kind: "preregistered",
             name: `Preregistration v${nextNumber}`,
             definitionSnapshot: tip.version.definitionSnapshot,
+            whiteboardViewport: tip.version.whiteboardViewport,
             moduleVersionLocks: tip.version.moduleVersionLocks,
             createdBy: ctx.dbUser.id,
             registryPushStatus: pushStatus,
@@ -3571,6 +3579,7 @@ export const studiesRouter = router({
           kind: "preregistered",
           name: `Amendment v${nextNumber}`,
           definitionSnapshot: tip.version.definitionSnapshot,
+          whiteboardViewport: tip.version.whiteboardViewport,
           moduleVersionLocks: tip.version.moduleVersionLocks,
           createdBy: ctx.dbUser.id,
           registryPushStatus: pushStatus,
@@ -3646,6 +3655,7 @@ export const studiesRouter = router({
           kind: "published",
           name: `Published v${nextNumber}`,
           definitionSnapshot: tip.version.definitionSnapshot,
+          whiteboardViewport: tip.version.whiteboardViewport,
           moduleVersionLocks: tip.version.moduleVersionLocks,
           createdBy: ctx.dbUser.id,
         })
@@ -4320,6 +4330,7 @@ export const studiesRouter = router({
               kind: versionKind,
               name: versionName,
               definitionSnapshot: tip.version.definitionSnapshot,
+              whiteboardViewport: tip.version.whiteboardViewport,
               moduleVersionLocks: tip.version.moduleVersionLocks,
               createdBy: ctx.dbUser.id,
               ...(versionKind === "preregistered"

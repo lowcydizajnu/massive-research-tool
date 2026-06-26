@@ -64,11 +64,15 @@ export function VersionsPanel({
     );
   }
 
+  // Working copy (Draft) stays on top; frozen versions newest-first below it
+  // (owner: start versions from the latest). listVersions returns oldest→newest.
+  const ordered = [...data.filter((v) => v.isWorkingCopy), ...data.filter((v) => !v.isWorkingCopy).reverse()];
+
   return (
     <div className="flex flex-col gap-3">
       <h2 className="font-serif text-[17px] font-medium text-[var(--color-text-primary)]">Versions</h2>
       <ul className="flex flex-col gap-2">
-        {data.map((v) => {
+        {ordered.map((v) => {
           const open = openId === v.id;
           return (
             <li
