@@ -10,6 +10,7 @@ import {
   response,
   responseItem,
 } from "@/server/db/schema";
+import { EMOTION_ANALYSIS_AVAILABLE, EMOTION_UNAVAILABLE_REASON } from "@/lib/ai/emotion-availability";
 import { readBlocks } from "@/server/modules/blocks";
 import {
   finishEmotionJob,
@@ -73,6 +74,16 @@ export async function runHumeAnalyze(
     .where(and(eq(responseItem.responseId, payload.responseId), eq(responseItem.blockInstanceId, payload.blockInstanceId)))
     .limit(1);
   if (!item || item.emotionStatus === "ok") return; // gone or already analyzed
+
+  // Provider gate: emotion analysis is paused (Hume EM discontinued). Fail fast with
+  // a clear reason instead of calling a dead API across Inngest retries.
+  if (!EMOTION_ANALYSIS_AVAILABLE) {
+    await db
+      .update(responseItem)
+      .set({ emotionStatus: "failed", emotionAnalysis: { error: EMOTION_UNAVAILABLE_REASON } })
+      .where(eq(responseItem.id, item.id));
+    return;
+  }
 
   const [resp] = await db
     .select({ versionId: response.experimentVersionId })

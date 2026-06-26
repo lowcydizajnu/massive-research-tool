@@ -12,6 +12,9 @@ vi.mock("@/server/db/client", async () => {
 });
 // Enqueue is a no-op in tests; we call the job body directly.
 vi.mock("@/server/adapters/jobs", () => ({ jobs: { enqueue: vi.fn(async () => {}) } }));
+// These tests exercise the real analysis path (the provider gate is a separate
+// prod kill-switch — Hume EM discontinued); pretend the provider is available.
+vi.mock("@/lib/ai/emotion-availability", () => ({ EMOTION_ANALYSIS_AVAILABLE: true, EMOTION_UNAVAILABLE_REASON: "" }));
 vi.mock("@/server/adapters/storage", () => ({
   storage: { presignDownload: vi.fn(async (k: string) => `https://r2/${k}`), presignUpload: vi.fn(async () => "https://put") },
 }));
