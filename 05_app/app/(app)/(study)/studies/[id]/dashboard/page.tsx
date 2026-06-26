@@ -3,7 +3,6 @@ import Link from "next/link";
 import type { Route } from "next";
 import { notFound } from "next/navigation";
 
-import { StageTabs } from "@/components/chrome/stage-tabs";
 import { getServerApi } from "@/server/trpc/server";
 import type { ChangelogEntry, StudyDashboardData } from "@/server/trpc/routers/studies";
 
@@ -41,8 +40,6 @@ export default async function StudyDashboardPage({ params }: { params: Promise<{
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-4">
-      <StageTabs studyId={id} active="Dashboard" />
-
       <div className="flex flex-col gap-5 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6">
         <h1 className="font-serif text-[length:var(--text-display)] font-medium text-[var(--color-text-primary)]">{d.title}</h1>
 

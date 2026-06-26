@@ -2,7 +2,6 @@ import Link from "next/link";
 import type { Route } from "next";
 import { notFound } from "next/navigation";
 
-import { StageTabs } from "@/components/chrome/stage-tabs";
 import { CompareView } from "@/components/feature/whiteboard/compare-view";
 import { getServerApi } from "@/server/trpc/server";
 import type { StudyDetail } from "@/server/trpc/routers/studies";
@@ -34,7 +33,6 @@ export default async function WhiteboardComparePage({
 
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-3">
-      <StageTabs studyId={study.id} active="Build" />
       <div className="flex flex-1 flex-col gap-5 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6">
         <div className="flex items-center justify-between gap-3">
           <h1 className="font-serif text-[length:var(--text-display)] font-medium text-[var(--color-ink-deep)]">

@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
 
-import { StageTabs } from "@/components/chrome/stage-tabs";
 import { DesignWorkspace } from "@/components/feature/design/design-workspace";
 import { getServerApi } from "@/server/trpc/server";
 import type { StudyDetail } from "@/server/trpc/routers/studies";
@@ -22,8 +21,7 @@ export default async function DesignPage({ params }: { params: Promise<{ id: str
   if (!study) notFound();
 
   return (
-    <main className="flex min-w-0 flex-1 flex-col gap-3">
-      <StageTabs studyId={study.id} active="Design" />
+    <main className="mx-auto flex w-full max-w-5xl flex-col gap-3">
       <div className="flex flex-1 flex-col gap-5 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6">
         <div className="flex flex-col gap-1">
           <h1 className="font-serif text-[length:var(--text-display)] font-medium text-[var(--color-text-primary)]">

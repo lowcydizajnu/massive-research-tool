@@ -2,7 +2,6 @@ import Link from "next/link";
 import type { Route } from "next";
 import { notFound } from "next/navigation";
 
-import { StageTabs } from "@/components/chrome/stage-tabs";
 import { SpatialExplorer } from "@/components/feature/results/spatial-explorer";
 import { getServerApi } from "@/server/trpc/server";
 import type { ResultsSummary, StudyDetail } from "@/server/trpc/routers/studies";
@@ -42,8 +41,7 @@ export default async function ExploreSpatialPage({
   const backHref = `/studies/${study.id}/results${includePreview ? "?preview=1" : ""}` as Route;
 
   return (
-    <main className="flex min-w-0 flex-1 flex-col gap-3">
-      <StageTabs studyId={study.id} active="Results" />
+    <main className="mx-auto flex w-full max-w-5xl flex-col gap-3">
       <div className="flex flex-1 flex-col gap-5 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6">
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2 text-[length:var(--text-small)] text-[var(--color-text-muted)]">

@@ -17,7 +17,6 @@ import {
 } from "@/lib/whiteboard/conditions";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
-import { StageTabs } from "@/components/chrome/stage-tabs";
 import { BlockEditorsBadge, BlockLockBanner, PresenceAvatars, blockOutlineStyle, usePresence } from "@/components/feature/builder/presence";
 import { LivePreviewPane } from "@/components/feature/builder/live-preview-pane";
 import { VariantsSection } from "@/components/feature/builder/variants-section";
@@ -597,7 +596,6 @@ export function BuilderWorkspace({
         <PaneHandle pane={panelPane} dir={1} label="Resize study panel" />
       ) : null}
       <main className="flex min-w-0 flex-1 flex-col gap-3">
-        <StageTabs studyId={study.id} active={initialPreviewOpen ? "Preview" : "Build"} />
         <BuildDriftBanner studyId={study.id} />
         <ReadOnlyBanner role={study.viewerRole} />
 

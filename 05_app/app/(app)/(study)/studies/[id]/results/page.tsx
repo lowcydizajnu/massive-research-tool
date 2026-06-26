@@ -2,7 +2,6 @@ import Link from "next/link";
 import type { Route } from "next";
 import { notFound } from "next/navigation";
 
-import { StageTabs } from "@/components/chrome/stage-tabs";
 import { FinishStudyCard } from "@/components/feature/results/finish-study-card";
 import { ResultsActions } from "@/components/feature/results/results-actions";
 import { ReanalyzeEmotionButton } from "@/components/feature/results/reanalyze-emotion-button";
@@ -55,8 +54,7 @@ export default async function ResultsStagePage({
       : "";
 
   return (
-    <main className="flex min-w-0 flex-1 flex-col gap-3">
-      <StageTabs studyId={study.id} active="Results" />
+    <main className="mx-auto flex w-full max-w-5xl flex-col gap-3">
       <FinishStudyCard studyId={study.id} />
 
       <div className="flex flex-1 flex-col gap-5 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6">
