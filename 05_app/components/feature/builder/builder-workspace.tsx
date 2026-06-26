@@ -1064,7 +1064,7 @@ export function BuilderWorkspace({
           </fieldset>
         ) : (
         <>
-        <nav role="tablist" aria-label="Context" className="flex flex-wrap gap-1">
+        <nav role="tablist" aria-label="Context" className="flex flex-nowrap items-center gap-1 overflow-x-auto [&>*]:shrink-0 [&>*]:whitespace-nowrap">
           {selected ? (
             <>
               {/* Clickable: returns to the study Details by deselecting the block. */}
