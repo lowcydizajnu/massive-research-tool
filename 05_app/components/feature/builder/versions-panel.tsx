@@ -30,8 +30,9 @@ function label(v: StudyVersion): string {
 
 function meta(v: StudyVersion): string {
   const when = new Date(v.createdAt).toLocaleDateString();
-  if (v.kind === "autosave") return `working tip · edited ${when}`;
-  const parts = [`frozen · ${when}`];
+  const by = v.author ? ` · by ${v.author}` : ""; // the changelog "who"
+  if (v.kind === "autosave") return `working tip · edited ${when}${by}`;
+  const parts = [`frozen · ${when}${by}`];
   if (v.kind === "preregistered") {
     if (v.doi) parts.push(`DOI ${v.doi}`);
     else if (v.pushStatus) parts.push(`OSF ${v.pushStatus}`);

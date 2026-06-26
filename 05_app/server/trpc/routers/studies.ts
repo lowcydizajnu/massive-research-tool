@@ -605,6 +605,8 @@ export type StudyVersion = {
   versionNumber: number;
   name: string | null;
   createdAt: string;
+  /** Who created this version (the changelog "by who"); null if the author is gone. */
+  author: string | null;
   /** True for the autosave row — the live, editable working copy (the tip). */
   isWorkingCopy: boolean;
   /** True for the most recent conscious (frozen) save, if any. */
@@ -1972,8 +1974,10 @@ export const studiesRouter = router({
           snapshot: experimentVersion.definitionSnapshot,
           pushStatus: experimentVersion.registryPushStatus,
           doi: experimentVersion.externalRegistrationDoi,
+          author: user.displayName,
         })
         .from(experimentVersion)
+        .leftJoin(user, eq(experimentVersion.createdBy, user.id))
         .where(eq(experimentVersion.experimentId, input.studyId))
         .orderBy(experimentVersion.createdAt);
 
@@ -2005,6 +2009,7 @@ export const studiesRouter = router({
         versionNumber: r.versionNumber,
         name: r.name,
         createdAt: r.createdAt.toISOString(),
+        author: r.author ?? null,
         isWorkingCopy: r.kind === "autosave",
         isLatestSaved: !!latestSaved && r.id === latestSaved.id,
         hasUnsavedChanges: r.kind === "autosave" ? hasUnsavedChanges : false,
