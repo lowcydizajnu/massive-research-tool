@@ -36,19 +36,19 @@ const PROVIDERS: ProviderSpec[] = [
     label: "Anthropic (Claude)",
     icon: Sparkles,
     blurb:
-      "Text AI blocks (e.g. the conversation block) use your own Anthropic key, so usage is billed to your account.",
+      "Powers text AI blocks (the conversation block) and text emotion analysis, billed to your own Anthropic account.",
     fields: [
       { name: "apiKey", label: "API key", placeholder: "sk-ant-…", help: "Get a key at console.anthropic.com → API Keys." },
     ],
   },
   {
     provider: "hume",
-    label: "Hume (emotion + voice)",
+    label: "Hume (voice)",
     icon: AudioLines,
     blurb:
-      "Powers voice/text emotion analysis, emotional speech, and voice conversations (V2.1). Hume issues three keys — get all three at platform.hume.ai → Settings → Keys.",
+      "Powers emotional text-to-speech (Octave) — used by the audio-stimulus block. (Hume's emotion-measurement API was discontinued; emotion analysis now runs on Claude.) The API key is enough for speech; the secret/webhook keys are reserved for voice conversations.",
     fields: [
-      { name: "apiKey", label: "API key", placeholder: "Hume API key", help: "Used for emotion + speech HTTP calls." },
+      { name: "apiKey", label: "API key", placeholder: "Hume API key", help: "Used for text-to-speech HTTP calls." },
       { name: "secretKey", label: "Secret key", placeholder: "Hume Secret key", help: "Paired with the API key for voice (EVI)." },
       {
         name: "webhookSigningKey",
