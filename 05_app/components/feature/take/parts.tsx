@@ -29,12 +29,15 @@ export function ScreenHeader({
   total,
   preview,
   progress = "bar",
+  stepLabel,
 }: {
   position: number;
   total: number;
   preview: boolean;
   /** Researcher-chosen progress style (ADR-0024): bar / step counter / none. */
   progress?: "bar" | "steps" | "none";
+  /** Researcher-editable progress text (uiCopy.progressLabel); falls back to the default. */
+  stepLabel?: string;
 }) {
   const pct = total > 0 ? Math.round(((position + 1) / total) * 100) : 0;
   if (progress === "none" && !preview) return null;
@@ -47,7 +50,7 @@ export function ScreenHeader({
       ) : null}
       <div className="flex items-center justify-between px-[var(--take-card-pad,2rem)] pt-3">
         <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-          {progress === "none" ? "" : `Page ${position + 1} of ${total}`}
+          {progress === "none" ? "" : stepLabel ?? `Page ${position + 1} of ${total}`}
         </span>
         {preview ? (
           <span className="rounded-full bg-[var(--color-warning-subtle)] px-2 py-0.5 text-[length:var(--text-small)] font-medium text-[var(--color-warning-text-on-subtle)]">

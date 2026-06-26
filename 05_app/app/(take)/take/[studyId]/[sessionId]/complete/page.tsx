@@ -35,10 +35,10 @@ export default async function CompletePage({
   return (
     <Card>
       <h1 className="font-serif text-[length:var(--text-display)] font-medium text-[var(--color-text-primary)]">
-        Thank you
+        {info.uiCopy.thankYouTitle}
       </h1>
       <p className="text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
-        Your responses have been recorded.{info.redirect ? "" : " You may now close this tab."}
+        {info.uiCopy.thankYouBody}{info.redirect ? "" : " You may now close this tab."}
       </p>
       {info.redirect ? (
         <div className="flex flex-col gap-2">

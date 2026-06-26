@@ -17,6 +17,7 @@ import { readBlocks, readGroups, readFactors, readVariantBindings, type BlockIns
 import { jobs } from "@/server/adapters/jobs";
 import { pickCell, resolveConfigForCell, type VariantBinding, type VariantCell } from "@/lib/variants/factorial";
 import { readTheme, type StudyTheme } from "@/lib/themes/themes";
+import { resolveUiCopy, type UiCopyKey } from "@/lib/take/ui-copy";
 import { getModuleDef } from "@/server/modules/registry";
 
 /**
@@ -558,6 +559,8 @@ export type RuntimeScreenView = {
   /** A later screen may still appear after answering this one (forward branching)
    *  — so show "Continue" not "Finish" even on the last currently-visible screen. */
   mayContinue: boolean;
+  /** Resolved participant-facing chrome copy (study overrides + defaults). */
+  uiCopy: Record<UiCopyKey, string>;
 };
 
 /**
@@ -609,6 +612,7 @@ export async function getRuntimeScreen(input: {
     total: screens.length,
     // Only worth computing on the last known screen — earlier screens already show "Continue".
     mayContinue: isLastKnown && pathMayExtend(row.snapshot, row.conditionSlug, answers, screen),
+    uiCopy: resolveUiCopy((row.snapshot as { uiCopy?: unknown } | null)?.uiCopy),
   };
 }
 
@@ -742,6 +746,7 @@ export async function getCompletionInfo(
   mode: ResponseMode;
   completed: boolean;
   redirect: { url: string; code: string; label: string } | null;
+  uiCopy: Record<UiCopyKey, string>;
 } | null> {
   const [resp] = await db
     .select({ status: response.status, mode: response.mode, versionId: response.experimentVersionId })
@@ -771,5 +776,10 @@ export async function getCompletionInfo(
       redirect = null; // invalid URL → no button (the code still shows)
     }
   }
-  return { mode: resp.mode as ResponseMode, completed: resp.status === "completed", redirect };
+  return {
+    mode: resp.mode as ResponseMode,
+    completed: resp.status === "completed",
+    redirect,
+    uiCopy: resolveUiCopy((ver?.snapshot as { uiCopy?: unknown } | null)?.uiCopy),
+  };
 }

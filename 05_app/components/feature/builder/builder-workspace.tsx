@@ -21,6 +21,7 @@ import { StageTabs } from "@/components/chrome/stage-tabs";
 import { BlockEditorsBadge, BlockLockBanner, PresenceAvatars, blockOutlineStyle, usePresence } from "@/components/feature/builder/presence";
 import { LivePreviewPane } from "@/components/feature/builder/live-preview-pane";
 import { VariantsSection } from "@/components/feature/builder/variants-section";
+import { WordingSection } from "@/components/feature/builder/wording-section";
 import { ConditionBuilder } from "@/components/feature/whiteboard/condition-builder";
 import { ModeToggle } from "./mode-toggle";
 import { EditableStudyTitle } from "@/components/feature/editable-study-title";
@@ -1033,6 +1034,8 @@ export function BuilderWorkspace({
           </section>
 
           <VariantsSection study={study} canEdit={canEdit} />
+
+          <WordingSection study={study} canEdit={canEdit} />
         </div>
       </main>
 
