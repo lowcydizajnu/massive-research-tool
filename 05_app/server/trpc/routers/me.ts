@@ -50,6 +50,12 @@ export const meRouter = router({
    *  Drives the admin entry-point + admin-only affordances in client chrome. */
   isAdmin: protectedProcedure.query(({ ctx }) => isAdminUser(ctx.dbUser)),
 
+  /** Active view-as session (ADR-0075) — the researcher being impersonated, or
+   *  null. During view-as ctx.dbUser IS the target. Drives the read-only banner. */
+  viewingAs: protectedProcedure.query(({ ctx }) =>
+    ctx.viewingAs ? { targetName: ctx.dbUser.displayName || ctx.dbUser.email, targetEmail: ctx.dbUser.email } : null,
+  ),
+
   /** Recently-updated studies the caller authored, across all their workspaces. */
   recentStudies: protectedProcedure
     .input(z.object({ limit: z.number().int().min(1).max(50).default(8) }))

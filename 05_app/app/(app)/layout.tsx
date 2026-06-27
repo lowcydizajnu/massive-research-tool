@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
+import { ViewAsBanner } from "@/components/feature/admin/view-as-banner";
 import { FeedbackWidget } from "@/components/feature/feedback/feedback-widget";
 import { LegalUpdateModal } from "@/components/feature/legal/legal-update-modal";
 import { NewStudyProvider } from "@/components/feature/new-study/provider";
@@ -34,6 +35,7 @@ export default async function AppLayout({
     <TRPCReactProvider>
       <NewStudyProvider>
         <div className="flex min-h-screen flex-col bg-[var(--color-surface-page)]">
+          <ViewAsBanner />
           {children}
         </div>
         <LegalUpdateModal />

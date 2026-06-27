@@ -18,18 +18,39 @@ export const publicProcedure = t.procedure;
  * protectedProcedure — requires an authenticated user with a local `user` row.
  * Attaches `dbUser` (the local handle every workspace-scoped query references).
  */
-export const protectedProcedure = t.procedure.use(async ({ ctx, next }) => {
+export const protectedProcedure = t.procedure.use(async ({ ctx, next, type }) => {
   if (!ctx.authUser) throw new TRPCError({ code: "UNAUTHORIZED" });
-  const dbUser = (
+  const realDbUser = (
     await db.select().from(user).where(eq(user.externalId, ctx.authUser.id)).limit(1)
   )[0];
-  if (!dbUser) {
+  if (!realDbUser) {
     throw new TRPCError({
       code: "UNAUTHORIZED",
       message: "No local user record — finish onboarding first.",
     });
   }
-  return next({ ctx: { authUser: ctx.authUser, dbUser } });
+
+  // View-as (ADR-0075): an admin may impersonate a researcher READ-ONLY. The
+  // cookie target is honored ONLY when the real caller is an admin (re-checked
+  // here every request); reads then resolve as the target, and ALL mutations are
+  // blocked. `viewingAs` carries the real admin id (for audit / banner).
+  let dbUser = realDbUser;
+  let viewingAs: { adminUserId: string } | undefined;
+  if (ctx.viewAsUserId && ctx.viewAsUserId !== realDbUser.id && isAdminUser(realDbUser)) {
+    const target = (await db.select().from(user).where(eq(user.id, ctx.viewAsUserId)).limit(1))[0];
+    if (target) {
+      dbUser = target;
+      viewingAs = { adminUserId: realDbUser.id };
+    }
+  }
+  if (viewingAs && type === "mutation") {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Read-only while viewing as a researcher. Exit view-as to make changes.",
+    });
+  }
+
+  return next({ ctx: { authUser: ctx.authUser, dbUser, viewingAs } });
 });
 
 /**

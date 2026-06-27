@@ -439,7 +439,7 @@
   "project": "Massive Research Tool",
   "tagline": "Multi-tenant SaaS for psychological experiments",
   "lastUpdated": "2026-06-27",
-  "currentFocus": "Analytics + Admin — AA2.1 (admin gate + Overview/Workspaces). ADRs 0074 (PostHog adapter, consent-aware) + 0075 (admin role) done. AA2.1: user.is_admin column (migration 0044) + adminProcedure (column OR ADMIN_USER_IDS fallback); admin router (overview census + monthly AI cost; workspaces census); /admin Overview + /admin/workspaces + nav. feedback.adminList/announcements.create now adminProcedure. 777 tests; tsc/lint/build/validator clean. Migration 0044 — db:migrate:prod BEFORE push; push only on owner deploy. PostHog (AA1) parked on owner's EU key (in Vercel). Next: AA2 Users + failed-jobs + view-as, then AA1.",
+  "currentFocus": "Analytics + Admin — AA2 admin destination. ADRs 0074/0075. user.is_admin + adminProcedure (migration 0044); admin router (overview census + monthly AI cost; workspaces; users); /admin Overview + Workspaces + Users + nav; /admin tRPC-context fix; read-only view-as (migration 0045 audit log; protectedProcedure blocks mutations while impersonating; banner + Exit; 'View as' on Users). 781 tests; tsc/lint/build/validator clean. Migrations 0044+0045 — db:migrate:prod BEFORE push; push only on owner deploy. AA2 done except failed-jobs (blocked on an Inngest API key). Next: AA1 PostHog (EU key in Vercel).",
   "currentFocusPrev": "Platform-foundation COMPLETE (PF1–PF4, all live on prod): PF1.1 Sentry, PF1.2/1.3 Dependabot + security.txt + /security, PF2 feedback widget + /admin/feedback, PF3 tour + empty states + tooltips, PF4 in-app announcements (✨ TopBar + slide-out + owner-only /admin/announcements). Plus an admin-panel stopgap: /admin layout + nav + Overview, account-menu Admin entry, admin-only demo-content toggle.",
   "phases": [
     {
@@ -1213,6 +1213,9 @@
     }
   ],
   "recentActivity": [
+    {
+      "text": "feat: AA2.7 — read-only view-as researcher (migration 0045, ADR-0075). Admins can impersonate a researcher READ-ONLY (never act-as): protectedProcedure resolves the target only when the real caller isAdminUser (re-checked each request) and blocks ALL tRPC mutations while active; target id in an httpOnly cookie. Enter/exit audit-logged to admin_view_as_log. startViewAs/stopViewAs actions + me.viewingAs + global read-only banner (Exit) in the (app) shell + 'View as' on /admin/users. getCurrentDbUser stays the REAL admin (server-page identity), so Exit always works. +3 view-as tests; 781 tests; tsc/lint/build/validator clean. Migration 0045 — db:migrate:prod before push. AA2 done except failed-jobs (needs Inngest API key). Next: AA1 PostHog."
+    },
     {
       "text": "fix + feat: AA2 — /admin tRPC-context fix (Sentry-caught) + Users census. Bug caught by the new Sentry: /admin/* is outside the (app) group so it had no TRPCReactProvider — the announcement form threw 'Unable to find tRPC Context' (/admin/announcements 500). Fixed by wrapping app/admin/layout.tsx in TRPCReactProvider. Plus admin.users census + /admin/users page (role badge) + nav. 778 tests; tsc/lint/build/validator clean. Ships with AA2.1 migration 0044 (db:migrate:prod before push). Next: failed-jobs + view-as, then AA1 PostHog."
     },

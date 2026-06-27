@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { ViewAsButton } from "@/components/feature/admin/view-as-button";
 import { getServerApi } from "@/server/trpc/server";
 
 export const metadata: Metadata = { title: "Users — Admin" };
@@ -31,7 +32,8 @@ export default async function AdminUsersPage() {
             <th className="py-2 pr-4 font-medium">Name</th>
             <th className="py-2 pr-4 font-medium">Email</th>
             <th className="py-2 pr-4 font-medium">Role</th>
-            <th className="py-2 font-medium">Joined</th>
+            <th className="py-2 pr-4 font-medium">Joined</th>
+            <th className="py-2 font-medium" />
           </tr>
         </thead>
         <tbody>
@@ -48,7 +50,8 @@ export default async function AdminUsersPage() {
                   <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">Researcher</span>
                 )}
               </td>
-              <td className="py-2 text-[length:var(--text-small)] text-[var(--color-text-muted)]">{fmt(u.createdAt)}</td>
+              <td className="py-2 pr-4 text-[length:var(--text-small)] text-[var(--color-text-muted)]">{fmt(u.createdAt)}</td>
+              <td className="py-2 text-right">{u.isAdmin ? null : <ViewAsButton userId={u.id} />}</td>
             </tr>
           ))}
         </tbody>
