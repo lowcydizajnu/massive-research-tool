@@ -163,6 +163,17 @@ For each vendor:
 | **Migration target** | PostHog error tracking or Datadog (ADR-0072). DSN + tokens are env vars (`NEXT_PUBLIC_SENTRY_DSN`; optional `SENTRY_AUTH_TOKEN`/`SENTRY_ORG`/`SENTRY_PROJECT` for source-map upload); the SDK no-ops when the DSN is absent (local/dev). |
 | **Cost-ceiling trigger** | Sentry free-tier event quota hit → tune sample rate or switch (ADR-0072 revisit trigger). |
 
+## PostHog (product analytics — per ADR-0074)
+
+| | |
+| --- | --- |
+| **What we use it for** | Analytics + Admin handoff AA1 — product analytics (pageviews, autocapture, funnels) + session replay for the researcher app. EU region (`eu.i.posthog.com`). Researcher-only; the participant runtime (`/take/*`) is never tracked (ADR-0014). |
+| **Behind an adapter** | **Two halves.** Server events go behind `server/adapters/analytics.ts` (`AnalyticsAdapter`) + `analytics.posthog.ts` (the only `posthog-node` importer) — strict event taxonomy, consent-aware no-op (ADR-0074). The **client SDK is a deliberate exception** (below): like the Sentry build-plugin and `<ClerkProvider>`, the browser autocapture / pageview / session-replay value can't live behind a server-only adapter. |
+| **Deliberate exceptions** (removed on a PostHog→X migration) | `05_app/components/analytics/posthog-provider.tsx` — the one file importing `posthog-js`. A client context provider mounted in `app/(app)/layout.tsx` (never in `/take/*`); it inits + captures pageviews + gates session replay. No PostHog type leaks into feature code; the event names it emits are `$pageview`/autocapture (PostHog built-ins), and explicit business events go through the server `AnalyticsAdapter`'s typed taxonomy. |
+| **PII + consent contract** | Hard no-op unless `NEXT_PUBLIC_POSTHOG_KEY` is set (un-provisioned envs never phone home). Consent-gated (ADR-0073): capture + session replay run ONLY on "accept all" — "necessary"/no-choice means no init / opt-out, reacting live to the cookie banner. Session replay masks all inputs (`maskAllInputs`), so researcher-typed content never reaches a recording. Client identify is deferred (anonymous stable `distinct_id`) to keep PII minimal. |
+| **Migration target** | Another analytics vendor (Amplitude, Mixpanel) or self-hosted PostHog. Server side swaps `analytics.posthog.ts` behind the unchanged `AnalyticsAdapter`; client side rewrites the one provider component. Keys are env vars (`NEXT_PUBLIC_POSTHOG_KEY` + `NEXT_PUBLIC_POSTHOG_HOST`). |
+| **Cost-ceiling trigger** | PostHog free-tier event / recording quota hit → tune capture (sampling, autocapture scope, replay rate) or switch (ADR-0074 revisit trigger). |
+
 ## Review discipline
 
 When opening a PR that touches an adapter or adds a vendor SDK import:
