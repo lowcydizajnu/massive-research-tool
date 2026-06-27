@@ -12,10 +12,13 @@ import { FEEDBACK_BODY_MAX, FEEDBACK_KINDS, FEEDBACK_KIND_LABEL, type FeedbackKi
  *
  * Floating button (bottom-right) + modal. Mounted in the authenticated (app)
  * shell only — never the participant runtime (/take/*, ADR-0014); guarded
- * defensively here too. Screenshot capture (html2canvas, loaded on demand) is
- * best-effort and never blocks the text submission. The screenshot checkbox
- * defaults OFF when cookie consent is "necessary only". PII (hashed UA, coarse
- * country, workspace) is added server-side, never trusted from the client.
+ * defensively here too. Screenshot capture (html2canvas-pro, loaded on demand)
+ * is best-effort and never blocks the text submission; if it fails we still
+ * save the text and tell the user the image didn't attach. html2canvas-pro
+ * (not html2canvas) because the app's Tailwind v4 palette uses oklch(), which
+ * the original html2canvas can't parse (ADR-0072 am. 2026-06-27). The screenshot
+ * checkbox defaults OFF when cookie consent is "necessary only". PII (hashed UA,
+ * coarse country, workspace) is added server-side, never trusted from the client.
  */
 function parseStudyId(pathname: string): string | undefined {
   const m = pathname.match(/\/studies\/([0-9a-f-]{36})/i);
@@ -55,6 +58,7 @@ function FeedbackModal({ pathname, onClose }: { pathname: string; onClose: () =>
   const [showContext, setShowContext] = useState(false);
   const [phase, setPhase] = useState<"idle" | "sending" | "capturing" | "done">("idle");
   const [error, setError] = useState<string | null>(null);
+  const [shotFailed, setShotFailed] = useState(false);
 
   const submit = api.feedback.submit.useMutation();
   const confirmShot = api.feedback.confirmScreenshot.useMutation();
@@ -87,7 +91,7 @@ function FeedbackModal({ pathname, onClose }: { pathname: string; onClose: () =>
 
   async function captureAndUpload(uploadUrl: string): Promise<boolean> {
     try {
-      const { default: html2canvas } = await import("html2canvas");
+      const { default: html2canvas } = await import("html2canvas-pro");
       const canvas = await html2canvas(document.body, { logging: false, useCORS: true });
       const blob: Blob | null = await new Promise((res) => canvas.toBlob(res, "image/png"));
       if (!blob) return false;
@@ -115,12 +119,15 @@ function FeedbackModal({ pathname, onClose }: { pathname: string; onClose: () =>
         studyId,
         includeScreenshot: wantsShot,
       });
+      let captureFailed = false;
       if (wantsShot && res.screenshotUploadUrl) {
         const ok = await captureAndUpload(res.screenshotUploadUrl);
         if (ok) await confirmShot.mutateAsync({ feedbackId: res.feedbackId });
+        else captureFailed = true;
       }
+      setShotFailed(captureFailed);
       setPhase("done");
-      setTimeout(onClose, 1100);
+      setTimeout(onClose, captureFailed ? 2600 : 1100);
     } catch {
       setPhase("idle");
       setError("Couldn't send your feedback. Please try again.");
@@ -155,9 +162,16 @@ function FeedbackModal({ pathname, onClose }: { pathname: string; onClose: () =>
         </h2>
 
         {phase === "done" ? (
-          <p role="status" className="mt-4 text-[length:var(--text-body)] text-[var(--color-success-text-on-subtle)]">
-            Thanks — your feedback was sent.
-          </p>
+          <div role="status" className="mt-4 flex flex-col gap-1">
+            <p className="text-[length:var(--text-body)] text-[var(--color-success-text-on-subtle)]">
+              Thanks — your feedback was sent.
+            </p>
+            {shotFailed ? (
+              <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                We couldn’t attach the screenshot, but your message was saved.
+              </p>
+            ) : null}
+          </div>
         ) : (
           <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-4">
             {error ? (

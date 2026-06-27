@@ -1214,6 +1214,9 @@
   ],
   "recentActivity": [
     {
+      "text": "fix: PF2 feedback screenshot — html2canvas → html2canvas-pro (ADR-0072 am.). Screenshots silently failed in prod because Tailwind v4 emits oklch() and html2canvas 1.4.1 can't parse it (throws mid-capture; best-effort catch saved text, dropped image). Swapped to html2canvas-pro (oklch/lab/color-mix, same API); widget now tells the user if a shot can't attach. No migration. 759 tests; tsc/lint/build/validator clean."
+    },
+    {
       "text": "feat: Platform-foundation PF2 — in-app feedback widget (migration 0042, ADR-0072). feedback table (PII-safe per ADR-0014: one-way UA hash + coarse country, no raw IP/UA) + feedback tRPC (submit resolves workspace server-side + signed R2 screenshot PUT; confirmScreenshot author-only recomputed key; adminList owner-only via ADMIN_USER_IDS). Floating <FeedbackWidget> (html2canvas on-demand, consent-aware screenshot default) in the (app) shell only, never /take/*. Owner-only /admin/feedback queue + /admin protected in middleware. Gate: provide-product-feedback flow + 3 wireframes. +7 router tests; 759 tests; tsc/lint/build/validator clean. Migration 0042 — db:migrate:prod before push. Next: PF3 / PF1.1 Sentry / PF4."
     },
     {
