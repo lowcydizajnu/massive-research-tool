@@ -42,7 +42,7 @@ export default async function AdminFeedbackPage({
     new Date(d).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-col gap-5 px-6 py-10">
+    <main className="flex flex-col gap-5">
       <header className="flex flex-col gap-1 border-b border-[var(--color-border-subtle)] pb-4">
         <h1 className="font-serif text-[length:var(--text-display)] font-medium text-[var(--color-text-primary)]">
           Feedback

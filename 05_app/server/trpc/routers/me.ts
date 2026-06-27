@@ -10,6 +10,7 @@ import {
   response,
   workspace,
 } from "@/server/db/schema";
+import { isAdminExternalId } from "@/server/admin/is-admin";
 import { protectedProcedure, router } from "@/server/trpc/trpc";
 
 /**
@@ -45,6 +46,10 @@ export type MeStats = {
 };
 
 export const meRouter = router({
+  /** Whether the caller is an operator/admin (ADMIN_USER_IDS allow-list, PF4).
+   *  Drives the admin entry-point + admin-only affordances in client chrome. */
+  isAdmin: protectedProcedure.query(({ ctx }) => isAdminExternalId(ctx.authUser.id)),
+
   /** Recently-updated studies the caller authored, across all their workspaces. */
   recentStudies: protectedProcedure
     .input(z.object({ limit: z.number().int().min(1).max(50).default(8) }))
