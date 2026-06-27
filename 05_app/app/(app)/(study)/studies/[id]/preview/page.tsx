@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 
+import { TrackEvent } from "@/components/analytics/track-event";
 import { PreviewExperience } from "@/components/feature/take/preview-experience";
 import { getServerApi } from "@/server/trpc/server";
 import type { StudyDetail } from "@/server/trpc/routers/studies";
@@ -22,5 +23,10 @@ export default async function PreviewPage({ params }: { params: Promise<{ id: st
   }
   if (!study) notFound();
 
-  return <PreviewExperience studyId={study.id} title={study.title} />;
+  return (
+    <>
+      <TrackEvent event="study_preview_opened" />
+      <PreviewExperience studyId={study.id} title={study.title} />
+    </>
+  );
 }

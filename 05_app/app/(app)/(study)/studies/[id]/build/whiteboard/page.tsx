@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 
+import { TrackEvent } from "@/components/analytics/track-event";
 import { WhiteboardWorkspace } from "@/components/feature/whiteboard/whiteboard-workspace";
 import { getServerApi } from "@/server/trpc/server";
 import type { StudyDetail } from "@/server/trpc/routers/studies";
@@ -26,5 +27,10 @@ export default async function WhiteboardPage({
   }
   if (!study) notFound();
 
-  return <WhiteboardWorkspace study={study} />;
+  return (
+    <>
+      <TrackEvent event="whiteboard_opened" />
+      <WhiteboardWorkspace study={study} />
+    </>
+  );
 }
