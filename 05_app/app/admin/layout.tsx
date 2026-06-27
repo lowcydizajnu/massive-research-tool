@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 
 import { AdminNav } from "@/components/feature/admin/admin-nav";
 import { getCurrentDbUser } from "@/server/auth/current-db-user";
-import { isAdminExternalId } from "@/server/admin/is-admin";
+import { isAdminUser } from "@/server/admin/is-admin";
 
 /**
  * Admin shell (platform-foundation). Centralizes the owner-only gate
@@ -13,7 +13,7 @@ import { isAdminExternalId } from "@/server/admin/is-admin";
  */
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const dbUser = await getCurrentDbUser();
-  if (!dbUser || !isAdminExternalId(dbUser.externalId)) notFound();
+  if (!isAdminUser(dbUser)) notFound();
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-5 px-6 py-8">

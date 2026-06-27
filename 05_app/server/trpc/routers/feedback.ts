@@ -7,7 +7,6 @@ import { db } from "@/server/db/client";
 import { experiment, feedback, user, workspace } from "@/server/db/schema";
 import { storage } from "@/server/adapters/storage";
 import { consentRequestContext } from "@/server/legal/consent";
-import { isAdminExternalId } from "@/server/admin/is-admin";
 import { resolveActiveWorkspace } from "@/server/workspace/active";
 import {
   FEEDBACK_BODY_MAX,
@@ -16,7 +15,7 @@ import {
   feedbackScreenshotKey,
   type FeedbackStatus,
 } from "@/lib/feedback";
-import { protectedProcedure, router } from "@/server/trpc/trpc";
+import { adminProcedure, protectedProcedure, router } from "@/server/trpc/trpc";
 
 /**
  * In-app product feedback (platform-foundation PF2, ADR-0072).
@@ -102,15 +101,13 @@ export const feedbackRouter = router({
 
   // --- Admin queue (owner-only via ADMIN_USER_IDS allow-list; the full
   // user.is_admin gate lands with the Analytics + Admin handoff). ---
-  adminList: protectedProcedure
+  adminList: adminProcedure
     .input(
       z
         .object({ status: z.enum(FEEDBACK_STATUSES).optional(), limit: z.number().int().min(1).max(200).default(100) })
         .default({ limit: 100 }),
     )
-    .query(async ({ ctx, input }) => {
-      if (!isAdminExternalId(ctx.authUser.id)) throw new TRPCError({ code: "FORBIDDEN" });
-
+    .query(async ({ input }) => {
       const rows = await db
         .select({
           id: feedback.id,

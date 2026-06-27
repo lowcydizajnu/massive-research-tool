@@ -1,13 +1,10 @@
-import { TRPCError } from "@trpc/server";
-import { desc, gt, sql } from "drizzle-orm";
+import { desc, eq, gt, sql } from "drizzle-orm";
 import { ulid } from "ulid";
 import { z } from "zod";
 
 import { db } from "@/server/db/client";
 import { releaseAnnouncement, user } from "@/server/db/schema";
-import { eq } from "drizzle-orm";
-import { isAdminExternalId } from "@/server/admin/is-admin";
-import { protectedProcedure, router } from "@/server/trpc/trpc";
+import { adminProcedure, protectedProcedure, router } from "@/server/trpc/trpc";
 
 /**
  * In-app "what's new" announcements (platform-foundation PF4, ADR-0072).
@@ -51,7 +48,7 @@ export const announcementsRouter = router({
     return { ok: true as const };
   }),
 
-  create: protectedProcedure
+  create: adminProcedure
     .input(
       z.object({
         title: z.string().trim().min(1).max(200),
@@ -60,7 +57,6 @@ export const announcementsRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      if (!isAdminExternalId(ctx.authUser.id)) throw new TRPCError({ code: "FORBIDDEN" });
       const [row] = await db
         .insert(releaseAnnouncement)
         .values({

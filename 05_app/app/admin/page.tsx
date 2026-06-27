@@ -7,30 +7,22 @@ import { getServerApi } from "@/server/trpc/server";
 export const metadata: Metadata = { title: "Admin" };
 
 /**
- * Admin overview (platform-foundation). Entry point + at-a-glance counts for the
- * env-allowlisted admin sections. Auth is enforced by app/admin/layout.tsx.
+ * Admin overview (Analytics + Admin handoff, AA2; ADR-0075). Cross-workspace
+ * census + current-month AI cost + queues. Auth is enforced by
+ * app/admin/layout.tsx.
  */
 export default async function AdminOverviewPage() {
   const api = await getServerApi();
-  const [feedback, announcements] = await Promise.all([
-    api.feedback.adminList({ limit: 200 }).catch(() => []),
-    api.announcements.list({ limit: 50 }).catch(() => []),
-  ]);
-  const newFeedback = feedback.filter((f) => f.status === "new").length;
+  const o = await api.admin.overview();
+  const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 
-  const cards: { label: string; href: Route; stat: string; hint: string }[] = [
-    {
-      label: "Feedback",
-      href: "/admin/feedback" as Route,
-      stat: `${newFeedback} new`,
-      hint: `${feedback.length} total`,
-    },
-    {
-      label: "Announcements",
-      href: "/admin/announcements" as Route,
-      stat: `${announcements.length}`,
-      hint: "published",
-    },
+  const stats: { label: string; value: string; href?: Route; hint?: string }[] = [
+    { label: "Workspaces", value: String(o.workspaces), href: "/admin/workspaces" as Route },
+    { label: "Users", value: String(o.users) },
+    { label: "Studies", value: String(o.studies) },
+    { label: "AI cost (this month)", value: usd.format(o.monthlyAiCostUsd), hint: "workspace-attributed" },
+    { label: "New feedback", value: String(o.newFeedback), href: "/admin/feedback" as Route },
+    { label: "Announcements", value: String(o.announcements), href: "/admin/announcements" as Route },
   ];
 
   return (
@@ -40,27 +32,35 @@ export default async function AdminOverviewPage() {
           Overview
         </h1>
         <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-          Operator tools. The full Admin destination (cross-workspace) arrives with the analytics + admin work.
+          Operator census across all workspaces. Behavior funnels live in PostHog (linked separately).
         </p>
       </header>
 
-      <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {cards.map((c) => (
-          <li key={c.href}>
-            <Link
-              href={c.href}
-              className="flex flex-col gap-1 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-4 hover:bg-[var(--color-surface-subtle)]"
-            >
+      <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {stats.map((s) => {
+          const inner = (
+            <div className="flex h-full flex-col gap-1 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-4">
               <span className="text-[length:var(--text-small)] uppercase tracking-wide text-[var(--color-text-muted)]">
-                {c.label}
+                {s.label}
               </span>
               <span className="font-serif text-[length:var(--text-heading-1)] font-medium text-[var(--color-text-primary)]">
-                {c.stat}
+                {s.value}
               </span>
-              <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">{c.hint}</span>
-            </Link>
-          </li>
-        ))}
+              {s.hint ? <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">{s.hint}</span> : null}
+            </div>
+          );
+          return (
+            <li key={s.label}>
+              {s.href ? (
+                <Link href={s.href} className="block h-full hover:opacity-90">
+                  {inner}
+                </Link>
+              ) : (
+                inner
+              )}
+            </li>
+          );
+        })}
       </ul>
     </main>
   );

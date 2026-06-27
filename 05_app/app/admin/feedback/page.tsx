@@ -1,10 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { Route } from "next";
-import { notFound } from "next/navigation";
 
-import { getCurrentDbUser } from "@/server/auth/current-db-user";
-import { isAdminExternalId } from "@/server/admin/is-admin";
 import { getServerApi } from "@/server/trpc/server";
 import {
   FEEDBACK_KIND_LABEL,
@@ -27,9 +24,7 @@ export default async function AdminFeedbackPage({
 }: {
   searchParams: Promise<{ status?: string }>;
 }) {
-  const dbUser = await getCurrentDbUser();
-  if (!dbUser || !isAdminExternalId(dbUser.externalId)) notFound();
-
+  // Admin gate is enforced by app/admin/layout.tsx (ADR-0075).
   const sp = await searchParams;
   const activeStatus = (FEEDBACK_STATUSES as readonly string[]).includes(sp.status ?? "")
     ? (sp.status as FeedbackStatus)

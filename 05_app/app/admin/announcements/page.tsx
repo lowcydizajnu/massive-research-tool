@@ -1,22 +1,15 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
 
 import { AnnouncementForm } from "@/components/feature/admin/announcement-form";
-import { getCurrentDbUser } from "@/server/auth/current-db-user";
-import { isAdminExternalId } from "@/server/admin/is-admin";
 import { getServerApi } from "@/server/trpc/server";
 
 export const metadata: Metadata = { title: "Announcements — Admin" };
 
 /**
- * Owner-only announcement authoring (platform-foundation PF4). Gated by the
- * ADMIN_USER_IDS allow-list until the full Admin destination (Analytics + Admin
- * handoff) lands. Non-admins get a 404.
+ * Owner-only announcement authoring (platform-foundation PF4). Admin gate is
+ * enforced by app/admin/layout.tsx (ADR-0075).
  */
 export default async function AdminAnnouncementsPage() {
-  const dbUser = await getCurrentDbUser();
-  if (!dbUser || !isAdminExternalId(dbUser.externalId)) notFound();
-
   const api = await getServerApi();
   const rows = await api.announcements.list({ limit: 50 });
   const fmt = (d: Date | string) =>

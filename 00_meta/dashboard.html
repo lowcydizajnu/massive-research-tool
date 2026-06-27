@@ -439,7 +439,7 @@
   "project": "Massive Research Tool",
   "tagline": "Multi-tenant SaaS for psychological experiments",
   "lastUpdated": "2026-06-27",
-  "currentFocus": "Analytics + Admin handoff — started. ADR gate written: ADR-0074 (analytics behind an adapter; PostHog EU; consent-aware no-op; /take/* never tracked) + ADR-0075 (user.is_admin column + adminProcedure superseding the ADMIN_USER_IDS stopgap; read-only view-as). Owner: PostHog EU (will provision key); migrate to user.is_admin; sequence ADRs → Admin destination (AA2) → PostHog (AA1). Admin-panel stopgap (nav + entry + admin-only demo toggle) live on prod. Validator clean (224). Next: AA2.1 user.is_admin migration + adminProcedure (carries a migration → migrate-prod before push).",
+  "currentFocus": "Analytics + Admin — AA2.1 (admin gate + Overview/Workspaces). ADRs 0074 (PostHog adapter, consent-aware) + 0075 (admin role) done. AA2.1: user.is_admin column (migration 0044) + adminProcedure (column OR ADMIN_USER_IDS fallback); admin router (overview census + monthly AI cost; workspaces census); /admin Overview + /admin/workspaces + nav. feedback.adminList/announcements.create now adminProcedure. 777 tests; tsc/lint/build/validator clean. Migration 0044 — db:migrate:prod BEFORE push; push only on owner deploy. PostHog (AA1) parked on owner's EU key (in Vercel). Next: AA2 Users + failed-jobs + view-as, then AA1.",
   "currentFocusPrev": "Platform-foundation COMPLETE (PF1–PF4, all live on prod): PF1.1 Sentry, PF1.2/1.3 Dependabot + security.txt + /security, PF2 feedback widget + /admin/feedback, PF3 tour + empty states + tooltips, PF4 in-app announcements (✨ TopBar + slide-out + owner-only /admin/announcements). Plus an admin-panel stopgap: /admin layout + nav + Overview, account-menu Admin entry, admin-only demo-content toggle.",
   "phases": [
     {
@@ -1213,6 +1213,9 @@
     }
   ],
   "recentActivity": [
+    {
+      "text": "feat: AA2.1 — user.is_admin + adminProcedure + Admin Overview/Workspaces (migration 0044, ADR-0075). Real admin gate: user.is_admin column + adminProcedure (isAdminUser = column OR ADMIN_USER_IDS fallback so access doesn't break pre-flip). Converted feedback.adminList/announcements.create to adminProcedure + me.isAdmin/server gates to isAdminUser. New admin router (overview census + current-month AI cost from ai_invocation; workspaces census) → richer /admin Overview + /admin/workspaces page + nav entry. +4 admin tests; 777 tests; tsc/lint/build/validator clean. Migration 0044 — db:migrate:prod before push. Next: AA2 Users/failed-jobs/view-as, then AA1 PostHog."
+    },
     {
       "text": "docs(adr): Analytics + Admin gate — ADR-0074 (AnalyticsAdapter + PostHog, consent-aware, /take/* never tracked, single client exception) + ADR-0075 (user.is_admin column + adminProcedure superseding the ADMIN_USER_IDS stopgap; read-only audit-logged view-as, never act-as). Owner decisions: PostHog EU (owner provisions key), migrate to user.is_admin, sequence ADRs → Admin destination (AA2) → PostHog (AA1). Validator clean (224). Next: AA2.1 user.is_admin migration + adminProcedure."
     },
