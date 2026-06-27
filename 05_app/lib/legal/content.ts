@@ -13,6 +13,8 @@
  *
  * Markdown note: no backticks in bodies (these are TS template literals).
  */
+import { subprocessorsMarkdownTable } from "@/lib/legal/subprocessors";
+
 export type LegalKind = "terms" | "privacy" | "cookies";
 
 export type LegalDoc = {
@@ -144,19 +146,7 @@ To provide, secure, support, and improve the Service, and to communicate with yo
 
 We use the following providers to run the Service. Several AI/integration providers are connected with **your own keys** and only process data when you choose to use them.
 
-| Sub-processor | Purpose | Location | Data accessed |
-|---|---|---|---|
-| Clerk | Authentication | USA | Email, display name, auth tokens |
-| Neon (PostgreSQL) | Database hosting | EU/USA | Researcher and participant data |
-| Vercel | Application hosting | USA | Request/response data; no direct DB access |
-| Cloudflare R2 | Asset storage | Global | Uploaded images/audio/video, generated audio |
-| Cloudflare CDN | Delivery + DDoS protection | Global | HTTP request metadata (coarse country) |
-| Upstash Redis | Rate limiting | USA | One-way-hashed coarse buckets; never raw IPs |
-| Inngest | Background jobs | USA | Job metadata; study data only as a job requires |
-| OSF (your key) | Preregistration | USA | Study metadata you choose to push |
-| Anthropic (your key) | AI text features | USA | Prompts + content you send per study config |
-| Hume AI (your key, where enabled) | Voice/emotion AI | USA | Content/audio per study config, with consent |
-| Prolific (your key) | Recruitment | UK | Recruitment metadata; opaque participant IDs |
+${subprocessorsMarkdownTable()}
 
 International transfers (e.g. to the USA) rely on appropriate safeguards such as the EU Standard Contractual Clauses where required.
 
