@@ -1,4 +1,5 @@
 import { aiRouter } from "@/server/trpc/routers/ai";
+import { announcementsRouter } from "@/server/trpc/routers/announcements";
 import { commentsRouter } from "@/server/trpc/routers/comments";
 import { cookieConsentRouter } from "@/server/trpc/routers/cookie-consent";
 import { dashboardRouter } from "@/server/trpc/routers/dashboard";
@@ -45,6 +46,7 @@ export const appRouter = router({
   cookieConsent: cookieConsentRouter,
   legal: legalRouter,
   feedback: feedbackRouter,
+  announcements: announcementsRouter,
   notifications: notificationsRouter,
   follows: followsRouter,
   me: meRouter,
