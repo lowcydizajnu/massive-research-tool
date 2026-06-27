@@ -153,4 +153,17 @@ export const feedbackRouter = router({
         })),
       );
     }),
+
+  /** Triage: move a feedback item through its lifecycle (admin queue, PF2). */
+  setStatus: adminProcedure
+    .input(z.object({ id: z.string(), status: z.enum(FEEDBACK_STATUSES) }))
+    .mutation(async ({ input }): Promise<{ ok: true }> => {
+      const [row] = await db
+        .update(feedback)
+        .set({ status: input.status })
+        .where(eq(feedback.id, input.id))
+        .returning({ id: feedback.id });
+      if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+      return { ok: true };
+    }),
 });

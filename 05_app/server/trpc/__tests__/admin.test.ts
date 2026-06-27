@@ -13,7 +13,7 @@ vi.mock("@/server/db/client", async () => {
 
 import type { AuthUser } from "@/server/adapters/auth";
 import { db } from "@/server/db/client";
-import { user, workspace } from "@/server/db/schema";
+import { experiment, member, user, workspace } from "@/server/db/schema";
 import { appRouter } from "@/server/trpc/root";
 import { createCallerFactory } from "@/server/trpc/trpc";
 
@@ -28,6 +28,8 @@ async function seedUser(ext: string, isAdmin = false): Promise<string> {
 
 beforeEach(async () => {
   vi.clearAllMocks();
+  await db.delete(experiment);
+  await db.delete(member);
   await db.delete(workspace);
   await db.delete(user);
   delete process.env.ADMIN_USER_IDS;
@@ -76,6 +78,27 @@ describe("adminProcedure gate (ADR-0075)", () => {
     const nonAdmin = createCaller({ authUser: authUser("hanna") });
     await expect(nonAdmin.admin.workspaces()).rejects.toThrow();
     await expect(nonAdmin.admin.users()).rejects.toThrow();
+  });
+
+  it("workspaces census reports real member + study counts (regression: all-zeroes)", async () => {
+    const boss = await seedUser("boss", true);
+    const hanna = await seedUser("hanna", false);
+    const mallory = await seedUser("mallory", false);
+    const [w] = await db.insert(workspace).values({ name: "Lab", slug: "lab", ownerId: boss }).returning();
+    // Two active members + one soft-removed (should NOT count) + two studies.
+    await db.insert(member).values([
+      { workspaceId: w.id, userId: boss, role: "owner", status: "active" },
+      { workspaceId: w.id, userId: hanna, role: "editor", status: "active" },
+      { workspaceId: w.id, userId: mallory, role: "viewer", status: "active", removedAt: new Date() },
+    ]);
+    await db.insert(experiment).values([
+      { tenantId: w.id, ownerId: boss, title: "Study A" },
+      { tenantId: w.id, ownerId: boss, title: "Study B" },
+    ]);
+
+    const [row] = await createCaller({ authUser: authUser("boss") }).admin.workspaces();
+    expect(row.memberCount).toBe(2); // soft-removed excluded
+    expect(row.studyCount).toBe(2);
   });
 
   it("me.isAdmin reflects the gate", async () => {

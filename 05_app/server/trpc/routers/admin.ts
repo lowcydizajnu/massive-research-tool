@@ -1,7 +1,7 @@
-import { count, gte, sql } from "drizzle-orm";
+import { count, desc, eq, gte, sql } from "drizzle-orm";
 
 import { db } from "@/server/db/client";
-import { aiInvocation, experiment, feedback, releaseAnnouncement, user, workspace } from "@/server/db/schema";
+import { aiInvocation, experiment, feedback, member, releaseAnnouncement, user, workspace } from "@/server/db/schema";
 import { adminProcedure, router } from "@/server/trpc/trpc";
 
 /**
@@ -37,7 +37,15 @@ export const adminRouter = router({
     };
   }),
 
-  /** Cross-workspace census — newest first (AA2.4 seed; capped). */
+  /**
+   * Cross-workspace census — newest first (AA2.4 seed; capped). Counts come from
+   * LEFT JOINs + `count(distinct …)` rather than correlated subqueries: the
+   * earlier `(select count(*) … where m.workspace_id = ${workspace.id})` form
+   * silently returned 0 for every workspace (the interpolated outer column bound
+   * to the inner table), so members/studies always read zero. The join form is
+   * unambiguous; `count(distinct)` keeps the member×study cross-product from
+   * inflating either count, and FILTER excludes soft-removed members.
+   */
   workspaces: adminProcedure.query(async () => {
     return db
       .select({
@@ -46,11 +54,14 @@ export const adminRouter = router({
         slug: workspace.slug,
         createdAt: workspace.createdAt,
         archivedAt: workspace.archivedAt,
-        memberCount: sql<number>`(select count(*)::int from "member" m where m.workspace_id = ${workspace.id} and m.removed_at is null)`,
-        studyCount: sql<number>`(select count(*)::int from "experiment" e where e.tenant_id = ${workspace.id})`,
+        memberCount: sql<number>`(count(distinct ${member.id}) filter (where ${member.removedAt} is null))::int`,
+        studyCount: sql<number>`count(distinct ${experiment.id})::int`,
       })
       .from(workspace)
-      .orderBy(sql`${workspace.createdAt} desc`)
+      .leftJoin(member, eq(member.workspaceId, workspace.id))
+      .leftJoin(experiment, eq(experiment.tenantId, workspace.id))
+      .groupBy(workspace.id)
+      .orderBy(desc(workspace.createdAt))
       .limit(200);
   }),
 

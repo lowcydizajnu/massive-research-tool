@@ -62,6 +62,45 @@ export default async function AdminOverviewPage() {
           );
         })}
       </ul>
+
+      {/* External operator dashboards — analytics + error monitoring live in
+          their own consoles (ADR-0074 / ADR-0072), not rebuilt in-app. */}
+      <section aria-labelledby="admin-external" className="flex flex-col gap-2">
+        <h2
+          id="admin-external"
+          className="text-[length:var(--text-small)] uppercase tracking-wide text-[var(--color-text-muted)]"
+        >
+          External dashboards
+        </h2>
+        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {EXTERNAL_DASHBOARDS.map((d) => (
+            <li key={d.label}>
+              <a
+                href={d.href}
+                target="_blank"
+                rel="noreferrer"
+                className="flex h-full flex-col gap-1 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-4 hover:opacity-90"
+              >
+                <span className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">
+                  {d.label} ↗
+                </span>
+                <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">{d.hint}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
     </main>
   );
 }
+
+/**
+ * Operator consoles for the data MRT deliberately does NOT rebuild in-app:
+ * product analytics + session replay (PostHog, EU) and error monitoring
+ * (Sentry, EU). Links open the provider's own dashboard; each redirects to the
+ * signed-in operator's org/project.
+ */
+const EXTERNAL_DASHBOARDS: { label: string; href: string; hint: string }[] = [
+  { label: "PostHog", href: "https://eu.posthog.com", hint: "Funnels, retention, session replay" },
+  { label: "Sentry", href: "https://sentry.io", hint: "Errors + performance" },
+];
