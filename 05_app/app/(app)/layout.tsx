@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
+import { PostHogProvider } from "@/components/analytics/posthog-provider";
 import { ViewAsBanner } from "@/components/feature/admin/view-as-banner";
 import { FeedbackWidget } from "@/components/feature/feedback/feedback-widget";
 import { LegalUpdateModal } from "@/components/feature/legal/legal-update-modal";
@@ -33,17 +34,19 @@ export default async function AppLayout({
 
   return (
     <TRPCReactProvider>
-      <NewStudyProvider>
-        <div className="flex min-h-screen flex-col bg-[var(--color-surface-page)]">
-          <ViewAsBanner />
-          {children}
-        </div>
-        <LegalUpdateModal />
-        <FeedbackWidget />
-        <Suspense fallback={null}>
-          <OnboardingTour />
-        </Suspense>
-      </NewStudyProvider>
+      <PostHogProvider>
+        <NewStudyProvider>
+          <div className="flex min-h-screen flex-col bg-[var(--color-surface-page)]">
+            <ViewAsBanner />
+            {children}
+          </div>
+          <LegalUpdateModal />
+          <FeedbackWidget />
+          <Suspense fallback={null}>
+            <OnboardingTour />
+          </Suspense>
+        </NewStudyProvider>
+      </PostHogProvider>
     </TRPCReactProvider>
   );
 }

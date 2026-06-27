@@ -51,6 +51,12 @@ export function CookieBanner() {
       /* private mode — still record server-side, still dismiss */
     }
     setShow(false);
+    // Let the analytics provider react without a reload (opt-in/opt-out live).
+    try {
+      window.dispatchEvent(new CustomEvent("cookie-consent-changed", { detail: choice }));
+    } catch {
+      /* no-op */
+    }
     void fetch("/api/cookie-consent", {
       method: "POST",
       headers: { "content-type": "application/json" },

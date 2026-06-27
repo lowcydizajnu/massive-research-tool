@@ -439,7 +439,7 @@
   "project": "Massive Research Tool",
   "tagline": "Multi-tenant SaaS for psychological experiments",
   "lastUpdated": "2026-06-27",
-  "currentFocus": "Analytics + Admin — AA2 admin destination. ADRs 0074/0075. user.is_admin + adminProcedure (migration 0044); admin router (overview census + monthly AI cost; workspaces; users); /admin Overview + Workspaces + Users + nav; /admin tRPC-context fix; read-only view-as (migration 0045 audit log; protectedProcedure blocks mutations while impersonating; banner + Exit; 'View as' on Users). 781 tests; tsc/lint/build/validator clean. Migrations 0044+0045 — db:migrate:prod BEFORE push; push only on owner deploy. AA2 done except failed-jobs (blocked on an Inngest API key). Next: AA1 PostHog (EU key in Vercel).",
+  "currentFocus": "Analytics + Admin — AA1 PostHog (client) started; AA2 done except failed-jobs (Inngest-key-blocked). AA1.1: consent-aware PostHogProvider (posthog-js) in the (app) shell — the one recorded client-side exception (ADR-0074 + lock-in inventory). Hard no-op unless NEXT_PUBLIC_POSTHOG_KEY set; capture + session replay only on 'accept all' (reacts live to the cookie banner), never in /take/* (ADR-0014), inputs masked. Pure consent helpers + tests. 784 tests; tsc/lint/build/validator clean (no posthog-js in the /take bundle). Pending: AA1.2 server AnalyticsAdapter + analytics.posthog.ts + typed event-taxonomy instrumentation. Unpushed migrations 0044+0045 — db:migrate:prod BEFORE push; push only on owner deploy.",
   "currentFocusPrev": "Platform-foundation COMPLETE (PF1–PF4, all live on prod): PF1.1 Sentry, PF1.2/1.3 Dependabot + security.txt + /security, PF2 feedback widget + /admin/feedback, PF3 tour + empty states + tooltips, PF4 in-app announcements (✨ TopBar + slide-out + owner-only /admin/announcements). Plus an admin-panel stopgap: /admin layout + nav + Overview, account-menu Admin entry, admin-only demo-content toggle.",
   "phases": [
     {
@@ -1213,6 +1213,9 @@
     }
   ],
   "recentActivity": [
+    {
+      "text": "feat: AA1.1 — consent-aware PostHog client provider (ADR-0074). First slice of the analytics build: a PostHogProvider (posthog-js) mounted in the (app) shell — the single deliberate client-side analytics exception (ADR-0074 + lock-in inventory; the SDK can't live behind a server-only adapter). Hard no-op unless NEXT_PUBLIC_POSTHOG_KEY is set; consent-gated (ADR-0073) — pageviews/autocapture + session replay run only on 'accept all', reacting live to the cookie banner (new cookie-consent-changed event + cross-tab storage); never in the participant runtime (/take/*, ADR-0014 — verified posthog-js absent from the /take bundle); replay masks all inputs; client identify deferred (anonymous distinct_id) to keep PII minimal. Pure consent helpers + 3 tests. 784 tests; tsc/lint/build/validator clean. Next: AA1.2 server AnalyticsAdapter + analytics.posthog.ts + event-taxonomy instrumentation."
+    },
     {
       "text": "feat: AA2.7 — read-only view-as researcher (migration 0045, ADR-0075). Admins can impersonate a researcher READ-ONLY (never act-as): protectedProcedure resolves the target only when the real caller isAdminUser (re-checked each request) and blocks ALL tRPC mutations while active; target id in an httpOnly cookie. Enter/exit audit-logged to admin_view_as_log. startViewAs/stopViewAs actions + me.viewingAs + global read-only banner (Exit) in the (app) shell + 'View as' on /admin/users. getCurrentDbUser stays the REAL admin (server-page identity), so Exit always works. +3 view-as tests; 781 tests; tsc/lint/build/validator clean. Migration 0045 — db:migrate:prod before push. AA2 done except failed-jobs (needs Inngest API key). Next: AA1 PostHog."
     },
