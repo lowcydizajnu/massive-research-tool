@@ -1,6 +1,9 @@
 import Link from "next/link";
 import type { Route } from "next";
 
+import { ExploreScenarioCard } from "@/components/feature/explore/explore-scenario-card";
+import { getExploreScenarios } from "@/content/explore/scenarios";
+
 /**
  * Explore content island (EE1, ADR-0076; explore-destination.md). One component
  * rendered in BOTH shells — the authed `(workspace)/explore` page and (EE1.3)
@@ -21,6 +24,7 @@ const PLACEHOLDER =
   "rounded-[var(--radius-md)] bg-[var(--color-surface-subtle)] p-6 text-[length:var(--text-small)] text-[var(--color-text-muted)]";
 
 export function ExploreContent({ isPublic = false }: { isPublic?: boolean }) {
+  const scenarios = getExploreScenarios();
   return (
     <div className="flex flex-col gap-4">
       {/* Header band */}
@@ -33,12 +37,18 @@ export function ExploreContent({ isPublic = false }: { isPublic?: boolean }) {
         </p>
       </header>
 
-      {/* Band 1 — curated use-case scenarios (EE1.2 fills from Markdown) */}
+      {/* Band 1 — curated use-case scenarios (EE1.2) */}
       <section aria-labelledby="explore-scenarios" className={BAND}>
         <h2 id="explore-scenarios" className={BAND_TITLE}>
           Start with a use case
         </h2>
-        <p className={PLACEHOLDER}>Curated starting points are on the way.</p>
+        <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {scenarios.map((s) => (
+            <li key={s.slug}>
+              <ExploreScenarioCard scenario={s} isPublic={isPublic} />
+            </li>
+          ))}
+        </ul>
       </section>
 
       {/* Band 2 — featured starter templates (EE1.3 dynamic) */}
