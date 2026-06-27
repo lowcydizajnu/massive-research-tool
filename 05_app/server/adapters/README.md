@@ -19,6 +19,7 @@ This is what makes ADR-0007's cost-ceiling triggers feasible in 2 weeks instead 
 | `RegistryAdapter` | `registry.osf.ts` (OSF; OAuth + push — PR-1c) | OSF → AsPredicted / ClinicalTrials.gov |
 | `StorageAdapter` | `storage.r2.ts` (Cloudflare R2 via aws4fetch; presign-only) | R2 → S3 / MinIO |
 | `AIProviderAdapter` | `ai.anthropic.ts` (Claude via HTTP, BYO workspace key — ADR-0061) | Anthropic → OpenAI / local |
+| `AnalyticsAdapter` | `analytics.posthog.ts` (PostHog via `posthog-node`, app-level key, consent-gated — ADR-0074) | PostHog → Amplitude / Mixpanel / self-hosted |
 
 ## How to add a new adapter
 
