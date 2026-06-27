@@ -11,6 +11,7 @@ import {
   type RecruitmentProvider,
 } from "@/server/adapters/recruitment";
 import { decryptSecret, encryptSecret } from "@/server/crypto/tokens";
+import { trackEvent } from "@/server/analytics/track";
 import { db } from "@/server/db/client";
 import {
   experiment,
@@ -165,6 +166,14 @@ export const recruitmentRouter = router({
             providerUserId,
             status: "active",
           });
+          if (input.provider === "prolific") {
+            await trackEvent({
+              userId: ctx.dbUser.id,
+              workspaceId: ctx.workspace.id,
+              event: "prolific_connected",
+              sensitivity: "researcher_behavior",
+            });
+          }
         }
         return { ok: true };
       }),
@@ -285,6 +294,13 @@ export const recruitmentRouter = router({
         .update(recruitmentSession)
         .set({ metadata: { ...(session.metadata ?? {}), provider } })
         .where(eq(recruitmentSession.id, session.id));
+      await trackEvent({
+        userId: ctx.dbUser.id,
+        workspaceId: ctx.workspace.id,
+        event: "recruitment_opened",
+        sensitivity: "researcher_behavior",
+        properties: { provider: input.provider },
+      });
       return { providerStudyUrl: created.providerStudyUrl };
     }),
 
@@ -308,6 +324,13 @@ export const recruitmentRouter = router({
         .update(recruitmentSession)
         .set({ metadata: { ...(session.metadata ?? {}), provider: { ...provider, status: "stopped" } } })
         .where(eq(recruitmentSession.id, session.id));
+      await trackEvent({
+        userId: ctx.dbUser.id,
+        workspaceId: ctx.workspace.id,
+        event: "recruitment_closed",
+        sensitivity: "researcher_behavior",
+        properties: { provider: input.provider },
+      });
       return { ok: true };
     }),
 

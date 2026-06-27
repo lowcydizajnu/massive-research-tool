@@ -5,6 +5,7 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import { ulid } from "ulid";
 
 import type { ThemeChoice } from "@/components/theme-provider";
+import { trackEvent } from "@/server/analytics/track";
 import { auth } from "@/server/adapters/auth";
 import { db } from "@/server/db/client";
 import { legalAcceptance, member, user, workspace } from "@/server/db/schema";
@@ -134,7 +135,7 @@ export async function finalizeOnboarding(
       })),
     );
 
-    return { workspaceId: ws.id };
+    return { workspaceId: ws.id, userId: dbUser.id };
   });
 
   await auth.setUserMetadata(current.id, {
@@ -143,5 +144,20 @@ export async function finalizeOnboarding(
     hasCompletedOnboarding: true,
   });
 
-  return result;
+  // Product analytics (ADR-0074) — fire-safe + consent-gated. The consent cookie
+  // set on the landing page (ADR-0073 am.1) is readable here, so this resolves.
+  await trackEvent({
+    userId: result.userId,
+    workspaceId: result.workspaceId,
+    event: "signup_completed",
+    sensitivity: "researcher_behavior",
+  });
+  await trackEvent({
+    userId: result.userId,
+    workspaceId: result.workspaceId,
+    event: "workspace_created",
+    sensitivity: "researcher_behavior",
+  });
+
+  return { workspaceId: result.workspaceId };
 }
