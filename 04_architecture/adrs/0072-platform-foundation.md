@@ -26,7 +26,9 @@ Build the Platform-foundation handoff as four additive PR streams:
 - **PF3 — Onboarding + empty states + feature discovery.** `react-joyride` first-run tour (`user.has_completed_onboarding`); a shared `<EmptyState>` applied across every destination; ≤7 one-time feature-discovery tooltips (`user.dismissed_feature_tips`).
 - **PF4 — Announcement widget.** TopBar "what's new" + slide-out, `release_announcement` table + per-user `last_seen_announcement_at`.
 
-**Vendor choices locked:** Sentry (error monitoring), Dependabot (deps), `html2canvas` (screenshot), `react-joyride` (tour) — all free/MIT. Custom-built feedback + announcement widgets (no Intercom/Headway — overkill at indie scale).
+**Vendor choices locked:** Sentry (error monitoring), Dependabot (deps), `html2canvas` (screenshot — see am. 2026-06-27), `react-joyride` (tour) — all free/MIT. Custom-built feedback + announcement widgets (no Intercom/Headway — overkill at indie scale).
+
+> **Amendment 2026-06-27 — screenshot lib `html2canvas` → `html2canvas-pro`.** PF2 shipped with `html2canvas` 1.4.1, but capture silently failed in production: the app's Tailwind v4 palette emits `oklch()` colors, which `html2canvas` 1.4.1 cannot parse (it throws while cloning computed styles). Swapped to **`html2canvas-pro`** (2.x, MIT) — a maintained drop-in fork with `oklch`/`lab`/`lch`/`color-mix` support; same default-export API (`import html2canvas from "html2canvas-pro"`). The capture remains best-effort and never blocks the text submission (the widget now also tells the user when the image didn't attach). No data-model or interface change.
 
 **Sentry adapter exception (to ADR-0007):** Sentry's Next.js SDK auto-instruments many code paths via its build plugin; full isolation behind an adapter defeats auto-capture. Sentry is therefore a **deliberate, recorded exception** (like the Clerk middleware exception) — swap target documented (PostHog error tracking / Datadog) and deferred until cost or scale forces it.
 
