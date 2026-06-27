@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { and, count, desc, eq, gte, inArray, isNotNull, isNull, notInArray, sql } from "drizzle-orm";
 import { z } from "zod";
 
+import { trackEvent } from "@/server/analytics/track";
 import { db } from "@/server/db/client";
 import {
   activityEvent,
@@ -174,6 +175,13 @@ export const workspaceRouter = router({
           status: "active",
         });
         return ws.id;
+      });
+      // Product analytics (ADR-0074) — fire-safe + consent-gated; never blocks.
+      await trackEvent({
+        userId: ctx.dbUser.id,
+        workspaceId: id,
+        event: "workspace_created",
+        sensitivity: "researcher_behavior",
       });
       return { id };
     }),
