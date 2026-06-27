@@ -1214,6 +1214,9 @@
   ],
   "recentActivity": [
     {
+      "text": "fix(admin): workspace census all-zeroes + feedback triage actions + PostHog/Sentry links (owner-flagged). Three issues the owner caught on the live admin: (1) Census bug — /admin/workspaces showed 0 members + 0 studies for every workspace despite real data; the correlated-subquery counts silently bound the interpolated outer column to the inner table, always returning 0. Replaced with LEFT JOIN + count(distinct …) filter (…) (members exclude soft-removed). +regression test that reproduced the +0 bug first. (2) Feedback triage — the queue was read-only; added feedback.setStatus adminProcedure + an inline <FeedbackStatusSelect> (New→Triaged→In progress→Resolved→Won't fix→Duplicate) that refreshes the list. (3) External dashboards — the Overview now links out to PostHog (EU; funnels/replay) + Sentry (errors). 794 tests; tsc/lint/build/validator clean. No migration. Diagnosed without prod reads — the ≥1-member invariant proved a query bug, confirmed via a pglite regression test."
+    },
+    {
       "text": "feat: EE1.1 — /explore route + LeftRail entry + ExploreContent scaffold (ADR-0076). First Explore build: a new /explore destination under (app)/(workspace) (workspace chrome) + a LeftRail 'Explore' entry (Compass icon, after Studies) + the shared <ExploreContent isPublic?> island. The island scaffolds the four wireframe bands — Start with a use case (curated scenarios), Featured starter templates, From the community (with a Browse all → link, hidden on the public variant), and the opt-in researcher showcase (omitted until profiles exist) — as floating cards on parchment with placeholder bodies. Data + the public route come in EE1.2/EE1.3; the isPublic flag already gates workspace-only affordances. 793 tests; tsc/lint/build/validator clean (/explore compiles at 370 B). No migration."
     },
     {

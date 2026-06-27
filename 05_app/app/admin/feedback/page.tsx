@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import type { Route } from "next";
 
+import { FeedbackStatusSelect } from "@/components/feature/admin/feedback-status-select";
 import { getServerApi } from "@/server/trpc/server";
 import {
   FEEDBACK_KIND_LABEL,
@@ -74,7 +75,7 @@ export default async function AdminFeedbackPage({
                 <span className="rounded-[var(--radius-sm)] bg-[var(--color-primary-subtle)] px-2 py-0.5 font-medium text-[var(--color-primary-text-on-subtle)]">
                   {FEEDBACK_KIND_LABEL[r.kind as FeedbackKind] ?? r.kind}
                 </span>
-                <span>{FEEDBACK_STATUS_LABEL[r.status]}</span>
+                <FeedbackStatusSelect id={r.id} status={r.status} />
                 <span>·</span>
                 <span>{r.submitterName ?? r.submitterEmail ?? "(deleted)"}</span>
                 {r.workspaceName ? (
