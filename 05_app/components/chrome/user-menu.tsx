@@ -1,10 +1,12 @@
 "use client";
 
 import { useClerk } from "@clerk/nextjs";
-import { LogOut, Settings, UsersRound } from "lucide-react";
+import { LogOut, Settings, ShieldCheck, UsersRound } from "lucide-react";
 import type { Route } from "next";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+
+import { api } from "@/lib/trpc/react";
 
 /**
  * Account menu in the TopBar (V1.12 A1). Avatar button → dropdown with the
@@ -25,6 +27,8 @@ export function UserMenu({
   const [signingOut, setSigningOut] = useState(false);
   const { signOut } = useClerk();
   const ref = useRef<HTMLDivElement>(null);
+  // Admin entry-point — only fetched/shown for allow-listed operators (PF4).
+  const isAdmin = api.me.isAdmin.useQuery(undefined, { staleTime: 5 * 60 * 1000 });
 
   useEffect(() => {
     if (!open) return;
@@ -85,6 +89,13 @@ export function UserMenu({
             <Settings className="size-4 text-[var(--color-text-muted)]" aria-hidden />
             Account settings
           </Link>
+
+          {isAdmin.data ? (
+            <Link href={"/admin" as Route} role="menuitem" className={itemCls} onClick={() => setOpen(false)}>
+              <ShieldCheck className="size-4 text-[var(--color-text-muted)]" aria-hidden />
+              Admin
+            </Link>
+          ) : null}
 
           <button
             type="button"

@@ -1214,6 +1214,9 @@
   ],
   "recentActivity": [
     {
+      "text": "feat: admin panel — nav + entry point + demo-toggle gating (owner request). app/admin/layout.tsx centralizes the ADMIN_USER_IDS gate + <AdminNav> (Overview/Feedback/Announcements) across /admin/*; new /admin Overview with counts. 'Admin' entry added to the account menu (gated on a new me.isAdmin tRPC query). 'Show demo content' toggle moved to admin-only on /settings/workspace (operator tool). No migration. 773 tests; tsc/lint/build/validator clean. Stopgap until the full Admin destination (analytics+admin handoff)."
+    },
+    {
       "text": "feat: Platform-foundation PF4 — in-app announcements (migration 0043, ADR-0072); platform-foundation COMPLETE. release_announcement table + user.last_seen_announcement_at (read = published_at > last_seen). announcements tRPC (list/unreadCount/markAllRead + admin-gated create). <AnnouncementsBell> ✨ TopBar widget + unread dot → right slide-out panel (markdown body via ADR-0015 sanitizer; opening marks read). Owner-only /admin/announcements authoring page under /admin(.*) gate. Image + activity-emit deferred. Gate: announcements wireframe. +5 router tests; 773 tests; tsc/lint/build/validator clean. Migration 0043 — db:migrate:prod before push. PF1–PF4 all delivered."
     },
     {

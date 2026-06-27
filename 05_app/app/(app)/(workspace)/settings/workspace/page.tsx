@@ -1,6 +1,8 @@
 import { ActivityFilterSettings } from "@/components/feature/settings/activity-filter-settings";
 import { AiProviderSettings } from "@/components/feature/settings/ai-provider-settings";
 import { DemoContentToggle } from "@/components/feature/settings/demo-content-toggle";
+import { getCurrentDbUser } from "@/server/auth/current-db-user";
+import { isAdminExternalId } from "@/server/admin/is-admin";
 import { getServerApi } from "@/server/trpc/server";
 
 /**
@@ -17,6 +19,10 @@ export const dynamic = "force-dynamic";
 export default async function WorkspaceSettingsPage() {
   const api = await getServerApi();
   const active = await api.workspace.active();
+  // "Show demo content" (ADR-0023) is an operator tool, not a researcher
+  // setting — restrict it to the admin allow-list (PF4 owner request).
+  const dbUser = await getCurrentDbUser();
+  const isAdmin = isAdminExternalId(dbUser?.externalId);
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-5 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6">
@@ -31,8 +37,8 @@ export default async function WorkspaceSettingsPage() {
       </div>
 
       <section className="flex flex-col gap-3">
-        <DemoContentToggle />
-        <div className="mt-2 border-t border-[var(--color-border-subtle)] pt-4">
+        {isAdmin ? <DemoContentToggle /> : null}
+        <div className={isAdmin ? "mt-2 border-t border-[var(--color-border-subtle)] pt-4" : ""}>
           <ActivityFilterSettings />
         </div>
         <div className="mt-2 border-t border-[var(--color-border-subtle)] pt-4">
