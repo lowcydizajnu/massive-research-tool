@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
  */
 const SECTIONS: { label: string; href: Route; exact?: boolean }[] = [
   { label: "Overview", href: "/admin" as Route, exact: true },
+  { label: "Workspaces", href: "/admin/workspaces" as Route },
   { label: "Feedback", href: "/admin/feedback" as Route },
   { label: "Announcements", href: "/admin/announcements" as Route },
 ];

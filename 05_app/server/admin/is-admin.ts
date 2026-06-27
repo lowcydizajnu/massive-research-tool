@@ -20,3 +20,14 @@ export function isAdminExternalId(externalId: string | null | undefined): boolea
   if (!externalId) return false;
   return adminExternalIds().has(externalId);
 }
+
+/**
+ * Canonical admin check (ADR-0075): the durable `user.is_admin` column, OR the
+ * transitional `ADMIN_USER_IDS` env allow-list (kept until the prod row is
+ * flipped, then the env fallback can be dropped). Use this everywhere instead of
+ * the raw env check.
+ */
+export function isAdminUser(dbUser: { isAdmin?: boolean | null; externalId: string } | null | undefined): boolean {
+  if (!dbUser) return false;
+  return dbUser.isAdmin === true || isAdminExternalId(dbUser.externalId);
+}

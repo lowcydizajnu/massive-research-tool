@@ -121,6 +121,10 @@ export const user = pgTable("user", {
   /** In-app announcements read marker (PF4): announcements with published_at >
    *  this are "unread". Null = never opened the panel. */
   lastSeenAnnouncementAt: timestamp("last_seen_announcement_at", { withTimezone: true }),
+  /** Platform operator flag (ADR-0075). Gates the Admin destination via
+   *  adminProcedure; supersedes the ADMIN_USER_IDS env stopgap (kept as a
+   *  transitional fallback). Owner flips their own row TRUE in prod. */
+  isAdmin: boolean("is_admin").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

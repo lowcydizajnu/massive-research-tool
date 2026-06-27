@@ -2,7 +2,7 @@ import { ActivityFilterSettings } from "@/components/feature/settings/activity-f
 import { AiProviderSettings } from "@/components/feature/settings/ai-provider-settings";
 import { DemoContentToggle } from "@/components/feature/settings/demo-content-toggle";
 import { getCurrentDbUser } from "@/server/auth/current-db-user";
-import { isAdminExternalId } from "@/server/admin/is-admin";
+import { isAdminUser } from "@/server/admin/is-admin";
 import { getServerApi } from "@/server/trpc/server";
 
 /**
@@ -22,7 +22,7 @@ export default async function WorkspaceSettingsPage() {
   // "Show demo content" (ADR-0023) is an operator tool, not a researcher
   // setting — restrict it to the admin allow-list (PF4 owner request).
   const dbUser = await getCurrentDbUser();
-  const isAdmin = isAdminExternalId(dbUser?.externalId);
+  const isAdmin = isAdminUser(dbUser);
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-5 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6">

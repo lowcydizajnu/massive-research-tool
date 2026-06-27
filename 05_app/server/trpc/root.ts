@@ -1,3 +1,4 @@
+import { adminRouter } from "@/server/trpc/routers/admin";
 import { aiRouter } from "@/server/trpc/routers/ai";
 import { announcementsRouter } from "@/server/trpc/routers/announcements";
 import { commentsRouter } from "@/server/trpc/routers/comments";
@@ -47,6 +48,7 @@ export const appRouter = router({
   legal: legalRouter,
   feedback: feedbackRouter,
   announcements: announcementsRouter,
+  admin: adminRouter,
   notifications: notificationsRouter,
   follows: followsRouter,
   me: meRouter,

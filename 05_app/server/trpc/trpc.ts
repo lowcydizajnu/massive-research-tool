@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 
 import { db } from "@/server/db/client";
 import { user } from "@/server/db/schema";
+import { isAdminUser } from "@/server/admin/is-admin";
 import { resolveActiveWorkspace } from "@/server/workspace/active";
 
 import type { Context } from "./context";
@@ -29,6 +30,16 @@ export const protectedProcedure = t.procedure.use(async ({ ctx, next }) => {
     });
   }
   return next({ ctx: { authUser: ctx.authUser, dbUser } });
+});
+
+/**
+ * adminProcedure — protectedProcedure that additionally requires a platform
+ * operator (ADR-0075). Admin is `user.is_admin` OR the transitional
+ * ADMIN_USER_IDS allow-list (see isAdminUser). Orthogonal to workspace role.
+ */
+export const adminProcedure = protectedProcedure.use(async ({ ctx, next }) => {
+  if (!isAdminUser(ctx.dbUser)) throw new TRPCError({ code: "FORBIDDEN" });
+  return next();
 });
 
 /**
