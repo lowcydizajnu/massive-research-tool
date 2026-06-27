@@ -1,11 +1,12 @@
 "use client";
 
 import { useClerk } from "@clerk/nextjs";
-import { LogOut, Settings, ShieldCheck, UsersRound } from "lucide-react";
+import { BookOpen, LogOut, Settings, ShieldCheck, UsersRound } from "lucide-react";
 import type { Route } from "next";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
+import { DOCS_BASE } from "@/lib/help/doc-urls";
 import { api } from "@/lib/trpc/react";
 
 /**
@@ -89,6 +90,18 @@ export function UserMenu({
             <Settings className="size-4 text-[var(--color-text-muted)]" aria-hidden />
             Account settings
           </Link>
+
+          <a
+            href={DOCS_BASE}
+            target="_blank"
+            rel="noopener noreferrer"
+            role="menuitem"
+            className={itemCls}
+            onClick={() => setOpen(false)}
+          >
+            <BookOpen className="size-4 text-[var(--color-text-muted)]" aria-hidden />
+            Docs ↗
+          </a>
 
           {isAdmin.data ? (
             <Link href={"/admin" as Route} role="menuitem" className={itemCls} onClick={() => setOpen(false)}>

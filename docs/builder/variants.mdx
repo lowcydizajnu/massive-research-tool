@@ -1,0 +1,29 @@
+---
+title: Variants
+description: Split participants across version-level arms (A/B and factorial).
+---
+
+**Variants** define experimental **arms** at the version level: participants are randomly assigned across them, so you can compare, say, two framings of a stimulus or a 2×2 factorial design.
+
+## Variants vs conditions
+
+- [**Conditions**](/builder/conditions) branch one participant's path *within* a version based on their answers.
+- **Variants** assign *different participants* to *different versions* of the study and balance assignment across them. This is the A/B (and factorial) mechanism.
+
+## Setting up
+
+1. Open the **Variants** section in the Builder.
+2. Define one or more **factors**, each with two or more **levels** (e.g. factor *Headline framing* with levels *Neutral* / *Alarming*).
+3. The study's blocks reference the active level, so each arm shows the right content. Participants are split across the resulting cells.
+
+## Wording per arm
+
+Many blocks let you reword their copy per variant, so an arm can show different text without duplicating the whole block.
+
+## Analysis
+
+Each response is tagged with the arm the participant saw, and the exported dataset includes the variant/condition columns so you can compare arms directly.
+
+<Tip>
+Keep the number of cells small relative to your sample — every extra factor level multiplies the participants you need for adequate power.
+</Tip>

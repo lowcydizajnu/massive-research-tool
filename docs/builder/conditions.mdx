@@ -1,0 +1,26 @@
+---
+title: Conditions
+description: Show or hide blocks based on earlier answers.
+---
+
+A **condition** controls whether a block is shown to a participant, based on what they answered earlier. Use conditions for **screening**, **branching**, and **routing** within a single study version.
+
+## How it works
+
+1. Select the block you want to make conditional.
+2. In its Configure panel, add a **visibility rule**: "show this block if [earlier answer] [operator] [value]".
+3. At run time the rule is evaluated **live** — participants only see blocks whose conditions pass.
+
+## Common patterns
+
+- **Screening**: route out participants who don't meet criteria (e.g. send them to the end if a screener answer disqualifies them).
+- **Branching**: show follow-up questions only to people who answered a certain way.
+- **Skip logic**: hide a whole section that doesn't apply.
+
+## On the whiteboard
+
+Switch the Builder to **Whiteboard** mode to see your study as a graph — blocks are nodes and conditions are the edges between them. You can draw a condition by connecting one block's answer to another block.
+
+<Note>
+Conditions branch **within one version**. To split participants across **separate arms** of a study (e.g. stimulus A vs B), use [variants](/builder/variants) instead.
+</Note>

@@ -3,6 +3,7 @@ import type { Route } from "next";
 import { redirect } from "next/navigation";
 
 import { FeatureTip } from "@/components/feature/onboarding/feature-tip";
+import { HelpLink } from "@/components/feature/help/help-link";
 import { ProfileForm } from "@/components/feature/settings/profile-form";
 import { PublicProfileSection } from "@/components/feature/settings/public-profile-section";
 import { PanelSideToggle } from "@/components/feature/settings/panel-side-toggle";
@@ -147,8 +148,9 @@ export default async function AccountSettingsPage({
         <div className="flex flex-col gap-3 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-4">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <div className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">
+              <div className="flex items-center gap-1.5 text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">
                 OSF
+                <HelpLink docKey="integrations.osf" />
               </div>
               <div className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
                 {connection.connected

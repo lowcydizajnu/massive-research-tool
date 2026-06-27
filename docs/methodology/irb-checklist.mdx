@@ -1,0 +1,31 @@
+---
+title: IRB & data-handling checklist
+description: Run ethical, privacy-respecting studies.
+---
+
+Massive Research Lab is built to keep participant data minimal and your studies IRB-friendly. This is a practical checklist, **not legal or ethics advice** — your institution's IRB is the authority.
+
+## Before you launch
+
+- [ ] **Consent**: the first block(s) present an information sheet + consent, and participants can decline.
+- [ ] **Withdrawal**: participants can stop; withdrawn responses are reflected across the app.
+- [ ] **Debrief**: a closing block explains the study (especially for any deception design).
+- [ ] **Compensation**: reward + eligibility set fairly (see [Prolific](/integrations/prolific)).
+- [ ] **Sensitive data**: avoid collecting identifiers you don't need.
+
+## How the platform protects participants
+
+- **No participant PII in analytics.** The participant runtime (`/take/*`) is never tracked by product analytics; only a one-way user-agent hash + coarse country are ever recorded, never raw IP/UA.
+- **Opaque recruitment IDs.** Provider participant IDs are stored opaquely — Prolific PII does not enter your dataset.
+- **BYO AI keys.** AI features run under *your* provider key; when a study uses AI, a non-determinism disclosure is added to the preregistration automatically.
+- **Encrypted connections.** OSF/Prolific/AI credentials are stored encrypted and never shown again.
+
+## Open & honest reporting
+
+- [Preregister](/methodology/preregistration) to timestamp your plan.
+- Push labelled **amendments** rather than silently editing a registered plan.
+- Make the study public so it can be cited and [replicated](/methodology/replication).
+
+<Note>
+Requirements vary by institution and country. Use this as a starting point and confirm with your IRB/ethics board.
+</Note>

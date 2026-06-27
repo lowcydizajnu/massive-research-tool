@@ -174,6 +174,17 @@ For each vendor:
 | **Migration target** | Another analytics vendor (Amplitude, Mixpanel) or self-hosted PostHog. Server side swaps `analytics.posthog.ts` behind the unchanged `AnalyticsAdapter`; client side rewrites the one provider component. Keys are env vars (`NEXT_PUBLIC_POSTHOG_KEY` + `NEXT_PUBLIC_POSTHOG_HOST`). |
 | **Cost-ceiling trigger** | PostHog free-tier event / recording quota hit → tune capture (sampling, autocapture scope, replay rate) or switch (ADR-0074 revisit trigger). |
 
+## Mintlify (docs hosting — per ADR-0078)
+
+| | |
+| --- | --- |
+| **What we use it for** | Researcher documentation at `docs.myresearchlab.app` (EE4) — hosted search/nav/dark-mode/SSL for the docs site. |
+| **Behind an adapter** | N/A — it's a hosting vendor, not an SDK in the app. The only in-app coupling is `lib/help/doc-urls.ts` (the typed `DOC_URLS` map + `DOCS_BASE`), which holds URL *paths*, not any Mintlify type or import. The `<HelpLink>` component is a plain `<a>`. |
+| **Deliberate exceptions** | (none — no `@mintlify/*` import anywhere; the app only links out to the docs domain.) |
+| **Content portability** | Docs content is **plain MDX in-repo** under `docs/` (+ `docs.json`). Mintlify renders it; it is not locked in a vendor CMS. |
+| **Migration target** | Docusaurus / Nextra / self-hosted — a re-host of the same MDX, not a content rewrite. Swap the DNS CNAME + the config file; `DOCS_BASE` is the one app-side constant to repoint. |
+| **Cost-ceiling trigger** | Mintlify free tier (Mintlify footer branding) → upgrade (~$20/mo) when content scales, or re-host the in-repo MDX (ADR-0078 revisit trigger). |
+
 ## Review discipline
 
 When opening a PR that touches an adapter or adds a vendor SDK import:
