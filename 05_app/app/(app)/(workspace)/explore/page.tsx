@@ -16,14 +16,19 @@ export const metadata: Metadata = { title: "Explore" };
 
 export default async function ExplorePage() {
   const api = await getServerApi();
-  const [featuredTemplates, communityStudies] = await Promise.all([
+  const [featuredTemplates, communityStudies, showcaseProfiles] = await Promise.all([
     api.explore.featuredTemplates({ limit: 6 }),
     api.explore.communityStudies({ limit: 9 }),
+    api.explore.publicProfiles({ limit: 12 }),
   ]);
 
   return (
     <main className="flex min-w-0 flex-1 flex-col">
-      <ExploreContent featuredTemplates={featuredTemplates} communityStudies={communityStudies} />
+      <ExploreContent
+        featuredTemplates={featuredTemplates}
+        communityStudies={communityStudies}
+        showcaseProfiles={showcaseProfiles}
+      />
     </main>
   );
 }

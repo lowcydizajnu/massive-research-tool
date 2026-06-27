@@ -31,6 +31,7 @@ export type CommunityStudy = {
   authorName: string | null;
   replicationCount: number;
 };
+export type ShowcaseProfile = { handle: string; displayName: string };
 
 const BAND =
   "flex flex-col gap-4 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6";
@@ -45,10 +46,12 @@ export function ExploreContent({
   isPublic = false,
   featuredTemplates = [],
   communityStudies = [],
+  showcaseProfiles = [],
 }: {
   isPublic?: boolean;
   featuredTemplates?: FeaturedTemplate[];
   communityStudies?: CommunityStudy[];
+  showcaseProfiles?: ShowcaseProfile[];
 }) {
   const scenarios = getExploreScenarios();
   return (
@@ -170,7 +173,29 @@ export function ExploreContent({
         </section>
       ) : null}
 
-      {/* Band 4 — opt-in researcher showcase: rendered once profiles exist (EE2). */}
+      {/* Band 4 — opt-in researcher showcase (EE2): only when profiles exist. */}
+      {showcaseProfiles.length > 0 ? (
+        <section aria-labelledby="explore-researchers" className={BAND}>
+          <h2 id="explore-researchers" className={BAND_TITLE}>
+            Researchers to follow
+          </h2>
+          <ul className="flex flex-wrap gap-2">
+            {showcaseProfiles.map((p) => (
+              <li key={p.handle}>
+                <Link
+                  href={`/u/${p.handle}` as Route}
+                  className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-3 py-1.5 text-[length:var(--text-body)] text-[var(--color-text-primary)] hover:opacity-90"
+                >
+                  <span className="flex size-6 items-center justify-center rounded-full bg-[var(--color-primary-subtle)] text-[length:var(--text-small)] font-medium text-[var(--color-primary-text-on-subtle)]">
+                    {(p.displayName.trim()[0] ?? "·").toUpperCase()}
+                  </span>
+                  {p.displayName}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
     </div>
   );
 }

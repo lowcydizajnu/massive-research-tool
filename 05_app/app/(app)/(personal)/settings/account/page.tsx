@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { FeatureTip } from "@/components/feature/onboarding/feature-tip";
 import { ProfileForm } from "@/components/feature/settings/profile-form";
+import { PublicProfileSection } from "@/components/feature/settings/public-profile-section";
 import { PanelSideToggle } from "@/components/feature/settings/panel-side-toggle";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { FormSubmitButton } from "@/components/ui/form-submit-button";
@@ -102,7 +103,12 @@ export default async function AccountSettingsPage({
         })}
       </nav>
 
-      {tab === "profile" ? <ProfileForm /> : null}
+      {tab === "profile" ? (
+        <>
+          <ProfileForm />
+          <PublicProfileSection />
+        </>
+      ) : null}
 
       {tab === "appearance" ? (
         <section className="flex flex-col gap-3">
