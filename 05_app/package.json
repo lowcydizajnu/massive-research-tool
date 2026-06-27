@@ -45,6 +45,7 @@
     "clsx": "^2.1.1",
     "dompurify": "^3.4.8",
     "drizzle-orm": "^0.38.3",
+    "html2canvas": "^1.4.1",
     "inngest": "^3.54.2",
     "lucide-react": "^0.468.0",
     "mammoth": "^1.12.0",

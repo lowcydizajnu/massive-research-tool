@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import { FeedbackWidget } from "@/components/feature/feedback/feedback-widget";
 import { LegalUpdateModal } from "@/components/feature/legal/legal-update-modal";
 import { NewStudyProvider } from "@/components/feature/new-study/provider";
 import { TRPCReactProvider } from "@/lib/trpc/react";
@@ -34,6 +35,7 @@ export default async function AppLayout({
           {children}
         </div>
         <LegalUpdateModal />
+        <FeedbackWidget />
       </NewStudyProvider>
     </TRPCReactProvider>
   );
