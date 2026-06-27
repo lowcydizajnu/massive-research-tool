@@ -25,6 +25,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { UploadButton } from "@/components/feature/builder/upload-button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { PendingButton, Spinner } from "@/components/ui/pending-button";
 import { api } from "@/lib/trpc/react";
 import { LIVE_POLL_MS, useVisibleInterval } from "@/lib/use-visible-interval";
@@ -141,12 +142,11 @@ export function PlaygroundBoard() {
           </button>
         </div>
       ) : cards.length === 0 ? (
-        <div className="rounded-[var(--radius-lg)] border border-dashed border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] p-10 text-center">
-          <p className="text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
-            Nothing here yet. Drop in a link, a question, an image, or a paper — then turn the keepers
-            into a study.
-          </p>
-        </div>
+        <EmptyState
+          icon={StickyNote}
+          title="No cards yet."
+          body="Drop in a link, a question, an image, or a paper — then turn the keepers into a study."
+        />
       ) : (
         <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-label="Playground cards">
           {cards.map((card, i) => (

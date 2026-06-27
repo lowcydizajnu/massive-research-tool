@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { FlaskConical } from "lucide-react";
 
 import { NewStudyButton } from "@/components/feature/new-study/new-study-button";
 import { RunningBoard } from "@/components/feature/studies/running-board";
 import { StudyCard } from "@/components/feature/study-card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
 import { getServerApi } from "@/server/trpc/server";
 import { STUDY_FILTERS, type StudyFilter } from "@/server/trpc/routers/studies";
@@ -107,12 +109,12 @@ export default async function StudiesPage({
 
 function EmptyWorkspace() {
   return (
-    <div className="flex flex-col items-center gap-4 rounded-[var(--radius-lg)] bg-[var(--color-surface-subtle)] p-12 text-center">
-      <p className="font-serif text-[length:var(--text-heading-1)] font-medium text-[var(--color-text-primary)]">
-        Your first study is one click away.
-      </p>
-      <NewStudyButton autoFocus />
-    </div>
+    <EmptyState
+      icon={FlaskConical}
+      title="No studies yet."
+      body="Start your first study from scratch or from a framework — it only takes a click."
+      action={<NewStudyButton autoFocus />}
+    />
   );
 }
 
