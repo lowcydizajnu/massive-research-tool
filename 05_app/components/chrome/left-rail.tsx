@@ -2,6 +2,7 @@
 
 import {
   Activity,
+  Compass,
   FlaskConical,
   LayoutDashboard,
   Library,
@@ -33,6 +34,9 @@ type Destination = {
 const DESTINATIONS: Destination[] = [
   { label: "Dashboard", icon: LayoutDashboard, href: "/dashboard" as Route },
   { label: "Studies", icon: FlaskConical, href: "/studies" },
+  // Explore — discovery destination (EE1, ADR-0076). Curated scenarios +
+  // featured templates + community studies; the launchpad for "what can I run?".
+  { label: "Explore", icon: Compass, href: "/explore" as Route },
   { label: "Library", icon: Library, href: "/library" as Route },
   { label: "Playground", icon: Lightbulb, href: "/playground" as Route },
   // Browse moved to Home/global nav (ADR-0055) — it's cross-workspace, so it
