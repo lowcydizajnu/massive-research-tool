@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Route } from "next";
 import { redirect } from "next/navigation";
 
+import { FeatureTip } from "@/components/feature/onboarding/feature-tip";
 import { ProfileForm } from "@/components/feature/settings/profile-form";
 import { PanelSideToggle } from "@/components/feature/settings/panel-side-toggle";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -134,6 +135,8 @@ export default async function AccountSettingsPage({
         <h2 className="font-serif text-[17px] font-medium text-[var(--color-text-primary)]">
           Connections
         </h2>
+
+        {!connection.connected ? <FeatureTip id="connect-osf" /> : null}
 
         <div className="flex flex-col gap-3 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-4">
           <div className="flex items-center justify-between gap-3">

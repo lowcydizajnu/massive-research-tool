@@ -67,6 +67,13 @@ export interface AuthUserMetadata {
    * `hasCompletedOnboarding` name).
    */
   hasSeenTour?: boolean;
+  /**
+   * Feature-discovery tooltips the user has dismissed (platform-foundation
+   * PF3.3) — each one-time hint shows until dismissed, then never again. Stored
+   * in publicMetadata (same rationale as `hasSeenTour`); a small set of string
+   * ids (see `lib/feature-tips.ts`).
+   */
+  dismissedFeatureTips?: string[];
 }
 
 export interface AuthAdapter {

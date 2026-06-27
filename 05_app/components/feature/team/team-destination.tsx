@@ -6,6 +6,7 @@ import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
+import { FeatureTip } from "@/components/feature/onboarding/feature-tip";
 import { PendingButton } from "@/components/ui/pending-button";
 import { api } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
@@ -80,6 +81,9 @@ export function TeamDestination({
           </button>
         ) : null}
       </div>
+
+      {canManage ? <FeatureTip id="invite-teammate" /> : null}
+
       {inviteOpen ? (
         <InviteModal
           viewerRole={viewerRole}
