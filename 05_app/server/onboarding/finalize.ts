@@ -2,10 +2,14 @@
 
 import { and, eq, isNull, sql } from "drizzle-orm";
 
+import { ulid } from "ulid";
+
 import type { ThemeChoice } from "@/components/theme-provider";
 import { auth } from "@/server/adapters/auth";
 import { db } from "@/server/db/client";
-import { member, user, workspace } from "@/server/db/schema";
+import { legalAcceptance, member, user, workspace } from "@/server/db/schema";
+import { CURRENT_LEGAL_VERSION } from "@/lib/legal/content";
+import { consentRequestContext } from "@/server/legal/consent";
 
 /**
  * Onboarding finalize — the last step of the signup-and-onboard flow.
@@ -74,6 +78,9 @@ export async function finalizeOnboarding(
     input.displayName.trim() || current.displayName || current.email;
   const workspaceName = input.workspaceName.trim() || `${displayName}'s workspace`;
   const slug = await uniqueSlug(slugify(workspaceName));
+  // Signup is gated on the ToS/Privacy checkbox (LG3), so record acceptance of
+  // both at their current versions as part of onboarding.
+  const reqCtx = await consentRequestContext();
 
   const result = await db.transaction(async (tx) => {
     const [dbUser] = await tx
@@ -114,6 +121,18 @@ export async function finalizeOnboarding(
           sql`lower(${member.invitedEmail}) = ${current.email.toLowerCase()}`,
         ),
       );
+
+    // Record ToS + Privacy acceptance (LG3) at current versions.
+    await tx.insert(legalAcceptance).values(
+      (["terms", "privacy"] as const).map((kind) => ({
+        id: ulid(),
+        userId: dbUser.id,
+        documentKind: kind,
+        documentVersion: CURRENT_LEGAL_VERSION[kind],
+        ipCountry: reqCtx.ipCountry,
+        userAgentHash: reqCtx.userAgentHash,
+      })),
+    );
 
     return { workspaceId: ws.id };
   });

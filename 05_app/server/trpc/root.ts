@@ -3,6 +3,7 @@ import { commentsRouter } from "@/server/trpc/routers/comments";
 import { cookieConsentRouter } from "@/server/trpc/routers/cookie-consent";
 import { dashboardRouter } from "@/server/trpc/routers/dashboard";
 import { followsRouter } from "@/server/trpc/routers/follows";
+import { legalRouter } from "@/server/trpc/routers/legal";
 import { materialsRouter } from "@/server/trpc/routers/materials";
 import { meRouter } from "@/server/trpc/routers/me";
 import { modulesRouter } from "@/server/trpc/routers/modules";
@@ -41,6 +42,7 @@ export const appRouter = router({
   materials: materialsRouter,
   comments: commentsRouter,
   cookieConsent: cookieConsentRouter,
+  legal: legalRouter,
   notifications: notificationsRouter,
   follows: followsRouter,
   me: meRouter,

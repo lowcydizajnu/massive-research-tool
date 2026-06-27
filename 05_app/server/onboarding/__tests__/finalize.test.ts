@@ -17,6 +17,11 @@ vi.mock("@/server/adapters/auth", () => ({
   },
 }));
 
+// consentRequestContext reaches into next/headers — stub it (LG3).
+vi.mock("@/server/legal/consent", () => ({
+  consentRequestContext: async () => ({ userAgentHash: "uahash", ipCountry: "PL" }),
+}));
+
 // Replace the db client with a migrated PGlite-backed Drizzle instance.
 vi.mock("@/server/db/client", async () => {
   const { PGlite } = await import("@electric-sql/pglite");
@@ -31,7 +36,8 @@ vi.mock("@/server/db/client", async () => {
 
 import { auth } from "@/server/adapters/auth";
 import { db } from "@/server/db/client";
-import { member, user, workspace } from "@/server/db/schema";
+import { legalAcceptance, member, user, workspace } from "@/server/db/schema";
+import { CURRENT_LEGAL_VERSION } from "@/lib/legal/content";
 import { finalizeOnboarding } from "@/server/onboarding/finalize";
 
 const mockAuth = vi.mocked(auth);
@@ -49,6 +55,7 @@ beforeEach(async () => {
   mockAuth.requireCurrentUser.mockResolvedValue({ ...CURRENT });
   mockAuth.setUserMetadata.mockResolvedValue(undefined);
   // isolate each test
+  await db.delete(legalAcceptance);
   await db.delete(member);
   await db.delete(workspace);
   await db.delete(user);
@@ -90,6 +97,28 @@ describe("finalizeOnboarding (happy path)", () => {
       role: "owner",
       status: "active",
     });
+  });
+
+  it("records ToS + Privacy acceptance at current versions (LG3)", async () => {
+    const result = await finalizeOnboarding({
+      displayName: "Hanna",
+      workspaceName: "Lab",
+      themeChoice: "system",
+    });
+    const users = await db.select().from(user);
+    const accepts = await db.select().from(legalAcceptance);
+    expect(accepts).toHaveLength(2);
+    const byKind = Object.fromEntries(accepts.map((a) => [a.documentKind, a]));
+    expect(byKind.terms).toMatchObject({
+      userId: users[0].id,
+      documentVersion: CURRENT_LEGAL_VERSION.terms,
+      ipCountry: "PL",
+      userAgentHash: "uahash",
+    });
+    expect(byKind.privacy).toMatchObject({
+      documentVersion: CURRENT_LEGAL_VERSION.privacy,
+    });
+    expect(result.workspaceId).toBeTruthy();
   });
 
   it("persists theme + workspace + onboarding flag through the adapter", async () => {
