@@ -1214,6 +1214,9 @@
   ],
   "recentActivity": [
     {
+      "text": "docs: EE1 Explore gate — flow + 3 wireframes + ADR-0076 (Explore+Engagement+Docs handoff). Opened the next handoff at stream EE1 (Explore destination), authoring the phase-gate artifacts before code: user flow explore-discovery (authed + public discovery → one-click fork; intent carried through sign-up), wireframes explore-destination (4 bands: curated scenarios + featured templates + community studies + opt-in researcher showcase), explore-use-case-card, explore-public-route-header (marketing chrome), and ADR-0076 — dual-route (authed (workspace)/explore + public (public)/explore) shared-island design, scenarios as in-repo Markdown (no CMS), reuse of Browse + studies.fork (no new data model), PII-free public explore.* queries. Validator clean (229 instances). Docs-only; no migration. Next: EE1.1 route + LeftRail + ExploreContent scaffold."
+    },
+    {
       "text": "feat: AA1.3b — client-only mount events (ADR-0074). The 2 deferred page-open events with no server mutation: study_preview_opened (researcher preview page) + whiteboard_opened (whiteboard build page). New <TrackEvent> client component (fires once on mount) + captureClientEvent helper calling the already-initialised browser PostHog SDK — consent-gated for free (posthog.__loaded is only true after the provider init'd with consent), never throws. The taxonomy type is imported type-only, so posthog-node stays out of the client bundle (build verified). Mounted in the two (app)/(study) pages; never the participant /preview or /take runtime (ADR-0014). 17/31 events now live. 793 tests; tsc/lint/build/validator clean. No migration."
     },
     {
