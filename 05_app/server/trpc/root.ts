@@ -4,6 +4,7 @@ import { announcementsRouter } from "@/server/trpc/routers/announcements";
 import { commentsRouter } from "@/server/trpc/routers/comments";
 import { cookieConsentRouter } from "@/server/trpc/routers/cookie-consent";
 import { dashboardRouter } from "@/server/trpc/routers/dashboard";
+import { exploreRouter } from "@/server/trpc/routers/explore";
 import { feedbackRouter } from "@/server/trpc/routers/feedback";
 import { followsRouter } from "@/server/trpc/routers/follows";
 import { legalRouter } from "@/server/trpc/routers/legal";
@@ -39,6 +40,7 @@ export const appRouter = router({
   studyRecord: studyRecordRouter,
   saved: savedRouter,
   dashboard: dashboardRouter,
+  explore: exploreRouter,
   modules: modulesRouter,
   proposals: proposalsRouter,
   templates: templatesRouter,
