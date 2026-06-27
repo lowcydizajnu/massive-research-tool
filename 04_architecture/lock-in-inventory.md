@@ -142,6 +142,17 @@ For each vendor:
 
 > **Note (2026-06-15):** `react-grid-layout` was briefly added for the dashboard flexible grid (ADR-0045 amendment) and **removed** — its fixed-cell model truncated content-sized widgets and its responsive layout misbehaved. The dashboard grid is now a plain CSS grid + the `@dnd-kit` row above (no new dependency). See the ADR-0045 amendment for the rationale.
 
+## Sentry (error monitoring — per ADR-0072)
+
+| | |
+| --- | --- |
+| **What we use it for** | Production error aggregation + alerting (platform-foundation PF1.1). Free "Developer" tier; EU region. |
+| **Behind an adapter** | **No — deliberate exception.** Sentry's Next.js SDK auto-instruments server/edge/client via its build plugin (`withSentryConfig`) + the `instrumentation` hooks; isolating it behind a server-only adapter would defeat the auto-capture that is its entire value. Mirrors the Clerk-middleware exception (a framework-boundary integration, not business logic). |
+| **Deliberate exceptions** (all removed on a Sentry→X migration) | `withSentryConfig(...)` in `05_app/next.config.ts`; `05_app/instrumentation.ts` (`register()` + `onRequestError`); `05_app/instrumentation-client.ts`; `05_app/sentry.server.config.ts`; `05_app/sentry.edge.config.ts`; `05_app/app/global-error.tsx` (`Sentry.captureException`). All are config/boundary files — no Sentry types or business logic leak into feature code. |
+| **PII contract** | `sendDefaultPii: false` in every init (ADR-0014) — no raw IP, cookies, or request bodies; stack traces + error context only. Errors-only (no session replay / profiling) for bundle + quota discipline. |
+| **Migration target** | PostHog error tracking or Datadog (ADR-0072). DSN + tokens are env vars (`NEXT_PUBLIC_SENTRY_DSN`; optional `SENTRY_AUTH_TOKEN`/`SENTRY_ORG`/`SENTRY_PROJECT` for source-map upload); the SDK no-ops when the DSN is absent (local/dev). |
+| **Cost-ceiling trigger** | Sentry free-tier event quota hit → tune sample rate or switch (ADR-0072 revisit trigger). |
+
 ## Review discipline
 
 When opening a PR that touches an adapter or adds a vendor SDK import:

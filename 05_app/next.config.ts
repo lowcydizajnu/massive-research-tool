@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
@@ -13,4 +14,14 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["@react-pdf/renderer"],
 };
 
-export default nextConfig;
+// Sentry (platform-foundation PF1.1, ADR-0072 — deliberate ADR-0007 exception:
+// the SDK auto-instruments via its build plugin, so it is NOT behind an adapter).
+// Source-map upload only runs when SENTRY_AUTH_TOKEN + org/project are present;
+// without them the plugin no-ops, so local + token-less builds are unaffected.
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  silent: !process.env.CI,
+  disableLogger: true,
+  widenClientFileUpload: true,
+});
