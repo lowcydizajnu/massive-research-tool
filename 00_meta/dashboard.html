@@ -1214,6 +1214,9 @@
   ],
   "recentActivity": [
     {
+      "text": "fix + feat: AA2 — /admin tRPC-context fix (Sentry-caught) + Users census. Bug caught by the new Sentry: /admin/* is outside the (app) group so it had no TRPCReactProvider — the announcement form threw 'Unable to find tRPC Context' (/admin/announcements 500). Fixed by wrapping app/admin/layout.tsx in TRPCReactProvider. Plus admin.users census + /admin/users page (role badge) + nav. 778 tests; tsc/lint/build/validator clean. Ships with AA2.1 migration 0044 (db:migrate:prod before push). Next: failed-jobs + view-as, then AA1 PostHog."
+    },
+    {
       "text": "feat: AA2.1 — user.is_admin + adminProcedure + Admin Overview/Workspaces (migration 0044, ADR-0075). Real admin gate: user.is_admin column + adminProcedure (isAdminUser = column OR ADMIN_USER_IDS fallback so access doesn't break pre-flip). Converted feedback.adminList/announcements.create to adminProcedure + me.isAdmin/server gates to isAdminUser. New admin router (overview census + current-month AI cost from ai_invocation; workspaces census) → richer /admin Overview + /admin/workspaces page + nav entry. +4 admin tests; 777 tests; tsc/lint/build/validator clean. Migration 0044 — db:migrate:prod before push. Next: AA2 Users/failed-jobs/view-as, then AA1 PostHog."
     },
     {

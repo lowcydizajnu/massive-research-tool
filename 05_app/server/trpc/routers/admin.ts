@@ -53,4 +53,19 @@ export const adminRouter = router({
       .orderBy(sql`${workspace.createdAt} desc`)
       .limit(200);
   }),
+
+  /** User census — newest first (AA2.5 seed; capped). */
+  users: adminProcedure.query(async () => {
+    return db
+      .select({
+        id: user.id,
+        email: user.email,
+        displayName: user.displayName,
+        isAdmin: user.isAdmin,
+        createdAt: user.createdAt,
+      })
+      .from(user)
+      .orderBy(sql`${user.createdAt} desc`)
+      .limit(500);
+  }),
 });

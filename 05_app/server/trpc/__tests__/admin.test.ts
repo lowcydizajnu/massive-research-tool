@@ -61,6 +61,23 @@ describe("adminProcedure gate (ADR-0075)", () => {
     expect(o.users).toBe(1);
   });
 
+  it("workspaces + users census return for an admin and are forbidden otherwise", async () => {
+    const boss = await seedUser("boss", true);
+    await db.insert(workspace).values({ name: "W", slug: "w", ownerId: boss });
+    await seedUser("hanna", false);
+
+    const admin = createCaller({ authUser: authUser("boss") });
+    const ws = await admin.admin.workspaces();
+    const users = await admin.admin.users();
+    expect(ws).toHaveLength(1);
+    expect(ws[0]).toMatchObject({ name: "W", slug: "w" });
+    expect(users.length).toBeGreaterThanOrEqual(2);
+
+    const nonAdmin = createCaller({ authUser: authUser("hanna") });
+    await expect(nonAdmin.admin.workspaces()).rejects.toThrow();
+    await expect(nonAdmin.admin.users()).rejects.toThrow();
+  });
+
   it("me.isAdmin reflects the gate", async () => {
     await seedUser("boss", true);
     await seedUser("hanna", false);
