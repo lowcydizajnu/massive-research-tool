@@ -2,6 +2,7 @@ import { aiRouter } from "@/server/trpc/routers/ai";
 import { commentsRouter } from "@/server/trpc/routers/comments";
 import { cookieConsentRouter } from "@/server/trpc/routers/cookie-consent";
 import { dashboardRouter } from "@/server/trpc/routers/dashboard";
+import { feedbackRouter } from "@/server/trpc/routers/feedback";
 import { followsRouter } from "@/server/trpc/routers/follows";
 import { legalRouter } from "@/server/trpc/routers/legal";
 import { materialsRouter } from "@/server/trpc/routers/materials";
@@ -43,6 +44,7 @@ export const appRouter = router({
   comments: commentsRouter,
   cookieConsent: cookieConsentRouter,
   legal: legalRouter,
+  feedback: feedbackRouter,
   notifications: notificationsRouter,
   follows: followsRouter,
   me: meRouter,

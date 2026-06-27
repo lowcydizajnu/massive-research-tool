@@ -1204,6 +1204,40 @@ export const legalAcceptance = pgTable(
   ],
 );
 
+// In-app product feedback (platform-foundation PF2, ADR-0072). One row per
+// submission, tagged to the submitter + (if applicable) their workspace and the
+// study they were viewing. PII-safe (ADR-0014): one-way UA hash + coarse
+// country only — never raw IP / raw user-agent. FKs SET NULL so feedback
+// survives workspace/study/user deletion for triage history.
+export const feedback = pgTable(
+  "feedback",
+  {
+    id: text("id").primaryKey(), // ULID
+    workspaceId: uuid("workspace_id").references(() => workspace.id, { onDelete: "set null" }),
+    userId: uuid("user_id").references(() => user.id, { onDelete: "set null" }),
+    kind: text("kind").notNull(),
+    body: text("body").notNull(),
+    url: text("url"),
+    routeName: text("route_name"),
+    userAgentHash: text("user_agent_hash"),
+    ipCountry: text("ip_country"),
+    screenshotR2Key: text("screenshot_r2_key"),
+    studyId: uuid("study_id").references(() => experiment.id, { onDelete: "set null" }),
+    status: text("status").notNull().default("new"),
+    adminNotes: text("admin_notes"),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check("feedback_kind", sql`${t.kind} IN ('bug', 'idea', 'question', 'other')`),
+    check(
+      "feedback_status",
+      sql`${t.status} IN ('new', 'triaged', 'in_progress', 'resolved', 'wont_fix', 'duplicate')`,
+    ),
+    index("idx_feedback_status_created").on(t.status, t.createdAt.desc()),
+  ],
+);
+
 // A user's follow targets (tag / author / framework / study / module).
 export const follow = pgTable(
   "follow",
