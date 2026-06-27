@@ -33,18 +33,16 @@ export default function AuthLayout({
         <div className="w-full max-w-[480px]">{children}</div>
       </main>
 
-      {/* Plain anchors: these destinations don't exist yet, so they're out of
-          the typed-routes graph. Swap to <Link> when the pages land. */}
       <footer className="flex justify-center gap-4 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-        <a href="/privacy" className="hover:text-[var(--color-text-secondary)]">
+        <Link href="/legal/privacy" className="hover:text-[var(--color-text-secondary)]">
           Privacy
-        </a>
-        <a href="/terms" className="hover:text-[var(--color-text-secondary)]">
+        </Link>
+        <Link href="/legal/terms" className="hover:text-[var(--color-text-secondary)]">
           Terms
-        </a>
-        <a href="/help" className="hover:text-[var(--color-text-secondary)]">
-          Help
-        </a>
+        </Link>
+        <Link href="/legal/cookies" className="hover:text-[var(--color-text-secondary)]">
+          Cookies
+        </Link>
       </footer>
     </div>
   );

@@ -439,7 +439,7 @@
   "project": "Massive Research Tool",
   "tagline": "Multi-tenant SaaS for psychological experiments",
   "lastUpdated": "2026-06-27",
-  "currentFocus": "Legal-baseline LG3 — ToS acceptance gate. New legal_acceptance table (migration 0041; per-user/kind/version, PII-safe — one-way UA hash + coarse country, ADR-0014). Acceptance recorded (1) at signup: finalizeOnboarding writes terms+privacy rows in-transaction, gated on a required ToS/Privacy checkbox on the signup step; (2) on version bump: legal tRPC router (outstandingAcceptances / acceptUpdate, idempotent + stale-version-safe) backs a re-prompt modal in the (app) shell (never on /take/*). +legal router tests + finalize test; 749 vitest green; tsc/lint/build/validator clean. Migration 0041 — db:migrate:prod BEFORE push. Next: LG4 footer legal links + /legal/my-acceptances.",
+  "currentFocus": "Legal-baseline LG3 + LG4. LG3: legal_acceptance table (migration 0041; per-user/kind/version, PII-safe — one-way UA hash + coarse country, ADR-0014) — recorded at signup (finalizeOnboarding + required ToS/Privacy checkbox) and on version bump (legal tRPC outstandingAcceptances/acceptUpdate → re-prompt modal in (app) shell). LG4: auth footer legal links fixed to /legal/*; authed /legal/my-acceptances page (per-row version links) + PDF receipt route (@react-pdf, ADR-0027) + Account-settings link; no migration. 749 vitest green; tsc/lint/build/validator clean. Migration 0041 (LG3) — db:migrate:prod BEFORE push. Next: LG5 sub-processor single source.",
   "currentFocusPrev": "Editable participant-facing labels (slice 1: fixed chrome) + social-post comment emotion. social-post: when it collects a comment, the researcher can enable Claude emotion scoring of the comment (job scores answer.comment). Editable labels (ADR-0070): a per-study uiCopy override map on the version snapshot + pure resolver (lib/take/ui-copy.ts) makes the previously-hardcoded chrome — Continue/Finish/Back, required-answer error, progress label, thank-you title/body — overridable for translation/rewording (blank = default). studies.setUiCopy + StudyDetail.uiCopy; take pages resolve it; Builder 'Wording' editor. Block content was already editable; block-internal strings are the next increment. 729 tests, lint/build/validator clean. Next: study changelog (#3) — surface the existing version/amendment/changelog history as a when/what/who timeline.",
   "phases": [
     {
@@ -1213,6 +1213,9 @@
     }
   ],
   "recentActivity": [
+    {
+      "text": "feat: Legal-baseline LG4 — footer legal links + /legal/my-acceptances (+ PDF). Auth footer's stale /privacy //terms anchors fixed to real /legal/* Links. New authed /legal/my-acceptances page (static segment, getCurrentDbUser → /signin) lists acceptances (doc · version · date · in-force/superseded) with per-version links + a PDF receipt route (@react-pdf, ADR-0027); surfaced from Account settings. No migration. 749 tests; tsc/lint/build clean. Next: LG5 sub-processor single source."
+    },
     {
       "text": "feat: Legal-baseline LG3 — ToS acceptance gate (migration 0041). legal_acceptance table (per-user/kind/version; PII-safe — one-way UA hash + coarse country). Recorded at signup (finalizeOnboarding + required ToS/Privacy checkbox) and on version bump (legal tRPC outstandingAcceptances/acceptUpdate → re-prompt modal in (app) shell, never on /take/*). +legal router tests + finalize test; 749 vitest green; tsc/lint/build/validator clean. Migration 0041 — db:migrate:prod before push. Next: LG4 footer links + /legal/my-acceptances."
     },
