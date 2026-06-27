@@ -56,6 +56,10 @@ function readMetadata(publicMetadata: unknown): AuthUserMetadata {
   if (typeof m.hasCompletedOnboarding === "boolean") {
     out.hasCompletedOnboarding = m.hasCompletedOnboarding;
   }
+  if (typeof m.hasSeenTour === "boolean") out.hasSeenTour = m.hasSeenTour;
+  if (Array.isArray(m.dismissedFeatureTips)) {
+    out.dismissedFeatureTips = m.dismissedFeatureTips.filter((t): t is string => typeof t === "string");
+  }
   return out;
 }
 
