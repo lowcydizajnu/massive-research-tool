@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Route } from "next";
 import { redirect } from "next/navigation";
 
 import { ProfileForm } from "@/components/feature/settings/profile-form";
@@ -57,6 +58,10 @@ export default async function AccountSettingsPage({
           Your personal settings. Workspace settings (demo content, the team Activity feed) live in{" "}
           <Link href="/settings/workspace" className="text-[var(--color-primary)] hover:opacity-90">
             Workspace settings
+          </Link>
+          . See your{" "}
+          <Link href={"/legal/my-acceptances" as Route} className="text-[var(--color-primary)] hover:opacity-90">
+            legal acceptances
           </Link>
           .
         </p>
