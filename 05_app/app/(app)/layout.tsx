@@ -1,8 +1,10 @@
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 
 import { FeedbackWidget } from "@/components/feature/feedback/feedback-widget";
 import { LegalUpdateModal } from "@/components/feature/legal/legal-update-modal";
 import { NewStudyProvider } from "@/components/feature/new-study/provider";
+import { OnboardingTour } from "@/components/feature/onboarding/onboarding-tour";
 import { TRPCReactProvider } from "@/lib/trpc/react";
 import { getServerApi } from "@/server/trpc/server";
 
@@ -36,6 +38,9 @@ export default async function AppLayout({
         </div>
         <LegalUpdateModal />
         <FeedbackWidget />
+        <Suspense fallback={null}>
+          <OnboardingTour />
+        </Suspense>
       </NewStudyProvider>
     </TRPCReactProvider>
   );

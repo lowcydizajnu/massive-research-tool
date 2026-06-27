@@ -439,8 +439,8 @@
   "project": "Massive Research Tool",
   "tagline": "Multi-tenant SaaS for psychological experiments",
   "lastUpdated": "2026-06-27",
-  "currentFocus": "Platform-foundation PF1.1 — Sentry error monitoring (ADR-0072). @sentry/nextjs v9: instrumentation (server/edge/client) + withSentryConfig + root global-error.tsx. PII-safe (sendDefaultPii: false, ADR-0014); errors-only; no-ops without NEXT_PUBLIC_SENTRY_DSN. Deliberate ADR-0007 exception recorded in the lock-in inventory; env vars in .env.example. Owner set the DSN in Vercel. Bundle cost: shared JS 102→177 kB. No migration. 759 tests; tsc/lint/build/validator clean. Awaiting deploy. Remaining PF: PF3 (onboarding + empty states), PF4 (announcements).",
-  "currentFocusPrev": "Platform-foundation PF2 — in-app feedback widget (migration 0042, deployed) + screenshot fix (html2canvas→html2canvas-pro for Tailwind v4 oklch). feedback table (PII-safe per ADR-0014) + feedback tRPC (submit/confirmScreenshot/adminList) + floating <FeedbackWidget> in the (app) shell + owner-only /admin/feedback (ADMIN_USER_IDS). Gate: provide-product-feedback flow + 3 wireframes. Live on prod.",
+  "currentFocus": "Platform-foundation PF3.1 — first-run onboarding tour (ADR-0072). react-joyride v3 (React-19-safe; lazy-loaded) 4-step tour auto-runs once on /studies; tour-seen in Clerk publicMetadata (hasSeenTour — not a column, avoids colliding with hasCompletedOnboarding); replay from Settings · Account. Gate: first-run-orientation flow + onboarding-tour wireframe; react-joyride in lock-in inventory. No migration. 761 tests; tsc/lint/build/validator clean. Awaiting deploy. Remaining PF3: PF3.2 empty-state pass (existing surfaces; Library ones deferred), PF3.3 feature-discovery tooltips. Then PF4 announcements.",
+  "currentFocusPrev": "Platform-foundation PF1.1 — Sentry error monitoring (ADR-0072, live on prod). @sentry/nextjs v9: instrumentation (server/edge/client) + withSentryConfig + root global-error.tsx. PII-safe (sendDefaultPii: false, ADR-0014); errors-only; no-ops without NEXT_PUBLIC_SENTRY_DSN. Deliberate ADR-0007 exception in the lock-in inventory. Bundle: shared JS 102→177 kB. Prior: PF2 feedback widget (live) + screenshot fix (html2canvas-pro).",
   "phases": [
     {
       "id": "foundation",
@@ -1213,6 +1213,9 @@
     }
   ],
   "recentActivity": [
+    {
+      "text": "feat: Platform-foundation PF3.1 — first-run onboarding tour (ADR-0072). react-joyride v3 (React-19-safe rewrite; v2's findDOMNode breaks on React 19), lazy-loaded so it's off the shared bundle. 4-step coachmark tour auto-runs once on /studies (Welcome → destinations → New study → done), then never again; replay from Settings · Account (?tour=replay). Tour-seen stored as hasSeenTour in Clerk publicMetadata via markTourSeen (NOT a user column — would collide with hasCompletedOnboarding + contradict the metadata-for-UX-flags decision). Gate: first-run-orientation flow + onboarding-tour wireframe (5 handoff step-files consolidated into 1). react-joyride added to lock-in inventory. +2 action tests; 761 tests; tsc/lint/build/validator clean. No migration. Next: PF3.2 empty states, PF3.3 tooltips."
+    },
     {
       "text": "feat: Platform-foundation PF1.1 — Sentry error monitoring (ADR-0072). @sentry/nextjs v9 wired: instrumentation.ts (register + onRequestError), instrumentation-client.ts, sentry.server/edge.config.ts, root app/global-error.tsx, next.config withSentryConfig. PII-safe per ADR-0014 (sendDefaultPii: false — traces only, no IP/cookies); errors-only. No-ops without NEXT_PUBLIC_SENTRY_DSN. Recorded as a deliberate ADR-0007 exception in the lock-in inventory (auto-instruments via build plugin). Bundle: shared JS 102→177 kB, middleware 86→146 kB. No migration. 759 tests; tsc/lint/build/validator clean. Owner set DSN in Vercel."
     },

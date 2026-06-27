@@ -28,6 +28,7 @@ export function NewStudyButton({
       disabled={!canWrite}
       title={canWrite ? undefined : READ_ONLY_TITLE}
       aria-keyshortcuts="Command+N"
+      data-tour="new-study"
       className={cn(
         "flex items-center gap-1 rounded-[var(--radius-md)] bg-[var(--color-primary)] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80 disabled:opacity-40",
         variant === "topbar"

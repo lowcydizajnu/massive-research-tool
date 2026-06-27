@@ -62,6 +62,10 @@ export default async function AccountSettingsPage({
           . See your{" "}
           <Link href={"/legal/my-acceptances" as Route} className="text-[var(--color-primary)] hover:opacity-90">
             legal acceptances
+          </Link>{" "}
+          or{" "}
+          <Link href={"/studies?tour=replay" as Route} className="text-[var(--color-primary)] hover:opacity-90">
+            replay the product tour
           </Link>
           .
         </p>
