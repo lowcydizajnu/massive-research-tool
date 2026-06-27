@@ -1213,6 +1213,9 @@
   ],
   "recentActivity": [
     {
+      "text": "fix(explore): real cover art + direct-create scenario CTAs (owner-flagged). (1) Covers — scenario + featured-template cards had grey placeholders; now a branded gradient (primary-subtle→surface-subtle) + a per-scenario lucide motif (misinfo→Newspaper, replicate→Repeat2, A/B→SplitSquareHorizontal, pilot→FlaskConical; templates→LayoutTemplate). No asset files / no R2. (2) No chooser friction — 'Start building' used to open the generic Template/Blank modal; it now creates a study directly (named after the scenario) and lands in the Builder via createStudyAction, matching the card's promise. (Frameworks were retired in ADR-0063, so a populated misinformation scaffold would need a published starter template — a follow-up.) 798 tests; tsc/lint/build/validator clean. No migration."
+    },
+    {
       "text": "docs(adr): EE1.3b public Explore route deferred (ADR-0076 amendment 1). The handoff's dual /explore route (authed + public) is a Next.js path collision (two pages can't resolve to one path), and the authed route's (app) shell redirects anonymous visitors to /signup. Owner decision: defer the public/SEO landing to a future marketing-site effort; /explore ships authed-only. fork-intent-through-sign-up defers with it. The <ExploreContent isPublic> flag + public-aware CTAs stay in place for zero-rework. EE1 is complete as an in-app destination. Docs-only; no migration. Next unblocked stream: EE2 (public profiles)."
     },
     {

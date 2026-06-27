@@ -20,6 +20,9 @@ export type ExploreScenarioCta =
   | { kind: "browse" }
   | { kind: "template"; templateId: string };
 
+/** Cover motif — the card renders a branded gradient + this lucide icon. */
+export type ExploreScenarioIcon = "newspaper" | "replicate" | "split" | "flask";
+
 export type ExploreScenario = {
   slug: string;
   title: string;
@@ -28,6 +31,7 @@ export type ExploreScenario = {
   order: number;
   cta: ExploreScenarioCta;
   ctaLabel: string;
+  iconKey: ExploreScenarioIcon;
   coverImageR2Key?: string;
 };
 
@@ -39,6 +43,7 @@ const SCENARIOS: ExploreScenario[] = [
     order: 1,
     cta: { kind: "build" },
     ctaLabel: "Start building",
+    iconKey: "newspaper",
   },
   {
     slug: "replicate-published",
@@ -47,6 +52,7 @@ const SCENARIOS: ExploreScenario[] = [
     order: 2,
     cta: { kind: "browse" },
     ctaLabel: "Browse public studies",
+    iconKey: "replicate",
   },
   {
     slug: "prolific-ab-test",
@@ -55,6 +61,7 @@ const SCENARIOS: ExploreScenario[] = [
     order: 3,
     cta: { kind: "build" },
     ctaLabel: "Start building",
+    iconKey: "split",
   },
   {
     slug: "pilot-with-friends",
@@ -63,6 +70,7 @@ const SCENARIOS: ExploreScenario[] = [
     order: 4,
     cta: { kind: "build" },
     ctaLabel: "Start building",
+    iconKey: "flask",
   },
 ];
 

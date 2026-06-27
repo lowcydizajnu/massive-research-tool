@@ -1,22 +1,34 @@
 "use client";
 
+import { FlaskConical, Newspaper, Repeat2, SplitSquareHorizontal, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import type { Route } from "next";
-import { useContext } from "react";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 
-import { NewStudyContext } from "@/components/feature/new-study/context";
-import type { ExploreScenario } from "@/content/explore/scenarios";
+import type { ExploreScenario, ExploreScenarioIcon } from "@/content/explore/scenarios";
+import { createStudyAction } from "@/server/studies/create";
 
 /**
- * Explore use-case card (EE1.2, ADR-0076; explore-use-case-card.md). Curated
- * scenario → a single concrete starting point. "build" opens the New Study modal
- * (authed); on the public variant (EE1.3) every CTA routes through sign-up, so we
- * read the New-Study context defensively (it's absent outside NewStudyProvider).
+ * Explore use-case card (EE1.2/EE1.3, ADR-0076; explore-use-case-card.md).
+ * Curated scenario → ONE concrete starting point with no chooser friction:
+ * "build" creates a study (named after the scenario) and drops the researcher
+ * straight into the Builder — the description's "start building" intent. "browse"
+ * → /browse. On the public route (EE later) every CTA routes through sign-up.
+ *
+ * Covers are a branded gradient + a per-scenario lucide motif (no asset files).
  */
+const ICONS: Record<ExploreScenarioIcon, LucideIcon> = {
+  newspaper: Newspaper,
+  replicate: Repeat2,
+  split: SplitSquareHorizontal,
+  flask: FlaskConical,
+};
+
 const CARD =
-  "flex flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)]";
+  "flex h-full flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)]";
 const CTA =
-  "inline-flex items-center self-start rounded-[var(--radius-md)] bg-[var(--color-primary)] px-3 py-1.5 text-[length:var(--text-body-emphasis)] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80";
+  "inline-flex items-center self-start rounded-[var(--radius-md)] bg-[var(--color-primary)] px-3 py-1.5 text-[length:var(--text-body-emphasis)] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80 disabled:opacity-50";
 
 export function ExploreScenarioCard({
   scenario,
@@ -25,11 +37,23 @@ export function ExploreScenarioCard({
   scenario: ExploreScenario;
   isPublic?: boolean;
 }) {
-  const newStudy = useContext(NewStudyContext); // undefined on the public route
+  const router = useRouter();
+  const [pending, setPending] = useState(false);
   const { cta, ctaLabel } = scenario;
+  const Icon = ICONS[scenario.iconKey];
+
+  async function startBuilding() {
+    if (pending) return;
+    setPending(true);
+    try {
+      const { id } = await createStudyAction({ kind: "blank", title: scenario.title });
+      router.push(`/studies/${id}/build` as Route);
+    } catch {
+      setPending(false); // surface re-enables the button; toast handled globally
+    }
+  }
 
   function renderCta() {
-    // Public route: no workspace yet → every action routes through sign-up.
     if (isPublic) {
       return (
         <Link href={"/signup" as Route} className={CTA}>
@@ -44,29 +68,27 @@ export function ExploreScenarioCard({
         </Link>
       );
     }
-    // "build" (and "template" until EE1.3 wires the fork) → open New Study.
+    // "build" (and "template" until a starter template exists) → direct create.
     return (
-      <button type="button" className={CTA} onClick={() => newStudy?.open()} disabled={!newStudy}>
-        {ctaLabel}
+      <button type="button" className={CTA} onClick={startBuilding} disabled={pending}>
+        {pending ? "Creating…" : ctaLabel}
       </button>
     );
   }
 
   return (
     <article className={CARD}>
-      {/* Cover — neutral placeholder until a cover image is set (no broken image). */}
-      <div
-        aria-hidden
-        className="aspect-[16/9] w-full bg-[var(--color-surface-subtle)]"
-      />
-      <div className="flex flex-col gap-2 p-4">
+      <div className="flex aspect-[16/9] w-full items-center justify-center bg-gradient-to-br from-[var(--color-primary-subtle)] to-[var(--color-surface-subtle)]">
+        <Icon className="size-10 text-[var(--color-primary)]" aria-hidden />
+      </div>
+      <div className="flex flex-1 flex-col gap-2 p-4">
         <h3 className="font-serif text-[length:var(--text-title)] font-medium text-[var(--color-text-primary)]">
           {scenario.title}
         </h3>
         <p className="line-clamp-3 text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
           {scenario.body}
         </p>
-        <div className="mt-1">{renderCta()}</div>
+        <div className="mt-auto pt-1">{renderCta()}</div>
       </div>
     </article>
   );

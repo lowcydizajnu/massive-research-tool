@@ -1,3 +1,4 @@
+import { LayoutTemplate } from "lucide-react";
 import Link from "next/link";
 import type { Route } from "next";
 
@@ -37,7 +38,8 @@ const BAND_TITLE =
   "font-serif text-[length:var(--text-title)] font-medium text-[var(--color-text-primary)]";
 const CARD =
   "flex flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)]";
-const COVER = "aspect-[16/9] w-full bg-[var(--color-surface-subtle)]";
+const COVER =
+  "flex aspect-[16/9] w-full items-center justify-center bg-gradient-to-br from-[var(--color-primary-subtle)] to-[var(--color-surface-subtle)]";
 
 export function ExploreContent({
   isPublic = false,
@@ -84,7 +86,9 @@ export function ExploreContent({
             {featuredTemplates.map((t) => (
               <li key={t.id}>
                 <article className={CARD}>
-                  <div aria-hidden className={COVER} />
+                  <div aria-hidden className={COVER}>
+                    <LayoutTemplate className="size-10 text-[var(--color-primary)]" />
+                  </div>
                   <div className="flex flex-col gap-2 p-4">
                     <h3 className="font-serif text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">
                       {t.name}
