@@ -323,6 +323,13 @@
       "when": 1782579891696,
       "tag": "0045_noisy_ezekiel_stane",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1782590292921,
+      "tag": "0046_kind_scorpion",
+      "breakpoints": true
     }
   ]
 }

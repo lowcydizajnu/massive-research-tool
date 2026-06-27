@@ -125,6 +125,13 @@ export const user = pgTable("user", {
    *  adminProcedure; supersedes the ADMIN_USER_IDS env stopgap (kept as a
    *  transitional fallback). Owner flips their own row TRUE in prod. */
   isAdmin: boolean("is_admin").notNull().default(false),
+  // Public researcher profile (EE2, ADR-0077; opt-in, default off). The public
+  // bio reuses the existing `bio` column above. `handle` is the public
+  // identifier for /u/<handle> — lowercase alphanumeric + hyphens, unique.
+  handle: text("handle").unique(),
+  publicProfileEnabled: boolean("public_profile_enabled").notNull().default(false),
+  /** Public-facing avatar (public R2 namespace); falls back to `avatarUrl`. */
+  publicAvatarR2Key: text("public_avatar_r2_key"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
