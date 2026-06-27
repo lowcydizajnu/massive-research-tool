@@ -3,6 +3,7 @@ import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { ulid } from "ulid";
 import { z } from "zod";
 
+import { trackEvent } from "@/server/analytics/track";
 import { db } from "@/server/db/client";
 import {
   condition as conditionTable,
@@ -245,6 +246,13 @@ export const templatesRouter = router({
           // Non-critical; the template is saved.
         }
       }
+      await trackEvent({
+        userId: ctx.dbUser.id,
+        workspaceId: ctx.workspace.id,
+        event: "template_saved",
+        sensitivity: "researcher_behavior",
+        properties: { shareScope: input.shareScope },
+      });
       return { id };
     }),
 
@@ -341,6 +349,13 @@ export const templatesRouter = router({
       } catch {
         // Non-critical; the clone succeeded.
       }
+      await trackEvent({
+        userId: ctx.dbUser.id,
+        workspaceId: ctx.workspace.id,
+        event: "template_used",
+        sensitivity: "researcher_behavior",
+        properties: { templateId: input.templateId },
+      });
       return { id: newId };
     }),
 

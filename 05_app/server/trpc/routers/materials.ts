@@ -3,6 +3,7 @@ import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { ulid } from "ulid";
 import { z } from "zod";
 
+import { trackEvent } from "@/server/analytics/track";
 import { db } from "@/server/db/client";
 import { experiment, experimentVersion, user, workspaceMaterial } from "@/server/db/schema";
 import { router, workspaceProcedure, writeProcedure } from "@/server/trpc/trpc";
@@ -124,6 +125,13 @@ export const materialsRouter = router({
         durationMs: input.durationMs ?? null,
         uploadedByUserId: ctx.dbUser.id,
         sourceKind: input.sourceKind,
+      });
+      await trackEvent({
+        userId: ctx.dbUser.id,
+        workspaceId: ctx.workspace.id,
+        event: "material_uploaded",
+        sensitivity: "researcher_behavior",
+        properties: { kind: input.kind, sourceKind: input.sourceKind },
       });
       return { id };
     }),

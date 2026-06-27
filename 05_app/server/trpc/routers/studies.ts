@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { jobs } from "@/server/adapters/jobs";
 import { registry } from "@/server/adapters/registry";
+import { trackEvent } from "@/server/analytics/track";
 import { db } from "@/server/db/client";
 import { emit } from "@/server/events/emit";
 import { createHash } from "node:crypto";
@@ -3555,6 +3556,13 @@ export const studiesRouter = router({
           },
         });
 
+        await trackEvent({
+          userId: ctx.dbUser.id,
+          workspaceId: ctx.workspace.id,
+          event: "study_preregistered",
+          sensitivity: "researcher_behavior",
+        });
+
         return { versionNumber: pre.versionNumber, pushStatus };
       },
     ),
@@ -3705,6 +3713,13 @@ export const studiesRouter = router({
         .update(experiment)
         .set({ updatedAt: new Date() })
         .where(eq(experiment.id, input.studyId));
+      await trackEvent({
+        userId: ctx.dbUser.id,
+        workspaceId: ctx.workspace.id,
+        event: "study_published",
+        sensitivity: "researcher_behavior",
+      });
+
       return { versionNumber: pub.versionNumber };
     }),
 
@@ -4979,7 +4994,7 @@ export const studiesRouter = router({
       // now Templates: studies are cloned via templates.useTemplate, ADR-0063.)
       const blocks: BlockInstance[] = [];
       const title = input.title?.trim() || "Untitled study";
-      return db.transaction(async (tx) => {
+      const created = await db.transaction(async (tx) => {
         const [exp] = await tx
           .insert(experiment)
           .values({ tenantId: ctx.workspace.id, ownerId: ctx.dbUser.id, title })
@@ -5001,6 +5016,14 @@ export const studiesRouter = router({
           .where(eq(experiment.id, exp.id));
         return { id: exp.id };
       });
+      await trackEvent({
+        userId: ctx.dbUser.id,
+        workspaceId: ctx.workspace.id,
+        event: "study_created",
+        sensitivity: "researcher_behavior",
+        properties: { kind: input.kind },
+      });
+      return created;
     }),
 
   /**
@@ -5113,6 +5136,13 @@ export const studiesRouter = router({
       } catch {
         // The fork succeeded; the notification is non-critical.
       }
+      await trackEvent({
+        userId: ctx.dbUser.id,
+        workspaceId: ctx.workspace.id,
+        event: "study_forked",
+        sensitivity: "researcher_behavior",
+        properties: { sourceStudyId: source.experiment.id },
+      });
       return { id: newId };
     }),
 

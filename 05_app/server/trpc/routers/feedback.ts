@@ -3,6 +3,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { ulid } from "ulid";
 import { z } from "zod";
 
+import { trackEvent } from "@/server/analytics/track";
 import { db } from "@/server/db/client";
 import { experiment, feedback, user, workspace } from "@/server/db/schema";
 import { storage } from "@/server/adapters/storage";
@@ -71,6 +72,14 @@ export const feedbackRouter = router({
         userAgentHash,
         ipCountry,
         studyId,
+      });
+
+      await trackEvent({
+        userId: ctx.dbUser.id,
+        workspaceId: workspaceId ?? undefined,
+        event: "feedback_submitted",
+        sensitivity: "researcher_behavior",
+        properties: { kind: input.kind },
       });
 
       if (input.includeScreenshot && storage.configured()) {

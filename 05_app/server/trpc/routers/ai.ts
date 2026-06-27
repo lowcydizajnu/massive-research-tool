@@ -4,6 +4,7 @@ import { ulid } from "ulid";
 import { z } from "zod";
 
 import { AI_PROVIDERS, providerAdapter } from "@/server/adapters/ai";
+import { trackEvent } from "@/server/analytics/track";
 import { decryptSecret, encryptSecret } from "@/server/crypto/tokens";
 import { db } from "@/server/db/client";
 import { aiProviderConnection, workspaceAiSettings } from "@/server/db/schema";
@@ -104,6 +105,13 @@ export const aiRouter = router({
             userId: ctx.dbUser.id,
             provider: input.provider,
             ...values,
+          });
+          await trackEvent({
+            userId: ctx.dbUser.id,
+            workspaceId: ctx.workspace.id,
+            event: "ai_connection_added",
+            sensitivity: "researcher_behavior",
+            properties: { provider: input.provider },
           });
         }
         return { ok: true };
