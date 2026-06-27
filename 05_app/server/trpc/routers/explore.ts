@@ -64,14 +64,32 @@ export const exploreRouter = router({
     }),
 
   /**
-   * Opt-in researcher profiles for the showcase band. EE2 adds
-   * `user.public_profile_enabled` + `handle`; until then there are none, so the
-   * band is omitted (no empty state). Kept as a typed stub so EE1.3 can render
-   * the band shape and EE2 only swaps the query body.
+   * Opt-in researcher profiles for the showcase band (EE2, ADR-0077): public
+   * profiles that have at least one publicly-discoverable study. Returns only
+   * the public handle + display name (PII-free).
    */
   publicProfiles: publicProcedure
     .input(z.object({ limit: z.number().int().min(1).max(24).default(8) }).default({ limit: 8 }))
-    .query(async (): Promise<{ handle: string; displayName: string }[]> => {
-      return [];
+    .query(async ({ input }): Promise<{ handle: string; displayName: string }[]> => {
+      const rows = await db
+        .select({ handle: user.handle, displayName: user.displayName })
+        .from(user)
+        .where(
+          and(
+            eq(user.publicProfileEnabled, true),
+            sql`${user.handle} is not null`,
+            sql`exists (
+              select 1 from ${experiment} e
+              where e.owner_id = ${user.id}
+                and e.forkable_by = 'public'
+                and e.archived_at is null
+                and e.is_demo = false
+                and exists (select 1 from ${experimentVersion} v where v.experiment_id = e.id and v.kind in ('published','preregistered'))
+            )`,
+          ),
+        )
+        .orderBy(sql`${user.displayName} asc`)
+        .limit(input.limit);
+      return rows.filter((r): r is { handle: string; displayName: string } => r.handle !== null);
     }),
 });

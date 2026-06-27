@@ -1,9 +1,11 @@
-import { eq } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
+import { and, eq, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 
+import { handleIssue, normalizeHandle } from "@/lib/profile/handle";
 import { db } from "@/server/db/client";
-import { user } from "@/server/db/schema";
-import { protectedProcedure, router } from "@/server/trpc/trpc";
+import { experiment, experimentVersion, user, workspaceTemplate } from "@/server/db/schema";
+import { protectedProcedure, publicProcedure, router } from "@/server/trpc/trpc";
 
 export type Profile = {
   displayName: string;
@@ -97,5 +99,136 @@ export const profileRouter = router({
       }
       await db.update(user).set(patch).where(eq(user.id, ctx.dbUser.id));
       return { ok: true };
+    }),
+
+  // ── Public researcher profile (EE2, ADR-0077) ──────────────────────────────
+
+  /** The caller's own public-profile settings (for Settings · Account). */
+  getPublic: protectedProcedure.query(({ ctx }) => ({
+    handle: ctx.dbUser.handle ?? null,
+    publicProfileEnabled: ctx.dbUser.publicProfileEnabled,
+    bio: ctx.dbUser.bio ?? null,
+    publicAvatarR2Key: ctx.dbUser.publicAvatarR2Key ?? null,
+  })),
+
+  /** Live handle availability for the picker — excludes the caller's own handle. */
+  checkHandleAvailable: protectedProcedure
+    .input(z.object({ handle: z.string() }))
+    .query(async ({ ctx, input }): Promise<{ available: boolean; reason?: string }> => {
+      const handle = normalizeHandle(input.handle);
+      const issue = handleIssue(handle);
+      if (issue) return { available: false, reason: issue };
+      const [taken] = await db
+        .select({ id: user.id })
+        .from(user)
+        .where(and(eq(user.handle, handle), ne(user.id, ctx.dbUser.id)))
+        .limit(1);
+      return taken ? { available: false, reason: "That handle is taken." } : { available: true };
+    }),
+
+  /** Update the caller's public profile (opt-in toggle, handle, bio, avatar). */
+  updatePublic: protectedProcedure
+    .input(
+      z.object({
+        publicProfileEnabled: z.boolean().optional(),
+        handle: z.string().optional(),
+        bio: optText(2000),
+        publicAvatarR2Key: optText(512),
+      }),
+    )
+    .mutation(async ({ ctx, input }): Promise<{ ok: true; handle: string | null }> => {
+      const patch: Record<string, unknown> = { updatedAt: new Date() };
+
+      let nextHandle = ctx.dbUser.handle ?? null;
+      if (input.handle !== undefined) {
+        const handle = normalizeHandle(input.handle);
+        const issue = handleIssue(handle);
+        if (issue) throw new TRPCError({ code: "BAD_REQUEST", message: issue });
+        const [taken] = await db
+          .select({ id: user.id })
+          .from(user)
+          .where(and(eq(user.handle, handle), ne(user.id, ctx.dbUser.id)))
+          .limit(1);
+        if (taken) throw new TRPCError({ code: "CONFLICT", message: "That handle is taken." });
+        patch.handle = handle;
+        nextHandle = handle;
+      }
+
+      if (input.publicProfileEnabled === true && !nextHandle) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Pick a handle before making your profile public." });
+      }
+      if (input.publicProfileEnabled !== undefined) patch.publicProfileEnabled = input.publicProfileEnabled;
+      if (input.bio !== undefined) patch.bio = input.bio;
+      if (input.publicAvatarR2Key !== undefined) patch.publicAvatarR2Key = input.publicAvatarR2Key;
+
+      await db.update(user).set(patch).where(eq(user.id, ctx.dbUser.id));
+      return { ok: true, handle: nextHandle };
+    }),
+
+  /**
+   * Public profile by handle (anonymous). Resolves ONLY when the researcher has
+   * opted in; returns null otherwise so the route 404s without leaking existence.
+   * Includes their public studies (same discoverability rule as Browse/Explore)
+   * + public templates.
+   */
+  publicByHandle: publicProcedure
+    .input(z.object({ handle: z.string() }))
+    .query(async ({ input }) => {
+      const handle = normalizeHandle(input.handle);
+      const [u] = await db
+        .select({
+          id: user.id,
+          handle: user.handle,
+          displayName: user.displayName,
+          fullName: user.fullName,
+          affiliation: user.affiliation,
+          orcid: user.orcid,
+          researchAreas: user.researchAreas,
+          bio: user.bio,
+          websiteUrl: user.websiteUrl,
+          scholarUrl: user.scholarUrl,
+          avatarUrl: user.avatarUrl,
+          publicAvatarR2Key: user.publicAvatarR2Key,
+        })
+        .from(user)
+        .where(and(eq(user.handle, handle), eq(user.publicProfileEnabled, true)))
+        .limit(1);
+      if (!u) return null;
+
+      const replicationCount = sql<number>`(select count(*)::int from ${experiment} c where c.fork_of_experiment_id = ${experiment.id})`;
+      const studies = await db
+        .select({ id: experiment.id, title: experiment.title, tags: experiment.tags, replicationCount })
+        .from(experiment)
+        .where(
+          and(
+            eq(experiment.ownerId, u.id),
+            eq(experiment.forkableBy, "public"),
+            sql`${experiment.archivedAt} is null`,
+            eq(experiment.isDemo, false),
+            sql`exists (select 1 from ${experimentVersion} v where v.experiment_id = ${experiment.id} and v.kind in ('published','preregistered'))`,
+          ),
+        )
+        .orderBy(sql`${experiment.createdAt} desc`)
+        .limit(50);
+
+      const templates = await db
+        .select({
+          id: workspaceTemplate.id,
+          name: workspaceTemplate.name,
+          description: workspaceTemplate.description,
+          useCount: workspaceTemplate.useCount,
+        })
+        .from(workspaceTemplate)
+        .where(
+          and(
+            eq(workspaceTemplate.createdByUserId, u.id),
+            eq(workspaceTemplate.shareScope, "public"),
+            sql`${workspaceTemplate.deletedAt} is null`,
+          ),
+        )
+        .orderBy(sql`${workspaceTemplate.useCount} desc`)
+        .limit(50);
+
+      return { ...u, studies, templates };
     }),
 });
