@@ -58,6 +58,7 @@ export function LeftRail() {
   return (
     <nav
       aria-label="Workspace"
+      data-tour="left-rail"
       className="flex w-full flex-col gap-1 p-2"
     >
       {DESTINATIONS.map((d) => {

@@ -142,6 +142,16 @@ For each vendor:
 
 > **Note (2026-06-15):** `react-grid-layout` was briefly added for the dashboard flexible grid (ADR-0045 amendment) and **removed** — its fixed-cell model truncated content-sized widgets and its responsive layout misbehaved. The dashboard grid is now a plain CSS grid + the `@dnd-kit` row above (no new dependency). See the ADR-0045 amendment for the rationale.
 
+## react-joyride (first-run onboarding tour — per ADR-0072)
+
+| | |
+| --- | --- |
+| **What we use it for** | The first-run product tour (platform-foundation PF3.1) — coachmark steps over the workspace chrome. |
+| **Behind an adapter** | No server adapter — client-only UI library, so the boundary is the one component that uses it (`05_app/components/feature/onboarding/onboarding-tour.tsx`), which lazy-loads it via `next/dynamic`. No react-joyride type leaks elsewhere; the tour targets plain `[data-tour="…"]` attributes on existing chrome, and tour-seen state is ours (Clerk publicMetadata `hasSeenTour`), not the library's. |
+| **Deliberate exceptions** | (none — the single-component boundary holds.) |
+| **Migration target** | Another tour lib (driver.js, intro.js, shepherd) or a small custom coachmark — a migration rewrites the one component; the `[data-tour]` anchors + `hasSeenTour` flag are library-agnostic. **Version note:** v3.x (the React-19-compatible rewrite); v2.x uses `findDOMNode` and cannot run on React 19. |
+| **Cost-ceiling trigger** | None — MIT, no SaaS tier. Bundle: lazy-loaded, so it only ships to users who actually see the tour. Revisit on a React-major incompatibility or unmaintained status. |
+
 ## Sentry (error monitoring — per ADR-0072)
 
 | | |

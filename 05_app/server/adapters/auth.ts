@@ -57,6 +57,16 @@ export interface AuthUserMetadata {
    * reads the same `publicMetadata` flag.
    */
   hasCompletedOnboarding?: boolean;
+  /**
+   * Whether the user has seen (completed OR skipped) the first-run product tour
+   * (platform-foundation PF3.1). DISTINCT from `hasCompletedOnboarding` (which
+   * means "finished the signup wizard / has a workspace"). Stored in
+   * publicMetadata — same mechanism as theme — so it survives device changes
+   * without a DB column (the handoff suggested a column; we keep UX flags in
+   * metadata per the data-model decision, and a column would collide with the
+   * `hasCompletedOnboarding` name).
+   */
+  hasSeenTour?: boolean;
 }
 
 export interface AuthAdapter {
