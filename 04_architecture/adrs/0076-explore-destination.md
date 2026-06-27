@@ -42,12 +42,34 @@ Two prior decisions constrain the build: V1.8 Browse already provides `studies.b
 - **Committed to:** Markdown-as-scenario-source (no CMS) for V1; reusing `studies.fork` for every "use this" affordance; public `explore.*` procedures returning only public/opt-in data (no PII, ADR-0014).
 - **Precluded (deferred):** an admin scenario editor; per-visitor personalization of Explore; paid promotion/ranking of templates; Explore-specific analytics dashboards beyond the existing taxonomy.
 
+## Amendment 1 (2026-06-27) — public route deferred; Explore ships authed-only
+
+**Context.** The original decision locked a **dual route** — an authed
+`(app)/(workspace)/explore` and a public `(public)/explore`, both at `/explore`.
+On build this is a Next.js conflict: two pages cannot resolve to the same path,
+and the authed route lives inside the `(app)` shell whose layout redirects
+anonymous visitors to `/signup` (no active workspace). Serving `/explore` to both
+audiences would require either one auth-branching route moved out of `(app)` (a
+moderate refactor + conditional chrome) or a second public URL.
+
+**Decision (owner, 2026-06-27).** **Defer the public route.** `/explore` ships as
+the authed researcher destination only (EE1.1–EE1.3a, live). The public / SEO
+landing is deferred to a future marketing-site effort. The `fork-intent-through-
+sign-up` flow (only meaningful from the public route) is deferred with it; the
+`<ExploreContent isPublic>` flag and the public-aware CTAs remain in place so the
+public variant can be added later with no rework of the content island.
+
+**Consequences.** EE1 is complete as an in-app destination. No prospect-facing
+`/explore` for now (the handoff's open-question #1 had already hedged on this).
+Revisit when a marketing site is built (see the new revisit trigger).
+
 ## Revisit triggers
 
 - The owner can no longer keep scenarios current via commits (would justify a CMS, Option C).
 - A marketing site (`/`, pricing) ships and absorbs the public `/explore` role.
 - Public-route SEO needs full server-render of dynamic bands (revisit the hydrate-vs-prerender choice for the community/template bands).
 - Explore conversion underperforms and needs personalization/ranking beyond curation.
+- A marketing site is built → revisit Amendment 1 and add the public `/explore` landing (auth-branching route or a dedicated public URL).
 
 ## References
 
