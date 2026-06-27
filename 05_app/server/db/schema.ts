@@ -118,6 +118,9 @@ export const user = pgTable("user", {
   websiteUrl: text("website_url"),
   /** Google Scholar (or similar) profile URL. */
   scholarUrl: text("scholar_url"),
+  /** In-app announcements read marker (PF4): announcements with published_at >
+   *  this are "unread". Null = never opened the panel. */
+  lastSeenAnnouncementAt: timestamp("last_seen_announcement_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -1236,6 +1239,26 @@ export const feedback = pgTable(
     ),
     index("idx_feedback_status_created").on(t.status, t.createdAt.desc()),
   ],
+);
+
+// In-app "what's new" announcements (platform-foundation PF4, ADR-0072).
+// Published by an admin; surfaced to every researcher in the TopBar ✨ widget.
+// Read state is per-user via user.last_seen_announcement_at (a published_at >
+// last_seen comparison), so no join table.
+export const releaseAnnouncement = pgTable(
+  "release_announcement",
+  {
+    id: text("id").primaryKey(), // ULID
+    title: text("title").notNull(),
+    body: text("body").notNull(), // short markdown (rendered with the ADR-0015 allowlist)
+    imageR2Key: text("image_r2_key"),
+    learnMoreUrl: text("learn_more_url"),
+    publishedAt: timestamp("published_at", { withTimezone: true }).notNull().defaultNow(),
+    publishedByUserId: uuid("published_by_user_id")
+      .notNull()
+      .references(() => user.id),
+  },
+  (t) => [index("idx_release_announcement_published").on(t.publishedAt.desc())],
 );
 
 // A user's follow targets (tag / author / framework / study / module).

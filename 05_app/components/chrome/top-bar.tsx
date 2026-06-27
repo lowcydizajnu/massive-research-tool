@@ -1,3 +1,4 @@
+import { AnnouncementsBell } from "@/components/chrome/announcements-bell";
 import { AutosaveIndicator } from "@/components/chrome/autosave-indicator";
 import { CommandPalette } from "@/components/chrome/command-palette";
 import { Breadcrumb } from "@/components/chrome/breadcrumb";
@@ -37,6 +38,8 @@ export function TopBar({
       <NewStudyButton variant="topbar" />
 
       <WorkspaceRoleBadge />
+
+      <AnnouncementsBell />
 
       <UserMenu initials={userInitials} displayName={displayName} email={email} />
     </header>
