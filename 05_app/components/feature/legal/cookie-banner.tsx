@@ -10,6 +10,7 @@ import {
   COOKIE_CONSENT_VERSION_KEY,
   PRE_SIGNUP_ID_KEY,
   isCookieConsentChoice,
+  writeConsentCookie,
   type CookieConsentChoice,
 } from "@/lib/legal/cookie-consent";
 import { CURRENT_LEGAL_VERSION } from "@/lib/legal/content";
@@ -32,7 +33,13 @@ export function CookieBanner() {
     try {
       const choice = window.localStorage.getItem(COOKIE_CONSENT_KEY);
       const storedVersion = Number(window.localStorage.getItem(COOKIE_CONSENT_VERSION_KEY) ?? "0");
-      if (!isCookieConsentChoice(choice) || storedVersion < version) setShow(true);
+      if (!isCookieConsentChoice(choice) || storedVersion < version) {
+        setShow(true);
+      } else {
+        // Backfill the server-readable mirror for returning users who chose
+        // before it existed (ADR-0073 am.1) — localStorage has a choice, cookie may not.
+        writeConsentCookie(choice);
+      }
     } catch {
       setShow(true);
     }
@@ -50,6 +57,8 @@ export function CookieBanner() {
     } catch {
       /* private mode — still record server-side, still dismiss */
     }
+    // Server-readable mirror so server-side analytics can honour consent (ADR-0073 am.1).
+    writeConsentCookie(choice);
     setShow(false);
     // Let the analytics provider react without a reload (opt-in/opt-out live).
     try {
