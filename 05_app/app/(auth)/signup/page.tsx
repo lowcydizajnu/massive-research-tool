@@ -44,6 +44,7 @@ function SignupFlow() {
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [workspaceName, setWorkspaceName] = useState("");
+  const [acceptedLegal, setAcceptedLegal] = useState(false);
   const [identifyState, setIdentifyState] = useState<IdentifyState>(
     searchParams.get("error") === "oauth" ? "error" : "idle",
   );
@@ -185,6 +186,10 @@ function SignupFlow() {
 
   async function handleFinalize(e: React.FormEvent) {
     e.preventDefault();
+    if (!acceptedLegal) {
+      setError("Please accept the Terms of Service and Privacy Policy to continue.");
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -345,9 +350,30 @@ function SignupFlow() {
             </span>
           </label>
 
+          <label className="flex items-start gap-2 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+            <input
+              type="checkbox"
+              required
+              checked={acceptedLegal}
+              onChange={(e) => setAcceptedLegal(e.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-primary)]"
+            />
+            <span>
+              I agree to the{" "}
+              <Link href="/legal/terms" target="_blank" className="font-medium text-[var(--color-primary)] hover:opacity-90">
+                Terms of Service
+              </Link>{" "}
+              and{" "}
+              <Link href="/legal/privacy" target="_blank" className="font-medium text-[var(--color-primary)] hover:opacity-90">
+                Privacy Policy
+              </Link>
+              .
+            </span>
+          </label>
+
           <button
             type="submit"
-            disabled={submitting}
+            disabled={submitting || !acceptedLegal}
             className="rounded-[var(--radius-md)] bg-[var(--color-primary)] px-4 py-2 text-[length:var(--text-body)] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80 disabled:opacity-60"
           >
             {submitting ? "Setting up…" : "Create workspace"}

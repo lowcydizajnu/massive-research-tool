@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import { LegalUpdateModal } from "@/components/feature/legal/legal-update-modal";
 import { NewStudyProvider } from "@/components/feature/new-study/provider";
 import { TRPCReactProvider } from "@/lib/trpc/react";
 import { getServerApi } from "@/server/trpc/server";
@@ -32,6 +33,7 @@ export default async function AppLayout({
         <div className="flex min-h-screen flex-col bg-[var(--color-surface-page)]">
           {children}
         </div>
+        <LegalUpdateModal />
       </NewStudyProvider>
     </TRPCReactProvider>
   );

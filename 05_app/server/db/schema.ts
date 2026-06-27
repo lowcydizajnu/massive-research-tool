@@ -1182,6 +1182,28 @@ export const cookieConsent = pgTable(
   ],
 );
 
+// Legal-document acceptance ledger (legal-baseline LG3). One row per (user,
+// document kind, version) the user has accepted — drives the version-bump
+// re-prompt. PII-safe (ADR-0014): one-way UA hash + coarse country only.
+export const legalAcceptance = pgTable(
+  "legal_acceptance",
+  {
+    id: text("id").primaryKey(), // ULID
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    documentKind: text("document_kind").notNull(),
+    documentVersion: integer("document_version").notNull(),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }).notNull().defaultNow(),
+    ipCountry: text("ip_country"),
+    userAgentHash: text("user_agent_hash"),
+  },
+  (t) => [
+    check("legal_acceptance_kind", sql`${t.documentKind} IN ('terms', 'privacy', 'cookies')`),
+    index("idx_legal_acceptance_user_kind").on(t.userId, t.documentKind, t.documentVersion),
+  ],
+);
+
 // A user's follow targets (tag / author / framework / study / module).
 export const follow = pgTable(
   "follow",
