@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 
 import type { AuthUser } from "@/server/adapters/auth";
 import { auth } from "@/server/adapters/auth";
+import { VIEW_AS_COOKIE } from "@/server/admin/view-as";
 import { ACTIVE_WORKSPACE_COOKIE } from "@/server/workspace/active";
 
 /**
@@ -17,6 +18,9 @@ import { ACTIVE_WORKSPACE_COOKIE } from "@/server/workspace/active";
 export type Context = {
   authUser: AuthUser | null;
   preferredWorkspaceId?: string;
+  /** Raw "view-as" target user id from the cookie (ADR-0075). UNVALIDATED here —
+   *  protectedProcedure honors it only when the real caller is an admin. */
+  viewAsUserId?: string;
 };
 
 export async function createContext(): Promise<Context> {
@@ -24,5 +28,6 @@ export async function createContext(): Promise<Context> {
   return {
     authUser,
     preferredWorkspaceId: cookieStore.get(ACTIVE_WORKSPACE_COOKIE)?.value || undefined,
+    viewAsUserId: cookieStore.get(VIEW_AS_COOKIE)?.value || undefined,
   };
 }

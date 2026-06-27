@@ -1265,6 +1265,28 @@ export const releaseAnnouncement = pgTable(
   (t) => [index("idx_release_announcement_published").on(t.publishedAt.desc())],
 );
 
+// Append-only audit of admin read-only "view-as researcher" sessions (ADR-0075).
+// Every enter/exit is logged; impersonation is read-only (writes are blocked at
+// the tRPC layer) and never act-as.
+export const adminViewAsLog = pgTable(
+  "admin_view_as_log",
+  {
+    id: text("id").primaryKey(), // ULID
+    adminUserId: uuid("admin_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    targetUserId: uuid("target_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    action: text("action").notNull(), // 'enter' | 'exit'
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check("admin_view_as_action", sql`${t.action} IN ('enter', 'exit')`),
+    index("idx_admin_view_as_admin").on(t.adminUserId, t.at.desc()),
+  ],
+);
+
 // A user's follow targets (tag / author / framework / study / module).
 export const follow = pgTable(
   "follow",
