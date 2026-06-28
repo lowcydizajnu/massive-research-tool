@@ -8,6 +8,7 @@ import { UseAsTemplateButton } from "@/components/feature/browse/use-as-template
 import { CiteShare } from "@/components/feature/study-record/cite-share";
 import { SaveButton } from "@/components/feature/study-record/save-button";
 import { RecordSections } from "@/components/feature/study-record/record-sections";
+import { StudyScreenPreview } from "@/components/feature/browse/study-screen-preview";
 import { getServerApi } from "@/server/trpc/server";
 import type { PublicStudyDetail } from "@/server/trpc/routers/studies";
 
@@ -96,6 +97,10 @@ export default async function StudyRecordPage({
               bound composition — rendered via the shared component so the
               composer Preview matches exactly (ADR-0056 C). */}
           <RecordSections detail={detail} />
+
+          {/* See the actual participant screens before replicating / using as a
+              template (feedback 01KW4PSR). */}
+          <StudyScreenPreview studyId={detail.studyId} />
         </article>
 
         <aside className="flex h-fit flex-col gap-3 lg:sticky lg:top-3">

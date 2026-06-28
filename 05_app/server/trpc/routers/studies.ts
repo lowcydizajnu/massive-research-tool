@@ -1427,6 +1427,45 @@ export const studiesRouter = router({
     }),
 
   /**
+   * Read-only participant-style blocks for a PUBLIC study (feedback 01KW4PSR —
+   * "I don't know what it looks like"). Same visibility guard as getPublicStudy;
+   * returns the frozen version's blocks for a <BlockView> preview on Browse. The
+   * design of a public/forkable study is already meant to be inspectable + copied.
+   */
+  publicStudyBlocks: publicProcedure
+    .input(z.object({ studyId: z.string().uuid() }))
+    .query(async ({ input }): Promise<{ blocks: import("@/server/modules/blocks").BlockInstance[] }> => {
+      const [exp] = await db
+        .select({ id: experiment.id })
+        .from(experiment)
+        .where(
+          and(
+            eq(experiment.id, input.studyId),
+            eq(experiment.forkableBy, "public"),
+            isNull(experiment.archivedAt),
+            eq(experiment.isDemo, false),
+          ),
+        )
+        .limit(1);
+      if (!exp) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const [ver] = await db
+        .select({ snapshot: experimentVersion.definitionSnapshot })
+        .from(experimentVersion)
+        .where(
+          and(
+            eq(experimentVersion.experimentId, input.studyId),
+            inArray(experimentVersion.kind, ["published", "preregistered"]),
+          ),
+        )
+        .orderBy(desc(experimentVersion.versionNumber))
+        .limit(1);
+      if (!ver) throw new TRPCError({ code: "NOT_FOUND" });
+
+      return { blocks: readBlocks(ver.snapshot) };
+    }),
+
+  /**
    * Owner preview of the composed Record (ADR-0056 C) — the SAME `PublicStudyDetail`
    * shape the public read page renders, but tenant-gated and including the record
    * regardless of visibility (so the composer Preview shows exactly what would

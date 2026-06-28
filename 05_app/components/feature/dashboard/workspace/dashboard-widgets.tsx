@@ -71,6 +71,13 @@ export function WorkspaceHeader({
       <h1 className="font-serif text-[length:var(--text-display)] font-medium text-[var(--color-text-primary)]">
         {name}
       </h1>
+      {/* Value-prop subtitle (feedback 01KW4HMV "Why should I use it?") — say what
+          this workspace home is for at a glance. */}
+      <p className="-mt-1 max-w-prose text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
+        Your lab&rsquo;s home base — see running studies, recent edits, replications of your
+        work, and team activity at a glance, then jump straight back into building or
+        recruiting.
+      </p>
       {items.length > 0 ? (
         <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(150px,1fr))]">
           {items.map((i) => (
