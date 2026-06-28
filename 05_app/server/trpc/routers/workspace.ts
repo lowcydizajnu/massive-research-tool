@@ -14,6 +14,7 @@ import {
   user,
   workspace,
 } from "@/server/db/schema";
+import { crossWorkspaceDemoStudyCondition, demoStudyCondition } from "@/server/trpc/routers/_demo";
 import { protectedProcedure, router, workspaceProcedure, writeProcedure } from "@/server/trpc/trpc";
 import type { MemberRole } from "@/server/workspace/active";
 
@@ -118,7 +119,15 @@ export const workspaceRouter = router({
         lastUpdate: sql<string | null>`max(${experiment.updatedAt})`,
       })
       .from(experiment)
-      .where(and(inArray(experiment.tenantId, ids), isNull(experiment.archivedAt)))
+      .innerJoin(workspace, eq(experiment.tenantId, workspace.id))
+      .where(
+        and(
+          inArray(experiment.tenantId, ids),
+          isNull(experiment.archivedAt),
+          // Per-workspace toggle: a demo study counts only if its workspace opts in (ADR-0023).
+          crossWorkspaceDemoStudyCondition(),
+        ),
+      )
       .groupBy(experiment.tenantId);
     const byWs = new Map(agg.map((a) => [a.wsId, a]));
 
@@ -208,10 +217,13 @@ export const workspaceRouter = router({
   /** At-a-glance KPIs for the workspace dashboard (V1.13.0 Stream B). */
   dashboardStats: workspaceProcedure.query(async ({ ctx }): Promise<WorkspaceDashboardStats> => {
     const wsId = ctx.workspace.id;
+    // Demo studies/responses count toward these KPIs only when this workspace
+    // opts in (ADR-0023). `demoFilter` is undefined (no-op) when demo is shown.
+    const demoFilter = demoStudyCondition(ctx.workspace.showDemoContent);
     const [studies] = await db
       .select({ c: count() })
       .from(experiment)
-      .where(and(eq(experiment.tenantId, wsId), isNull(experiment.archivedAt)));
+      .where(and(eq(experiment.tenantId, wsId), isNull(experiment.archivedAt), demoFilter));
 
     const recruitingRows = await db
       .selectDistinct({ id: experiment.id })
@@ -224,6 +236,7 @@ export const workspaceRouter = router({
           eq(recruitmentSession.status, "open"),
           inArray(experimentVersion.kind, [...RUNNABLE_KINDS]),
           isNull(experiment.archivedAt),
+          demoFilter,
         ),
       );
 
@@ -231,6 +244,7 @@ export const workspaceRouter = router({
       eq(experiment.tenantId, wsId),
       eq(response.status, "completed"),
       eq(response.mode, "run"),
+      demoFilter,
     );
     // All-time completed run responses for this workspace.
     const [respTotal] = await db
@@ -252,13 +266,21 @@ export const workspaceRouter = router({
           eq(response.status, "completed"),
           eq(response.mode, "run"),
           gte(response.completedAt, weekAgo),
+          demoFilter,
         ),
       );
 
     const [mem] = await db
       .select({ c: count() })
       .from(member)
-      .where(and(eq(member.workspaceId, wsId), eq(member.status, "active")));
+      .where(
+        and(
+          eq(member.workspaceId, wsId),
+          eq(member.status, "active"),
+          // Demo teammates count only when this workspace shows demo content (ADR-0023).
+          ctx.workspace.showDemoContent ? undefined : eq(member.isDemo, false),
+        ),
+      );
 
     return {
       totalStudies: studies?.c ?? 0,
@@ -286,6 +308,7 @@ export const workspaceRouter = router({
           eq(experiment.tenantId, ctx.workspace.id),
           eq(recruitmentSession.status, "open"),
           isNull(experiment.archivedAt),
+          demoStudyCondition(ctx.workspace.showDemoContent),
         ),
       );
     const seen = new Set<string>();
@@ -305,7 +328,13 @@ export const workspaceRouter = router({
       const rows = await db
         .select({ studyId: experiment.id, title: experiment.title, updatedAt: experiment.updatedAt })
         .from(experiment)
-        .where(and(eq(experiment.tenantId, ctx.workspace.id), isNull(experiment.archivedAt)))
+        .where(
+          and(
+            eq(experiment.tenantId, ctx.workspace.id),
+            isNull(experiment.archivedAt),
+            demoStudyCondition(ctx.workspace.showDemoContent),
+          ),
+        )
         .orderBy(desc(experiment.updatedAt))
         .limit(input.limit);
       return rows.map((r) => ({ ...r, updatedAt: r.updatedAt.toISOString() }));
@@ -349,7 +378,13 @@ export const workspaceRouter = router({
     const rows = await db
       .select({ tags: experiment.tags })
       .from(experiment)
-      .where(and(eq(experiment.tenantId, ctx.workspace.id), isNull(experiment.archivedAt)));
+      .where(
+        and(
+          eq(experiment.tenantId, ctx.workspace.id),
+          isNull(experiment.archivedAt),
+          demoStudyCondition(ctx.workspace.showDemoContent),
+        ),
+      );
     const counts = new Map<string, number>();
     for (const r of rows) for (const t of r.tags ?? []) counts.set(t, (counts.get(t) ?? 0) + 1);
     return [...counts.entries()]

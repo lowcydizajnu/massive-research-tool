@@ -12,6 +12,7 @@ import {
   workspace,
 } from "@/server/db/schema";
 import { isAdminUser } from "@/server/admin/is-admin";
+import { crossWorkspaceDemoStudyCondition } from "@/server/trpc/routers/_demo";
 import { protectedProcedure, router } from "@/server/trpc/trpc";
 
 /**
@@ -87,7 +88,14 @@ export const meRouter = router({
         })
         .from(experiment)
         .innerJoin(workspace, eq(experiment.tenantId, workspace.id))
-        .where(and(eq(experiment.ownerId, ctx.dbUser.id), isNull(experiment.archivedAt)))
+        .where(
+          and(
+            eq(experiment.ownerId, ctx.dbUser.id),
+            isNull(experiment.archivedAt),
+            // A demo study shows here only if its own workspace opts in (ADR-0023).
+            crossWorkspaceDemoStudyCondition(),
+          ),
+        )
         .orderBy(desc(experiment.updatedAt))
         .limit(input.limit);
       return rows.map((r) => ({ ...r, updatedAt: r.updatedAt.toISOString() }));
@@ -114,6 +122,8 @@ export const meRouter = router({
           eq(recruitmentSession.status, "open"),
           eq(experiment.ownerId, ctx.dbUser.id),
           isNull(experiment.archivedAt),
+          // A demo study shows here only if its own workspace opts in (ADR-0023).
+          crossWorkspaceDemoStudyCondition(),
         ),
       );
     // One open session per study is the invariant (ADR-0044); dedupe defensively.
@@ -130,10 +140,20 @@ export const meRouter = router({
   /** KPI strip for Home: studies authored / replications received / followers /
    *  total completed participants — all over the caller's authored studies. */
   stats: protectedProcedure.query(async ({ ctx }): Promise<MeStats> => {
+    // Join workspace so a demo study counts only if its own workspace opts in
+    // (ADR-0023). `ids` is the basis for replications + participants below, so
+    // filtering here transitively keeps demo data out of every KPI.
     const authored = await db
       .select({ id: experiment.id })
       .from(experiment)
-      .where(and(eq(experiment.ownerId, ctx.dbUser.id), isNull(experiment.archivedAt)));
+      .innerJoin(workspace, eq(experiment.tenantId, workspace.id))
+      .where(
+        and(
+          eq(experiment.ownerId, ctx.dbUser.id),
+          isNull(experiment.archivedAt),
+          crossWorkspaceDemoStudyCondition(),
+        ),
+      );
     const ids = authored.map((a) => a.id);
 
     const [followersRow] = await db

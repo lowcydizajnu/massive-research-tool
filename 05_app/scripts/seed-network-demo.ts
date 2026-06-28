@@ -94,9 +94,11 @@ async function main() {
       .where(and(eq(s.member.workspaceId, workspaceId), eq(s.member.userId, u.id)))
       .limit(1);
     if (existing.length === 0) {
+      // Flag seeded teammates as demo (ADR-0023) so the Team list hides them
+      // unless the workspace shows demo content — mirrors demo studies' is_demo.
       await db
         .insert(s.member)
-        .values({ workspaceId, userId: u.id, role: "editor", status: "active" });
+        .values({ workspaceId, userId: u.id, role: "editor", status: "active", isDemo: true });
     }
     return u;
   }

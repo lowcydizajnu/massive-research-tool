@@ -194,6 +194,10 @@ export const member = pgTable(
      * preserving attribution on old activity/comments (tombstone display). */
     removedAt: timestamp("removed_at", { withTimezone: true }),
     removedByUserId: uuid("removed_by_user_id").references((): AnyPgColumn => user.id),
+    /** Seeded demo teammate (ADR-0023) — Maya/Sofia from the network-demo seeds;
+     *  hidden from the Team list unless workspace.show_demo_content is on, mirroring
+     *  how experiment.is_demo gates demo studies. */
+    isDemo: boolean("is_demo").notNull().default(false),
   },
   (t) => [
     // A user is a member of a workspace at most once. Invited rows have a null

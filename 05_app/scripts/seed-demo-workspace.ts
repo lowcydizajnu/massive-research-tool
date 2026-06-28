@@ -146,7 +146,9 @@ export async function seedDemoWorkspace(email: string): Promise<void> {
       .where(and(eq(s.member.workspaceId, ws.id), eq(s.member.userId, u.id)))
       .limit(1);
     if (!m) {
-      await db.insert(s.member).values({ workspaceId: ws.id, userId: u.id, role: "editor", status: "active" });
+      // Demo teammates are flagged so the Team list hides them with the workspace
+      // toggle off (ADR-0023), consistent with these studies' is_demo flag.
+      await db.insert(s.member).values({ workspaceId: ws.id, userId: u.id, role: "editor", status: "active", isDemo: true });
     }
     return u.id;
   }

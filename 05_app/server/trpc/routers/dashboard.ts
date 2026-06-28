@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { type SQL, and, count, desc, eq, gte, inArray, isNull } from "drizzle-orm";
+import { type SQL, and, count, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 import { ulid } from "ulid";
 import { z } from "zod";
 
@@ -12,6 +12,7 @@ import {
   member,
   recruitmentSession,
   response,
+  workspace,
   workspaceDashboardDefault,
 } from "@/server/db/schema";
 import { type DateRange, customSource, dateRangeDays } from "@/lib/dashboard/custom-sources";
@@ -205,12 +206,18 @@ export const dashboardRouter = router({
       const scope: SQL =
         input.kind === "workspace" ? eq(experiment.tenantId, wsId!) : eq(experiment.ownerId, ctx.dbUser.id);
 
+      // Honest demo toggle (ADR-0023): a demo study contributes to these widgets
+      // only when ITS workspace shows demo content. A correlated condition (no
+      // join) so every case below composes it without restructuring its query.
+      // Same expression for both kinds — the per-study owning workspace decides.
+      const demoFilter: SQL = sql`(${experiment.isDemo} = false or exists (select 1 from ${workspace} w where w.id = ${experiment.tenantId} and w.show_demo_content = true))`;
+
       switch (input.source) {
         case "studies": {
           const [r] = await db
             .select({ c: count() })
             .from(experiment)
-            .where(and(scope, isNull(experiment.archivedAt)));
+            .where(and(scope, isNull(experiment.archivedAt), demoFilter));
           return { type: "metric", label: "Studies", value: r?.c ?? 0 };
         }
         case "running": {
@@ -225,13 +232,14 @@ export const dashboardRouter = router({
                 eq(recruitmentSession.status, "open"),
                 inArray(experimentVersion.kind, RUNNABLE_KINDS),
                 isNull(experiment.archivedAt),
+                demoFilter,
               ),
             );
           return { type: "metric", label: "Running studies", value: rows.length };
         }
         case "responses": {
           const days = dateRangeDays(input.dateRange as DateRange | undefined);
-          const filters: SQL[] = [scope, eq(response.status, "completed"), eq(response.mode, "run")];
+          const filters: SQL[] = [scope, eq(response.status, "completed"), eq(response.mode, "run"), demoFilter];
           if (days != null) filters.push(gte(response.completedAt, new Date(Date.now() - days * 86_400_000)));
           const [r] = await db
             .select({ c: count() })
@@ -249,7 +257,7 @@ export const dashboardRouter = router({
           const rows = await db
             .select({ id: experiment.id, title: experiment.title })
             .from(experiment)
-            .where(and(scope, isNull(experiment.archivedAt)))
+            .where(and(scope, isNull(experiment.archivedAt), demoFilter))
             .orderBy(desc(experiment.updatedAt))
             .limit(input.itemCount);
           return {

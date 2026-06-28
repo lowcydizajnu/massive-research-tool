@@ -1213,6 +1213,10 @@
   ],
   "recentActivity": [
     {
+      "text": "Feedback bug #3: demo-data toggle made honest. show_demo_content was dead (no query read it), so 'show demo off' hid nothing and demo teammates were unflagged member rows. Added member.is_demo (migration 0051) + shared _demo.ts helpers; wired the toggle across studies.list, running list/overview, me.* (recentStudies/recruitingStudies/stats), workspace dashboard aggregates + member count, dashboard widgets, and team.list (hides Maya/Sofia when off). Admin metrics now exclude demo unconditionally. HIDE-only. 838 tests; clean. ⚠️ migration 0051 → db:migrate:prod BEFORE push. Committed, unpushed.",
+      "date": "2026-06-28"
+    },
+    {
       "text": "Feedback batch: wording slice 3 + remove 'Stalled'. Drill-down 'Choose…' placeholder now editable (gated Drill-down Wording group; AI-chat placeholder left to its existing Design → Chat control, no duplicate). Removed the 'Stalled' running-study verdict — cadence is the researcher's call: RunningStatus drops stalled, quiet studies no longer flagged, the yellow 'no responses in 24h' tag + alert are gone, needingAttention counts only imbalance/target-reached. Stalled tests rewritten. Code-only (no migration). 759 tests; clean. Committed, unpushed.",
       "date": "2026-06-28"
     },

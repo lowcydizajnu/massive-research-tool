@@ -25,6 +25,10 @@ import { adminProcedure, router } from "@/server/trpc/trpc";
 /** Experiments NOT owned by an app-owned system workspace (ADR-0079). */
 const notSystemExperiment = sql`${experiment.tenantId} NOT IN (select id from ${workspace} where ${workspace.isSystem} = true)`;
 
+/** Seeded demo studies (ADR-0023) ALWAYS pollute platform-health numbers, so the
+ *  admin census excludes them unconditionally — there is no operator toggle. */
+const notDemoExperiment = eq(experiment.isDemo, false);
+
 /**
  * Admin destination data (Analytics + Admin handoff, AA2; ADR-0075). Everything
  * here is `adminProcedure`-gated. Overview is a cross-workspace census + the
@@ -44,7 +48,7 @@ export const adminRouter = router({
       db
         .select({ n: count() })
         .from(experiment)
-        .where(sql`${experiment.tenantId} NOT IN (select id from ${workspace} where ${workspace.isSystem} = true)`),
+        .where(and(notSystemExperiment, notDemoExperiment)),
       db.select({ n: count() }).from(feedback).where(sql`${feedback.status} = 'new'`),
       db.select({ n: count() }).from(releaseAnnouncement),
       db
@@ -148,23 +152,26 @@ export const adminRouter = router({
               d30: sql<number>`count(*) filter (where ${experiment.createdAt} >= ${d30}::timestamptz)::int`,
             })
             .from(experiment)
-            .where(notSystemExperiment),
+            .where(and(notSystemExperiment, notDemoExperiment)),
           db
             .select({ kind: experimentVersion.kind, n: sql<number>`count(*)::int` })
             .from(experiment)
             .innerJoin(experimentVersion, eq(experiment.currentVersionId, experimentVersion.id))
-            .where(notSystemExperiment)
+            .where(and(notSystemExperiment, notDemoExperiment))
             .groupBy(experimentVersion.kind),
           db
+            // Join through to experiment so demo responses are excluded too (ADR-0023).
             .select({ n: sql<number>`count(*)::int` })
             .from(response)
-            .where(eq(response.status, "completed")),
+            .innerJoin(experimentVersion, eq(response.experimentVersionId, experimentVersion.id))
+            .innerJoin(experiment, eq(experimentVersion.experimentId, experiment.id))
+            .where(and(eq(response.status, "completed"), notSystemExperiment, notDemoExperiment)),
           db
             .select({ n: sql<number>`count(distinct ${experiment.id})::int` })
             .from(recruitmentSession)
             .innerJoin(experimentVersion, eq(recruitmentSession.experimentVersionId, experimentVersion.id))
             .innerJoin(experiment, eq(experimentVersion.experimentId, experiment.id))
-            .where(and(eq(recruitmentSession.status, "open"), notSystemExperiment)),
+            .where(and(eq(recruitmentSession.status, "open"), notSystemExperiment, notDemoExperiment)),
           db
             .select({
               thisMonth: sql<string>`coalesce(sum(${aiInvocation.costUsd}) filter (where ${aiInvocation.createdAt} >= ${monthStart}::timestamptz), 0)`,

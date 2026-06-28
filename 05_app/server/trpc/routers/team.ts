@@ -140,6 +140,9 @@ export const teamRouter = router({
             eq(member.workspaceId, wsId),
             eq(member.status, "active"),
             input?.includeRemoved ? undefined : isNull(member.removedAt),
+            // Seeded demo teammates (Maya/Sofia) show only when this workspace
+            // opts into demo content (ADR-0023) — same toggle as demo studies.
+            ctx.workspace.showDemoContent ? undefined : eq(member.isDemo, false),
           ),
         );
 

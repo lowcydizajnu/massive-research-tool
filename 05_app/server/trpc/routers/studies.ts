@@ -82,6 +82,7 @@ import { sanitizeUiCopy } from "@/lib/take/ui-copy";
 import { resolvePanelIntegration, sanitizePanelIntegration } from "@/lib/take/panel-integration";
 import { diffLines } from "@/lib/diff-lines";
 import { publicProcedure, router, workspaceProcedure, writeProcedure } from "@/server/trpc/trpc";
+import { demoStudyCondition } from "@/server/trpc/routers/_demo";
 import type { MemberRole } from "@/server/workspace/active";
 
 /**
@@ -1048,7 +1049,7 @@ export type RunningOverview = {
  * (heavier) table loads. Cost is one extra aggregation over a small set (a
  * workspace's handful of recruiting studies) — acceptable for Phase 1.
  */
-async function buildRunningRows(workspaceId: string): Promise<RunningStudyRow[]> {
+async function buildRunningRows(workspaceId: string, showDemoContent: boolean): Promise<RunningStudyRow[]> {
   const sessions = await db
     .select({
       studyId: experiment.id,
@@ -1068,6 +1069,8 @@ async function buildRunningRows(workspaceId: string): Promise<RunningStudyRow[]>
         eq(recruitmentSession.status, "open"),
         inArray(experimentVersion.kind, RUNNABLE_KINDS),
         isNull(experiment.archivedAt),
+        // Demo studies' running rows hide with the workspace toggle (ADR-0023).
+        demoStudyCondition(showDemoContent),
       ),
     )
     .orderBy(desc(recruitmentSession.openedAt));
@@ -1610,7 +1613,7 @@ export const studiesRouter = router({
               ? isNotNull(experiment.archivedAt)
               : isNull(experiment.archivedAt),
             // Seeded demo studies appear only when this workspace opts in (ADR-0023).
-            ctx.workspace.showDemoContent ? undefined : eq(experiment.isDemo, false),
+            demoStudyCondition(ctx.workspace.showDemoContent),
           ),
         )
         .orderBy(orderBy);
@@ -4303,11 +4306,13 @@ export const studiesRouter = router({
             eq(responseTable.status, "completed"),
             eq(responseTable.mode, "run"),
             gte(responseTable.completedAt, since),
+            // Demo responses don't inflate the KPI strip when demo is hidden (ADR-0023).
+            demoStudyCondition(ctx.workspace.showDemoContent),
           ),
         );
 
     const [rows, [today], [week]] = await Promise.all([
-      buildRunningRows(wsId),
+      buildRunningRows(wsId, ctx.workspace.showDemoContent),
       windowCount(dayAgo),
       windowCount(weekAgo),
     ]);
@@ -4329,7 +4334,8 @@ export const studiesRouter = router({
    * write-gated `setRecruitmentStatus`. Drill-down (`runningDetail`) is Phase 2.
    */
   runningList: workspaceProcedure.query(
-    async ({ ctx }): Promise<RunningStudyRow[]> => buildRunningRows(ctx.workspace.id),
+    async ({ ctx }): Promise<RunningStudyRow[]> =>
+      buildRunningRows(ctx.workspace.id, ctx.workspace.showDemoContent),
   ),
 
   /**
