@@ -103,6 +103,27 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
           </div>
         ) : null}
 
+        {/* Published articles (feedback 01KW5CKK) — researcher-linked external work. */}
+        {profile.articles.length > 0 ? (
+          <section aria-labelledby="pp-articles" className="flex flex-col gap-3">
+            <h2 id="pp-articles" className="font-serif text-[length:var(--text-title)] font-medium text-[var(--color-text-primary)]">Publications</h2>
+            <ul className="flex flex-col gap-2">
+              {profile.articles.map((a, i) => (
+                <li key={`${a.url}-${i}`}>
+                  <a
+                    href={a.url}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="text-[length:var(--text-body)] text-[var(--color-primary)] hover:underline"
+                  >
+                    {a.title} ↗
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+
         {/* Public studies */}
         <section aria-labelledby="pp-studies" className="flex flex-col gap-3">
           <h2 id="pp-studies" className="font-serif text-[length:var(--text-title)] font-medium text-[var(--color-text-primary)]">Public studies</h2>

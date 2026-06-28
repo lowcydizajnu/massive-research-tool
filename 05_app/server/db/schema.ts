@@ -132,6 +132,12 @@ export const user = pgTable("user", {
   publicProfileEnabled: boolean("public_profile_enabled").notNull().default(false),
   /** Public-facing avatar (public R2 namespace); falls back to `avatarUrl`. */
   publicAvatarR2Key: text("public_avatar_r2_key"),
+  /** Links to the researcher's already-published articles, shown on the public
+   *  author page (feedback 01KW5CKK). Researcher-curated {title, url} pairs. */
+  publicArticles: jsonb("public_articles")
+    .$type<{ title: string; url: string }[]>()
+    .notNull()
+    .default([]),
   /** App-owned system account (EE2-misinfo): owns app-shipped starter templates.
    *  Excluded from the admin census + Explore (never a real researcher). */
   isSystem: boolean("is_system").notNull().default(false),

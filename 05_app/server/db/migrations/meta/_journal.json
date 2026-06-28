@@ -351,6 +351,13 @@
       "when": 1782646847722,
       "tag": "0049_calm_kang",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1782653671260,
+      "tag": "0050_fair_galactus",
+      "breakpoints": true
     }
   ]
 }

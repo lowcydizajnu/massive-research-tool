@@ -1,0 +1,1 @@
+ALTER TABLE "user" ADD COLUMN "public_articles" jsonb DEFAULT '[]'::jsonb NOT NULL;

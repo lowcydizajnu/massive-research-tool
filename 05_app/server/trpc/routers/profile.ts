@@ -109,6 +109,7 @@ export const profileRouter = router({
     publicProfileEnabled: ctx.dbUser.publicProfileEnabled,
     bio: ctx.dbUser.bio ?? null,
     publicAvatarR2Key: ctx.dbUser.publicAvatarR2Key ?? null,
+    articles: ctx.dbUser.publicArticles ?? [],
   })),
 
   /** Live handle availability for the picker — excludes the caller's own handle. */
@@ -134,6 +135,16 @@ export const profileRouter = router({
         handle: z.string().optional(),
         bio: optText(2000),
         publicAvatarR2Key: optText(512),
+        // Links to already-published work (feedback 01KW5CKK).
+        articles: z
+          .array(
+            z.object({
+              title: z.string().trim().min(1).max(200),
+              url: z.string().trim().url().max(500),
+            }),
+          )
+          .max(20)
+          .optional(),
       }),
     )
     .mutation(async ({ ctx, input }): Promise<{ ok: true; handle: string | null }> => {
@@ -160,6 +171,7 @@ export const profileRouter = router({
       if (input.publicProfileEnabled !== undefined) patch.publicProfileEnabled = input.publicProfileEnabled;
       if (input.bio !== undefined) patch.bio = input.bio;
       if (input.publicAvatarR2Key !== undefined) patch.publicAvatarR2Key = input.publicAvatarR2Key;
+      if (input.articles !== undefined) patch.publicArticles = input.articles;
 
       await db.update(user).set(patch).where(eq(user.id, ctx.dbUser.id));
       return { ok: true, handle: nextHandle };
@@ -189,6 +201,7 @@ export const profileRouter = router({
           scholarUrl: user.scholarUrl,
           avatarUrl: user.avatarUrl,
           publicAvatarR2Key: user.publicAvatarR2Key,
+          articles: user.publicArticles,
         })
         .from(user)
         .where(and(eq(user.handle, handle), eq(user.publicProfileEnabled, true)))
