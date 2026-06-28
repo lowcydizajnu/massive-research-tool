@@ -3,10 +3,16 @@
 import { useRef, useState } from "react";
 
 import { normalizedPoint } from "@/lib/take/image-coords";
+import { BLOCK_COPY_DEFAULTS, type BlockCopyKey } from "@/lib/take/ui-copy";
+
+type BlockCopy = Partial<Record<BlockCopyKey, string>>;
 
 /** Heat-map (ADR-0041): click the image to drop points (normalized 0..1).
- *  Keyboard: Add-point drops at center, arrows nudge, Remove deletes. */
-export function HeatMapInput({ config, np }: { config: Record<string, unknown>; np: string }) {
+ *  Keyboard: Add-point drops at center, arrows nudge, Remove deletes.
+ *  Participant-facing labels are researcher-overridable (ADR-0070; blank = default). */
+export function HeatMapInput({ config, np, blockCopy }: { config: Record<string, unknown>; np: string; blockCopy?: BlockCopy }) {
+  const addLabel = blockCopy?.heatmapAddPoint || BLOCK_COPY_DEFAULTS.heatmapAddPoint;
+  const removeLabel = blockCopy?.heatmapRemove || BLOCK_COPY_DEFAULTS.heatmapRemove;
   const imageUrl = typeof config.imageUrl === "string" ? config.imageUrl.trim() : "";
   const maxPoints = typeof config.maxPoints === "number" ? config.maxPoints : 10;
   const prompt = typeof config.prompt === "string" ? config.prompt : "";
@@ -41,7 +47,7 @@ export function HeatMapInput({ config, np }: { config: Record<string, unknown>; 
         ))}
       </div>
       <div className="flex items-center gap-2">
-        <button type="button" onClick={() => add(0.5, 0.5)} className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-2.5 py-1 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]">+ Add point (center)</button>
+        <button type="button" onClick={() => add(0.5, 0.5)} className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-2.5 py-1 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]">{addLabel}</button>
         <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">{points.length}/{maxPoints}</span>
       </div>
       <ul aria-live="polite" className="flex flex-col gap-1">
@@ -54,7 +60,7 @@ export function HeatMapInput({ config, np }: { config: Record<string, unknown>; 
               <button type="button" aria-label={`Nudge point ${i + 1} up`} onClick={() => nudge(i, 0, -0.02)} className="px-1 hover:bg-[var(--color-surface-subtle)]">↑</button>
               <button type="button" aria-label={`Nudge point ${i + 1} down`} onClick={() => nudge(i, 0, 0.02)} className="px-1 hover:bg-[var(--color-surface-subtle)]">↓</button>
             </span>
-            <button type="button" onClick={() => setPoints((p) => p.filter((_, j) => j !== i))} className="text-[var(--color-danger-text-on-subtle)] hover:underline">Remove</button>
+            <button type="button" onClick={() => setPoints((p) => p.filter((_, j) => j !== i))} className="text-[var(--color-danger-text-on-subtle)] hover:underline">{removeLabel}</button>
           </li>
         ))}
       </ul>

@@ -2,20 +2,28 @@
 
 import { useRef, useState } from "react";
 
+import { BLOCK_COPY_DEFAULTS, type BlockCopyKey } from "@/lib/take/ui-copy";
+
+type BlockCopy = Partial<Record<BlockCopyKey, string>>;
+
 /**
  * File-upload participant block (ADR-0003 am.): presign → PUT to private R2
  * (resp/ key, served as a download — anti-XSS). Records {r2Key, filename}.
+ * The choose-file label is researcher-overridable (ADR-0070; blank = default).
  */
 export function FileUploadInput({
   config,
   np,
   responseId,
+  blockCopy,
 }: {
   config: Record<string, unknown>;
   np: string;
   responseId: string;
+  blockCopy?: BlockCopy;
 }) {
   const prompt = typeof config.prompt === "string" ? config.prompt : "Upload a file.";
+  const chooseLabel = blockCopy?.fileUploadChoose || BLOCK_COPY_DEFAULTS.fileUploadChoose;
   const fileRef = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState<"idle" | "uploading" | "done" | "error">("idle");
   const [key, setKey] = useState("");
@@ -74,7 +82,7 @@ export function FileUploadInput({
         onClick={() => fileRef.current?.click()}
         className="self-start rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-1.5 text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)] disabled:opacity-60"
       >
-        {status === "uploading" ? "Uploading…" : status === "done" ? "Choose a different file" : "Choose a file…"}
+        {status === "uploading" ? "Uploading…" : status === "done" ? "Choose a different file" : chooseLabel}
       </button>
       <span aria-live="polite" className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
         {status === "done" ? `Uploaded: ${name}` : error ? error : "PDF, document, spreadsheet, image, or zip (max 25 MB)."}

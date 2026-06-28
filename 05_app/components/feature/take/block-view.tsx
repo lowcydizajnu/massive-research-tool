@@ -117,11 +117,11 @@ export function BlockView({
   if (block.key === "side-by-side") return <SideBySideInput config={c} np={np} />;
   if (block.key === "timed-exposure") return <TimedExposureInput config={c} np={np} />;
   if (block.key === "forced-wait") return <ForcedWaitInput config={c} np={np} />;
-  if (block.key === "heat-map") return <HeatMapInput config={c} np={np} />;
+  if (block.key === "heat-map") return <HeatMapInput config={c} np={np} blockCopy={blockCopy} />;
   if (block.key === "hot-spot") return <HotSpotInput config={c} np={np} />;
   if (block.key === "graphic-slider") return <GraphicSliderInput config={c} np={np} />;
-  if (block.key === "signature") return <SignatureInput config={c} np={np} responseId={seed ?? ""} />;
-  if (block.key === "file-upload") return <FileUploadInput config={c} np={np} responseId={seed ?? ""} />;
+  if (block.key === "signature") return <SignatureInput config={c} np={np} responseId={seed ?? ""} blockCopy={blockCopy} />;
+  if (block.key === "file-upload") return <FileUploadInput config={c} np={np} responseId={seed ?? ""} blockCopy={blockCopy} />;
   if (block.key === "video-record") return <VideoRecordInput config={c} np={np} responseId={seed ?? ""} />;
   if (block.key === "embedded-data" || block.key === "end-redirect")
     return (

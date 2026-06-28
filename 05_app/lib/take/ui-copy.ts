@@ -32,16 +32,35 @@ export const UI_COPY_DEFAULTS: Record<UiCopyKey, string> = {
   thankYouBody: "Your responses have been recorded.",
 };
 
-/** Block-internal strings (no fixed default — blank = the block/skin's native text). */
-export type BlockCopyKey = "postLike" | "postShare" | "postComment" | "postCommentPlaceholder";
+/** Block-internal strings (no fixed default — blank = the block's native text).
+ *  Extended per block family so the Wording editor adapts to the blocks in the
+ *  study (feedback: "if you add a block you add wording for it"). */
+export type BlockCopyKey =
+  | "postLike"
+  | "postShare"
+  | "postComment"
+  | "postCommentPlaceholder"
+  // heat-map (ADR-0041)
+  | "heatmapAddPoint"
+  | "heatmapRemove"
+  // signature (ADR-0041)
+  | "signatureClear"
+  | "signatureTypePrompt"
+  // file-upload (ADR-0003)
+  | "fileUploadChoose";
 
-/** Reference text for the neutral (unstyled) social-post renderer + editor hint.
- *  Mimicking presets keep their OWN native labels unless the researcher overrides. */
+/** Reference text for the neutral renderer + editor hint. Social-post presets keep
+ *  their OWN native labels unless overridden; other blocks use these as defaults. */
 export const BLOCK_COPY_DEFAULTS: Record<BlockCopyKey, string> = {
   postLike: "Like",
   postShare: "Share",
   postComment: "Comment",
   postCommentPlaceholder: "Write a comment…",
+  heatmapAddPoint: "+ Add point (center)",
+  heatmapRemove: "Remove",
+  signatureClear: "Clear",
+  signatureTypePrompt: "Or type your name to sign",
+  fileUploadChoose: "Choose a file…",
 };
 
 /** Field metadata for the Builder "Wording" editor, grouped into columns.
@@ -85,6 +104,28 @@ export const WORDING_GROUPS: WordingGroup[] = [
       { key: "postComment", label: "Comment label", native: true },
       { key: "postCommentPlaceholder", label: "Comment box placeholder", native: true },
     ],
+  },
+  {
+    title: "Heat map",
+    requiresBlockKey: "heat-map",
+    note: "Labels participants see on the heat-map block. Blank = the default.",
+    fields: [
+      { key: "heatmapAddPoint", label: "Add-point button", native: true },
+      { key: "heatmapRemove", label: "Remove-point label", native: true },
+    ],
+  },
+  {
+    title: "Signature",
+    requiresBlockKey: "signature",
+    fields: [
+      { key: "signatureClear", label: "Clear button", native: true },
+      { key: "signatureTypePrompt", label: "Type-to-sign prompt", native: true },
+    ],
+  },
+  {
+    title: "File upload",
+    requiresBlockKey: "file-upload",
+    fields: [{ key: "fileUploadChoose", label: "Choose-file button", native: true }],
   },
 ];
 

@@ -2,22 +2,31 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { BLOCK_COPY_DEFAULTS, type BlockCopyKey } from "@/lib/take/ui-copy";
+
+type BlockCopy = Partial<Record<BlockCopyKey, string>>;
+
 /**
  * Signature (ADR-0041): draw on a canvas → export PNG → upload to private R2
  * via the participant presign (scoped by responseId). Type-to-sign is the
  * honest keyboard alternative (renders the typed name to the same PNG).
- * Records `{r2Key}` in a hidden field once uploaded.
+ * Records `{r2Key}` in a hidden field once uploaded. Participant labels are
+ * researcher-overridable (ADR-0070; blank = default).
  */
 export function SignatureInput({
   config,
   np,
   responseId,
+  blockCopy,
 }: {
   config: Record<string, unknown>;
   np: string;
   responseId: string;
+  blockCopy?: BlockCopy;
 }) {
   const prompt = typeof config.prompt === "string" ? config.prompt : "Please sign below.";
+  const clearLabel = blockCopy?.signatureClear || BLOCK_COPY_DEFAULTS.signatureClear;
+  const typePrompt = blockCopy?.signatureTypePrompt || BLOCK_COPY_DEFAULTS.signatureTypePrompt;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
   const dirty = useRef(false);
@@ -122,7 +131,7 @@ export function SignatureInput({
         className="w-full max-w-[400px] touch-none rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-white"
       />
       <label className="flex flex-col gap-1">
-        <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">Or type your name to sign</span>
+        <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">{typePrompt}</span>
         <input
           type="text"
           value={typed}
@@ -132,7 +141,7 @@ export function SignatureInput({
         />
       </label>
       <div className="flex items-center gap-3">
-        <button type="button" onClick={clear} className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-2.5 py-1 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]">Clear</button>
+        <button type="button" onClick={clear} className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-2.5 py-1 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]">{clearLabel}</button>
         <span aria-live="polite" className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
           {status === "uploading" ? "Saving…" : status === "done" ? "Signature saved." : error ? error : ""}
         </span>
