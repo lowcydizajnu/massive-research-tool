@@ -2,6 +2,8 @@
 
 import { useRef, useState } from "react";
 
+import { BLOCK_COPY_DEFAULTS } from "@/lib/take/ui-copy";
+
 /**
  * Reaction-time block (V1.12 Wave 3). Client-only because it measures latency:
  * after Start, a stimulus appears following a random delay, and we record
@@ -19,11 +21,15 @@ function n(v: unknown, fallback: number): number {
 export function ReactionTimeInput({
   config,
   namePrefix = "",
+  blockCopy,
 }: {
   config: Record<string, unknown>;
   namePrefix?: string;
+  blockCopy?: Partial<Record<import("@/lib/take/ui-copy").BlockCopyKey, string>>;
 }) {
   const prompt = typeof config.prompt === "string" ? config.prompt : "";
+  const startLabel = blockCopy?.reactionStart || BLOCK_COPY_DEFAULTS.reactionStart;
+  const waitCueLabel = blockCopy?.reactionWaitCue || BLOCK_COPY_DEFAULTS.reactionWaitCue;
   const stimulus = (typeof config.stimulus === "string" && config.stimulus) || "GO";
   const minDelay = n(config.minDelayMs, 1000);
   const maxDelay = Math.max(minDelay, n(config.maxDelayMs, 3000));
@@ -74,7 +80,7 @@ export function ReactionTimeInput({
           onClick={start}
           className="self-start rounded-[var(--radius-md)] bg-[var(--color-primary)] px-5 py-2.5 text-[length:var(--text-body-emphasis)] font-medium text-white hover:opacity-90"
         >
-          Start
+          {startLabel}
         </button>
       ) : phase === "waiting" ? (
         <button
@@ -82,7 +88,7 @@ export function ReactionTimeInput({
           onClick={respond}
           className={`${box} border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] text-[var(--color-text-muted)]`}
         >
-          Wait for the cue…
+          {waitCueLabel}
         </button>
       ) : phase === "ready" ? (
         <button

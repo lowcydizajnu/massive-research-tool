@@ -2,6 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { BLOCK_COPY_DEFAULTS, type BlockCopyKey } from "@/lib/take/ui-copy";
+
+type BlockCopy = Partial<Record<BlockCopyKey, string>>;
+
 /**
  * Audio-recording block (handoff C2 Group 3) — client component (MediaRecorder
  * can't exist server-side; ADR-0013 exception #3 after reaction-time and
@@ -14,12 +18,17 @@ export function AudioRecordInput({
   config,
   namePrefix = "",
   responseId,
+  blockCopy,
 }: {
   config: Record<string, unknown>;
   namePrefix?: string;
   responseId: string;
+  blockCopy?: BlockCopy;
 }) {
   const prompt = typeof config.prompt === "string" ? config.prompt : "";
+  const startLabel = blockCopy?.recordStart || BLOCK_COPY_DEFAULTS.recordStart;
+  const stopLabel = blockCopy?.recordStop || BLOCK_COPY_DEFAULTS.recordStop;
+  const reRecordLabel = blockCopy?.recordReRecord || BLOCK_COPY_DEFAULTS.recordReRecord;
   const maxSeconds =
     typeof config.maxDurationSeconds === "number" && Number.isFinite(config.maxDurationSeconds)
       ? config.maxDurationSeconds
@@ -124,7 +133,7 @@ export function AudioRecordInput({
             🎙 Recording uses your microphone and is stored with your answers. Up to {maxSeconds}s.
           </p>
           <button type="button" onClick={start} className={btnCls}>
-            Start recording
+            {startLabel}
           </button>
         </div>
       ) : phase === "recording" ? (
@@ -134,7 +143,7 @@ export function AudioRecordInput({
             Recording… {elapsed}s / {maxSeconds}s
           </span>
           <button type="button" onClick={stop} className={btnCls}>
-            Stop
+            {stopLabel}
           </button>
         </div>
       ) : phase === "uploading" ? (
@@ -154,7 +163,7 @@ export function AudioRecordInput({
             }}
             className="self-start text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] underline-offset-2 hover:underline"
           >
-            Re-record
+            {reRecordLabel}
           </button>
         </div>
       )}

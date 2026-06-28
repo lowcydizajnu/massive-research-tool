@@ -107,8 +107,8 @@ export function BlockView({
   if (block.key === "vas") return <VasInput config={c} np={np} />;
   if (block.key === "matrix-grid") return <MatrixGridInput config={c} np={np} />;
   if (block.key === "semantic-differential") return <SemanticDifferentialInput config={c} np={np} />;
-  if (block.key === "reaction-time") return <ReactionTimeInput config={c} namePrefix={np} />;
-  if (block.key === "audio-record") return <AudioRecordInput config={c} namePrefix={np} responseId={seed ?? ""} />;
+  if (block.key === "reaction-time") return <ReactionTimeInput config={c} namePrefix={np} blockCopy={blockCopy} />;
+  if (block.key === "audio-record") return <AudioRecordInput config={c} namePrefix={np} responseId={seed ?? ""} blockCopy={blockCopy} />;
   if (block.key === "maxdiff") return <MaxDiffInput config={c} np={np} />;
   if (block.key === "accuracy-confidence") return <AccuracyConfidenceInput config={c} np={np} />;
   if (block.key === "share-intention") return <ShareIntentionInput config={c} np={np} />;
@@ -122,7 +122,7 @@ export function BlockView({
   if (block.key === "graphic-slider") return <GraphicSliderInput config={c} np={np} />;
   if (block.key === "signature") return <SignatureInput config={c} np={np} responseId={seed ?? ""} blockCopy={blockCopy} />;
   if (block.key === "file-upload") return <FileUploadInput config={c} np={np} responseId={seed ?? ""} blockCopy={blockCopy} />;
-  if (block.key === "video-record") return <VideoRecordInput config={c} np={np} responseId={seed ?? ""} />;
+  if (block.key === "video-record") return <VideoRecordInput config={c} np={np} responseId={seed ?? ""} blockCopy={blockCopy} />;
   if (block.key === "embedded-data" || block.key === "end-redirect")
     return (
       <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">

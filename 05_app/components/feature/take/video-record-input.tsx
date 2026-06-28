@@ -2,6 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { BLOCK_COPY_DEFAULTS, type BlockCopyKey } from "@/lib/take/ui-copy";
+
+type BlockCopy = Partial<Record<BlockCopyKey, string>>;
+
 /**
  * Video-record participant block (ADR-0003 am.; ADR-0013 island): MediaRecorder
  * video sibling of audio-record. Consent-to-record press, max-duration auto-stop,
@@ -11,12 +15,17 @@ export function VideoRecordInput({
   config,
   np,
   responseId,
+  blockCopy,
 }: {
   config: Record<string, unknown>;
   np: string;
   responseId: string;
+  blockCopy?: BlockCopy;
 }) {
   const prompt = typeof config.prompt === "string" ? config.prompt : "Record a short video response.";
+  const startLabel = blockCopy?.recordStart || BLOCK_COPY_DEFAULTS.recordStart;
+  const stopLabel = blockCopy?.recordStop || BLOCK_COPY_DEFAULTS.recordStop;
+  const reRecordLabel = blockCopy?.recordReRecord || BLOCK_COPY_DEFAULTS.recordReRecord;
   const maxSeconds = typeof config.maxDurationSeconds === "number" ? config.maxDurationSeconds : 60;
   const [phase, setPhase] = useState<"idle" | "recording" | "uploading" | "done" | "error">("idle");
   const [left, setLeft] = useState(maxSeconds);
@@ -107,13 +116,13 @@ export function VideoRecordInput({
       <video ref={videoRef} playsInline controls={phase === "done"} src={phase === "done" && previewUrl ? previewUrl : undefined} className="w-full max-w-[420px] rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-black" />
       <div className="flex items-center gap-3">
         {phase === "idle" || phase === "error" ? (
-          <button type="button" onClick={() => void start()} className="rounded-[var(--radius-md)] bg-[var(--color-primary)] px-4 py-2 text-[length:var(--text-body-emphasis)] font-medium text-white hover:opacity-90">Start recording</button>
+          <button type="button" onClick={() => void start()} className="rounded-[var(--radius-md)] bg-[var(--color-primary)] px-4 py-2 text-[length:var(--text-body-emphasis)] font-medium text-white hover:opacity-90">{startLabel}</button>
         ) : null}
         {phase === "recording" ? (
-          <button type="button" onClick={stop} className="rounded-[var(--radius-md)] bg-[var(--color-danger)] px-4 py-2 text-[length:var(--text-body-emphasis)] font-medium text-white hover:opacity-90">Stop ({left}s)</button>
+          <button type="button" onClick={stop} className="rounded-[var(--radius-md)] bg-[var(--color-danger)] px-4 py-2 text-[length:var(--text-body-emphasis)] font-medium text-white hover:opacity-90">{stopLabel} ({left}s)</button>
         ) : null}
         {phase === "done" ? (
-          <button type="button" onClick={() => { setKey(""); setPreviewUrl(null); setPhase("idle"); }} className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-1.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]">Re-record</button>
+          <button type="button" onClick={() => { setKey(""); setPreviewUrl(null); setPhase("idle"); }} className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-1.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]">{reRecordLabel}</button>
         ) : null}
         <span aria-live="polite" className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
           {phase === "recording" ? "Recording…" : phase === "uploading" ? "Saving…" : phase === "done" ? "Saved." : error ? error : `Max ${maxSeconds}s. Recording starts when you press Start.`}

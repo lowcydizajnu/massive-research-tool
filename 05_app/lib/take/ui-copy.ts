@@ -47,7 +47,14 @@ export type BlockCopyKey =
   | "signatureClear"
   | "signatureTypePrompt"
   // file-upload (ADR-0003)
-  | "fileUploadChoose";
+  | "fileUploadChoose"
+  // audio / video recording (ADR-0003) — shared labels
+  | "recordStart"
+  | "recordStop"
+  | "recordReRecord"
+  // reaction-time (ADR-0040)
+  | "reactionStart"
+  | "reactionWaitCue";
 
 /** Reference text for the neutral renderer + editor hint. Social-post presets keep
  *  their OWN native labels unless overridden; other blocks use these as defaults. */
@@ -61,6 +68,11 @@ export const BLOCK_COPY_DEFAULTS: Record<BlockCopyKey, string> = {
   signatureClear: "Clear",
   signatureTypePrompt: "Or type your name to sign",
   fileUploadChoose: "Choose a file…",
+  recordStart: "Start recording",
+  recordStop: "Stop",
+  recordReRecord: "Re-record",
+  reactionStart: "Start",
+  reactionWaitCue: "Wait for the cue…",
 };
 
 /** Field metadata for the Builder "Wording" editor, grouped into columns.
@@ -126,6 +138,32 @@ export const WORDING_GROUPS: WordingGroup[] = [
     title: "File upload",
     requiresBlockKey: "file-upload",
     fields: [{ key: "fileUploadChoose", label: "Choose-file button", native: true }],
+  },
+  {
+    title: "Audio recording",
+    requiresBlockKey: "audio-record",
+    fields: [
+      { key: "recordStart", label: "Start-recording button", native: true },
+      { key: "recordStop", label: "Stop button", native: true },
+      { key: "recordReRecord", label: "Re-record button", native: true },
+    ],
+  },
+  {
+    title: "Video recording",
+    requiresBlockKey: "video-record",
+    fields: [
+      { key: "recordStart", label: "Start-recording button", native: true },
+      { key: "recordStop", label: "Stop button", native: true },
+      { key: "recordReRecord", label: "Re-record button", native: true },
+    ],
+  },
+  {
+    title: "Reaction time",
+    requiresBlockKey: "reaction-time",
+    fields: [
+      { key: "reactionStart", label: "Start button", native: true },
+      { key: "reactionWaitCue", label: "Waiting-for-cue label", native: true },
+    ],
   },
 ];
 
