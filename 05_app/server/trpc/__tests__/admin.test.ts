@@ -101,6 +101,32 @@ describe("adminProcedure gate (ADR-0075)", () => {
     expect(row.studyCount).toBe(2);
   });
 
+  it("census excludes app-owned system rows (ADR-0079)", async () => {
+    const boss = await seedUser("boss", true);
+    await db.insert(workspace).values({ name: "Real", slug: "real", ownerId: boss });
+    // A system account: user + workspace + a study, all is_system / system-owned.
+    const [sys] = await db
+      .insert(user)
+      .values({ externalId: "sys", email: "sys@e.com", displayName: "Sys", isSystem: true })
+      .returning();
+    const [sysWs] = await db
+      .insert(workspace)
+      .values({ name: "Starters", slug: "starters", ownerId: sys.id, isSystem: true })
+      .returning();
+    await db.insert(experiment).values({ tenantId: sysWs.id, ownerId: sys.id, title: "Starter study" });
+
+    const admin = createCaller({ authUser: authUser("boss") });
+    const o = await admin.admin.overview();
+    expect(o.workspaces).toBe(1); // system workspace excluded
+    expect(o.users).toBe(1); // system user excluded
+    expect(o.studies).toBe(0); // system-owned study excluded
+
+    const ws = await admin.admin.workspaces();
+    expect(ws.map((w) => w.slug)).toEqual(["real"]);
+    const users = await admin.admin.users();
+    expect(users.map((u) => u.email)).not.toContain("sys@e.com");
+  });
+
   it("me.isAdmin reflects the gate", async () => {
     await seedUser("boss", true);
     await seedUser("hanna", false);

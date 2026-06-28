@@ -15,10 +15,15 @@ export const adminRouter = router({
     monthStart.setUTCDate(1);
     monthStart.setUTCHours(0, 0, 0, 0);
 
+    // App-owned system rows (ADR-0079) are never real customers — exclude them
+    // from the census so the counts read as true workspace/user/study totals.
     const [[ws], [users], [studies], [newFeedback], [announcements], [costRow]] = await Promise.all([
-      db.select({ n: count() }).from(workspace),
-      db.select({ n: count() }).from(user),
-      db.select({ n: count() }).from(experiment),
+      db.select({ n: count() }).from(workspace).where(eq(workspace.isSystem, false)),
+      db.select({ n: count() }).from(user).where(eq(user.isSystem, false)),
+      db
+        .select({ n: count() })
+        .from(experiment)
+        .where(sql`${experiment.tenantId} NOT IN (select id from ${workspace} where ${workspace.isSystem} = true)`),
       db.select({ n: count() }).from(feedback).where(sql`${feedback.status} = 'new'`),
       db.select({ n: count() }).from(releaseAnnouncement),
       db
@@ -60,6 +65,7 @@ export const adminRouter = router({
       .from(workspace)
       .leftJoin(member, eq(member.workspaceId, workspace.id))
       .leftJoin(experiment, eq(experiment.tenantId, workspace.id))
+      .where(eq(workspace.isSystem, false))
       .groupBy(workspace.id)
       .orderBy(desc(workspace.createdAt))
       .limit(200);
@@ -76,6 +82,7 @@ export const adminRouter = router({
         createdAt: user.createdAt,
       })
       .from(user)
+      .where(eq(user.isSystem, false))
       .orderBy(sql`${user.createdAt} desc`)
       .limit(500);
   }),

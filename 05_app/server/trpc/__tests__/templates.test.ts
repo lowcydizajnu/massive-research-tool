@@ -191,6 +191,37 @@ describe("templates visibility (cross-workspace)", () => {
   });
 });
 
+describe("misinformation starter (ADR-0079)", () => {
+  it("a real researcher forks the seeded starter into their workspace", async () => {
+    const { seedMisinfoStarter } = await import("@/server/db/seed-misinfo-starter");
+    const { STARTER_MISINFO_TEMPLATE_ID } = await import("@/lib/system/starter");
+    await seedMisinfoStarter();
+
+    // A real (non-system) researcher in their own workspace.
+    const lab = await seedOwner("hanna", "Lab");
+    const hanna = createCaller({ authUser: authUser("hanna") });
+
+    // The starter is visible (starter=true) and listed under "starters".
+    const starters = await hanna.templates.list({ scope: "starters" });
+    expect(starters.map((t) => t.name)).toContain("Misinformation study");
+
+    const { id: newStudyId } = await hanna.templates.useTemplate({
+      templateId: STARTER_MISINFO_TEMPLATE_ID,
+    });
+    const [exp] = await db.select().from(experiment).where(eq(experiment.id, newStudyId));
+    expect(exp.tenantId).toBe(lab.workspace.id); // landed in HER workspace
+    expect(exp.forkOfExperimentId).toBeNull(); // a duplicate, not a replication
+
+    const [ver] = await db
+      .select()
+      .from(experimentVersion)
+      .where(eq(experimentVersion.id, exp.currentVersionId!));
+    const keys = (ver.definitionSnapshot as { blocks: { key: string }[] }).blocks.map((b) => b.key);
+    expect(keys.filter((k) => k === "accuracy-confidence")).toHaveLength(2);
+    expect(keys).toContain("share-intention");
+  });
+});
+
 describe("deleting a template's source study", () => {
   it("succeeds and removes the template (FK cleanup — bug fix 2026-06-22)", async () => {
     const { workspace: ws, user: u } = await seedOwner("hanna", "Lab");

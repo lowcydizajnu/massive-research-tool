@@ -132,6 +132,9 @@ export const user = pgTable("user", {
   publicProfileEnabled: boolean("public_profile_enabled").notNull().default(false),
   /** Public-facing avatar (public R2 namespace); falls back to `avatarUrl`. */
   publicAvatarR2Key: text("public_avatar_r2_key"),
+  /** App-owned system account (EE2-misinfo): owns app-shipped starter templates.
+   *  Excluded from the admin census + Explore (never a real researcher). */
+  isSystem: boolean("is_system").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -148,6 +151,9 @@ export const workspace = pgTable("workspace", {
   archivedAt: timestamp("archived_at", { withTimezone: true }),
   /** Show seeded demo content (is_demo studies) in this workspace's lists (ADR-0023). */
   showDemoContent: boolean("show_demo_content").notNull().default(false),
+  /** App-owned system workspace (holds app-shipped starter-template source
+   *  studies). Excluded from the admin census; its studies stay private. */
+  isSystem: boolean("is_system").notNull().default(false),
   /**
    * Member-management activity-event kinds hidden from this workspace's Activity
    * feed (V1.14 / ADR-0046). Empty = all kinds shown; non-empty = the listed

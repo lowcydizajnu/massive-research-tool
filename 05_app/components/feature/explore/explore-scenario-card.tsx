@@ -8,6 +8,7 @@ import { useState } from "react";
 
 import type { ExploreScenario, ExploreScenarioIcon } from "@/content/explore/scenarios";
 import { createStudyAction } from "@/server/studies/create";
+import { forkTemplateAction } from "@/server/templates/fork-template";
 
 /**
  * Explore use-case card (EE1.2/EE1.3, ADR-0076; explore-use-case-card.md).
@@ -46,7 +47,12 @@ export function ExploreScenarioCard({
     if (pending) return;
     setPending(true);
     try {
-      const { id } = await createStudyAction({ kind: "blank", title: scenario.title });
+      // "template" forks the starter into the workspace; "build" creates a blank
+      // study. Both land the researcher in the Builder — no chooser friction.
+      const { id } =
+        cta.kind === "template"
+          ? await forkTemplateAction({ templateId: cta.templateId })
+          : await createStudyAction({ kind: "blank", title: scenario.title });
       router.push(`/studies/${id}/build` as Route);
     } catch {
       setPending(false); // surface re-enables the button; toast handled globally
@@ -68,7 +74,7 @@ export function ExploreScenarioCard({
         </Link>
       );
     }
-    // "build" (and "template" until a starter template exists) → direct create.
+    // "build" → create a blank study; "template" → fork the starter template.
     return (
       <button type="button" className={CTA} onClick={startBuilding} disabled={pending}>
         {pending ? "Creating…" : ctaLabel}

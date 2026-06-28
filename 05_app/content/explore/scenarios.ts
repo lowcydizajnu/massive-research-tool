@@ -1,3 +1,5 @@
+import { STARTER_MISINFO_TEMPLATE_ID } from "@/lib/system/starter";
+
 /**
  * Explore use-case scenarios (EE1.2, ADR-0076; explore-use-case-card.md).
  *
@@ -41,8 +43,8 @@ const SCENARIOS: ExploreScenario[] = [
     title: "Run a misinformation study",
     body: "Show participants a mix of real and fabricated headlines and measure what they believe, would share, or flag as false. A classic accuracy-and-sharing design you can have live in an afternoon.",
     order: 1,
-    cta: { kind: "build" },
-    ctaLabel: "Start building",
+    cta: { kind: "template", templateId: STARTER_MISINFO_TEMPLATE_ID },
+    ctaLabel: "Start from template",
     iconKey: "newspaper",
   },
   {
