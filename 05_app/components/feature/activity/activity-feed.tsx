@@ -24,7 +24,7 @@ export function ActivityFeed() {
   const [tab, setTab] = useState<Tab>("Yours");
 
   return (
-    <main className="flex min-w-0 flex-1 flex-col gap-5 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6">
+    <main className="flex min-w-0 flex-1 flex-col gap-5">
       <div className="min-w-0">
         <h1 className="font-serif text-[length:var(--text-display)] font-medium text-[var(--color-text-primary)]">
           Activity

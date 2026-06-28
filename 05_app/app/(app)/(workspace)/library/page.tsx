@@ -47,7 +47,7 @@ export default async function LibraryPage({
   const modules = tab === "modules" ? await api.modules.list() : [];
 
   return (
-    <main className="flex min-w-0 flex-1 flex-col gap-5 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6">
+    <main className="flex min-w-0 flex-1 flex-col gap-5">
       <h1 className="font-serif text-[length:var(--text-display)] font-medium text-[var(--color-text-primary)]">
         Library
       </h1>
