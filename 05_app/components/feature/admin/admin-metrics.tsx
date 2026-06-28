@@ -1,8 +1,9 @@
 "use client";
 
-import { CircleHelp, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { useState } from "react";
 
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { describeEvent } from "@/lib/admin/posthog-events";
 import { api } from "@/lib/trpc/react";
 
@@ -26,13 +27,9 @@ function agoLabel(iso: string | Date | null): string {
   return h < 24 ? `${h}h ago` : `${Math.round(h / 24)}d ago`;
 }
 
-/** A small "?" icon whose explanation shows on hover/focus (native title + a11y). */
+/** A "?" icon whose explanation shows in a design-system tooltip on hover/focus. */
 function Help({ text }: { text: string }) {
-  return (
-    <span title={text} aria-label={text} className="inline-flex cursor-help align-middle text-[var(--color-text-muted)]">
-      <CircleHelp className="size-3.5" aria-hidden />
-    </span>
-  );
+  return <InfoTooltip text={text} className="align-middle" />;
 }
 
 function Tile({ label, value, hint, help }: { label: string; value: string; hint?: string; help?: string }) {
