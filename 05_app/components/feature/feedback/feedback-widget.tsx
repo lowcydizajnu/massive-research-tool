@@ -36,6 +36,7 @@ export function FeedbackWidget() {
       {!open ? (
         <button
           type="button"
+          data-tour="feedback"
           aria-label="Send feedback"
           title="Send feedback"
           onClick={() => setOpen(true)}

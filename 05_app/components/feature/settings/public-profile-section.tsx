@@ -5,8 +5,13 @@ import type { Route } from "next";
 import { useEffect, useState } from "react";
 
 import { PendingButton } from "@/components/ui/pending-button";
+import { UploadButton } from "@/components/feature/builder/upload-button";
 import { handleIssue, normalizeHandle } from "@/lib/profile/handle";
 import { api } from "@/lib/trpc/react";
+
+/** Stored avatar is an R2 key (ws/…); it's served publicly via /api/media. */
+const mediaUrl = (key: string) => `/api/media/${key}`;
+const keyFromPublicUrl = (url: string) => url.replace(/^\/api\/media\//, "");
 
 /**
  * Settings · Account → Public profile (EE2, ADR-0077; settings-public-profile.md).
@@ -21,6 +26,7 @@ export function PublicProfileSection() {
   const [enabled, setEnabled] = useState(false);
   const [handle, setHandle] = useState("");
   const [bio, setBio] = useState("");
+  const [avatarKey, setAvatarKey] = useState<string | null>(null);
   const [articles, setArticles] = useState<{ title: string; url: string }[]>([]);
   const [savedHandle, setSavedHandle] = useState<string | null>(null);
 
@@ -29,6 +35,7 @@ export function PublicProfileSection() {
       setEnabled(data.publicProfileEnabled);
       setHandle(data.handle ?? "");
       setBio(data.bio ?? "");
+      setAvatarKey(data.publicAvatarR2Key ?? null);
       setArticles(data.articles ?? []);
       setSavedHandle(data.handle ?? null);
       setHydrated(true);
@@ -109,6 +116,31 @@ export function PublicProfileSection() {
             <span className="self-end text-[length:var(--text-small)] text-[var(--color-text-muted)]">{bio.length}/1000</span>
           </div>
 
+          {/* Avatar (feedback 01KW5CKK) — public-profile photo; falls back to your account avatar. */}
+          <div className="flex flex-col gap-1">
+            <span className="text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)]">Avatar</span>
+            <div className="flex items-center gap-3">
+              <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--color-primary-subtle)] text-[var(--color-primary-text-on-subtle)]">
+                {avatarKey ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={mediaUrl(avatarKey)} alt="" className="size-full object-cover" />
+                ) : (
+                  <span className="text-[length:var(--text-small)]">None</span>
+                )}
+              </div>
+              <UploadButton kind="image" label="Upload photo…" onUploaded={(url) => setAvatarKey(keyFromPublicUrl(url))} />
+              {avatarKey ? (
+                <button
+                  type="button"
+                  onClick={() => setAvatarKey(null)}
+                  className="text-[length:var(--text-small)] text-[var(--color-text-secondary)] hover:underline"
+                >
+                  Remove
+                </button>
+              ) : null}
+            </div>
+          </div>
+
           {/* Published articles (feedback 01KW5CKK) — link your existing work. */}
           <div className="flex flex-col gap-2">
             <span className="text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)]">Published articles</span>
@@ -164,6 +196,7 @@ export function PublicProfileSection() {
               publicProfileEnabled: enabled,
               handle: normalized || undefined,
               bio,
+              publicAvatarR2Key: avatarKey ?? "",
               // Drop incomplete rows; the server validates each URL.
               articles: articles
                 .map((a) => ({ title: a.title.trim(), url: a.url.trim() }))

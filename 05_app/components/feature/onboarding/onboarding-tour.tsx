@@ -39,6 +39,12 @@ const STEPS: Step[] = [
     content: "Start a new study from scratch or from a framework. This is where every study begins.",
   },
   {
+    target: '[data-tour="feedback"]',
+    title: "Tell us anything",
+    content:
+      "Hit this button any time to send feedback or report a bug — it can attach a screenshot of the page automatically. We read every note.",
+  },
+  {
     target: "body",
     placement: "center",
     title: "You're set",

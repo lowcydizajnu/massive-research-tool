@@ -47,9 +47,13 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
         <header className="flex flex-col gap-4 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-start gap-4">
             <div className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--color-primary-subtle)] text-[length:var(--text-title)] font-medium text-[var(--color-primary-text-on-subtle)]">
-              {profile.avatarUrl ? (
+              {profile.publicAvatarR2Key || profile.avatarUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={profile.avatarUrl} alt="" className="size-full object-cover" />
+                <img
+                  src={profile.publicAvatarR2Key ? `/api/media/${profile.publicAvatarR2Key}` : (profile.avatarUrl as string)}
+                  alt=""
+                  className="size-full object-cover"
+                />
               ) : (
                 initials(profile.displayName)
               )}
