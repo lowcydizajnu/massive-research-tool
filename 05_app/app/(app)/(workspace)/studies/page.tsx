@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Route } from "next";
 import { FlaskConical } from "lucide-react";
 
 import { NewStudyButton } from "@/components/feature/new-study/new-study-button";
@@ -7,7 +8,9 @@ import { StudyCard } from "@/components/feature/study-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
 import { getServerApi } from "@/server/trpc/server";
-import { STUDY_FILTERS, type StudyFilter } from "@/server/trpc/routers/studies";
+import { STUDY_FILTERS, STUDY_SORTS, type StudyFilter, type StudySort } from "@/server/trpc/routers/studies";
+
+const SORT_LABEL: Record<StudySort, string> = { az: "A–Z", za: "Z–A", recent: "Recent" };
 
 /**
  * Studies destination — Hanna's home base (studies-destination.md). The work
@@ -30,18 +33,33 @@ function parseFilter(value: string | string[] | undefined): StudyFilter {
   return STUDY_FILTERS.includes(v as StudyFilter) ? (v as StudyFilter) : "all";
 }
 
+function parseSort(value: string | string[] | undefined): StudySort {
+  const v = Array.isArray(value) ? value[0] : value;
+  return STUDY_SORTS.includes(v as StudySort) ? (v as StudySort) : "az";
+}
+
+/** Preserve the active filter when switching sort (and vice-versa). */
+function studiesHref(filter: StudyFilter, sort: StudySort): Route {
+  const params = new URLSearchParams();
+  if (filter !== "all") params.set("filter", filter);
+  if (sort !== "az") params.set("sort", sort);
+  const qs = params.toString();
+  return (qs ? `/studies?${qs}` : "/studies") as Route;
+}
+
 export default async function StudiesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string | string[]; tab?: string | string[] }>;
+  searchParams: Promise<{ filter?: string | string[]; tab?: string | string[]; sort?: string | string[] }>;
 }) {
   const sp = await searchParams;
   // Running is a distinct ops mode (?tab=running), not a list filter — it
   // replaces the study list with the live recruitment board (studies-running-tab.md).
   const running = (Array.isArray(sp.tab) ? sp.tab[0] : sp.tab) === "running";
   const filter = parseFilter(sp.filter);
+  const sort = parseSort(sp.sort);
   const api = await getServerApi();
-  const studies = running ? [] : await api.studies.list({ filter });
+  const studies = running ? [] : await api.studies.list({ filter, sort });
 
   return (
     <main className="flex min-w-0 flex-1 flex-col gap-5 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6">
@@ -60,7 +78,7 @@ export default async function StudiesPage({
           return (
             <Link
               key={tab.filter}
-              href={tab.filter === "all" ? "/studies" : `/studies?filter=${tab.filter}`}
+              href={studiesHref(tab.filter, sort)}
               aria-current={active ? "page" : undefined}
               className={cn(
                 "rounded-[var(--radius-md)] px-2.5 py-1 text-[length:var(--text-small)] font-medium",
@@ -87,6 +105,28 @@ export default async function StudiesPage({
           Running
         </Link>
       </nav>
+
+      {/* Sort control (feedback 01KW4SRZ) — hidden in the Running ops view. */}
+      {!running && studies.length > 0 ? (
+        <div className="flex items-center justify-end gap-1.5 text-[length:var(--text-small)]">
+          <span className="text-[var(--color-text-muted)]">Sort</span>
+          {STUDY_SORTS.map((s) => (
+            <Link
+              key={s}
+              href={studiesHref(filter, s)}
+              aria-current={s === sort ? "true" : undefined}
+              className={cn(
+                "rounded-[var(--radius-sm)] px-2 py-0.5 font-medium",
+                s === sort
+                  ? "bg-[var(--color-primary-subtle)] text-[var(--color-primary-text-on-subtle)]"
+                  : "text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]",
+              )}
+            >
+              {SORT_LABEL[s]}
+            </Link>
+          ))}
+        </div>
+      ) : null}
 
       {running ? (
         <RunningBoard />

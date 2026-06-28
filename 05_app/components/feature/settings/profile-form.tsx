@@ -39,7 +39,6 @@ export function ProfileForm() {
     affiliation: string;
     orcid: string;
     researchAreas: string[];
-    bio: string;
     websiteUrl: string;
     scholarUrl: string;
   }>(null);
@@ -56,7 +55,6 @@ export function ProfileForm() {
           affiliation: p.affiliation ?? "",
           orcid: p.orcid ?? "",
           researchAreas: p.researchAreas,
-          bio: p.bio ?? "",
           websiteUrl: p.websiteUrl ?? "",
           scholarUrl: p.scholarUrl ?? "",
         }
@@ -88,7 +86,6 @@ export function ProfileForm() {
       affiliation: d.affiliation,
       orcid: d.orcid,
       researchAreas: d.researchAreas,
-      bio: d.bio,
       websiteUrl: d.websiteUrl,
       scholarUrl: d.scholarUrl,
     });
@@ -148,9 +145,7 @@ export function ProfileForm() {
         </div>
       </Field>
 
-      <Field label="Bio" hint="Short markdown — shown on your public author page">
-        <textarea className={cn(fieldCls, "min-h-[96px] resize-y")} value={d.bio} onChange={(e) => set("bio", e.target.value)} />
-      </Field>
+      {/* Bio lives in the Public profile section (single source — feedback 01KW5CKK). */}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field label="Website">

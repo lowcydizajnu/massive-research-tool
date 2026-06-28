@@ -433,6 +433,10 @@ export const STUDY_FILTERS = [
 ] as const;
 export type StudyFilter = (typeof STUDY_FILTERS)[number];
 
+/** Sort order for the Studies list (feedback 01KW4SRZ). A–Z is the default. */
+export const STUDY_SORTS = ["az", "za", "recent"] as const;
+export type StudySort = (typeof STUDY_SORTS)[number];
+
 /** Researcher-facing stage, derived from the current version's kind. */
 export type StudyStage = "draft" | "preregistered" | "published";
 
@@ -1545,9 +1549,24 @@ export const studiesRouter = router({
     }),
 
   list: workspaceProcedure
-    .input(z.object({ filter: z.enum(STUDY_FILTERS).default("all") }).optional())
+    .input(
+      z
+        .object({
+          filter: z.enum(STUDY_FILTERS).default("all"),
+          // Feedback 01KW4SRZ: let researchers sort the list; A–Z by default.
+          sort: z.enum(STUDY_SORTS).default("az"),
+        })
+        .optional(),
+    )
     .query(async ({ ctx, input }): Promise<StudyListItem[]> => {
       const filter: StudyFilter = input?.filter ?? "all";
+      const sort: StudySort = input?.sort ?? "az";
+      const orderBy =
+        sort === "recent"
+          ? desc(experiment.updatedAt)
+          : sort === "za"
+            ? sql`lower(${experiment.title}) desc`
+            : sql`lower(${experiment.title}) asc`;
 
       const rows = await db
         .select({ experiment, version: experimentVersion })
@@ -1566,7 +1585,7 @@ export const studiesRouter = router({
             ctx.workspace.showDemoContent ? undefined : eq(experiment.isDemo, false),
           ),
         )
-        .orderBy(desc(experiment.updatedAt));
+        .orderBy(orderBy);
 
       // A study's stage is the FURTHEST milestone any of its versions reached
       // (published > preregistered > draft) — NOT the autosave working tip's
