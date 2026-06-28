@@ -1,3 +1,6 @@
+import { ArrowLeft } from "lucide-react";
+import Link from "next/link";
+import type { Route } from "next";
 import { notFound } from "next/navigation";
 
 import { AdminNav } from "@/components/feature/admin/admin-nav";
@@ -20,9 +23,19 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     <TRPCReactProvider>
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-5 px-6 py-8">
         <div className="flex flex-col gap-3 border-b border-[var(--color-border-subtle)] pb-3">
-          <span className="text-[length:var(--text-label)] uppercase tracking-wide text-[var(--color-text-muted)]">
-            Admin
-          </span>
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-[length:var(--text-label)] uppercase tracking-wide text-[var(--color-text-muted)]">
+              Admin
+            </span>
+            {/* /admin sits outside the (app) shell, so add an explicit way back. */}
+            <Link
+              href={"/studies" as Route}
+              className="inline-flex items-center gap-1 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-primary)]"
+            >
+              <ArrowLeft className="size-3.5" aria-hidden />
+              Back to app
+            </Link>
+          </div>
           <AdminNav />
         </div>
         {children}
