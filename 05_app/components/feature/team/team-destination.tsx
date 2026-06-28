@@ -60,7 +60,7 @@ export function TeamDestination({
   const [inviteOpen, setInviteOpen] = useState(false);
 
   return (
-    <main className="flex min-w-0 flex-1 flex-col gap-5 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6">
+    <div className="flex min-w-0 flex-1 flex-col gap-5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h1 className="font-serif text-[length:var(--text-display)] font-medium text-[var(--color-text-primary)]">
@@ -82,6 +82,7 @@ export function TeamDestination({
         ) : null}
       </div>
 
+      <div className="flex flex-col gap-5 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6">
       {canManage ? <FeatureTip id="invite-teammate" /> : null}
 
       {inviteOpen ? (
@@ -138,7 +139,8 @@ export function TeamDestination({
           <RolesView canManage={canManage} onManageMembers={() => setTab("Members")} />
         )}
       </div>
-    </main>
+      </div>
+    </div>
   );
 }
 

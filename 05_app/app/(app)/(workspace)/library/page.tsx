@@ -52,6 +52,7 @@ export default async function LibraryPage({
         Library
       </h1>
 
+      <div className="flex flex-col gap-5 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6">
       <nav
         role="tablist"
         aria-label="Library sections"
@@ -94,6 +95,7 @@ export default async function LibraryPage({
           </p>
         </div>
       )}
+      </div>
     </main>
   );
 }

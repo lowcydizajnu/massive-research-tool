@@ -22,7 +22,9 @@ export default function PlaygroundPage() {
           then turn the keepers into a study.
         </p>
       </header>
-      <PlaygroundBoard />
+      <div className="flex flex-col gap-5 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6">
+        <PlaygroundBoard />
+      </div>
     </main>
   );
 }

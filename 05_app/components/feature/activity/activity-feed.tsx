@@ -34,6 +34,7 @@ export function ActivityFeed() {
         </p>
       </div>
 
+      <div className="flex flex-col gap-5 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6">
       <nav
         role="tablist"
         aria-label="Activity streams"
@@ -63,6 +64,7 @@ export function ActivityFeed() {
 
       <div role="tabpanel" aria-label={tab}>
         {tab === "Yours" ? <YoursStream /> : <FollowsStream />}
+      </div>
       </div>
     </main>
   );

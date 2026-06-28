@@ -67,6 +67,7 @@ export default async function StudiesPage({
         Studies
       </h1>
 
+      <div className="flex flex-col gap-5 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6">
       {/* Sub-nav filter tabs. (A full WAI-ARIA tablist with arrow-key roving is
           a follow-up; these are filter links with aria-current for now.) */}
       <nav
@@ -143,6 +144,7 @@ export default async function StudiesPage({
       ) : (
         <FilterEmpty />
       )}
+      </div>
     </main>
   );
 }

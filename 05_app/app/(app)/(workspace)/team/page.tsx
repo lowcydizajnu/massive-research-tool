@@ -21,7 +21,7 @@ export default async function TeamPage() {
   const canManage = viewer.role === "owner" || viewer.role === "admin";
 
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-col gap-4">
+    <main className="flex min-w-0 flex-1 flex-col gap-4">
       <TeamDestination
         workspaceName={active.name}
         members={members}

@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export default function ParticipantsLayout({ children }: { children: React.ReactNode }) {
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-col gap-4">
+    <main className="flex min-w-0 flex-1 flex-col gap-4">
       <div>
         <h1 className="font-serif text-[length:var(--text-display)] font-medium text-[var(--color-text-primary)]">
           Participants
@@ -18,8 +18,10 @@ export default function ParticipantsLayout({ children }: { children: React.React
           Recruit and manage participants across your studies.
         </p>
       </div>
-      <ParticipantsSubNav />
-      {children}
+      <div className="flex flex-col gap-4 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6">
+        <ParticipantsSubNav />
+        {children}
+      </div>
     </main>
   );
 }
