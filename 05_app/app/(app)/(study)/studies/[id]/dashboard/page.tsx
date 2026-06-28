@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 
 import { getServerApi } from "@/server/trpc/server";
 import type { ChangelogEntry, StudyDashboardData } from "@/server/trpc/routers/studies";
+import { StudyChangelog } from "@/components/feature/study-dashboard/study-changelog";
 
 /**
  * Study Dashboard — the FIRST stage tab (ADR-0056). "Where are we with this
@@ -110,55 +111,9 @@ export default async function StudyDashboardPage({ params }: { params: Promise<{
 
       </div>
 
-      {/* Changelog — its own widget card (a second dashboard widget, like the
-          Prolific card on Run). When / what / who: version saves + lifecycle events. */}
-      {changelog.length > 0 ? (
-        <div className="flex flex-col gap-2 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6">
-          <h2 className="text-[length:var(--text-small)] font-medium uppercase tracking-wide text-[var(--color-text-muted)]">Changelog</h2>
-          <ul className="flex flex-col">
-              {changelog.map((e, i) => (
-                <li
-                  key={e.id}
-                  className={
-                    "flex flex-col gap-1 py-2.5" +
-                    (i < changelog.length - 1 ? " border-b border-[var(--color-border-subtle)]" : "")
-                  }
-                >
-                  <div className="flex items-baseline justify-between gap-3">
-                    <span className="flex items-center gap-2 text-[length:var(--text-body)] text-[var(--color-text-primary)]">
-                      <span
-                        aria-hidden
-                        className={
-                          "inline-block size-1.5 shrink-0 rounded-full " +
-                          (e.kind === "version" ? "bg-[var(--color-primary)]" : "bg-[var(--color-text-muted)]")
-                        }
-                      />
-                      {e.title}
-                    </span>
-                    <span className="shrink-0 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-                      {new Date(e.at).toLocaleDateString()}
-                      {e.actor ? ` · ${e.actor}` : ""}
-                    </span>
-                  </div>
-                  {e.detail.length > 0 ? (
-                    <ul className="ml-3.5 flex flex-col gap-0.5">
-                      {e.detail.slice(0, 5).map((line, j) => (
-                        <li key={j} className="text-[length:var(--text-small)] leading-snug text-[var(--color-text-secondary)]">
-                          {line}
-                        </li>
-                      ))}
-                      {e.detail.length > 5 ? (
-                        <li className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-                          +{e.detail.length - 5} more change{e.detail.length - 5 === 1 ? "" : "s"}
-                        </li>
-                      ) : null}
-                    </ul>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-        </div>
-      ) : null}
+      {/* Changelog — its own widget card. When / what / who: version saves +
+          lifecycle events, with a reader-chosen detail level (feedback 01KW4R8M). */}
+      <StudyChangelog entries={changelog} />
     </main>
   );
 }
