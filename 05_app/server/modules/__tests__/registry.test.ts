@@ -21,6 +21,14 @@ describe("customization guards (variants varying-field + condition source)", () 
   });
 });
 
+describe("retired blocks", () => {
+  it("demographics is ARCHIVED (hidden from the picker) — owner request 2026-06-28", () => {
+    const m = getModuleDef("core", "demographics", "1.0.0")!;
+    expect(m.archived).toBe(true);
+    expect(m.collectsResponse).toBe(true); // still resolves for any existing study
+  });
+});
+
 describe("emotion-probe blocks (ADR-0066 H3b/H4b)", () => {
   it("voice-emotion-probe is ARCHIVED (hidden from the picker) — vocal emotion has no provider", () => {
     const m = getModuleDef("core", "voice-emotion-probe", "1.0.0")!;

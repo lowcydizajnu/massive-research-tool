@@ -1213,6 +1213,9 @@
   ],
   "recentActivity": [
     {
+      "text": "chore(builder): retire the Demographics block (owner request). Marked core/demographics archived: true in the registry — the project idiom for retiring a block (seeded-but-deprecatedAt-flagged → Builder picker hides it; existing studies still resolve + render, same as the discontinued voice-emotion-probe). Renderer/conditions/presentation left intact for backward-compat. +1 regression test. 808 tests; tsc/lint/build clean. Deploy needs db:seed:prod to sync deprecated_at onto the existing prod module_version row."
+    },
+    {
       "text": "feat: EE4 — docs/FAQ (Mintlify + HelpLink) gate + code + content (ADR-0078). Gate: flow get-help-from-docs + wireframes help-link-component/docs-site-style-guide + ADR-0078 (Mintlify hosting; typed DOC_URLS; MDX-in-repo; CI missing-docs check). Code: lib/help/doc-urls.ts (typed DOC_URLS → compile-checked links + DOCS_BASE); <HelpLink docKey> component (? icon → opens the mapped docs page new-tab); placements — the OSF connection card + a top-level Docs ↗ entry in the user menu; a doc-urls test that doubles as the missing-docs guard. Content (authored, real): docs/docs.json + 13 MDX pages — getting-started (quickstart/signing-up/your-first-study), builder (blocks/conditions/variants/themes), integrations (osf/prolific/anthropic), methodology (preregistration/replication/irb-checklist) — grounded in how the app works. Mintlify lock-in row added (content is portable MDX). 807 tests; tsc/lint/build/validator clean. No migration. Owner to-do: point Mintlify at docs/ + the docs CNAME. Backlog: per-block catalogue (~46 pages)."
     },
     {

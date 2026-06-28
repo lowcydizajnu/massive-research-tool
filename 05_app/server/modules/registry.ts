@@ -501,7 +501,10 @@ const attentionCheck: CoreModuleDef = {
     c.correctAnswer.length > 0,
 };
 
-// Standard demographics — a compact, i18n-friendly fixed set of optional fields.
+// Standard demographics — retired (owner request, 2026-06-28). Archived rather
+// than deleted: seeded-but-deprecated so the Builder picker hides it while any
+// existing study that already contains it still resolves + renders. Re-seeding
+// prod (db:seed:prod) syncs the deprecated flag.
 const demographics: CoreModuleDef = {
   source: "core",
   key: "demographics",
@@ -510,6 +513,7 @@ const demographics: CoreModuleDef = {
   description:
     "A standard demographics block (age, gender, country) with inclusive, i18n-friendly defaults. Toggle fields on/off.",
   categoryTags: ["demographics"],
+  archived: true,
   configSchema: z.object({
     askAge: z.boolean(),
     askGender: z.boolean(),
