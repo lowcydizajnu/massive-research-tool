@@ -2379,7 +2379,6 @@ describe("studies.runningOverview + runningList (Running tab, N4.1)", () => {
       conditionCount: 2,
       currentN: 10,
       targetN: 100,
-      stalled: false,
       imbalanced: false,
       status: "healthy",
       conditionBalance: { min: 5, max: 5 },
@@ -2395,30 +2394,23 @@ describe("studies.runningOverview + runningList (Running tab, N4.1)", () => {
     });
   });
 
-  it("flags stalled after 24h with no response — but a brand-new open session is not stalled", async () => {
+  it("a quiet study is NOT flagged — response cadence is the researcher's call", async () => {
     await seedUserWithWorkspace("ext_a", "Alpha");
     const caller = createCaller({ authUser: authUser("ext_a") });
     const now = Date.now();
 
-    // Opened 3 days ago, last response 30h ago → stalled.
-    const stale = await seedRecruiting(caller, "Stale", ["Control"]);
+    // Opened 3 days ago, last response 30h ago. We deliberately do NOT flag this:
+    // a slow trickle isn't a problem to chase (owner feedback 2026-06-28).
+    const quiet = await seedRecruiting(caller, "Quiet", ["Control"]);
     await db
       .update(recruitmentSession)
       .set({ currentN: 4, openedAt: new Date(now - 3 * DAY) })
-      .where(eq(recruitmentSession.id, stale.sessionId));
-    await insertCompleted(stale, "control", new Date(now - 30 * HOUR), 4);
-
-    // Just opened, no responses yet → NOT stalled.
-    const fresh = await seedRecruiting(caller, "Fresh", ["Control"]);
-    await db
-      .update(recruitmentSession)
-      .set({ openedAt: new Date(now - HOUR) })
-      .where(eq(recruitmentSession.id, fresh.sessionId));
+      .where(eq(recruitmentSession.id, quiet.sessionId));
+    await insertCompleted(quiet, "control", new Date(now - 30 * HOUR), 4);
 
     const byTitle = new Map((await caller.studies.runningList()).map((r) => [r.title, r]));
-    expect(byTitle.get("Stale")).toMatchObject({ stalled: true, status: "stalled" });
-    expect(byTitle.get("Fresh")).toMatchObject({ stalled: false, status: "healthy" });
-    expect((await caller.studies.runningOverview()).needingAttention).toBe(1);
+    expect(byTitle.get("Quiet")).toMatchObject({ status: "healthy" });
+    expect((await caller.studies.runningOverview()).needingAttention).toBe(0);
   });
 
   it("flags imbalance above 20% skew; a single-condition study can't be imbalanced", async () => {
@@ -2447,12 +2439,12 @@ describe("studies.runningOverview + runningList (Running tab, N4.1)", () => {
     });
   });
 
-  it("status target_reached wins over stalled; a null target never 'reaches'", async () => {
+  it("status target_reached when the target is met; a null target never 'reaches'", async () => {
     await seedUserWithWorkspace("ext_a", "Alpha");
     const caller = createCaller({ authUser: authUser("ext_a") });
     const now = Date.now();
 
-    // Target met AND stale (opened long ago, old responses) → target_reached wins.
+    // Target met (opened long ago, old responses) → target_reached.
     const done = await seedRecruiting(caller, "Done", ["Control"]);
     await db
       .update(recruitmentSession)

@@ -1000,13 +1000,15 @@ const blockInstanceSchema = z.object({
  * (recruitment_session / response / condition) — no migration.
  */
 
-/** Health verdict for a recruiting study (status badge). */
-export type RunningStatus = "healthy" | "stalled" | "imbalanced" | "target_reached";
+/** Health verdict for a recruiting study (status badge).
+ *  No "stalled" verdict: response cadence is the researcher's call, not ours, so
+ *  we never flag a quiet study as needing attention (owner feedback 2026-06-28). */
+export type RunningStatus = "healthy" | "imbalanced" | "target_reached";
 
-/** Stalled = no completed run response (and no fresh open) in this many ms. */
-const RUNNING_STALL_MS = 24 * 60 * 60 * 1000;
 /** Imbalanced = the gap between the smallest- and largest-arm n exceeds this share of the largest. */
 const RUNNING_IMBALANCE_RATIO = 0.2;
+/** One day in ms — the rolling window for "responses today". */
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 export type RunningStudyRow = {
   studyId: string;
@@ -1017,8 +1019,6 @@ export type RunningStudyRow = {
   targetN: number | null;
   /** ISO of the most recent completed run response, or null if none yet. */
   lastResponseAt: string | null;
-  /** No completed response in 24h (a brand-new open session is never stalled). */
-  stalled: boolean;
   /** Smallest- and largest-arm completed-response counts; null when <2 conditions. */
   conditionBalance: { min: number; max: number } | null;
   /** >20% skew between the arms; always false when <2 conditions or no data yet. */
@@ -1122,7 +1122,6 @@ async function buildRunningRows(workspaceId: string): Promise<RunningStudyRow[]>
     }
   }
 
-  const now = Date.now();
   return rows.map((r) => {
     const condIds = condIdsByVersion.get(r.versionId) ?? [];
     const conditionCount = condIds.length;
@@ -1130,10 +1129,6 @@ async function buildRunningRows(workspaceId: string): Promise<RunningStudyRow[]>
 
     const lastMs = lastBySession.get(r.sessionId) ?? null;
     const lastResponseAt = lastMs ? new Date(lastMs).toISOString() : null;
-    // A freshly-opened session with no data yet is NOT stalled — measure from the
-    // most recent of (last completed response, session opened).
-    const sinceMs = Math.max(lastMs ?? 0, new Date(r.openedAt).getTime());
-    const stalled = now - sinceMs > RUNNING_STALL_MS;
 
     let conditionBalance: { min: number; max: number } | null = null;
     let imbalanced = false;
@@ -1146,14 +1141,9 @@ async function buildRunningRows(workspaceId: string): Promise<RunningStudyRow[]>
     }
 
     const targetReached = r.targetN != null && r.currentN >= r.targetN;
-    // target-reached (you have your data) > stalled (none coming) > imbalanced > healthy.
-    const status: RunningStatus = targetReached
-      ? "target_reached"
-      : stalled
-        ? "stalled"
-        : imbalanced
-          ? "imbalanced"
-          : "healthy";
+    // target-reached (you have your data) > imbalanced > healthy. No "stalled":
+    // a quiet study isn't a problem — cadence is the researcher's call.
+    const status: RunningStatus = targetReached ? "target_reached" : imbalanced ? "imbalanced" : "healthy";
 
     return {
       studyId: r.studyId,
@@ -1162,7 +1152,6 @@ async function buildRunningRows(workspaceId: string): Promise<RunningStudyRow[]>
       currentN: r.currentN,
       targetN: r.targetN,
       lastResponseAt,
-      stalled,
       conditionBalance,
       imbalanced,
       status,
@@ -4299,8 +4288,8 @@ export const studiesRouter = router({
   runningOverview: workspaceProcedure.query(async ({ ctx }): Promise<RunningOverview> => {
     const wsId = ctx.workspace.id;
     const now = Date.now();
-    const dayAgo = new Date(now - RUNNING_STALL_MS);
-    const weekAgo = new Date(now - 7 * RUNNING_STALL_MS);
+    const dayAgo = new Date(now - DAY_MS);
+    const weekAgo = new Date(now - 7 * DAY_MS);
 
     const windowCount = (since: Date) =>
       db

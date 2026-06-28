@@ -28,10 +28,6 @@ const STATUS_BADGE: Record<RunningStatus, { label: string; cls: string }> = {
     label: "Healthy",
     cls: "bg-[var(--color-success-subtle)] text-[var(--color-success-text-on-subtle)]",
   },
-  stalled: {
-    label: "Stalled",
-    cls: "bg-[var(--color-warning-subtle)] text-[var(--color-warning-text-on-subtle)]",
-  },
   imbalanced: {
     label: "Imbalanced",
     cls: "bg-[var(--color-danger-subtle)] text-[var(--color-danger-text-on-subtle)]",
@@ -168,9 +164,7 @@ export function RunningBoard() {
                       "rounded-[var(--radius-md)] border-l-2 px-3 py-2 text-[length:var(--text-small)]",
                       r.status === "imbalanced"
                         ? "border-l-[var(--color-danger)] bg-[var(--color-danger-subtle)] text-[var(--color-danger-text-on-subtle)]"
-                        : r.status === "target_reached"
-                          ? "border-l-[var(--color-info)] bg-[var(--color-info-subtle)] text-[var(--color-info-text-on-subtle)]"
-                          : "border-l-[var(--color-warning)] bg-[var(--color-warning-subtle)] text-[var(--color-warning-text-on-subtle)]",
+                        : "border-l-[var(--color-info)] bg-[var(--color-info-subtle)] text-[var(--color-info-text-on-subtle)]",
                     )}
                   >
                     {alertText(r)}
@@ -352,8 +346,6 @@ function Row({
 
 function alertText(r: RunningStudyRow): string {
   switch (r.status) {
-    case "stalled":
-      return `${r.title}: no responses in 24h.`;
     case "imbalanced":
       return `${r.title}: condition imbalance — ${r.conditionBalance?.min} vs ${r.conditionBalance?.max} across arms.`;
     case "target_reached":

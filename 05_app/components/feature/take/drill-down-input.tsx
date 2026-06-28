@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import { BLOCK_COPY_DEFAULTS, type BlockCopyKey } from "@/lib/take/ui-copy";
+
 /**
  * Drill-down participant input (ADR-0013 client-JS exception #4): cascading
  * dependent selects. The chosen path is mirrored into hidden inputs the server
@@ -16,13 +18,16 @@ const FIELD_CLS =
 export function DrillDownInput({
   config,
   np,
+  blockCopy,
 }: {
   config: Record<string, unknown>;
   np: string;
+  blockCopy?: Partial<Record<BlockCopyKey, string>>;
 }) {
   const options = (Array.isArray(config.options) ? config.options : []) as Node[];
   const levelLabels = (Array.isArray(config.levelLabels) ? config.levelLabels : []) as string[];
   const required = config.required !== false;
+  const choosePlaceholder = blockCopy?.drillChoose || BLOCK_COPY_DEFAULTS.drillChoose;
   const [path, setPath] = useState<string[]>([]);
 
   // Walk the tree along the chosen path to get the options at each visible level.
@@ -59,7 +64,7 @@ export function DrillDownInput({
             }}
           >
             <option value="" disabled>
-              Choose…
+              {choosePlaceholder}
             </option>
             {levelNodes
               .filter((n) => n.label.trim() !== "")

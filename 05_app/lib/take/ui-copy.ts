@@ -54,7 +54,9 @@ export type BlockCopyKey =
   | "recordReRecord"
   // reaction-time (ADR-0040)
   | "reactionStart"
-  | "reactionWaitCue";
+  | "reactionWaitCue"
+  // drill-down (ADR-0013) — the cascading-select placeholder
+  | "drillChoose";
 
 /** Reference text for the neutral renderer + editor hint. Social-post presets keep
  *  their OWN native labels unless overridden; other blocks use these as defaults. */
@@ -73,6 +75,7 @@ export const BLOCK_COPY_DEFAULTS: Record<BlockCopyKey, string> = {
   recordReRecord: "Re-record",
   reactionStart: "Start",
   reactionWaitCue: "Wait for the cue…",
+  drillChoose: "Choose…",
 };
 
 /** Field metadata for the Builder "Wording" editor, grouped into columns.
@@ -164,6 +167,12 @@ export const WORDING_GROUPS: WordingGroup[] = [
       { key: "reactionStart", label: "Start button", native: true },
       { key: "reactionWaitCue", label: "Waiting-for-cue label", native: true },
     ],
+  },
+  {
+    title: "Drill-down",
+    requiresBlockKey: "drill-down",
+    note: "The composer placeholder for AI-chat blocks lives in Design → Chat.",
+    fields: [{ key: "drillChoose", label: "Choose-option placeholder", native: true }],
   },
 ];
 

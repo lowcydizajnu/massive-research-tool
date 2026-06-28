@@ -113,7 +113,7 @@ export function BlockView({
   if (block.key === "accuracy-confidence") return <AccuracyConfidenceInput config={c} np={np} />;
   if (block.key === "share-intention") return <ShareIntentionInput config={c} np={np} />;
   if (block.key === "constant-sum") return <ConstantSumInput config={c} np={np} />;
-  if (block.key === "drill-down") return <DrillDownInput config={c} np={np} />;
+  if (block.key === "drill-down") return <DrillDownInput config={c} np={np} blockCopy={blockCopy} />;
   if (block.key === "side-by-side") return <SideBySideInput config={c} np={np} />;
   if (block.key === "timed-exposure") return <TimedExposureInput config={c} np={np} />;
   if (block.key === "forced-wait") return <ForcedWaitInput config={c} np={np} />;
