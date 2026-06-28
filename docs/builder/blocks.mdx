@@ -1,41 +1,111 @@
 ---
-title: Blocks
-description: The building units of a study.
+title: Block catalogue
+description: Every block you can add to a study, grouped by what it does.
 ---
 
-A study is an ordered list of **blocks**. Each block is one screen or measure a participant sees. You add, reorder (drag), configure, and remove blocks in the **Builder**.
-
-## Categories
-
-<CardGroup cols={2}>
-  <Card title="Questions & judgment">
-    Likert scales, multiple choice, open text, accuracy + confidence, sharing intention, constant-sum, drill-down, side-by-side comparison.
-  </Card>
-  <Card title="Stimuli">
-    Text, image, video, and audio stimuli — including social-post skins whose Like / Share / Comment labels you can reword.
-  </Card>
-  <Card title="Timing">
-    Timed exposure (show a stimulus for N seconds) and forced wait.
-  </Card>
-  <Card title="Image interaction">
-    Heat-map, hot-spot (clickable regions), signature, and graphic slider.
-  </Card>
-  <Card title="Media capture">
-    File upload and video/audio recording from the participant.
-  </Card>
-  <Card title="Flow">
-    Embedded data and end-of-study redirect (e.g. back to a recruitment panel).
-  </Card>
-</CardGroup>
-
-## Configuring a block
-
-Select a block to open its **Configure** panel. Most blocks expose required/optional toggles, answer options, validation, and wording. Wording fields are prefilled with sensible defaults — clear a field to fall back to the default.
-
-## Materials
-
-Reuse images, audio, and video across studies from the **Library → Materials**. Upload once; insert into any stimulus block.
+A study is an ordered list of **blocks** — each is one screen or measure a participant sees. Add, reorder (drag), configure, and remove blocks in the **Builder**. "Records an answer?" tells you whether a block captures participant data (✓) or is stimulus/flow only (—).
 
 <Tip>
-Every block validates as participants go, so a required answer can't be skipped and branching ([conditions](/builder/conditions)) is evaluated live.
+Blocks that record an answer can be used as **[condition](/builder/conditions)** sources and appear in the exported dataset. Stimulus-only blocks (text, image, social post…) show content but collect nothing.
 </Tip>
+
+## Core questions & scales
+
+| Block | Records? | What it does |
+|---|:--:|---|
+| **Multiple choice** | ✓ | Single- or multi-select with your own options. |
+| **Likert (7-point)** | ✓ | 7-point agreement scale (prompt + anchor labels); a common manipulation check. |
+| **Free text** | ✓ | Open-ended response — short line or long paragraph. |
+| **Slider** | ✓ | Numeric slider over a min/max range. |
+| **Visual analog scale** | ✓ | Continuous slider between two labelled anchors (VAS). |
+| **Dropdown** | ✓ | Single-select dropdown — good for long lists. |
+| **Yes / No** | ✓ | Binary choice with configurable labels (Yes/No, True/False…). |
+| **Star rating** | ✓ | 1-to-N star rating. |
+| **Net Promoter Score** | ✓ | 0–10 likelihood-to-recommend scale. |
+| **Ranking** | ✓ | Order a set of items by preference/priority. |
+| **MaxDiff (best–worst)** | ✓ | From a set, pick the best and the worst. |
+| **Matrix / grid** | ✓ | Rows of statements each rated on a shared scale. |
+| **Side by side** | ✓ | Several sub-questions in one condensed table; columns can differ. |
+| **Semantic differential** | ✓ | Bipolar adjective pairs, each rated 1–N. |
+| **Picture choice** | ✓ | Image-based options; single or multi-select. |
+
+## Judgment & misinformation
+
+| Block | Records? | What it does |
+|---|:--:|---|
+| **Accuracy + confidence** | ✓ | A categorical judgment (e.g. real vs fake) paired with a confidence rating — the metacognition measure central to misinformation work. |
+| **Share intention** | ✓ | Would the participant share this — and why? Behavioral-intention measure, with optional/required reason. |
+| **Constant sum** | ✓ | Allocate a fixed budget (points/%) across options that must hit a target. |
+| **Drill down** | ✓ | Cascading dependent dropdowns (country → region → city); records the path. |
+
+## Behavioral & timing
+
+| Block | Records? | What it does |
+|---|:--:|---|
+| **Reaction time** | ✓ | Response latency (ms) after a stimulus appears following a random delay. |
+| **Timed exposure** | ✓ | Show a stimulus for exactly N ms, then hide it — the limited-exposure paradigm. Records actual display time. |
+| **Forced wait** | ✓ | Disable Continue for N seconds; records how long they actually waited. |
+| **Attention check** | ✓ | Instructed-response check (known correct option) for data-quality screening. |
+
+## Image interaction
+
+| Block | Records? | What it does |
+|---|:--:|---|
+| **Heat map** | ✓ | Participants click anywhere on an image to mark points of interest; records normalized coordinates. |
+| **Hot spot** | ✓ | Predefined clickable regions on an image; participants select which apply. |
+| **Graphic slider** | ✓ | Drag a marker along an image to give a position-based rating. |
+
+## Stimuli (no answer)
+
+| Block | Records? | What it does |
+|---|:--:|---|
+| **Text** | — | Instructional or narrative text (markdown). |
+| **Image** | — | Embedded image stimulus, with alt text + optional caption. |
+| **Video** | — | Embedded video (YouTube/Vimeo/MP4), optional caption. |
+| **Link preview** | — | A clickable link card shown as stimulus (to *ask* for a URL, use "Website / URL"). |
+| **Social post** | — / ✓ | A simulated social-media post (headline, body, source, image) used as a misinformation stimulus; an answer-collecting variant carries veracity ground-truth + topic tags. The Like / Share / Comment labels are editable. |
+| **Audio stimulus (AI voice)** | — | A spoken stimulus generated from your script by Hume Octave TTS. Uses your workspace's [Hume key](/integrations/anthropic). |
+
+## Media capture
+
+| Block | Records? | What it does |
+|---|:--:|---|
+| **Audio recording** | ✓ | Participants record a spoken answer (mic; time-limited). |
+| **Video recording** | ✓ | Short video response from the camera (with consent); stored privately. |
+| **File upload** | ✓ | Upload a file (PDF/doc/sheet/image/zip); stored privately, served as a download. |
+| **Signature** | ✓ | A drawn signature (e.g. a consent record); stored privately. |
+
+## Forms & contact
+
+| Block | Records? | What it does |
+|---|:--:|---|
+| **Number** | ✓ | Numeric field with optional min/max + unit. |
+| **Date** | ✓ | Date field (ISO 8601). |
+| **Email** | ✓ | Email field (format-validated). |
+| **Phone number** | ✓ | Phone field (light E.164 validation). |
+| **Website / URL** | ✓ | URL field (http/https, validated). |
+| **Address** | ✓ | Structured postal address. |
+| **Contact info** | ✓ | Name + email (+ optional phone) on one screen. |
+| **Custom field group** | ✓ | One card with fields you define (add/rename/type each); records one combined answer. |
+
+## AI
+
+| Block | Records? | What it does |
+|---|:--:|---|
+| **AI conversation** | ✓ | A live chat with Claude in a role + context you set; the transcript is the answer. Uses your workspace's [Anthropic key](/integrations/anthropic). |
+| **Text emotion probe** | ✓ | Participants type; Claude scores the emotion in their words (exploratory). |
+
+<Note>
+AI blocks add a non-determinism disclosure to your [preregistration](/methodology/preregistration) automatically, and run on your own provider key.
+</Note>
+
+## Flow & quality
+
+| Block | Records? | What it does |
+|---|:--:|---|
+| **Embedded data** | — | Capture named URL params (e.g. Prolific PID, condition) into the response for panel reconciliation. Default-deny; not shown to participants. |
+| **End redirect** | — | Send completers back to a recruitment platform with a completion code (a button on the completion page, never an auto-redirect). |
+
+## Configuring & reusing
+
+Select any block to open its **Configure** panel (options, validation, wording — prefilled with sensible defaults). Reuse images/audio/video across studies from **Library → Materials**. See also [conditions](/builder/conditions), [variants](/builder/variants), and [themes](/builder/themes).

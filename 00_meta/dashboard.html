@@ -1213,6 +1213,9 @@
   ],
   "recentActivity": [
     {
+      "text": "docs: full block catalogue (EE4 content). Rewrote docs/builder/blocks.mdx into a complete, accurate catalogue of all 48 live blocks (from the real MODULE_REGISTRY; retired Demographics + voice-emotion-probe excluded), grouped by category with each block's name, one-line description, and whether it records an answer. One comprehensive reference page over 48 thin stubs (more scannable + maintainable; deep per-block pages are an incremental follow-up). Docs-only (Mintlify content); no app change."
+    },
+    {
       "text": "chore(builder): retire the Demographics block (owner request). Marked core/demographics archived: true in the registry — the project idiom for retiring a block (seeded-but-deprecatedAt-flagged → Builder picker hides it; existing studies still resolve + render, same as the discontinued voice-emotion-probe). Renderer/conditions/presentation left intact for backward-compat. +1 regression test. 808 tests; tsc/lint/build clean. Deploy needs db:seed:prod to sync deprecated_at onto the existing prod module_version row."
     },
     {
