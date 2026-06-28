@@ -1,7 +1,8 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { db } from "@/server/db/client";
 import {
+  condition,
   experiment,
   experimentVersion,
   member,
@@ -9,12 +10,20 @@ import {
   workspace,
   workspaceTemplate,
 } from "@/server/db/schema";
-import { locksFromBlocks, type BlockInstance } from "@/server/modules/blocks";
+import { locksFromBlocks, type BlockInstance, type StudyGroup } from "@/server/modules/blocks";
 import { DEFAULT_CONSENT } from "@/server/modules/consent";
 import {
+  STARTER_AB_CONDITION_A_ID,
+  STARTER_AB_CONDITION_B_ID,
+  STARTER_AB_EXPERIMENT_ID,
+  STARTER_AB_TEMPLATE_ID,
+  STARTER_AB_VERSION_ID,
   STARTER_MISINFO_EXPERIMENT_ID,
   STARTER_MISINFO_TEMPLATE_ID,
   STARTER_MISINFO_VERSION_ID,
+  STARTER_PILOT_EXPERIMENT_ID,
+  STARTER_PILOT_TEMPLATE_ID,
+  STARTER_PILOT_VERSION_ID,
   SYSTEM_USER_DISPLAY_NAME,
   SYSTEM_USER_EMAIL,
   SYSTEM_USER_EXTERNAL_ID,
@@ -176,7 +185,12 @@ const STARTER_CONSENT = {
 const STARTER_OVERVIEW =
   "A ready-to-run misinformation study: participants see a mix of accurate and fabricated social-media posts and, for each, rate its accuracy, their confidence, and whether they'd share it. Includes a consent screen, an attention check, and a debrief. Adapt the posts and measures to your own question.";
 
-export async function seedMisinfoStarter(): Promise<void> {
+/**
+ * Ensure the app-owned system account exists (user + workspace + owner
+ * membership). Shared by every starter seeder; idempotent (fixed ids +
+ * onConflictDoNothing). Safe to call once per starter — the second+ calls no-op.
+ */
+async function ensureSystemAccount(): Promise<void> {
   // 1) System user (app-owned). Fixed id → idempotent.
   await db
     .insert(user)
@@ -215,32 +229,55 @@ export async function seedMisinfoStarter(): Promise<void> {
       status: "active",
     });
   }
+}
 
-  // 4) Source study + frozen version. PUBLIC + forkable with a published version,
-  //    so it surfaces in /browse + Explore's community band as a real, replicable
-  //    study (feedback #7B: the "Replicate a published study" scenario must have
-  //    something to replicate on a fresh account). The explicit updates below keep
-  //    re-seeds idempotent — the inserts use onConflictDoNothing, so existing prod
-  //    rows are reconciled by the update()s, not the insert values.
-  const blocks = misinfoBlocks();
+/**
+ * The reusable shape of an app-shipped starter: a system-owned, PUBLIC + forkable
+ * source study with one frozen `published` version, fronted by a PUBLIC `starter`
+ * workspace_template. Conditions (A/B arms) are optional real `condition` rows
+ * `templates.useTemplate` clones into the fork.
+ */
+type StarterSpec = {
+  experimentId: string;
+  versionId: string;
+  templateId: string;
+  /** Internal study title (not researcher-facing on its own). */
+  studyTitle: string;
+  /** Researcher-facing template name + card description (the discoverable copy). */
+  templateName: string;
+  templateDescription: string;
+  tags: string[];
+  versionName: string;
+  blocks: BlockInstance[];
+  groups: StudyGroup[];
+  overview: string;
+  consent: typeof STARTER_CONSENT;
+  /** Random-assignment arms — real `condition` rows. Empty = single-arm study. */
+  conditions?: { id: string; slug: string; name: string; position: number }[];
+};
+
+/**
+ * Seed one starter (source study + frozen published version + optional condition
+ * arms + public starter template). Idempotent — inserts use onConflictDoNothing,
+ * existing prod rows are reconciled by the explicit update()s (mirrors the #7B
+ * misinfo pattern). Assumes ensureSystemAccount() already ran.
+ */
+async function seedStarter(spec: StarterSpec): Promise<void> {
   const snapshot = {
-    blocks,
-    groups: [
-      { id: "item-1", title: "Post 1" },
-      { id: "item-2", title: "Post 2" },
-    ],
-    overview: STARTER_OVERVIEW,
-    consent: STARTER_CONSENT,
+    blocks: spec.blocks,
+    groups: spec.groups,
+    overview: spec.overview,
+    consent: spec.consent,
   };
 
   await db
     .insert(experiment)
     .values({
-      id: STARTER_MISINFO_EXPERIMENT_ID,
+      id: spec.experimentId,
       tenantId: SYSTEM_WORKSPACE_ID,
       ownerId: SYSTEM_USER_ID,
-      title: "Misinformation: accuracy & sharing",
-      tags: ["misinformation", "credibility"],
+      title: spec.studyTitle,
+      tags: spec.tags,
       forkableBy: "public",
       currentVersionId: null,
     })
@@ -249,44 +286,355 @@ export async function seedMisinfoStarter(): Promise<void> {
   await db
     .insert(experimentVersion)
     .values({
-      id: STARTER_MISINFO_VERSION_ID,
-      experimentId: STARTER_MISINFO_EXPERIMENT_ID,
+      id: spec.versionId,
+      experimentId: spec.experimentId,
       createdBy: SYSTEM_USER_ID,
       versionNumber: 1,
       kind: "published",
-      name: "Misinformation starter v1",
+      name: spec.versionName,
       definitionSnapshot: snapshot,
-      moduleVersionLocks: locksFromBlocks(blocks),
+      moduleVersionLocks: locksFromBlocks(spec.blocks),
     })
     .onConflictDoNothing({ target: experimentVersion.id });
 
   await db
     .update(experiment)
-    .set({ currentVersionId: STARTER_MISINFO_VERSION_ID, forkableBy: "public" })
-    .where(eq(experiment.id, STARTER_MISINFO_EXPERIMENT_ID));
+    .set({ currentVersionId: spec.versionId, forkableBy: "public" })
+    .where(eq(experiment.id, spec.experimentId));
 
-  // Reconcile an already-seeded version (which would have been "named" before #7B)
-  // to "published" so it satisfies the public-catalogue discoverability filter.
+  // Reconcile an already-seeded version to "published" (kept for parity with the
+  // misinfo #7B reconcile; harmless for starters first seeded as "published").
   await db
     .update(experimentVersion)
     .set({ kind: "published" })
-    .where(eq(experimentVersion.id, STARTER_MISINFO_VERSION_ID));
+    .where(eq(experimentVersion.id, spec.versionId));
 
-  // 5) Public starter template fronting the frozen version (the discoverable item).
+  // Random-assignment arms (A/B). Fixed ids → idempotent; onConflictDoNothing on
+  // the (version, slug) unique index reconciles a re-seed.
+  for (const c of spec.conditions ?? []) {
+    await db
+      .insert(condition)
+      .values({
+        id: c.id,
+        experimentVersionId: spec.versionId,
+        slug: c.slug,
+        name: c.name,
+        position: c.position,
+      })
+      .onConflictDoNothing({ target: [condition.experimentVersionId, condition.slug] });
+  }
+
+  // Public starter template fronting the frozen version (the discoverable item).
   await db
     .insert(workspaceTemplate)
     .values({
-      id: STARTER_MISINFO_TEMPLATE_ID,
+      id: spec.templateId,
       workspaceId: SYSTEM_WORKSPACE_ID,
-      sourceExperimentId: STARTER_MISINFO_EXPERIMENT_ID,
-      sourceVersionId: STARTER_MISINFO_VERSION_ID,
-      name: "Misinformation study",
-      description:
-        "Show participants real and fabricated social-media posts; measure perceived accuracy, confidence, and share intention. Consent, attention check, and debrief included.",
-      tags: ["misinformation", "credibility", "sharing"],
+      sourceExperimentId: spec.experimentId,
+      sourceVersionId: spec.versionId,
+      name: spec.templateName,
+      description: spec.templateDescription,
+      tags: spec.tags,
       shareScope: "public",
       starter: true,
       createdByUserId: SYSTEM_USER_ID,
     })
     .onConflictDoNothing({ target: workspaceTemplate.id });
+}
+
+export async function seedMisinfoStarter(): Promise<void> {
+  await ensureSystemAccount();
+
+  // Source study + frozen version. PUBLIC + forkable with a published version, so
+  // it surfaces in /browse + Explore's community band as a real, replicable study
+  // (feedback #7B: the "Replicate a published study" scenario must have something
+  // to replicate on a fresh account).
+  const blocks = misinfoBlocks();
+  await seedStarter({
+    experimentId: STARTER_MISINFO_EXPERIMENT_ID,
+    versionId: STARTER_MISINFO_VERSION_ID,
+    templateId: STARTER_MISINFO_TEMPLATE_ID,
+    studyTitle: "Misinformation: accuracy & sharing",
+    templateName: "Misinformation study",
+    templateDescription:
+      "Show participants real and fabricated social-media posts; measure perceived accuracy, confidence, and share intention. Consent, attention check, and debrief included.",
+    tags: ["misinformation", "credibility", "sharing"],
+    versionName: "Misinformation starter v1",
+    blocks,
+    groups: [
+      { id: "item-1", title: "Post 1" },
+      { id: "item-2", title: "Post 2" },
+    ],
+    overview: STARTER_OVERVIEW,
+    consent: STARTER_CONSENT,
+  });
+}
+
+/**
+ * Seed all three app-shipped starters (misinfo + A/B + pilot). The single entry
+ * point for the prod/dev seed scripts; each sub-seeder is idempotent and re-uses
+ * the one system account.
+ */
+export async function seedStarters(): Promise<void> {
+  await seedMisinfoStarter();
+  await seedAbStarter();
+  await seedPilotStarter();
+}
+
+/* ======================================================================== *
+ * A/B test starter (feedback #7C)
+ *
+ * A real between-subjects two-condition design. Two random-assignment arms
+ * (`version-a` / `version-b`) are seeded as `condition` rows on the version;
+ * `templates.useTemplate` clones them into the fork, so the assignment + the two
+ * `showIfCondition`-gated stimulus screens stay wired. Each arm sees ONE worded
+ * variant of the same headline, then everyone answers the SAME Likert + share
+ * measure — so the researcher just edits the two variant texts and runs.
+ * ======================================================================== */
+
+const AB_CONDITION_A_SLUG = "version-a";
+const AB_CONDITION_B_SLUG = "version-b";
+
+let nAb = 0;
+const abBlk = (
+  key: string,
+  config: Record<string, unknown>,
+  version = "1.0.0",
+  extra: Partial<BlockInstance> = {},
+): BlockInstance => ({
+  instanceId: `STARTERAB${String(++nAb).padStart(13, "0")}`,
+  source: "core",
+  key,
+  version,
+  config,
+  ...extra,
+});
+
+function abBlocks(): BlockInstance[] {
+  return [
+    abBlk("text", {
+      contentMd:
+        "## Welcome\n\nYou'll see a short message and then answer a couple of quick questions about it. There are no right or wrong answers — we're interested in your honest reaction. It takes about 2 minutes.",
+    }),
+
+    // --- Stimulus, Version A (shown only to the version-a arm) ---
+    abBlk(
+      "text",
+      {
+        contentMd:
+          "### Version A\n\n*(Placeholder stimulus — replace with the wording you want to test.)*\n\n**“Upgrade today and save 20% — offer ends Friday.”**",
+      },
+      "1.0.0",
+      { groupId: "stimulus-a", visibility: { showIfCondition: [AB_CONDITION_A_SLUG] } },
+    ),
+
+    // --- Stimulus, Version B (shown only to the version-b arm) ---
+    abBlk(
+      "text",
+      {
+        contentMd:
+          "### Version B\n\n*(Placeholder stimulus — replace with the wording you want to test.)*\n\n**“Don't miss out — 20% off ends this Friday. Upgrade now.”**",
+      },
+      "1.0.0",
+      { groupId: "stimulus-b", visibility: { showIfCondition: [AB_CONDITION_B_SLUG] } },
+    ),
+
+    // --- Shared outcome measures (both arms answer the same items) ---
+    abBlk("likert-7", {
+      prompt: "How appealing did you find this message?",
+      leftAnchor: "Not at all appealing",
+      rightAnchor: "Extremely appealing",
+      required: true,
+    }),
+    abBlk("share-intention", {
+      prompt: "How likely would you be to act on this message?",
+      options: ["Very unlikely", "Unlikely", "Neither", "Likely", "Very likely"],
+      whyPrompt: "What's the main reason?",
+      whyRequired: false,
+      required: true,
+    }),
+
+    abBlk("attention-check", {
+      prompt: "To show you're reading carefully, please select “Somewhat agree”.",
+      options: ["Strongly disagree", "Somewhat agree", "Strongly agree"],
+      correctAnswer: "Somewhat agree",
+      required: true,
+    }),
+    abBlk("text", {
+      contentMd:
+        "## Thank you\n\nThat's everything — thanks for taking part. You can close this tab now.",
+    }),
+  ];
+}
+
+const AB_CONSENT = {
+  body: "You're about to take part in a short research study. You'll read a brief message and answer a couple of questions about it. Participation is voluntary, your answers are recorded anonymously, and you may stop at any time by closing the tab.",
+  agreeLabel: DEFAULT_CONSENT.agreeLabel,
+  disagreeLabel: DEFAULT_CONSENT.disagreeLabel,
+  declineMessage: DEFAULT_CONSENT.declineMessage,
+};
+
+const AB_OVERVIEW =
+  "A ready-to-run A/B test: participants are randomly assigned to one of two conditions (Version A / Version B) and each sees a different worded variant of the same message, then everyone answers the same appeal + intention measures. Connect Prolific from the Run stage to recruit a balanced sample. Replace the two placeholder stimulus screens with the wording you want to compare.";
+
+export async function seedAbStarter(): Promise<void> {
+  await ensureSystemAccount();
+  await seedStarter({
+    experimentId: STARTER_AB_EXPERIMENT_ID,
+    versionId: STARTER_AB_VERSION_ID,
+    templateId: STARTER_AB_TEMPLATE_ID,
+    studyTitle: "A/B test: message wording",
+    templateName: "A/B test",
+    templateDescription:
+      "A between-subjects two-condition design: participants are randomly assigned to Version A or Version B of a message, then answer the same outcome measures. Recruit a balanced sample from Prolific at the Run stage.",
+    tags: ["a-b-test", "between-subjects", "experiment"],
+    versionName: "A/B test starter v1",
+    blocks: abBlocks(),
+    // Two screen-groups (one per variant) so the variant text reads as its own
+    // labelled screen in the Builder.
+    groups: [
+      { id: "stimulus-a", title: "Stimulus — Version A" },
+      { id: "stimulus-b", title: "Stimulus — Version B" },
+    ],
+    overview: AB_OVERVIEW,
+    consent: AB_CONSENT,
+    conditions: [
+      { id: STARTER_AB_CONDITION_A_ID, slug: AB_CONDITION_A_SLUG, name: "Version A", position: 0 },
+      { id: STARTER_AB_CONDITION_B_ID, slug: AB_CONDITION_B_SLUG, name: "Version B", position: 1 },
+    ],
+  });
+}
+
+/* ======================================================================== *
+ * Pilot-a-measure starter (feedback #7C)
+ *
+ * A short draft-scale study: four Likert items + one VAS item grouped as a
+ * "Draft scale", plus one open-text question asking what was confusing. Generic
+ * placeholder wording the researcher swaps for their own items.
+ * ======================================================================== */
+
+let nPilot = 0;
+const pilotBlk = (
+  key: string,
+  config: Record<string, unknown>,
+  version = "1.0.0",
+  extra: Partial<BlockInstance> = {},
+): BlockInstance => ({
+  instanceId: `STARTERPILOT${String(++nPilot).padStart(10, "0")}`,
+  source: "core",
+  key,
+  version,
+  config,
+  ...extra,
+});
+
+function pilotBlocks(): BlockInstance[] {
+  // Four Likert items + one VAS, grouped onto one "Draft scale" screen.
+  const draft = (extra: Partial<BlockInstance>) => ({ groupId: "draft-scale", ...extra });
+  return [
+    pilotBlk("text", {
+      contentMd:
+        "## Quick pilot\n\nThanks for helping test these draft questions. Please answer each one, then tell us at the end whether anything was unclear. It takes about 3 minutes.",
+    }),
+
+    pilotBlk(
+      "likert-7",
+      {
+        prompt: "Draft item 1 — replace with your own statement. (e.g. “I felt confident using the product.”)",
+        leftAnchor: "Strongly disagree",
+        rightAnchor: "Strongly agree",
+        required: true,
+      },
+      "1.0.0",
+      draft({}),
+    ),
+    pilotBlk(
+      "likert-7",
+      {
+        prompt: "Draft item 2 — replace with your own statement.",
+        leftAnchor: "Strongly disagree",
+        rightAnchor: "Strongly agree",
+        required: true,
+      },
+      "1.0.0",
+      draft({}),
+    ),
+    pilotBlk(
+      "likert-7",
+      {
+        prompt: "Draft item 3 — replace with your own statement.",
+        leftAnchor: "Strongly disagree",
+        rightAnchor: "Strongly agree",
+        required: true,
+      },
+      "1.0.0",
+      draft({}),
+    ),
+    pilotBlk(
+      "likert-7",
+      {
+        prompt: "Draft item 4 — replace with your own statement.",
+        leftAnchor: "Strongly disagree",
+        rightAnchor: "Strongly agree",
+        required: true,
+      },
+      "1.0.0",
+      draft({}),
+    ),
+    pilotBlk(
+      "vas",
+      {
+        prompt: "Draft item 5 — a continuous-scale item. (e.g. “Overall, how satisfied were you?”)",
+        required: true,
+        min: 0,
+        max: 100,
+        leftLabel: "Not at all",
+        rightLabel: "Completely",
+      },
+      "1.0.0",
+      draft({}),
+    ),
+
+    // Open-text feedback on the draft items themselves (the point of a pilot).
+    pilotBlk("free-text", {
+      prompt: "What, if anything, was confusing about these questions? How would you reword them?",
+      longForm: true,
+      required: false,
+      maxLength: 2000,
+    }),
+
+    pilotBlk("text", {
+      contentMd:
+        "## Thank you\n\nThat's it — thanks for piloting these questions. Your feedback helps tighten the design before the real study. You can close this tab now.",
+    }),
+  ];
+}
+
+const PILOT_CONSENT = {
+  body: "You're about to help pilot a short set of draft questions. You'll answer each one and then give feedback on the wording. Participation is voluntary, your answers are recorded anonymously, and you may stop at any time by closing the tab.",
+  agreeLabel: DEFAULT_CONSENT.agreeLabel,
+  disagreeLabel: DEFAULT_CONSENT.disagreeLabel,
+  declineMessage: DEFAULT_CONSENT.declineMessage,
+};
+
+const PILOT_OVERVIEW =
+  "A ready-to-run pilot study for a new measure: a short draft scale (four Likert items + one continuous-scale item) grouped on one screen, followed by an open-text question asking what was confusing. Share the link with a handful of colleagues, watch the responses land, and tighten the wording before recruiting a full sample. Replace the placeholder items with your own.";
+
+export async function seedPilotStarter(): Promise<void> {
+  await ensureSystemAccount();
+  await seedStarter({
+    experimentId: STARTER_PILOT_EXPERIMENT_ID,
+    versionId: STARTER_PILOT_VERSION_ID,
+    templateId: STARTER_PILOT_TEMPLATE_ID,
+    studyTitle: "Pilot: draft measure",
+    templateName: "Pilot a new measure",
+    templateDescription:
+      "Test a fresh scale on a handful of colleagues before committing to a full sample: a short draft scale plus an open-text question on what was confusing. Replace the placeholder items with your own.",
+    tags: ["pilot", "scale-development", "measurement"],
+    versionName: "Pilot starter v1",
+    blocks: pilotBlocks(),
+    groups: [{ id: "draft-scale", title: "Draft scale" }],
+    overview: PILOT_OVERVIEW,
+    consent: PILOT_CONSENT,
+  });
 }

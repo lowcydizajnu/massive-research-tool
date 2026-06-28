@@ -8,9 +8,9 @@ async function main() {
   const { seedCoreModules } = await import("./seed-core");
   await seedCoreModules();
   console.log("✓ core modules seeded");
-  const { seedMisinfoStarter } = await import("./seed-misinfo-starter");
-  await seedMisinfoStarter();
-  console.log("✓ misinformation starter template seeded");
+  const { seedStarters } = await import("./seed-misinfo-starter");
+  await seedStarters();
+  console.log("✓ starter templates seeded (misinfo + A/B + pilot)");
   process.exit(0);
 }
 

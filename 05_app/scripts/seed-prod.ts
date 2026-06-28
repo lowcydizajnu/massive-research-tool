@@ -44,12 +44,12 @@ async function main() {
   const { seedCoreModules } = await import("../server/db/seed-core");
   await seedCoreModules();
   console.log("✓ production core modules seeded");
-  // System account + starter templates (ADR-0079). Idempotent; depends on nothing
-  // in the DB (locks come from the in-repo registry), but seeded after the
-  // catalogue so the picker resolves the starter's blocks.
-  const { seedMisinfoStarter } = await import("../server/db/seed-misinfo-starter");
-  await seedMisinfoStarter();
-  console.log("✓ misinformation starter template seeded");
+  // System account + starter templates (ADR-0079; #7C adds A/B + pilot). Idempotent;
+  // depends on nothing in the DB (locks come from the in-repo registry), but seeded
+  // after the catalogue so the picker resolves the starters' blocks.
+  const { seedStarters } = await import("../server/db/seed-misinfo-starter");
+  await seedStarters();
+  console.log("✓ starter templates seeded (misinfo + A/B + pilot)");
   process.exit(0);
 }
 

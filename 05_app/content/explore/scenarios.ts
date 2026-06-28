@@ -1,5 +1,9 @@
 import type { HelpDocKey } from "@/lib/help/doc-urls";
-import { STARTER_MISINFO_TEMPLATE_ID } from "@/lib/system/starter";
+import {
+  STARTER_AB_TEMPLATE_ID,
+  STARTER_MISINFO_TEMPLATE_ID,
+  STARTER_PILOT_TEMPLATE_ID,
+} from "@/lib/system/starter";
 
 /**
  * Explore use-case scenarios (EE1.2, ADR-0076; explore-use-case-card.md).
@@ -67,8 +71,8 @@ const SCENARIOS: ExploreScenario[] = [
     title: "Run an A/B test on Prolific",
     body: "Split participants across two versions of a stimulus or wording and compare responses between groups. Connect Prolific to recruit a balanced sample straight from the Run stage.",
     order: 3,
-    cta: { kind: "build" },
-    ctaLabel: "Start building",
+    cta: { kind: "template", templateId: STARTER_AB_TEMPLATE_ID },
+    ctaLabel: "Start from template",
     iconKey: "split",
     learnMoreDocKey: "integrations.prolific",
   },
@@ -77,8 +81,8 @@ const SCENARIOS: ExploreScenario[] = [
     title: "Pilot a new measure with friends",
     body: "Test a fresh scale or task on a handful of colleagues before you commit to a full sample. Share a link, watch the responses land, and tighten the design before recruiting for real.",
     order: 4,
-    cta: { kind: "build" },
-    ctaLabel: "Start building",
+    cta: { kind: "template", templateId: STARTER_PILOT_TEMPLATE_ID },
+    ctaLabel: "Start from template",
     iconKey: "flask",
     learnMoreDocKey: "getting-started.first-study",
   },
