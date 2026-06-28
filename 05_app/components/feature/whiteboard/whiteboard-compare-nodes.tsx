@@ -56,6 +56,10 @@ export function CompareBlockNode({ data }: NodeProps<CompareNodeType>) {
       style={{ border: `2px solid ${s.border}`, boxShadow: "var(--shadow-sm)" }}
     >
       <Handle type="target" position={Position.Left} />
+      {/* Sequential-flow handles (id'd) so the compare graph can draw the
+       *  screen-to-screen order as a connected diagram, top→bottom, without
+       *  clashing with the left/right condition handles. */}
+      <Handle id="flow-in" type="target" position={Position.Top} className="!size-1.5 !border-0 !bg-[var(--color-border-subtle)]" />
       <span className="font-serif text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">
         {data.label}
       </span>
@@ -93,6 +97,7 @@ export function CompareBlockNode({ data }: NodeProps<CompareNodeType>) {
         </ul>
       ) : null}
       <Handle type="source" position={Position.Right} />
+      <Handle id="flow-out" type="source" position={Position.Bottom} className="!size-1.5 !border-0 !bg-[var(--color-border-subtle)]" />
     </div>
   );
 }

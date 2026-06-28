@@ -27,7 +27,7 @@ function toFlow(nodes: CompareNode[], positions: Positions = {}): { rfNodes: Nod
   const condOrder: string[] = [];
   for (const n of nodes) for (const s of n.showIfCondition) if (!condOrder.includes(s)) condOrder.push(s);
 
-  const rfEdges: Edge[] = nodes.flatMap((n) =>
+  const condEdges: Edge[] = nodes.flatMap((n) =>
     n.showIfCondition.map((slug) => ({
       id: `e:${slug}->${n.instanceId}`,
       source: conditionNodeId(slug),
@@ -35,6 +35,24 @@ function toFlow(nodes: CompareNode[], positions: Positions = {}): { rfNodes: Nod
       markerEnd: { type: MarkerType.ArrowClosed },
     })),
   );
+
+  // Sequential flow edges: connect each block to the next in presentation order
+  // so the side reads as a CONNECTED diagram (screen→screen), not loose boxes
+  // (owner feedback). Uses the dedicated top/bottom handles so these never clash
+  // with the left/right condition edges. Muted + dashed = "order", distinct from
+  // the solid arrowed condition links.
+  const flowEdges: Edge[] = nodes.slice(0, -1).map((n, i) => ({
+    id: `flow:${n.instanceId}->${nodes[i + 1].instanceId}`,
+    source: n.instanceId,
+    sourceHandle: "flow-out",
+    target: nodes[i + 1].instanceId,
+    targetHandle: "flow-in",
+    type: "smoothstep",
+    markerEnd: { type: MarkerType.ArrowClosed },
+    style: { stroke: "var(--color-border-strong, #94a3b8)", strokeWidth: 1.5, strokeDasharray: "4 4" },
+  }));
+
+  const rfEdges: Edge[] = [...flowEdges, ...condEdges];
 
   // Absolute mode — mirror the researcher's saved Whiteboard arrangement (ADR-0020):
   // place each node at its persisted coordinate. Used when this version was laid

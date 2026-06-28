@@ -16,9 +16,9 @@ export function SavedList() {
   const list = api.saved.list.useQuery();
 
   return (
-    <div className="flex flex-col gap-3">
+    <main className="mx-auto flex w-full max-w-5xl flex-col gap-3">
       <PersonalTabs />
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
+      <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-1">
           <h1 className="font-serif text-[length:var(--text-display)] font-medium text-[var(--color-ink-deep)]">Saved</h1>
           <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
@@ -72,6 +72,6 @@ export function SavedList() {
           </ul>
         )}
       </div>
-    </div>
+    </main>
   );
 }
