@@ -39,6 +39,13 @@ export function WordingSection({ study, canEdit }: { study: StudyDetail; canEdit
 
   const [open, setOpen] = useState(false);
 
+  // Only show block-specific groups (e.g. "Social post") when the study actually
+  // uses that block — feedback 01KW4S698: the Social post group showed regardless.
+  const visibleGroups = useMemo(() => {
+    const present = new Set(study.blocks.map((b) => b.key));
+    return WORDING_GROUPS.filter((g) => !g.requiresBlockKey || present.has(g.requiresBlockKey));
+  }, [study.blocks]);
+
   // Store only meaningful overrides: drop blanks and anything still equal to the
   // field's default (so it tracks future default changes instead of pinning).
   const commit = (next: Record<string, string>) => {
@@ -78,7 +85,7 @@ export function WordingSection({ study, canEdit }: { study: StudyDetail; canEdit
             translating the whole study). Block prompts &amp; options are edited on each block.
           </p>
           <div className="grid gap-4 sm:grid-cols-2">
-            {WORDING_GROUPS.map((g) => (
+            {visibleGroups.map((g) => (
               <fieldset
                 key={g.title}
                 disabled={!canEdit}

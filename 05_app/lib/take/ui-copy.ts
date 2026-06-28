@@ -48,7 +48,9 @@ export const BLOCK_COPY_DEFAULTS: Record<BlockCopyKey, string> = {
  *  `native: true` → blank uses the platform-native text (block-internal keys);
  *  otherwise the field is prefilled with its real default text. */
 export type WordingField = { key: string; label: string; help?: string; multiline?: boolean; native?: boolean };
-export type WordingGroup = { title: string; note?: string; fields: WordingField[] };
+/** `requiresBlockKey` → only show this group when the study actually uses that
+ *  block (e.g. "Social post" stays hidden unless a social-post block is present). */
+export type WordingGroup = { title: string; note?: string; requiresBlockKey?: string; fields: WordingField[] };
 
 export const WORDING_GROUPS: WordingGroup[] = [
   {
@@ -75,6 +77,7 @@ export const WORDING_GROUPS: WordingGroup[] = [
   },
   {
     title: "Social post",
+    requiresBlockKey: "social-post",
     note: "Leave blank to keep each platform’s native label (e.g. Repost, Forward).",
     fields: [
       { key: "postLike", label: "Like label", native: true },

@@ -1,8 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import { BLOCK_COPY_DEFAULTS, UI_COPY_DEFAULTS, formatProgress, readBlockCopy, resolveUiCopy, sanitizeUiCopy } from "@/lib/take/ui-copy";
+import { BLOCK_COPY_DEFAULTS, UI_COPY_DEFAULTS, WORDING_GROUPS, formatProgress, readBlockCopy, resolveUiCopy, sanitizeUiCopy } from "@/lib/take/ui-copy";
 
 describe("ui-copy (editable participant chrome)", () => {
+  it("gates the Social post wording group on the social-post block (feedback 01KW4S698)", () => {
+    const social = WORDING_GROUPS.find((g) => g.title === "Social post");
+    expect(social?.requiresBlockKey).toBe("social-post");
+    // Chrome groups are always shown (no block requirement).
+    expect(WORDING_GROUPS.filter((g) => !g.requiresBlockKey).length).toBeGreaterThanOrEqual(3);
+  });
+
   it("resolves overrides over defaults; blank/missing/unknown fall back", () => {
     const r = resolveUiCopy({ continueButton: "Dalej", thankYouTitle: "  ", bogus: "x" });
     expect(r.continueButton).toBe("Dalej"); // override wins
