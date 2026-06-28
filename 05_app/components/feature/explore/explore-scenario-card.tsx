@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import type { ExploreScenario, ExploreScenarioIcon } from "@/content/explore/scenarios";
+import { docUrl } from "@/lib/help/doc-urls";
 import { createStudyAction } from "@/server/studies/create";
 import { forkTemplateAction } from "@/server/templates/fork-template";
 
@@ -29,7 +30,7 @@ const ICONS: Record<ExploreScenarioIcon, LucideIcon> = {
 const CARD =
   "flex h-full flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)]";
 const CTA =
-  "inline-flex items-center self-start rounded-[var(--radius-md)] bg-[var(--color-primary)] px-3 py-1.5 text-[length:var(--text-body-emphasis)] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80 disabled:opacity-50";
+  "inline-flex items-center self-start rounded-[var(--radius-md)] bg-[var(--color-primary)] px-3 py-1 text-[length:var(--text-small)] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80 disabled:opacity-50";
 
 export function ExploreScenarioCard({
   scenario,
@@ -84,17 +85,29 @@ export function ExploreScenarioCard({
 
   return (
     <article className={CARD}>
-      <div className="flex aspect-[16/9] w-full items-center justify-center bg-gradient-to-br from-[var(--color-primary-subtle)] to-[var(--color-surface-subtle)]">
-        <Icon className="size-10 text-[var(--color-primary)]" aria-hidden />
+      <div className="flex h-16 w-full items-center justify-center bg-gradient-to-br from-[var(--color-primary-subtle)] to-[var(--color-surface-subtle)]">
+        <Icon className="size-7 text-[var(--color-primary)]" aria-hidden />
       </div>
-      <div className="flex flex-1 flex-col gap-2 p-4">
-        <h3 className="font-serif text-[length:var(--text-title)] font-medium text-[var(--color-text-primary)]">
+      <div className="flex flex-1 flex-col gap-1.5 p-3">
+        <h3 className="font-serif text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">
           {scenario.title}
         </h3>
-        <p className="line-clamp-3 text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
+        <p className="line-clamp-2 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
           {scenario.body}
         </p>
-        <div className="mt-auto pt-1">{renderCta()}</div>
+        <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 pt-1">
+          {renderCta()}
+          {scenario.learnMoreDocKey ? (
+            <a
+              href={docUrl(scenario.learnMoreDocKey)}
+              target="_blank"
+              rel="noreferrer"
+              className="text-[length:var(--text-small)] font-medium text-[var(--color-primary)] hover:underline"
+            >
+              How it works ↗
+            </a>
+          ) : null}
+        </div>
       </div>
     </article>
   );

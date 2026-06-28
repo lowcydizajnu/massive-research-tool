@@ -70,7 +70,7 @@ export function ExploreContent({
         <h2 id="explore-scenarios" className={BAND_TITLE}>
           Start with a use case
         </h2>
-        <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <ul className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {scenarios.map((s) => (
             <li key={s.slug}>
               <ExploreScenarioCard scenario={s} isPublic={isPublic} />

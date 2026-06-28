@@ -1,3 +1,4 @@
+import type { HelpDocKey } from "@/lib/help/doc-urls";
 import { STARTER_MISINFO_TEMPLATE_ID } from "@/lib/system/starter";
 
 /**
@@ -35,6 +36,10 @@ export type ExploreScenario = {
   ctaLabel: string;
   iconKey: ExploreScenarioIcon;
   coverImageR2Key?: string;
+  /** Optional "How it works ↗" link to the dedicated docs article for this
+   *  use case (EE/feedback #7). Misinfo is self-explanatory via its template,
+   *  so it has none; the others point at their flow article. */
+  learnMoreDocKey?: HelpDocKey;
 };
 
 const SCENARIOS: ExploreScenario[] = [
@@ -55,6 +60,7 @@ const SCENARIOS: ExploreScenario[] = [
     cta: { kind: "browse" },
     ctaLabel: "Browse public studies",
     iconKey: "replicate",
+    learnMoreDocKey: "methodology.replication",
   },
   {
     slug: "prolific-ab-test",
@@ -64,6 +70,7 @@ const SCENARIOS: ExploreScenario[] = [
     cta: { kind: "build" },
     ctaLabel: "Start building",
     iconKey: "split",
+    learnMoreDocKey: "integrations.prolific",
   },
   {
     slug: "pilot-with-friends",
@@ -73,6 +80,7 @@ const SCENARIOS: ExploreScenario[] = [
     cta: { kind: "build" },
     ctaLabel: "Start building",
     iconKey: "flask",
+    learnMoreDocKey: "getting-started.first-study",
   },
 ];
 
