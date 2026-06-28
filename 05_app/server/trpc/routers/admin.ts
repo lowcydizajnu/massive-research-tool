@@ -112,91 +112,100 @@ export const adminRouter = router({
       const lastMonthStart = new Date(monthStart);
       lastMonthStart.setUTCMonth(lastMonthStart.getUTCMonth() - 1);
 
-      const [
-        [growthRow],
-        [studyRow],
-        stageRows,
-        [respRow],
-        [runningRow],
-        [costRow],
-        posthog,
-        sentry,
-      ] = await Promise.all([
-        db
-          .select({
-            total: sql<number>`count(*)::int`,
-            today: sql<number>`count(*) filter (where ${user.createdAt} >= ${startOfToday})::int`,
-            d7: sql<number>`count(*) filter (where ${user.createdAt} >= ${d7})::int`,
-            d30: sql<number>`count(*) filter (where ${user.createdAt} >= ${d30})::int`,
-          })
-          .from(user)
-          .where(eq(user.isSystem, false)),
-        db
-          .select({
-            total: sql<number>`count(*)::int`,
-            d7: sql<number>`count(*) filter (where ${experiment.createdAt} >= ${d7})::int`,
-            d30: sql<number>`count(*) filter (where ${experiment.createdAt} >= ${d30})::int`,
-          })
-          .from(experiment)
-          .where(notSystemExperiment),
-        db
-          .select({ kind: experimentVersion.kind, n: sql<number>`count(*)::int` })
-          .from(experiment)
-          .innerJoin(experimentVersion, eq(experiment.currentVersionId, experimentVersion.id))
-          .where(notSystemExperiment)
-          .groupBy(experimentVersion.kind),
-        db
-          .select({ n: sql<number>`count(*)::int` })
-          .from(response)
-          .where(eq(response.status, "completed")),
-        db
-          .select({ n: sql<number>`count(distinct ${experiment.id})::int` })
-          .from(recruitmentSession)
-          .innerJoin(experimentVersion, eq(recruitmentSession.experimentVersionId, experimentVersion.id))
-          .innerJoin(experiment, eq(experimentVersion.experimentId, experiment.id))
-          .where(and(eq(recruitmentSession.status, "open"), notSystemExperiment)),
-        db
-          .select({
-            thisMonth: sql<string>`coalesce(sum(${aiInvocation.costUsd}) filter (where ${aiInvocation.createdAt} >= ${monthStart}), 0)`,
-            lastMonth: sql<string>`coalesce(sum(${aiInvocation.costUsd}) filter (where ${aiInvocation.createdAt} >= ${lastMonthStart} and ${aiInvocation.createdAt} < ${monthStart}), 0)`,
-          })
-          .from(aiInvocation),
-        resolveCachedMetric("posthog", fetchPosthogInsights, { forceRefresh: input.forceRefresh }),
-        resolveCachedMetric("sentry", fetchSentryInsights, { forceRefresh: input.forceRefresh }),
-      ]);
+      // DB metrics (fresh). Wrapped so a query failure degrades to zeros + a flag
+      // rather than 500-ing the whole dashboard (ADR-0080: never break the page).
+      let growth = { totalUsers: 0, newToday: 0, new7d: 0, new30d: 0 };
+      let research = {
+        studiesTotal: 0,
+        studies7d: 0,
+        studies30d: 0,
+        responsesTotal: 0,
+        runningStudies: 0,
+        stages: { draft: 0, preregistered: 0, published: 0 },
+      };
+      let cost = { thisMonthUsd: 0, lastMonthUsd: 0 };
+      let dbError: string | null = null;
+      try {
+        const [[growthRow], [studyRow], stageRows, [respRow], [runningRow], [costRow]] = await Promise.all([
+          db
+            .select({
+              total: sql<number>`count(*)::int`,
+              today: sql<number>`count(*) filter (where ${user.createdAt} >= ${startOfToday})::int`,
+              d7: sql<number>`count(*) filter (where ${user.createdAt} >= ${d7})::int`,
+              d30: sql<number>`count(*) filter (where ${user.createdAt} >= ${d30})::int`,
+            })
+            .from(user)
+            .where(eq(user.isSystem, false)),
+          db
+            .select({
+              total: sql<number>`count(*)::int`,
+              d7: sql<number>`count(*) filter (where ${experiment.createdAt} >= ${d7})::int`,
+              d30: sql<number>`count(*) filter (where ${experiment.createdAt} >= ${d30})::int`,
+            })
+            .from(experiment)
+            .where(notSystemExperiment),
+          db
+            .select({ kind: experimentVersion.kind, n: sql<number>`count(*)::int` })
+            .from(experiment)
+            .innerJoin(experimentVersion, eq(experiment.currentVersionId, experimentVersion.id))
+            .where(notSystemExperiment)
+            .groupBy(experimentVersion.kind),
+          db
+            .select({ n: sql<number>`count(*)::int` })
+            .from(response)
+            .where(eq(response.status, "completed")),
+          db
+            .select({ n: sql<number>`count(distinct ${experiment.id})::int` })
+            .from(recruitmentSession)
+            .innerJoin(experimentVersion, eq(recruitmentSession.experimentVersionId, experimentVersion.id))
+            .innerJoin(experiment, eq(experimentVersion.experimentId, experiment.id))
+            .where(and(eq(recruitmentSession.status, "open"), notSystemExperiment)),
+          db
+            .select({
+              thisMonth: sql<string>`coalesce(sum(${aiInvocation.costUsd}) filter (where ${aiInvocation.createdAt} >= ${monthStart}), 0)`,
+              lastMonth: sql<string>`coalesce(sum(${aiInvocation.costUsd}) filter (where ${aiInvocation.createdAt} >= ${lastMonthStart} and ${aiInvocation.createdAt} < ${monthStart}), 0)`,
+            })
+            .from(aiInvocation),
+        ]);
 
-      // Map current-version kind → researcher-facing lifecycle stage.
-      let draft = 0;
-      let preregistered = 0;
-      let published = 0;
-      for (const r of stageRows) {
-        if (r.kind === "published") published += r.n;
-        else if (r.kind === "preregistered") preregistered += r.n;
-        else draft += r.n; // autosave + named
-      }
+        let draft = 0;
+        let preregistered = 0;
+        let published = 0;
+        for (const r of stageRows) {
+          if (r.kind === "published") published += r.n;
+          else if (r.kind === "preregistered") preregistered += r.n;
+          else draft += r.n; // autosave + named
+        }
 
-      return {
-        growth: {
+        growth = {
           totalUsers: growthRow?.total ?? 0,
           newToday: growthRow?.today ?? 0,
           new7d: growthRow?.d7 ?? 0,
           new30d: growthRow?.d30 ?? 0,
-        },
-        research: {
+        };
+        research = {
           studiesTotal: studyRow?.total ?? 0,
           studies7d: studyRow?.d7 ?? 0,
           studies30d: studyRow?.d30 ?? 0,
           responsesTotal: respRow?.n ?? 0,
           runningStudies: runningRow?.n ?? 0,
           stages: { draft, preregistered, published },
-        },
-        cost: {
+        };
+        cost = {
           thisMonthUsd: Number(costRow?.thisMonth ?? 0),
           lastMonthUsd: Number(costRow?.lastMonth ?? 0),
-        },
-        posthog,
-        sentry,
-      };
+        };
+      } catch (e) {
+        dbError = e instanceof Error ? e.message : "metrics query failed";
+      }
+
+      // External metrics (cached; resolveCachedMetric never throws).
+      const [posthog, sentry] = await Promise.all([
+        resolveCachedMetric("posthog", fetchPosthogInsights, { forceRefresh: input.forceRefresh }),
+        resolveCachedMetric("sentry", fetchSentryInsights, { forceRefresh: input.forceRefresh }),
+      ]);
+
+      return { growth, research, cost, posthog, sentry, dbError };
     }),
 
   /** Engagement-email settings — current operator config (EE3 / ADR-0081). */

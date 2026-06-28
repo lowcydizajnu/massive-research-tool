@@ -1213,6 +1213,10 @@
   ],
   "recentActivity": [
     {
+      "text": "Hotfix (ADR-0080): /admin metrics 500'd ('Couldn't load metrics'). Isolated failures — resolveCachedMetric never throws (missing cache table/DB hiccup degrades to unavailable), DB metrics split into own try/catch with a surfaced dbError, external calls separated. Dashboard always renders what succeeds. +1 test; 828 green. Code-only, deployed.",
+      "date": "2026-06-28"
+    },
+    {
       "text": "EE3 engagement email (ADR-0081): EmailAdapter (Resend REST, no SDK) + email_settings singleton (migration 0049, both features OFF by default) + weekly-digest & return-nudge Inngest crons (no-op when off) + /admin/email controls (toggle/schedule/copy/test-send) + per-user opt-out + last_active_at tracking. +9 tests; 827 green. Committed, unpushed (migration 0049 pending owner deploy).",
       "date": "2026-06-28"
     },

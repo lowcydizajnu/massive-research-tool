@@ -68,4 +68,12 @@ describe("resolveCachedMetric", () => {
     expect(res.data.available).toBe(false);
     expect(res.stale).toBe(false);
   });
+
+  it("never throws — a throwing fetcher degrades to available:false (ADR-0080)", async () => {
+    const res = await resolveCachedMetric("k", async (): Promise<V> => {
+      throw new Error("boom");
+    });
+    expect(res.data.available).toBe(false);
+    expect(res.fetchedAt).toBeNull();
+  });
 });

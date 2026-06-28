@@ -30,34 +30,42 @@ export async function resolveCachedMetric<T extends { available: boolean }>(
   fetcher: () => Promise<T>,
   opts: { forceRefresh?: boolean; ttlMs?: number } = {},
 ): Promise<CachedMetric<T>> {
-  const ttlMs = opts.ttlMs ?? METRIC_TTL_MS;
-  const [row] = await db
-    .select()
-    .from(adminMetricSnapshot)
-    .where(eq(adminMetricSnapshot.key, key))
-    .limit(1);
+  // The cache must NEVER break the dashboard (ADR-0080). Any failure — a missing
+  // snapshot table, a DB hiccup, an adapter throw — degrades to an "unavailable"
+  // tile rather than 500-ing the whole metrics query.
+  try {
+    const ttlMs = opts.ttlMs ?? METRIC_TTL_MS;
+    const [row] = await db
+      .select()
+      .from(adminMetricSnapshot)
+      .where(eq(adminMetricSnapshot.key, key))
+      .limit(1);
 
-  const fresh = row && Date.now() - row.fetchedAt.getTime() < ttlMs;
-  if (row && fresh && !opts.forceRefresh) {
-    return { data: row.value as T, fetchedAt: row.fetchedAt, stale: false };
-  }
+    const fresh = row && Date.now() - row.fetchedAt.getTime() < ttlMs;
+    if (row && fresh && !opts.forceRefresh) {
+      return { data: row.value as T, fetchedAt: row.fetchedAt, stale: false };
+    }
 
-  const result = await fetcher();
-  if (result.available) {
-    const now = new Date();
-    await db
-      .insert(adminMetricSnapshot)
-      .values({ key, value: result, fetchedAt: now })
-      .onConflictDoUpdate({
-        target: adminMetricSnapshot.key,
-        set: { value: result, fetchedAt: now },
-      });
-    return { data: result, fetchedAt: now, stale: false };
-  }
+    const result = await fetcher();
+    if (result.available) {
+      const now = new Date();
+      await db
+        .insert(adminMetricSnapshot)
+        .values({ key, value: result, fetchedAt: now })
+        .onConflictDoUpdate({
+          target: adminMetricSnapshot.key,
+          set: { value: result, fetchedAt: now },
+        });
+      return { data: result, fetchedAt: now, stale: false };
+    }
 
-  // Refresh failed — prefer the last good snapshot if we have one.
-  if (row && (row.value as { available?: boolean }).available) {
-    return { data: row.value as T, fetchedAt: row.fetchedAt, stale: true };
+    // Refresh failed — prefer the last good snapshot if we have one.
+    if (row && (row.value as { available?: boolean }).available) {
+      return { data: row.value as T, fetchedAt: row.fetchedAt, stale: true };
+    }
+    return { data: result, fetchedAt: row?.fetchedAt ?? null, stale: false };
+  } catch (e) {
+    const reason = e instanceof Error ? e.message : "metric cache error";
+    return { data: { available: false, reason } as unknown as T, fetchedAt: null, stale: false };
   }
-  return { data: result, fetchedAt: row?.fetchedAt ?? null, stale: false };
 }

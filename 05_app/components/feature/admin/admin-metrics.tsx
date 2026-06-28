@@ -73,6 +73,7 @@ export function AdminMetrics() {
   }
 
   const { growth, research, cost, posthog, sentry } = q.data;
+  const dbError = "dbError" in q.data ? (q.data.dbError as string | null) : null;
   const fetching = q.isFetching;
 
   return (
@@ -91,6 +92,12 @@ export function AdminMetrics() {
           {fetching ? "Refreshing…" : "Refresh"}
         </button>
       </div>
+
+      {dbError ? (
+        <p role="alert" className="text-[length:var(--text-small)] text-[var(--color-danger-text-on-subtle)]">
+          Some metrics couldn&rsquo;t load: {dbError}
+        </p>
+      ) : null}
 
       <Group title="Growth">
         <ul className={GRID}>
