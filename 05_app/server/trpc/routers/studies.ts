@@ -4105,15 +4105,15 @@ export const studiesRouter = router({
     .input(z.object({ studyId: z.string().uuid(), limit: z.number().int().min(1).max(100).default(30) }))
     .query(async ({ ctx, input }): Promise<ChangelogEntry[]> => {
       const [exp] = await db
-        .select({ id: experiment.id })
+        .select({ id: experiment.id, updatedAt: experiment.updatedAt })
         .from(experiment)
         .where(and(eq(experiment.id, input.studyId), eq(experiment.tenantId, ctx.workspace.id)))
         .limit(1);
       if (!exp) throw new TRPCError({ code: "NOT_FOUND" });
 
-      // Frozen version saves (skip the autosave draft — it isn't a recorded
-      // change yet). Author + snapshot, oldest→newest so the diff is vs the
-      // previous frozen version.
+      // Frozen version saves. Author + snapshot, oldest→newest so the diff is vs
+      // the previous frozen version. (The autosave draft is handled separately
+      // below so unsaved edits still show — feedback: "nothing in changelog".)
       const vrows = await db
         .select({
           id: experimentVersion.id,
@@ -4139,6 +4139,36 @@ export const studiesRouter = router({
         const detail = i === 0 ? initialVersionSummary(r.snapshot) : changelogBetween(vrows[i - 1].snapshot, r.snapshot);
         return { id: `v:${r.id}`, at: r.createdAt.toISOString(), actor: r.author ?? null, kind: "version", title, detail };
       });
+
+      // Working draft (autosave tip): show edits the researcher has made since the
+      // last frozen version but NOT yet saved as a new version — otherwise overview/
+      // hypotheses/design changes never appear until a save (feedback bug).
+      const draftEntries: ChangelogEntry[] = [];
+      const [draft] = await db
+        .select({ snapshot: experimentVersion.definitionSnapshot, author: user.displayName })
+        .from(experimentVersion)
+        .leftJoin(user, eq(experimentVersion.createdBy, user.id))
+        .where(and(eq(experimentVersion.experimentId, input.studyId), eq(experimentVersion.kind, "autosave")))
+        .orderBy(desc(experimentVersion.versionNumber))
+        .limit(1);
+      if (draft) {
+        const lastFrozen = vrows.length ? vrows[vrows.length - 1] : null;
+        const detail = lastFrozen
+          ? changelogBetween(lastFrozen.snapshot, draft.snapshot)
+          : initialVersionSummary(draft.snapshot);
+        // Only when there's actually something pending (a frozen baseline that
+        // differs, or a brand-new study with no frozen version yet).
+        if (detail.length && (lastFrozen ? detail.length > 0 : readBlocks(draft.snapshot).length > 0)) {
+          draftEntries.push({
+            id: "draft",
+            at: exp.updatedAt.toISOString(),
+            actor: draft.author ?? null,
+            kind: "version",
+            title: lastFrozen ? "Working draft — unsaved changes" : "Working draft",
+            detail,
+          });
+        }
+      }
 
       // Non-versioned lifecycle events. Skip the types that merely echo a version
       // save (those are already version entries above) to avoid duplicate rows.
@@ -4188,7 +4218,7 @@ export const studiesRouter = router({
         }
       }
 
-      return [...versionEntries, ...eventEntries, ...recruitmentEntries]
+      return [...draftEntries, ...versionEntries, ...eventEntries, ...recruitmentEntries]
         .sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0))
         .slice(0, input.limit);
     }),

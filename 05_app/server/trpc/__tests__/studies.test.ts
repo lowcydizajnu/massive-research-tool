@@ -1338,6 +1338,25 @@ describe("studies.changelog (Dashboard — when/what/who)", () => {
     expect(versions[1].detail.join(" ")).toMatch(/Initial/i);
   });
 
+  it("surfaces unsaved working-draft edits as a 'Working draft' entry (feedback fix)", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    await caller.studies.addBlock({ studyId: id, source: "core", key: "social-post", version: "1.0.0" });
+    await caller.studies.saveAsNamed({ studyId: id, name: "v1" });
+    // Edit the working draft WITHOUT saving a new version.
+    await caller.studies.addBlock({ studyId: id, source: "core", key: "free-text", version: "1.0.0" });
+
+    const log = await caller.studies.changelog({ studyId: id });
+    const draft = log.find((e) => e.title.startsWith("Working draft"));
+    expect(draft).toBeTruthy();
+    expect(draft?.detail.join(" ")).toMatch(/Added/i);
+    // Right after a save (no pending edits) there is NO draft entry.
+    await caller.studies.saveAsNamed({ studyId: id, name: "v2" });
+    const after = await caller.studies.changelog({ studyId: id });
+    expect(after.find((e) => e.title.startsWith("Working draft"))).toBeUndefined();
+  });
+
   it("rejects another workspace", async () => {
     await seedUserWithWorkspace("ext_a", "Alpha");
     await seedUserWithWorkspace("ext_b", "Beta");
