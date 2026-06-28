@@ -1213,6 +1213,10 @@
   ],
   "recentActivity": [
     {
+      "text": "Feedback #7B: public replicable starter study. The Misinfo starter source study was private/named, so the 'Replicate a published study' scenario hit an empty /browse on fresh accounts. Made the seeded source study forkableBy:public with a published version (idempotent updates reconcile existing prod rows) — now surfaces in /browse + Explore community band as a real replicable study (system-authored; admin still excludes system). 838 tests; clean. ⚠️ deploy needs db:seed:prod. Committed, unpushed.",
+      "date": "2026-06-28"
+    },
+    {
       "text": "Feedback #6 correction + width parity. The earlier #6 pass wrongly removed the white content card entirely (content on bare parchment). Corrected to match Explore: header on parchment, content back inside a white surface-canvas card — across Studies, Library, Playground, Activity, Team, Participants. Also fixed Team + Participants being narrower (max-w-5xl) than other destinations → now full-width; Team's nested <main> collapsed to a <div>. tsc/lint/build clean. Committed, unpushed.",
       "date": "2026-06-28"
     },

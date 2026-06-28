@@ -216,7 +216,12 @@ export async function seedMisinfoStarter(): Promise<void> {
     });
   }
 
-  // 4) Source study + frozen version. Private (forkableBy left at default).
+  // 4) Source study + frozen version. PUBLIC + forkable with a published version,
+  //    so it surfaces in /browse + Explore's community band as a real, replicable
+  //    study (feedback #7B: the "Replicate a published study" scenario must have
+  //    something to replicate on a fresh account). The explicit updates below keep
+  //    re-seeds idempotent — the inserts use onConflictDoNothing, so existing prod
+  //    rows are reconciled by the update()s, not the insert values.
   const blocks = misinfoBlocks();
   const snapshot = {
     blocks,
@@ -236,6 +241,7 @@ export async function seedMisinfoStarter(): Promise<void> {
       ownerId: SYSTEM_USER_ID,
       title: "Misinformation: accuracy & sharing",
       tags: ["misinformation", "credibility"],
+      forkableBy: "public",
       currentVersionId: null,
     })
     .onConflictDoNothing({ target: experiment.id });
@@ -247,7 +253,7 @@ export async function seedMisinfoStarter(): Promise<void> {
       experimentId: STARTER_MISINFO_EXPERIMENT_ID,
       createdBy: SYSTEM_USER_ID,
       versionNumber: 1,
-      kind: "named",
+      kind: "published",
       name: "Misinformation starter v1",
       definitionSnapshot: snapshot,
       moduleVersionLocks: locksFromBlocks(blocks),
@@ -256,8 +262,15 @@ export async function seedMisinfoStarter(): Promise<void> {
 
   await db
     .update(experiment)
-    .set({ currentVersionId: STARTER_MISINFO_VERSION_ID })
+    .set({ currentVersionId: STARTER_MISINFO_VERSION_ID, forkableBy: "public" })
     .where(eq(experiment.id, STARTER_MISINFO_EXPERIMENT_ID));
+
+  // Reconcile an already-seeded version (which would have been "named" before #7B)
+  // to "published" so it satisfies the public-catalogue discoverability filter.
+  await db
+    .update(experimentVersion)
+    .set({ kind: "published" })
+    .where(eq(experimentVersion.id, STARTER_MISINFO_VERSION_ID));
 
   // 5) Public starter template fronting the frozen version (the discoverable item).
   await db

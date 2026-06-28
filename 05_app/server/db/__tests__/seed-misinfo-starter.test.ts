@@ -40,17 +40,18 @@ describe("seedMisinfoStarter", () => {
     expect(members).toHaveLength(1);
     expect(members[0]?.role).toBe("owner");
 
-    // Source study stays PRIVATE (only the template is discoverable).
+    // Source study is PUBLIC + forkable with a published version (#7B), so it
+    // surfaces in /browse + Explore's community band as a real replicable study.
     const [exp] = await db.select().from(experiment).where(eq(experiment.id, STARTER_MISINFO_EXPERIMENT_ID));
     expect(exp?.tenantId).toBe(SYSTEM_WORKSPACE_ID);
-    expect(exp?.forkableBy).toBe("private");
+    expect(exp?.forkableBy).toBe("public");
     expect(exp?.currentVersionId).toBe(STARTER_MISINFO_VERSION_ID);
 
     const [ver] = await db
       .select()
       .from(experimentVersion)
       .where(eq(experimentVersion.id, STARTER_MISINFO_VERSION_ID));
-    expect(ver?.kind).toBe("named");
+    expect(ver?.kind).toBe("published");
     expect((ver?.moduleVersionLocks as unknown[]).length).toBeGreaterThan(0);
 
     // The curated misinformation block set: 2 measured items + quality + framing.
