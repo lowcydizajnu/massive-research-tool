@@ -8,6 +8,7 @@ import {
   follow,
   recruitmentSession,
   response,
+  user,
   workspace,
 } from "@/server/db/schema";
 import { isAdminUser } from "@/server/admin/is-admin";
@@ -55,6 +56,22 @@ export const meRouter = router({
   viewingAs: protectedProcedure.query(({ ctx }) =>
     ctx.viewingAs ? { targetName: ctx.dbUser.displayName || ctx.dbUser.email, targetEmail: ctx.dbUser.email } : null,
   ),
+
+  /** The caller's engagement-email preference (EE3 / ADR-0081). Opt-out covers
+   *  both the weekly digest and the return-nudge. */
+  emailPrefs: protectedProcedure.query(({ ctx }) => ({
+    engagementEmailsOptedOut: ctx.dbUser.emailDigestOptedOut,
+  })),
+
+  setEngagementEmailOptOut: protectedProcedure
+    .input(z.object({ optedOut: z.boolean() }))
+    .mutation(async ({ ctx, input }) => {
+      await db
+        .update(user)
+        .set({ emailDigestOptedOut: input.optedOut })
+        .where(eq(user.id, ctx.dbUser.id));
+      return { optedOut: input.optedOut };
+    }),
 
   /** Recently-updated studies the caller authored, across all their workspaces. */
   recentStudies: protectedProcedure

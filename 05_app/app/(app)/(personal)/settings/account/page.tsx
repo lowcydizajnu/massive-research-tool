@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { FeatureTip } from "@/components/feature/onboarding/feature-tip";
 import { HelpLink } from "@/components/feature/help/help-link";
+import { EngagementEmailSection } from "@/components/feature/settings/engagement-email-section";
 import { ProfileForm } from "@/components/feature/settings/profile-form";
 import { PublicProfileSection } from "@/components/feature/settings/public-profile-section";
 import { PanelSideToggle } from "@/components/feature/settings/panel-side-toggle";
@@ -25,7 +26,7 @@ import { disconnectOsfAction } from "@/server/registry/disconnect";
  * workspace". Notifications stays shown-but-inert (a later surface).
  */
 const TABS = ["Profile", "Connections", "Appearance", "Notifications"] as const;
-const ACTIVE_TABS = new Set(["Profile", "Connections", "Appearance"]);
+const ACTIVE_TABS = new Set(["Profile", "Connections", "Appearance", "Notifications"]);
 const tabKey = (t: string) => t.toLowerCase();
 
 function formatDate(iso: string): string {
@@ -49,7 +50,13 @@ export default async function AccountSettingsPage({
   const sp = await searchParams;
   const flag = sp.osf;
   const tab =
-    sp.tab === "connections" ? "connections" : sp.tab === "appearance" ? "appearance" : "profile";
+    sp.tab === "connections"
+      ? "connections"
+      : sp.tab === "appearance"
+        ? "appearance"
+        : sp.tab === "notifications"
+          ? "notifications"
+          : "profile";
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-5 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6">
@@ -110,6 +117,8 @@ export default async function AccountSettingsPage({
           <PublicProfileSection />
         </>
       ) : null}
+
+      {tab === "notifications" ? <EngagementEmailSection /> : null}
 
       {tab === "appearance" ? (
         <section className="flex flex-col gap-3">

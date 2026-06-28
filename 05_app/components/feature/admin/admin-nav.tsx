@@ -17,6 +17,7 @@ const SECTIONS: { label: string; href: Route; exact?: boolean }[] = [
   { label: "Users", href: "/admin/users" as Route },
   { label: "Feedback", href: "/admin/feedback" as Route },
   { label: "Announcements", href: "/admin/announcements" as Route },
+  { label: "Email", href: "/admin/email" as Route },
 ];
 
 export function AdminNav() {

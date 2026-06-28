@@ -30,6 +30,20 @@ export const protectedProcedure = t.procedure.use(async ({ ctx, next, type }) =>
     });
   }
 
+  // Engagement-email activity stamp (EE3 / ADR-0081): refresh last_active_at at
+  // most once per 12h, fire-and-forget off the already-loaded row — drives the
+  // return-nudge dormancy window without an extra read or per-request write.
+  const ACTIVE_THROTTLE_MS = 12 * 60 * 60 * 1000;
+  if (!realDbUser.lastActiveAt || Date.now() - realDbUser.lastActiveAt.getTime() > ACTIVE_THROTTLE_MS) {
+    void (async () => {
+      try {
+        await db.update(user).set({ lastActiveAt: new Date() }).where(eq(user.id, realDbUser.id));
+      } catch {
+        // Best-effort activity stamp — never block the request.
+      }
+    })();
+  }
+
   // View-as (ADR-0075): an admin may impersonate a researcher READ-ONLY. The
   // cookie target is honored ONLY when the real caller is an admin (re-checked
   // here every request); reads then resolve as the target, and ALL mutations are

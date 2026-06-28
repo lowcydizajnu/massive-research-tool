@@ -135,6 +135,14 @@ export const user = pgTable("user", {
   /** App-owned system account (EE2-misinfo): owns app-shipped starter templates.
    *  Excluded from the admin census + Explore (never a real researcher). */
   isSystem: boolean("is_system").notNull().default(false),
+  /** Engagement email (EE3 / ADR-0081). Last authenticated activity (throttled to
+   *  ≤1/12h) — drives the return-nudge dormancy window. */
+  lastActiveAt: timestamp("last_active_at", { withTimezone: true }),
+  /** Per-user opt-out of the weekly digest (Settings toggle; opt-out, not opt-in). */
+  emailDigestOptedOut: boolean("email_digest_opted_out").notNull().default(false),
+  /** Cooldown anchors so the workers never double-send. */
+  digestLastSentAt: timestamp("digest_last_sent_at", { withTimezone: true }),
+  nudgeLastSentAt: timestamp("nudge_last_sent_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -1633,3 +1641,42 @@ export const adminMetricSnapshot = pgTable("admin_metric_snapshot", {
 });
 
 export type AdminMetricSnapshot = typeof adminMetricSnapshot.$inferSelect;
+
+/**
+ * Engagement-email settings (EE3 / ADR-0081). A single global row (one operator
+ * config, not per-workspace) — `id` is pinned to "singleton" via a CHECK so there
+ * is only ever one. Holds the per-feature kill switches (both DEFAULT FALSE — the
+ * features ship ready but OFF), the schedule, and the editable subject/intro copy.
+ * Edited only via adminProcedure.
+ */
+export const emailSettings = pgTable(
+  "email_settings",
+  {
+    id: text("id").primaryKey().default("singleton"),
+    /** Weekly workspace-activity digest. */
+    digestEnabled: boolean("digest_enabled").notNull().default(false),
+    /** 0=Sunday … 6=Saturday (UTC) + hour 0–23 (UTC). */
+    digestDayOfWeek: integer("digest_day_of_week").notNull().default(1),
+    digestHourUtc: integer("digest_hour_utc").notNull().default(9),
+    digestSubject: text("digest_subject").notNull().default("Your weekly research digest"),
+    digestIntroMd: text("digest_intro_md")
+      .notNull()
+      .default("Here's what happened across your workspaces this week."),
+    /** Return-nudge for dormant researchers. */
+    nudgeEnabled: boolean("nudge_enabled").notNull().default(false),
+    /** Dormancy window: inactive at least N days, but not longer than N+window. */
+    nudgeDormantDays: integer("nudge_dormant_days").notNull().default(14),
+    nudgeWindowDays: integer("nudge_window_days").notNull().default(46),
+    /** Don't nudge the same person more than once per N days. */
+    nudgeCooldownDays: integer("nudge_cooldown_days").notNull().default(60),
+    nudgeSubject: text("nudge_subject").notNull().default("Pick up where you left off"),
+    nudgeIntroMd: text("nudge_intro_md")
+      .notNull()
+      .default("It's been a little while — your studies are right where you left them."),
+    updatedByUserId: uuid("updated_by_user_id").references(() => user.id),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [check("email_settings_singleton", sql`${t.id} = 'singleton'`)],
+);
+
+export type EmailSettings = typeof emailSettings.$inferSelect;

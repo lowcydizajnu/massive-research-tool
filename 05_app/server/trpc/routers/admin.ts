@@ -2,8 +2,11 @@ import { and, count, desc, eq, gte, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { resolveCachedMetric } from "@/server/admin/metric-cache";
+import { email } from "@/server/adapters/email";
 import { fetchPosthogInsights } from "@/server/adapters/insights.posthog";
 import { fetchSentryInsights } from "@/server/adapters/insights.sentry";
+import { getEmailSettings, updateEmailSettings } from "@/server/email/settings";
+import { digestEmail, nudgeEmail } from "@/server/email/previews";
 import { db } from "@/server/db/client";
 import {
   aiInvocation,
@@ -194,6 +197,44 @@ export const adminRouter = router({
         posthog,
         sentry,
       };
+    }),
+
+  /** Engagement-email settings — current operator config (EE3 / ADR-0081). */
+  emailSettings: adminProcedure.query(async () => {
+    const s = await getEmailSettings();
+    return { ...s, emailConfigured: email.isConfigured() };
+  }),
+
+  /** Update the engagement-email settings (admin only). */
+  updateEmailSettings: adminProcedure
+    .input(
+      z.object({
+        digestEnabled: z.boolean().optional(),
+        digestDayOfWeek: z.number().int().min(0).max(6).optional(),
+        digestHourUtc: z.number().int().min(0).max(23).optional(),
+        digestSubject: z.string().trim().min(1).max(160).optional(),
+        digestIntroMd: z.string().trim().min(1).max(2000).optional(),
+        nudgeEnabled: z.boolean().optional(),
+        nudgeDormantDays: z.number().int().min(1).max(365).optional(),
+        nudgeWindowDays: z.number().int().min(1).max(365).optional(),
+        nudgeCooldownDays: z.number().int().min(1).max(365).optional(),
+        nudgeSubject: z.string().trim().min(1).max(160).optional(),
+        nudgeIntroMd: z.string().trim().min(1).max(2000).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const s = await updateEmailSettings(input, ctx.dbUser.id);
+      return { ...s, emailConfigured: email.isConfigured() };
+    }),
+
+  /** Send a sample digest/nudge to the operator's own address (preview). */
+  sendTestEmail: adminProcedure
+    .input(z.object({ kind: z.enum(["digest", "nudge"]) }))
+    .mutation(async ({ ctx, input }): Promise<{ ok: boolean; error?: string }> => {
+      if (!email.isConfigured()) return { ok: false, error: "Email is not configured (RESEND_API_KEY / EMAIL_FROM)." };
+      const s = await getEmailSettings();
+      const msg = input.kind === "digest" ? digestEmail(s, 3) : nudgeEmail(s);
+      return email.send({ to: ctx.dbUser.email, subject: `[Test] ${msg.subject}`, html: msg.html, text: msg.text });
     }),
 
   /** User census — newest first (AA2.5 seed; capped). */

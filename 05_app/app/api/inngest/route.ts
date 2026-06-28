@@ -7,6 +7,8 @@ import { runEmailDigest, runNotificationFanout } from "@/server/jobs/notificatio
 import { runAutoApprove, runDetectQuality, runPollProviderStatus, runReconcileStudy } from "@/server/jobs/recruitment";
 import { runOsfWatch } from "@/server/jobs/osf-watch";
 import { runHumeAnalyze } from "@/server/jobs/hume-analyze";
+import { runScheduledDigest } from "@/server/jobs/email-weekly-digest";
+import { runReturnNudge } from "@/server/jobs/email-return-nudge";
 
 /**
  * Node runtime + a modest budget. The `hume.analyze` job (ADR-0066) now scores text
@@ -118,6 +120,26 @@ const humeAnalyze = inngest.createFunction(
   },
 );
 
+// EE3 (ADR-0081): engagement email. Both default OFF — the workers no-op until an
+// operator enables them in /admin/email, so these crons are safely idle until then.
+// The digest cron runs hourly; the DB-configured day/hour gate lives in
+// runScheduledDigest (Inngest crons are static). The nudge sweep runs once daily.
+const emailWeeklyDigest = inngest.createFunction(
+  { id: "email-weekly-digest", retries: 1 },
+  { cron: "0 * * * *" },
+  async () => {
+    return runScheduledDigest();
+  },
+);
+
+const emailReturnNudge = inngest.createFunction(
+  { id: "email-return-nudge", retries: 1 },
+  { cron: "0 8 * * *" },
+  async () => {
+    return runReturnNudge();
+  },
+);
+
 export const { GET, POST, PUT } = serve({
   client: inngest,
   functions: [
@@ -130,5 +152,7 @@ export const { GET, POST, PUT } = serve({
     recruitmentDetectQuality,
     recruitmentAutoApprove,
     osfWatch,
+    emailWeeklyDigest,
+    emailReturnNudge,
   ],
 });

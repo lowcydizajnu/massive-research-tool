@@ -38,6 +38,7 @@ import { db } from "@/server/db/client";
 import {
   adminMetricSnapshot,
   condition,
+  emailSettings,
   experiment,
   experimentVersion,
   member,
@@ -64,6 +65,7 @@ beforeEach(async () => {
   await db.delete(recruitmentSession);
   await db.delete(condition);
   await db.delete(adminMetricSnapshot);
+  await db.delete(emailSettings);
   // Break the experiment <-> version FK cycle before dropping versions.
   await db.update(experiment).set({ currentVersionId: null });
   await db.delete(experimentVersion);
@@ -232,6 +234,28 @@ describe("adminProcedure gate (ADR-0075)", () => {
 
     const snaps = await db.select().from(adminMetricSnapshot);
     expect(snaps.map((s) => s.key).sort()).toEqual(["posthog", "sentry"]);
+  });
+
+  it("email settings: defaults OFF, admin updates them, non-admin is forbidden (ADR-0081)", async () => {
+    await seedUser("boss", true);
+    await seedUser("hanna", false);
+    const admin = createCaller({ authUser: authUser("boss") });
+
+    const initial = await admin.admin.emailSettings();
+    expect(initial.digestEnabled).toBe(false);
+    expect(initial.nudgeEnabled).toBe(false);
+
+    const updated = await admin.admin.updateEmailSettings({ digestEnabled: true, digestHourUtc: 13 });
+    expect(updated.digestEnabled).toBe(true);
+    expect(updated.digestHourUtc).toBe(13);
+
+    // Test-send reports not-configured in the test env (no RESEND_API_KEY) — no throw.
+    const test = await admin.admin.sendTestEmail({ kind: "digest" });
+    expect(test.ok).toBe(false);
+
+    const nonAdmin = createCaller({ authUser: authUser("hanna") });
+    await expect(nonAdmin.admin.emailSettings()).rejects.toThrow();
+    await expect(nonAdmin.admin.updateEmailSettings({ digestEnabled: false })).rejects.toThrow();
   });
 
   it("me.isAdmin reflects the gate", async () => {

@@ -344,6 +344,13 @@
       "when": 1782646082277,
       "tag": "0048_damp_champions",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1782646847722,
+      "tag": "0049_calm_kang",
+      "breakpoints": true
     }
   ]
 }

@@ -174,6 +174,17 @@ For each vendor:
 | **Migration target** | Another analytics vendor (Amplitude, Mixpanel) or self-hosted PostHog. Server side swaps `analytics.posthog.ts` behind the unchanged `AnalyticsAdapter`; client side rewrites the one provider component. Keys are env vars (`NEXT_PUBLIC_POSTHOG_KEY` + `NEXT_PUBLIC_POSTHOG_HOST`). |
 | **Cost-ceiling trigger** | PostHog free-tier event / recording quota hit → tune capture (sampling, autocapture scope, replay rate) or switch (ADR-0074 revisit trigger). |
 
+## Resend (engagement email — per ADR-0081)
+
+| | |
+| --- | --- |
+| **What we use it for** | EE3 engagement email — the weekly activity digest + the return-nudge. Operator-facing only; never participant addresses (ADR-0014). Both features default OFF (admin kill switch). |
+| **Behind an adapter** | **Yes.** `server/adapters/email.ts` (`EmailAdapter`) + `email.resend.ts` (the only Resend caller — REST via `fetch`, **no SDK dependency**). Env-gated: `isConfigured()=false` + `send` returns `{ok:false}` without `RESEND_API_KEY`/`EMAIL_FROM`, so un-provisioned envs (and the disabled-by-default workers) never send. |
+| **Deliberate exceptions** | None — no Resend SDK or types leak outside `email.resend.ts`. |
+| **PII contract** | Sends only to researcher account emails; bodies carry aggregate counts + operator-edited copy, never participant data (ADR-0014). |
+| **Migration target** | SendGrid / Amazon SES / SMTP. Swap `email.resend.ts` behind the unchanged `EmailAdapter`; keys are env vars (`RESEND_API_KEY` + `EMAIL_FROM`). |
+| **Cost-ceiling trigger** | Resend free-tier send quota hit → throttle digest cadence / nudge window or switch ESP (ADR-0081 revisit trigger). |
+
 ## Mintlify (docs hosting — per ADR-0078)
 
 | | |
