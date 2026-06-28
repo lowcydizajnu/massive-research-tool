@@ -104,13 +104,18 @@ export const adminRouter = router({
     .input(z.object({ forceRefresh: z.boolean().default(false) }).default({}))
     .query(async ({ input }) => {
       const now = Date.now();
-      const startOfToday = new Date(new Date().setUTCHours(0, 0, 0, 0));
-      const d7 = new Date(now - 7 * 86_400_000);
-      const d30 = new Date(now - 30 * 86_400_000);
-      const monthStart = new Date(new Date().setUTCDate(1));
-      monthStart.setUTCHours(0, 0, 0, 0);
-      const lastMonthStart = new Date(monthStart);
-      lastMonthStart.setUTCMonth(lastMonthStart.getUTCMonth() - 1);
+      const monthStartDate = new Date(new Date().setUTCDate(1));
+      monthStartDate.setUTCHours(0, 0, 0, 0);
+      const lastMonthStartDate = new Date(monthStartDate);
+      lastMonthStartDate.setUTCMonth(lastMonthStartDate.getUTCMonth() - 1);
+      // Interpolate ISO strings (+ ::timestamptz casts) rather than Date objects:
+      // the postgres-js driver rejects a raw Date inside a sql`` FILTER expression
+      // ("Received an instance of Date") even though pglite tolerates it.
+      const startOfToday = new Date(new Date().setUTCHours(0, 0, 0, 0)).toISOString();
+      const d7 = new Date(now - 7 * 86_400_000).toISOString();
+      const d30 = new Date(now - 30 * 86_400_000).toISOString();
+      const monthStart = monthStartDate.toISOString();
+      const lastMonthStart = lastMonthStartDate.toISOString();
 
       // DB metrics (fresh). Wrapped so a query failure degrades to zeros + a flag
       // rather than 500-ing the whole dashboard (ADR-0080: never break the page).
@@ -130,17 +135,17 @@ export const adminRouter = router({
           db
             .select({
               total: sql<number>`count(*)::int`,
-              today: sql<number>`count(*) filter (where ${user.createdAt} >= ${startOfToday})::int`,
-              d7: sql<number>`count(*) filter (where ${user.createdAt} >= ${d7})::int`,
-              d30: sql<number>`count(*) filter (where ${user.createdAt} >= ${d30})::int`,
+              today: sql<number>`count(*) filter (where ${user.createdAt} >= ${startOfToday}::timestamptz)::int`,
+              d7: sql<number>`count(*) filter (where ${user.createdAt} >= ${d7}::timestamptz)::int`,
+              d30: sql<number>`count(*) filter (where ${user.createdAt} >= ${d30}::timestamptz)::int`,
             })
             .from(user)
             .where(eq(user.isSystem, false)),
           db
             .select({
               total: sql<number>`count(*)::int`,
-              d7: sql<number>`count(*) filter (where ${experiment.createdAt} >= ${d7})::int`,
-              d30: sql<number>`count(*) filter (where ${experiment.createdAt} >= ${d30})::int`,
+              d7: sql<number>`count(*) filter (where ${experiment.createdAt} >= ${d7}::timestamptz)::int`,
+              d30: sql<number>`count(*) filter (where ${experiment.createdAt} >= ${d30}::timestamptz)::int`,
             })
             .from(experiment)
             .where(notSystemExperiment),
@@ -162,8 +167,8 @@ export const adminRouter = router({
             .where(and(eq(recruitmentSession.status, "open"), notSystemExperiment)),
           db
             .select({
-              thisMonth: sql<string>`coalesce(sum(${aiInvocation.costUsd}) filter (where ${aiInvocation.createdAt} >= ${monthStart}), 0)`,
-              lastMonth: sql<string>`coalesce(sum(${aiInvocation.costUsd}) filter (where ${aiInvocation.createdAt} >= ${lastMonthStart} and ${aiInvocation.createdAt} < ${monthStart}), 0)`,
+              thisMonth: sql<string>`coalesce(sum(${aiInvocation.costUsd}) filter (where ${aiInvocation.createdAt} >= ${monthStart}::timestamptz), 0)`,
+              lastMonth: sql<string>`coalesce(sum(${aiInvocation.costUsd}) filter (where ${aiInvocation.createdAt} >= ${lastMonthStart}::timestamptz and ${aiInvocation.createdAt} < ${monthStart}::timestamptz), 0)`,
             })
             .from(aiInvocation),
         ]);

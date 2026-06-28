@@ -99,25 +99,17 @@ export function AdminMetrics() {
         </p>
       ) : null}
 
+      {/* ---- Platform metrics (live from our database) ---- */}
       <Group title="Growth">
         <ul className={GRID}>
           <li><Tile label="Total users" value={int.format(growth.totalUsers)} /></li>
           <li><Tile label="New today" value={int.format(growth.newToday)} /></li>
           <li><Tile label="New (7d)" value={int.format(growth.new7d)} /></li>
           <li><Tile label="New (30d)" value={int.format(growth.new30d)} /></li>
-          {posthog.data.available ? (
-            <>
-              <li><Tile label="Active (DAU)" value={int.format(posthog.data.activeUsers.dau)} hint={`PostHog · ${agoLabel(posthog.fetchedAt)}`} /></li>
-              <li><Tile label="Active (WAU)" value={int.format(posthog.data.activeUsers.wau)} hint="PostHog" /></li>
-              <li><Tile label="Active (MAU)" value={int.format(posthog.data.activeUsers.mau)} hint="PostHog" /></li>
-            </>
-          ) : (
-            <li><Tile label="Active users" value="—" hint="PostHog unavailable" /></li>
-          )}
         </ul>
       </Group>
 
-      <Group title="Research output">
+      <Group title="Studies & responses">
         <ul className={GRID}>
           <li><Tile label="Studies" value={int.format(research.studiesTotal)} hint={`+${research.studies7d} (7d) · +${research.studies30d} (30d)`} /></li>
           <li><Tile label="Running now" value={int.format(research.runningStudies)} hint="open recruitment" /></li>
@@ -126,60 +118,77 @@ export function AdminMetrics() {
         </ul>
       </Group>
 
-      <Group title="Engagement (PostHog)">
+      <Group title="AI cost">
+        <ul className={GRID}>
+          <li><Tile label="This month" value={usd.format(cost.thisMonthUsd)} hint="workspace-attributed" /></li>
+          <li><Tile label="Last month" value={usd.format(cost.lastMonthUsd)} /></li>
+        </ul>
+      </Group>
+
+      {/* ---- PostHog (product analytics) ---- */}
+      <Group title="PostHog · product analytics">
         {posthog.data.available ? (
-          posthog.data.topEvents.length ? (
-            <ul className="flex flex-col gap-1 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-4">
-              {posthog.data.topEvents.map((e) => (
-                <li key={e.event} className="flex items-center justify-between gap-3 text-[length:var(--text-body)]">
-                  <span className="truncate text-[var(--color-text-secondary)]">{e.event}</span>
-                  <span className="shrink-0 font-medium text-[var(--color-text-primary)]">{int.format(e.count)}</span>
-                </li>
-              ))}
-              <li className="pt-1 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-                Top events, last 7 days · {agoLabel(posthog.fetchedAt)}
-                {posthog.stale ? " · showing last good data" : ""}
-              </li>
+          <div className="flex flex-col gap-3">
+            <ul className={GRID}>
+              <li><Tile label="Active (DAU)" value={int.format(posthog.data.activeUsers.dau)} /></li>
+              <li><Tile label="Active (WAU)" value={int.format(posthog.data.activeUsers.wau)} /></li>
+              <li><Tile label="Active (MAU)" value={int.format(posthog.data.activeUsers.mau)} /></li>
             </ul>
-          ) : (
-            <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">No events in the last 7 days.</p>
-          )
+            {posthog.data.topEvents.length ? (
+              <ul className="flex flex-col gap-1 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-4">
+                {posthog.data.topEvents.map((e) => (
+                  <li key={e.event} className="flex items-center justify-between gap-3 text-[length:var(--text-body)]">
+                    <span className="truncate text-[var(--color-text-secondary)]">{e.event}</span>
+                    <span className="shrink-0 font-medium text-[var(--color-text-primary)]">{int.format(e.count)}</span>
+                  </li>
+                ))}
+                <li className="pt-1 text-[length:var(--text-small)] text-[var(--color-text-muted)]">Top events, last 7 days</li>
+              </ul>
+            ) : null}
+            <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+              Active users + top events · updated {agoLabel(posthog.fetchedAt)}
+              {posthog.stale ? " · showing last good data" : ""}
+            </p>
+          </div>
         ) : (
           <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-            PostHog unavailable{"reason" in posthog.data ? ` — ${posthog.data.reason}` : ""}.
+            Unavailable{"reason" in posthog.data ? ` — ${posthog.data.reason}` : ""}. Check the PostHog read key + project id.
           </p>
         )}
       </Group>
 
-      <Group title="Reliability & cost">
-        <ul className={GRID}>
-          <li><Tile label="AI cost (month)" value={usd.format(cost.thisMonthUsd)} hint={`last month ${usd.format(cost.lastMonthUsd)}`} /></li>
-          {sentry.data.available ? (
-            <>
-              <li><Tile label="Open issues" value={`${int.format(sentry.data.openIssues)}${sentry.data.openIssuesCapped ? "+" : ""}`} hint={`Sentry · ${agoLabel(sentry.fetchedAt)}`} /></li>
-              <li><Tile label="Errors (24h)" value={sentry.data.events24h == null ? "—" : int.format(sentry.data.events24h)} hint="Sentry" /></li>
-            </>
-          ) : (
-            <li><Tile label="Errors" value="—" hint="Sentry unavailable" /></li>
-          )}
-        </ul>
-        {sentry.data.available && sentry.data.topIssues.length ? (
-          <ul className="flex flex-col gap-1 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-4">
-            {sentry.data.topIssues.map((i, idx) => (
-              <li key={`${i.title}-${idx}`} className="flex items-center justify-between gap-3 text-[length:var(--text-body)]">
-                {i.permalink ? (
-                  <a href={i.permalink} target="_blank" rel="noreferrer" className="truncate text-[var(--color-primary)] hover:underline">
-                    {i.title}
-                  </a>
-                ) : (
-                  <span className="truncate text-[var(--color-text-secondary)]">{i.title}</span>
-                )}
-                <span className="shrink-0 font-medium text-[var(--color-text-primary)]">{int.format(i.count)}</span>
-              </li>
-            ))}
-            <li className="pt-1 text-[length:var(--text-small)] text-[var(--color-text-muted)]">Top unresolved issues</li>
-          </ul>
-        ) : null}
+      {/* ---- Sentry (error monitoring) ---- */}
+      <Group title="Sentry · error monitoring">
+        {sentry.data.available ? (
+          <div className="flex flex-col gap-3">
+            <ul className={GRID}>
+              <li><Tile label="Open issues" value={`${int.format(sentry.data.openIssues)}${sentry.data.openIssuesCapped ? "+" : ""}`} /></li>
+              <li><Tile label="Errors (24h)" value={sentry.data.events24h == null ? "—" : int.format(sentry.data.events24h)} /></li>
+            </ul>
+            {sentry.data.topIssues.length ? (
+              <ul className="flex flex-col gap-1 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-4">
+                {sentry.data.topIssues.map((i, idx) => (
+                  <li key={`${i.title}-${idx}`} className="flex items-center justify-between gap-3 text-[length:var(--text-body)]">
+                    {i.permalink ? (
+                      <a href={i.permalink} target="_blank" rel="noreferrer" className="truncate text-[var(--color-primary)] hover:underline">
+                        {i.title}
+                      </a>
+                    ) : (
+                      <span className="truncate text-[var(--color-text-secondary)]">{i.title}</span>
+                    )}
+                    <span className="shrink-0 font-medium text-[var(--color-text-primary)]">{int.format(i.count)}</span>
+                  </li>
+                ))}
+                <li className="pt-1 text-[length:var(--text-small)] text-[var(--color-text-muted)]">Top unresolved issues</li>
+              </ul>
+            ) : null}
+            <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">Updated {agoLabel(sentry.fetchedAt)}</p>
+          </div>
+        ) : (
+          <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+            Unavailable{"reason" in sentry.data ? ` — ${sentry.data.reason}` : ""}. Check the Sentry token + org/project.
+          </p>
+        )}
       </Group>
     </div>
   );

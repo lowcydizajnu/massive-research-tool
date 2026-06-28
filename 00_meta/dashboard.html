@@ -1213,6 +1213,10 @@
   ],
   "recentActivity": [
     {
+      "text": "Admin metrics fix #2: the real 'dbError' was postgres-js rejecting a raw Date in a sql FILTER (pglite tolerated it). Interpolate ISO strings + ::timestamptz casts on all 5 date thresholds. Reorganized /admin per feedback — queue tiles up top, then DB sections (Growth / Studies & responses / AI cost), then clearly-named 'PostHog · product analytics' + 'Sentry · error monitoring'. Code-only, deployed.",
+      "date": "2026-06-28"
+    },
+    {
       "text": "Hotfix (ADR-0080): /admin metrics 500'd ('Couldn't load metrics'). Isolated failures — resolveCachedMetric never throws (missing cache table/DB hiccup degrades to unavailable), DB metrics split into own try/catch with a surfaced dbError, external calls separated. Dashboard always renders what succeeds. +1 test; 828 green. Code-only, deployed.",
       "date": "2026-06-28"
     },

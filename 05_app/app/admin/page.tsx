@@ -34,8 +34,7 @@ export default async function AdminOverviewPage() {
         </p>
       </header>
 
-      <AdminMetrics />
-
+      {/* Queues (navigational) up top. */}
       <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {stats.map((s) => {
           const inner = (
@@ -62,6 +61,8 @@ export default async function AdminOverviewPage() {
           );
         })}
       </ul>
+
+      <AdminMetrics />
 
       {/* External operator dashboards — analytics + error monitoring live in
           their own consoles (ADR-0074 / ADR-0072), not rebuilt in-app. */}
