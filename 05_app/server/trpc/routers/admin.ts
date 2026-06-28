@@ -1,8 +1,26 @@
-import { count, desc, eq, gte, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, sql } from "drizzle-orm";
+import { z } from "zod";
 
+import { resolveCachedMetric } from "@/server/admin/metric-cache";
+import { fetchPosthogInsights } from "@/server/adapters/insights.posthog";
+import { fetchSentryInsights } from "@/server/adapters/insights.sentry";
 import { db } from "@/server/db/client";
-import { aiInvocation, experiment, feedback, member, releaseAnnouncement, user, workspace } from "@/server/db/schema";
+import {
+  aiInvocation,
+  experiment,
+  experimentVersion,
+  feedback,
+  member,
+  recruitmentSession,
+  releaseAnnouncement,
+  response,
+  user,
+  workspace,
+} from "@/server/db/schema";
 import { adminProcedure, router } from "@/server/trpc/trpc";
+
+/** Experiments NOT owned by an app-owned system workspace (ADR-0079). */
+const notSystemExperiment = sql`${experiment.tenantId} NOT IN (select id from ${workspace} where ${workspace.isSystem} = true)`;
 
 /**
  * Admin destination data (Analytics + Admin handoff, AA2; ADR-0075). Everything
@@ -70,6 +88,113 @@ export const adminRouter = router({
       .orderBy(desc(workspace.createdAt))
       .limit(200);
   }),
+
+  /**
+   * Operator metrics dashboard (ADR-0080). DB metrics (growth / research output /
+   * AI cost) are computed fresh; external metrics (PostHog active users + top
+   * events, Sentry issues) are read through env-gated adapters and cached in
+   * `admin_metric_snapshot` (15-min TTL). `forceRefresh` bypasses the TTL — the
+   * dashboard's refresh button. External tiles degrade to `available:false` when a
+   * key is missing or the vendor API errors; they never break the query.
+   */
+  metrics: adminProcedure
+    .input(z.object({ forceRefresh: z.boolean().default(false) }).default({}))
+    .query(async ({ input }) => {
+      const now = Date.now();
+      const startOfToday = new Date(new Date().setUTCHours(0, 0, 0, 0));
+      const d7 = new Date(now - 7 * 86_400_000);
+      const d30 = new Date(now - 30 * 86_400_000);
+      const monthStart = new Date(new Date().setUTCDate(1));
+      monthStart.setUTCHours(0, 0, 0, 0);
+      const lastMonthStart = new Date(monthStart);
+      lastMonthStart.setUTCMonth(lastMonthStart.getUTCMonth() - 1);
+
+      const [
+        [growthRow],
+        [studyRow],
+        stageRows,
+        [respRow],
+        [runningRow],
+        [costRow],
+        posthog,
+        sentry,
+      ] = await Promise.all([
+        db
+          .select({
+            total: sql<number>`count(*)::int`,
+            today: sql<number>`count(*) filter (where ${user.createdAt} >= ${startOfToday})::int`,
+            d7: sql<number>`count(*) filter (where ${user.createdAt} >= ${d7})::int`,
+            d30: sql<number>`count(*) filter (where ${user.createdAt} >= ${d30})::int`,
+          })
+          .from(user)
+          .where(eq(user.isSystem, false)),
+        db
+          .select({
+            total: sql<number>`count(*)::int`,
+            d7: sql<number>`count(*) filter (where ${experiment.createdAt} >= ${d7})::int`,
+            d30: sql<number>`count(*) filter (where ${experiment.createdAt} >= ${d30})::int`,
+          })
+          .from(experiment)
+          .where(notSystemExperiment),
+        db
+          .select({ kind: experimentVersion.kind, n: sql<number>`count(*)::int` })
+          .from(experiment)
+          .innerJoin(experimentVersion, eq(experiment.currentVersionId, experimentVersion.id))
+          .where(notSystemExperiment)
+          .groupBy(experimentVersion.kind),
+        db
+          .select({ n: sql<number>`count(*)::int` })
+          .from(response)
+          .where(eq(response.status, "completed")),
+        db
+          .select({ n: sql<number>`count(distinct ${experiment.id})::int` })
+          .from(recruitmentSession)
+          .innerJoin(experimentVersion, eq(recruitmentSession.experimentVersionId, experimentVersion.id))
+          .innerJoin(experiment, eq(experimentVersion.experimentId, experiment.id))
+          .where(and(eq(recruitmentSession.status, "open"), notSystemExperiment)),
+        db
+          .select({
+            thisMonth: sql<string>`coalesce(sum(${aiInvocation.costUsd}) filter (where ${aiInvocation.createdAt} >= ${monthStart}), 0)`,
+            lastMonth: sql<string>`coalesce(sum(${aiInvocation.costUsd}) filter (where ${aiInvocation.createdAt} >= ${lastMonthStart} and ${aiInvocation.createdAt} < ${monthStart}), 0)`,
+          })
+          .from(aiInvocation),
+        resolveCachedMetric("posthog", fetchPosthogInsights, { forceRefresh: input.forceRefresh }),
+        resolveCachedMetric("sentry", fetchSentryInsights, { forceRefresh: input.forceRefresh }),
+      ]);
+
+      // Map current-version kind → researcher-facing lifecycle stage.
+      let draft = 0;
+      let preregistered = 0;
+      let published = 0;
+      for (const r of stageRows) {
+        if (r.kind === "published") published += r.n;
+        else if (r.kind === "preregistered") preregistered += r.n;
+        else draft += r.n; // autosave + named
+      }
+
+      return {
+        growth: {
+          totalUsers: growthRow?.total ?? 0,
+          newToday: growthRow?.today ?? 0,
+          new7d: growthRow?.d7 ?? 0,
+          new30d: growthRow?.d30 ?? 0,
+        },
+        research: {
+          studiesTotal: studyRow?.total ?? 0,
+          studies7d: studyRow?.d7 ?? 0,
+          studies30d: studyRow?.d30 ?? 0,
+          responsesTotal: respRow?.n ?? 0,
+          runningStudies: runningRow?.n ?? 0,
+          stages: { draft, preregistered, published },
+        },
+        cost: {
+          thisMonthUsd: Number(costRow?.thisMonth ?? 0),
+          lastMonthUsd: Number(costRow?.lastMonth ?? 0),
+        },
+        posthog,
+        sentry,
+      };
+    }),
 
   /** User census — newest first (AA2.5 seed; capped). */
   users: adminProcedure.query(async () => {

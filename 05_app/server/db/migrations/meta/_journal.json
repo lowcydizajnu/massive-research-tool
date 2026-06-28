@@ -337,6 +337,13 @@
       "when": 1782643516450,
       "tag": "0047_nervous_molly_hayes",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1782646082277,
+      "tag": "0048_damp_champions",
+      "breakpoints": true
     }
   ]
 }

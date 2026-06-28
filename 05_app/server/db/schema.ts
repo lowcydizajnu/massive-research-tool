@@ -1617,3 +1617,19 @@ export const workspaceMaterial = pgTable(
 
 export type WorkspaceMaterial = typeof workspaceMaterial.$inferSelect;
 export type NewWorkspaceMaterial = typeof workspaceMaterial.$inferInsert;
+
+/**
+ * Operator metric snapshot cache (ADR-0080). One row per external-metric source
+ * (e.g. `posthog`, `sentry`); `value` is the adapter's last successful result and
+ * `fetchedAt` drives the admin dashboard's TTL ("updated Nm ago") + the refresh
+ * button. DB-derived metrics are NOT cached here (they're computed per request);
+ * only the slow, rate-limited vendor API reads are. Aggregate operator data only,
+ * never participant rows (ADR-0014).
+ */
+export const adminMetricSnapshot = pgTable("admin_metric_snapshot", {
+  key: text("key").primaryKey(),
+  value: jsonb("value").notNull(),
+  fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type AdminMetricSnapshot = typeof adminMetricSnapshot.$inferSelect;

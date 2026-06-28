@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/server/db/client", async () => {
@@ -11,9 +12,40 @@ vi.mock("@/server/db/client", async () => {
   return { db, schema };
 });
 
+// Read adapters mocked to a controlled "available" result (ADR-0080) — the metrics
+// test asserts DB calculations + that external data flows through the cache.
+vi.mock("@/server/adapters/insights.posthog", () => ({
+  fetchPosthogInsights: vi.fn(async () => ({
+    available: true,
+    activeUsers: { dau: 3, wau: 9, mau: 20 },
+    topEvents: [{ event: "study_created", count: 12 }],
+  })),
+}));
+vi.mock("@/server/adapters/insights.sentry", () => ({
+  fetchSentryInsights: vi.fn(async () => ({
+    available: true,
+    openIssues: 2,
+    openIssuesCapped: false,
+    events24h: 5,
+    topIssues: [{ title: "TypeError", count: 4, permalink: null }],
+  })),
+}));
+
+import { ulid } from "ulid";
+
 import type { AuthUser } from "@/server/adapters/auth";
 import { db } from "@/server/db/client";
-import { experiment, member, user, workspace } from "@/server/db/schema";
+import {
+  adminMetricSnapshot,
+  condition,
+  experiment,
+  experimentVersion,
+  member,
+  recruitmentSession,
+  response,
+  user,
+  workspace,
+} from "@/server/db/schema";
 import { appRouter } from "@/server/trpc/root";
 import { createCallerFactory } from "@/server/trpc/trpc";
 
@@ -28,6 +60,13 @@ async function seedUser(ext: string, isAdmin = false): Promise<string> {
 
 beforeEach(async () => {
   vi.clearAllMocks();
+  await db.delete(response);
+  await db.delete(recruitmentSession);
+  await db.delete(condition);
+  await db.delete(adminMetricSnapshot);
+  // Break the experiment <-> version FK cycle before dropping versions.
+  await db.update(experiment).set({ currentVersionId: null });
+  await db.delete(experimentVersion);
   await db.delete(experiment);
   await db.delete(member);
   await db.delete(workspace);
@@ -125,6 +164,74 @@ describe("adminProcedure gate (ADR-0075)", () => {
     expect(ws.map((w) => w.slug)).toEqual(["real"]);
     const users = await admin.admin.users();
     expect(users.map((u) => u.email)).not.toContain("sys@e.com");
+  });
+
+  it("metrics: DB metrics fresh + system rows excluded + external via cache (ADR-0080)", async () => {
+    const boss = await seedUser("boss", true);
+    const [ws] = await db.insert(workspace).values({ name: "Lab", slug: "lab", ownerId: boss }).returning();
+
+    // A published study (with an open recruitment + one completed response) + a draft.
+    const mkStudy = async (kind: "published" | "autosave") => {
+      const [exp] = await db.insert(experiment).values({ tenantId: ws.id, ownerId: boss, title: kind }).returning();
+      const [ver] = await db
+        .insert(experimentVersion)
+        .values({
+          experimentId: exp.id,
+          createdBy: boss,
+          versionNumber: kind === "published" ? 1 : 0,
+          kind,
+          name: kind === "published" ? "v1" : null,
+          definitionSnapshot: { blocks: [] },
+          moduleVersionLocks: [],
+        })
+        .returning();
+      await db.update(experiment).set({ currentVersionId: ver.id }).where(eq(experiment.id, exp.id));
+      return { exp, ver };
+    };
+    const pub = await mkStudy("published");
+    await mkStudy("autosave");
+
+    const recId = ulid();
+    await db.insert(recruitmentSession).values({ id: recId, experimentVersionId: pub.ver.id, status: "open" });
+    const condId = ulid();
+    await db.insert(condition).values({ id: condId, experimentVersionId: pub.ver.id, slug: "control", name: "Control", position: 0 });
+    await db.insert(response).values({
+      id: ulid(),
+      recruitmentSessionId: recId,
+      experimentVersionId: pub.ver.id,
+      conditionId: condId,
+      mode: "run",
+      status: "completed",
+    });
+
+    // A system account + its study — must NOT count toward the census.
+    const [sys] = await db
+      .insert(user)
+      .values({ externalId: "sys", email: "sys@e.com", displayName: "Sys", isSystem: true })
+      .returning();
+    const [sysWs] = await db
+      .insert(workspace)
+      .values({ name: "Starters", slug: "starters", ownerId: sys.id, isSystem: true })
+      .returning();
+    await db.insert(experiment).values({ tenantId: sysWs.id, ownerId: sys.id, title: "Starter" });
+
+    const m = await createCaller({ authUser: authUser("boss") }).admin.metrics();
+
+    expect(m.growth.totalUsers).toBe(1); // system user excluded
+    expect(m.growth.new30d).toBe(1);
+    expect(m.research.studiesTotal).toBe(2); // system study excluded
+    expect(m.research.stages).toEqual({ draft: 1, preregistered: 0, published: 1 });
+    expect(m.research.runningStudies).toBe(1);
+    expect(m.research.responsesTotal).toBe(1);
+
+    // External metrics flow through the mocked adapters + the snapshot cache.
+    expect(m.posthog.data.available).toBe(true);
+    if (m.posthog.data.available) expect(m.posthog.data.activeUsers.mau).toBe(20);
+    expect(m.sentry.data.available).toBe(true);
+    if (m.sentry.data.available) expect(m.sentry.data.openIssues).toBe(2);
+
+    const snaps = await db.select().from(adminMetricSnapshot);
+    expect(snaps.map((s) => s.key).sort()).toEqual(["posthog", "sentry"]);
   });
 
   it("me.isAdmin reflects the gate", async () => {

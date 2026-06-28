@@ -2,25 +2,23 @@ import type { Metadata } from "next";
 import type { Route } from "next";
 import Link from "next/link";
 
+import { AdminMetrics } from "@/components/feature/admin/admin-metrics";
 import { getServerApi } from "@/server/trpc/server";
 
 export const metadata: Metadata = { title: "Admin" };
 
 /**
- * Admin overview (Analytics + Admin handoff, AA2; ADR-0075). Cross-workspace
- * census + current-month AI cost + queues. Auth is enforced by
- * app/admin/layout.tsx.
+ * Admin overview (Analytics + Admin handoff, AA2; ADR-0075 + ADR-0080). The
+ * operator metrics dashboard (<AdminMetrics>) carries growth / research / PostHog
+ * engagement / Sentry + cost; this server shell adds the navigational queue tiles.
+ * Auth is enforced by app/admin/layout.tsx.
  */
 export default async function AdminOverviewPage() {
   const api = await getServerApi();
   const o = await api.admin.overview();
-  const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 
   const stats: { label: string; value: string; href?: Route; hint?: string }[] = [
     { label: "Workspaces", value: String(o.workspaces), href: "/admin/workspaces" as Route },
-    { label: "Users", value: String(o.users) },
-    { label: "Studies", value: String(o.studies) },
-    { label: "AI cost (this month)", value: usd.format(o.monthlyAiCostUsd), hint: "workspace-attributed" },
     { label: "New feedback", value: String(o.newFeedback), href: "/admin/feedback" as Route },
     { label: "Announcements", value: String(o.announcements), href: "/admin/announcements" as Route },
   ];
@@ -32,9 +30,11 @@ export default async function AdminOverviewPage() {
           Overview
         </h1>
         <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-          Operator census across all workspaces. Behavior funnels live in PostHog (linked separately).
+          Operator metrics across all workspaces. Deep funnels + error triage live in PostHog / Sentry (linked below).
         </p>
       </header>
+
+      <AdminMetrics />
 
       <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {stats.map((s) => {
