@@ -1,8 +1,9 @@
 "use client";
 
-import { RefreshCw } from "lucide-react";
+import { CircleHelp, RefreshCw } from "lucide-react";
 import { useState } from "react";
 
+import { describeEvent } from "@/lib/admin/posthog-events";
 import { api } from "@/lib/trpc/react";
 
 /**
@@ -25,11 +26,21 @@ function agoLabel(iso: string | Date | null): string {
   return h < 24 ? `${h}h ago` : `${Math.round(h / 24)}d ago`;
 }
 
-function Tile({ label, value, hint }: { label: string; value: string; hint?: string }) {
+/** A small "?" icon whose explanation shows on hover/focus (native title + a11y). */
+function Help({ text }: { text: string }) {
+  return (
+    <span title={text} aria-label={text} className="inline-flex cursor-help align-middle text-[var(--color-text-muted)]">
+      <CircleHelp className="size-3.5" aria-hidden />
+    </span>
+  );
+}
+
+function Tile({ label, value, hint, help }: { label: string; value: string; hint?: string; help?: string }) {
   return (
     <div className="flex h-full flex-col gap-1 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-4">
-      <span className="text-[length:var(--text-small)] uppercase tracking-wide text-[var(--color-text-muted)]">
+      <span className="flex items-center gap-1 text-[length:var(--text-small)] uppercase tracking-wide text-[var(--color-text-muted)]">
         {label}
+        {help ? <Help text={help} /> : null}
       </span>
       <span className="font-serif text-[length:var(--text-heading-1)] font-medium text-[var(--color-text-primary)]">
         {value}
@@ -39,11 +50,12 @@ function Tile({ label, value, hint }: { label: string; value: string; hint?: str
   );
 }
 
-function Group({ title, children }: { title: string; children: React.ReactNode }) {
+function Group({ title, help, children }: { title: string; help?: string; children: React.ReactNode }) {
   return (
     <section aria-label={title} className="flex flex-col gap-2">
-      <h2 className="text-[length:var(--text-small)] uppercase tracking-wide text-[var(--color-text-muted)]">
+      <h2 className="flex items-center gap-1.5 text-[length:var(--text-small)] uppercase tracking-wide text-[var(--color-text-muted)]">
         {title}
+        {help ? <Help text={help} /> : null}
       </h2>
       {children}
     </section>
@@ -100,49 +112,55 @@ export function AdminMetrics() {
       ) : null}
 
       {/* ---- Platform metrics (live from our database) ---- */}
-      <Group title="Growth">
+      <Group title="Growth" help="New and total researcher accounts, counted live from our database. System accounts are excluded.">
         <ul className={GRID}>
-          <li><Tile label="Total users" value={int.format(growth.totalUsers)} /></li>
-          <li><Tile label="New today" value={int.format(growth.newToday)} /></li>
-          <li><Tile label="New (7d)" value={int.format(growth.new7d)} /></li>
-          <li><Tile label="New (30d)" value={int.format(growth.new30d)} /></li>
+          <li><Tile label="Total users" value={int.format(growth.totalUsers)} help="All researcher accounts that have ever signed up." /></li>
+          <li><Tile label="New today" value={int.format(growth.newToday)} help="Accounts created since midnight UTC." /></li>
+          <li><Tile label="New (7d)" value={int.format(growth.new7d)} help="Accounts created in the last 7 days." /></li>
+          <li><Tile label="New (30d)" value={int.format(growth.new30d)} help="Accounts created in the last 30 days." /></li>
         </ul>
       </Group>
 
-      <Group title="Studies & responses">
+      <Group title="Studies & responses" help="What researchers are building and collecting, from our database.">
         <ul className={GRID}>
-          <li><Tile label="Studies" value={int.format(research.studiesTotal)} hint={`+${research.studies7d} (7d) · +${research.studies30d} (30d)`} /></li>
-          <li><Tile label="Running now" value={int.format(research.runningStudies)} hint="open recruitment" /></li>
-          <li><Tile label="Responses" value={int.format(research.responsesTotal)} hint="completed" /></li>
-          <li><Tile label="By stage" value={`${research.stages.published} pub`} hint={`${research.stages.preregistered} prereg · ${research.stages.draft} draft`} /></li>
+          <li><Tile label="Studies" value={int.format(research.studiesTotal)} hint={`+${research.studies7d} (7d) · +${research.studies30d} (30d)`} help="Total studies, with how many were created in the last 7 and 30 days." /></li>
+          <li><Tile label="Running now" value={int.format(research.runningStudies)} hint="open recruitment" help="Studies that currently have an open recruitment session collecting participants." /></li>
+          <li><Tile label="Responses" value={int.format(research.responsesTotal)} hint="completed" help="Total completed participant responses across all studies." /></li>
+          <li><Tile label="By stage" value={`${research.stages.published} pub`} hint={`${research.stages.preregistered} prereg · ${research.stages.draft} draft`} help="Studies grouped by their current version's lifecycle stage: published, preregistered, or draft." /></li>
         </ul>
       </Group>
 
-      <Group title="AI cost">
+      <Group title="AI cost" help="What workspaces have spent on AI features (billed to their own provider keys), summed from usage records.">
         <ul className={GRID}>
-          <li><Tile label="This month" value={usd.format(cost.thisMonthUsd)} hint="workspace-attributed" /></li>
-          <li><Tile label="Last month" value={usd.format(cost.lastMonthUsd)} /></li>
+          <li><Tile label="This month" value={usd.format(cost.thisMonthUsd)} hint="workspace-attributed" help="AI spend since the 1st of this month (UTC)." /></li>
+          <li><Tile label="Last month" value={usd.format(cost.lastMonthUsd)} help="AI spend in the previous calendar month." /></li>
         </ul>
       </Group>
 
       {/* ---- PostHog (product analytics) ---- */}
-      <Group title="PostHog · product analytics">
+      <Group title="PostHog · product analytics" help="Live from PostHog (product-analytics tool). Names starting with $ are PostHog's automatic events; the rest are our own. Hover any row for what it means.">
         {posthog.data.available ? (
           <div className="flex flex-col gap-3">
             <ul className={GRID}>
-              <li><Tile label="Active (DAU)" value={int.format(posthog.data.activeUsers.dau)} /></li>
-              <li><Tile label="Active (WAU)" value={int.format(posthog.data.activeUsers.wau)} /></li>
-              <li><Tile label="Active (MAU)" value={int.format(posthog.data.activeUsers.mau)} /></li>
+              <li><Tile label="Active today" value={int.format(posthog.data.activeUsers.dau)} help="Daily active users — distinct people who used the app in the last 24 hours (DAU)." /></li>
+              <li><Tile label="Active this week" value={int.format(posthog.data.activeUsers.wau)} help="Weekly active users — distinct people in the last 7 days (WAU)." /></li>
+              <li><Tile label="Active this month" value={int.format(posthog.data.activeUsers.mau)} help="Monthly active users — distinct people in the last 30 days (MAU)." /></li>
             </ul>
             {posthog.data.topEvents.length ? (
-              <ul className="flex flex-col gap-1 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-4">
-                {posthog.data.topEvents.map((e) => (
-                  <li key={e.event} className="flex items-center justify-between gap-3 text-[length:var(--text-body)]">
-                    <span className="truncate text-[var(--color-text-secondary)]">{e.event}</span>
-                    <span className="shrink-0 font-medium text-[var(--color-text-primary)]">{int.format(e.count)}</span>
-                  </li>
-                ))}
-                <li className="pt-1 text-[length:var(--text-small)] text-[var(--color-text-muted)]">Top events, last 7 days</li>
+              <ul className="flex flex-col gap-1.5 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-4">
+                {posthog.data.topEvents.map((e) => {
+                  const info = describeEvent(e.event);
+                  return (
+                    <li key={e.event} className="flex items-center justify-between gap-3 text-[length:var(--text-body)]">
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <span className="truncate text-[var(--color-text-secondary)]">{info.label}</span>
+                        <Help text={`${info.description} (raw event: ${e.event})`} />
+                      </span>
+                      <span className="shrink-0 font-medium text-[var(--color-text-primary)]">{int.format(e.count)}</span>
+                    </li>
+                  );
+                })}
+                <li className="pt-1 text-[length:var(--text-small)] text-[var(--color-text-muted)]">Most-fired events, last 7 days</li>
               </ul>
             ) : null}
             <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
@@ -158,12 +176,12 @@ export function AdminMetrics() {
       </Group>
 
       {/* ---- Sentry (error monitoring) ---- */}
-      <Group title="Sentry · error monitoring">
+      <Group title="Sentry · error monitoring" help="Live from Sentry (error-tracking tool). Click an issue to open it in Sentry.">
         {sentry.data.available ? (
           <div className="flex flex-col gap-3">
             <ul className={GRID}>
-              <li><Tile label="Open issues" value={`${int.format(sentry.data.openIssues)}${sentry.data.openIssuesCapped ? "+" : ""}`} /></li>
-              <li><Tile label="Errors (24h)" value={sentry.data.events24h == null ? "—" : int.format(sentry.data.events24h)} /></li>
+              <li><Tile label="Open issues" value={`${int.format(sentry.data.openIssues)}${sentry.data.openIssuesCapped ? "+" : ""}`} help="Distinct unresolved error types. A '+' means there are more than we list here." /></li>
+              <li><Tile label="Errors (24h)" value={sentry.data.events24h == null ? "—" : int.format(sentry.data.events24h)} help="Total error events received in the last 24 hours (one issue can fire many times)." /></li>
             </ul>
             {sentry.data.topIssues.length ? (
               <ul className="flex flex-col gap-1 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-4">

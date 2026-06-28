@@ -1213,6 +1213,10 @@
   ],
   "recentActivity": [
     {
+      "text": "Admin dashboard polish: PostHog events shown with human labels (e.g. $autocapture -> 'Clicks & inputs (auto)', study_created -> 'Studies created') via a describeEvent map + per-row, per-section, per-tile '?' explanations (hover/focus). +3 tests. Deployed.",
+      "date": "2026-06-28"
+    },
+    {
       "text": "Admin metrics fix #2: the real 'dbError' was postgres-js rejecting a raw Date in a sql FILTER (pglite tolerated it). Interpolate ISO strings + ::timestamptz casts on all 5 date thresholds. Reorganized /admin per feedback — queue tiles up top, then DB sections (Growth / Studies & responses / AI cost), then clearly-named 'PostHog · product analytics' + 'Sentry · error monitoring'. Code-only, deployed.",
       "date": "2026-06-28"
     },
