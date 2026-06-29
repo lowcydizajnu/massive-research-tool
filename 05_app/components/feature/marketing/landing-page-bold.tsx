@@ -152,7 +152,7 @@ export function LandingPageBold() {
           <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {[
               [GitCommit, "Version everything", "Every save is a version. Every preregistration is frozen forever. Compare versions side-by-side. Restore any prior state. Your changelog writes itself."],
-              [GitFork, "One-click replication", "Found a study you want to replicate? Bring it into your workspace. Same blocks, same conditions — adapt freely. Original authors see who's replicating their work."],
+              [GitFork, "One-click replication", "Found a study you want to replicate? Bring it into your workspace. Same blocks, same conditions — adapt freely. Original authors are credited once your replication is public."],
               [UsersRound, "Live collaboration", "See who's editing what. Comment on any block. @mention teammates. Soft-lock prevents accidental conflicts. Threaded discussions stay with the study."],
               [Mic, "Modern stimuli", "46+ block types: text, image, audio recording, voice conversation with AI, emotion scoring, A/B factorial variants, social-media-post mockups, signature capture, hot-spot interactions."],
               [PlugZap, "Open integrations", "OSF preregistration. Prolific recruitment. Anthropic Claude. Hume emotion AI. BYO keys — your data, your accounts, no markup. Add new providers via our open adapter pattern."],

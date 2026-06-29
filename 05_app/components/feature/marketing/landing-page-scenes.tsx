@@ -6,25 +6,21 @@ import {
   BookOpen,
   Check,
   Coffee,
-  Eye,
-  GitCommit,
   GitFork,
   KeyRound,
   Lightbulb,
-  Mic,
   Pencil,
   PlayCircle,
-  PlugZap,
   Puzzle,
   ShieldCheck,
   Sprout,
   Stamp,
   TreePine,
   Users,
-  UsersRound,
 } from "lucide-react";
 
 import { LandingSwitcher } from "@/components/feature/marketing/landing-switcher";
+import { VideoRelax } from "@/components/feature/marketing/video-relax";
 
 /**
  * Landing proposal C — "Scenes": Minimal's content + copy, in an illustration-
@@ -96,7 +92,7 @@ export function LandingPageScenes() {
       {/* Tired of… */}
       <section className="mx-auto mt-24 grid w-full max-w-6xl items-center gap-10 px-6 md:grid-cols-2">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={`${S}/room-blue.png`} alt="" className="order-2 w-full rounded-[20px] object-cover md:order-1" />
+        <img src={`${S}/robot-standing.png`} alt="" className="order-2 w-full rounded-[20px] object-cover md:order-1" />
         <div className="order-1 flex flex-col gap-6 md:order-2">
           <Eyebrow>The status quo</Eyebrow>
           <h2 className="font-serif text-[2.25rem] font-medium leading-tight sm:text-[3rem]">Tired of…</h2>
@@ -150,28 +146,22 @@ export function LandingPageScenes() {
         <h2 className="mt-3 font-serif text-[2.25rem] font-medium leading-tight sm:text-[3rem]">What sets My Research Lab apart</h2>
         <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {[
-            [GitCommit, "Version everything", "Every save is a version. Every preregistration is frozen forever. Compare side-by-side; restore any prior state.", GREEN, "scene1"],
-            [GitFork, "One-click replication", "Bring any study into your workspace. Same blocks, same conditions — adapt freely. Authors see who's replicating.", BLUE, "scene2"],
-            [UsersRound, "Live collaboration", "See who's editing what. Comment on any block. @mention teammates. Threaded discussions stay with the study.", ORANGE, "room-art"],
-            [Mic, "Modern stimuli", "46+ block types: audio recording, voice conversation with AI, emotion scoring, factorial variants, hot-spots, and more.", GREEN, "tools"],
-            [PlugZap, "Open integrations", "OSF, Prolific, Anthropic, Hume — BYO keys, your accounts, no markup. New providers via our open adapter pattern.", ORANGE, "room-blue"],
-            [Eye, "Radical transparency", "Open by default. Public studies are replicable by anyone. Methodology you can audit. Source-available.", BLUE, "desk"],
-          ].map(([Icon, title, body, color, img]) => {
-            const I = Icon as typeof GitCommit;
-            return (
-              <div key={title as string} className="flex flex-col overflow-hidden rounded-[16px]" style={{ backgroundColor: color as string }}>
-                {img ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={`${S}/${img as string}.png`} alt="" className="h-32 w-full object-cover" />
-                ) : null}
-                <div className="flex flex-col gap-2 p-6">
-                  <I className="size-5 text-white" aria-hidden />
-                  <h3 className="font-serif text-[19px] font-medium text-white">{title as string}</h3>
-                  <p className="text-[15px] leading-relaxed text-white/85">{body as string}</p>
-                </div>
+            ["Version everything", "Every save is a version. Every preregistration is frozen forever. Compare side-by-side; restore any prior state.", GREEN, "lab-desks"],
+            ["One-click replication", "Bring any study into your workspace — same blocks, same conditions — and adapt freely. Original authors are credited once your replication is public.", BLUE, "silhouette-screen"],
+            ["Live collaboration", "See who's editing what. Comment on any block. @mention teammates. Threaded discussions stay with the study.", ORANGE, "people-desk"],
+            ["Modern stimuli", "46+ block types: audio recording, voice conversation with AI, emotion scoring, factorial variants, hot-spots, and more.", GREEN, "tools"],
+            ["Open integrations", "OSF, Prolific, Anthropic, Hume — BYO keys, your accounts, no markup. New providers via our open adapter pattern.", BLUE, "robot-desk"],
+            ["Make it your own", "Start from a template or build your own blocks. Adapt any study to your protocol — your wording, your conditions — and save it as a reusable template for your lab.", ORANGE, "gallery"],
+          ].map(([title, body, color, img]) => (
+            <div key={title} className="flex flex-col overflow-hidden rounded-[16px]" style={{ backgroundColor: color }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={`${S}/${img}.png`} alt="" className="h-44 w-full object-cover" />
+              <div className="flex flex-col gap-2 p-6">
+                <h3 className="font-serif text-[19px] font-medium text-white">{title}</h3>
+                <p className="text-[15px] leading-relaxed text-white/85">{body}</p>
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
       </section>
 
@@ -286,7 +276,7 @@ export function LandingPageScenes() {
       {/* Real studies — MOVED DOWN (owner) — near the end */}
       <section className="mx-auto grid w-full max-w-6xl items-center gap-10 px-6 pb-24 md:grid-cols-2">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={`${S}/desk.png`} alt="" className="w-full rounded-[20px] object-cover" />
+        <img src={`${S}/horizon-road.png`} alt="" className="w-full rounded-[20px] object-cover" />
         <div className="flex flex-col gap-4">
           <Eyebrow>From the community</Eyebrow>
           <h2 className="font-serif text-[2rem] font-medium leading-tight sm:text-[2.75rem]">Real studies from real researchers</h2>
@@ -297,6 +287,9 @@ export function LandingPageScenes() {
           <div><Ghost href="/explore">Browse all studies <ArrowRight className="size-4" aria-hidden /></Ghost></div>
         </div>
       </section>
+
+      {/* Closing video beat — plays when ≥50% on screen (owner) */}
+      <VideoRelax src="/marketing/relax.mp4" heading="Relax. Take your (work)space." />
 
       <footer className="border-t border-white/10 px-6 py-10 text-center">
         <p className="text-[15px] text-white/50">© 2026 My Research Lab — built by Paweł Rosner</p>

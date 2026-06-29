@@ -182,7 +182,7 @@ function Workflow() {
 /* ---------------- 4. Features ---------------- */
 const FEATURES = [
   { icon: GitCommit, title: "Version everything", body: "Every save is a version. Every preregistration is frozen forever. Compare versions side-by-side. Restore any prior state. Your changelog writes itself." },
-  { icon: GitFork, title: "One-click replication", body: "Found a study you want to replicate? Bring it into your workspace. Same blocks, same conditions — adapt freely. Original authors see who's replicating their work." },
+  { icon: GitFork, title: "One-click replication", body: "Found a study you want to replicate? Bring it into your workspace. Same blocks, same conditions — adapt freely. Original authors are credited once your replication is public." },
   { icon: UsersRound, title: "Live collaboration", body: "See who's editing what. Comment on any block. @mention teammates. Soft-lock prevents accidental conflicts. Threaded discussions stay with the study." },
   { icon: Mic, title: "Modern stimuli", body: "46+ block types: text, image, audio recording, voice conversation with AI, emotion scoring, A/B factorial variants, social-media-post mockups, signature capture, hot-spot interactions." },
   { icon: PlugZap, title: "Open integrations", body: "OSF preregistration. Prolific recruitment. Anthropic Claude. Hume emotion AI. BYO keys — your data, your accounts, no markup. Add new providers via our open adapter pattern." },
@@ -465,7 +465,9 @@ function Footer() {
 
 export function LandingPage() {
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[var(--color-surface-page)]">
+    // Minimal leans hard into IBM Plex Mono (owner): the whole page defaults to
+    // font-mono; only the serif display headlines (font-serif) opt back out.
+    <main className="relative min-h-screen overflow-hidden bg-[var(--color-surface-page)] font-mono">
       <LandingSwitcher current="minimal" />
       <Hero />
       <PainPoints />
