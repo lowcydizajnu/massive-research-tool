@@ -1,6 +1,8 @@
-# Massive Research Tool — landing page content + structure
+# My Research Lab — landing page content + structure
 
-> **Drafted 2026-06-22.** Full copy + section structure for the marketing-site landing page at `myresearchlab.app`. v0.7 design language (warm-white + emerald + Plex Serif). Audience: **young researchers (PhD students, postdocs, early career) + professional academics (faculty, established PIs)**. Tone: scholarly editorial + modern confidence, never startup-noisy.
+> **Drafted 2026-06-22; product name corrected 2026-06-22.** Full copy + section structure for the marketing-site landing page at `myresearchlab.app`. v0.7 design language (warm-white + emerald + Plex Serif). Audience: **young researchers (PhD students, postdocs, early career) + professional academics (faculty, established PIs)**. Tone: scholarly editorial + modern confidence, never startup-noisy.
+>
+> **Product name discipline:** public-facing copy says **My Research Lab** (matches the domain). Internal dev shorthand can still use "MRT" in handoffs / ADRs / code. This doc is public-facing — uses "My Research Lab" throughout.
 >
 > **What this file is:** the copy + section flow. Designers + Code tab can implement directly from this. Visual mockup of hero + 3 sections lives in the chat thread (saved 2026-06-22; reconstructable via show_widget).
 >
@@ -32,10 +34,10 @@ The copy below threads this needle — confident + modern + visually current, bu
 1. **Hero** — headline + subhead + CTAs + trust microcopy
 2. **Pain points (dark inverse section)** — "Tired of..." list
 3. **End-to-end workflow** — visual flow with all 7 stages
-4. **Core features (6-card grid)** — what sets MRT apart
+4. **Core features (6-card grid)** — what sets My Research Lab apart
 5. **Open community + Explore tease** — featured public studies
 6. **Built on rigor (trust signals row)** — OSF, GDPR, BYO-AI, open methodology
-7. **Comparison strip** — MRT vs Qualtrics + OSF + Prolific separately
+7. **Comparison strip** — My Research Lab vs Qualtrics + OSF + Prolific separately
 8. **Pricing tease** — free + institutional partnerships
 9. **For young researchers / For PIs** — two-column audience-specific value props
 10. **Documentation + resources** — Mintlify docs link, quickstart, block catalogue
@@ -46,17 +48,17 @@ The copy below threads this needle — confident + modern + visually current, bu
 
 ## 1. Hero
 
-**Eyebrow:** `MASSIVE RESEARCH TOOL` (with brand emerald dot before it)
+**Eyebrow:** `MY RESEARCH LAB` (with brand emerald dot before it)
 
 **Headline (H1, Plex Serif 48-52px, weight 500, tight letter-spacing):**
 
-> Built for science that **actually replicates**.
+> Replicate any study in **one click**.
 
-(The "actually replicates" phrase in brand emerald `#047144`.)
+(The "one click" phrase in brand emerald `#047144`.)
 
 **Subhead (Plex Sans 17px, weight 400, secondary text color):**
 
-> The research platform with version control, one-click replication, and end-to-end workflow — from hypothesis to preregistration to published findings. **Qualtrics for designing studies. GitHub for tracking them. OSF for preregistering them. One tool.**
+> Fork any published study into your workspace and adapt it freely. Design, preregister, recruit, run, analyze — **all without leaving My Research Lab.** It's your survey builder, your version history, and your OSF connection rolled into one workspace.
 
 **Primary CTA (emerald button):** `Start free →`
 **Secondary CTA (ghost button):** `Watch the demo`
@@ -67,9 +69,15 @@ The copy below threads this needle — confident + modern + visually current, bu
 
 **Hero visual options** (pick one):
 - A) App screenshot of the Builder showing a study with conditions + version sidebar (most concrete)
-- B) Animated GIF of the version-comparison view (shows the GitHub-like superpower)
-- C) Stylized illustration of a researcher at a desk with a forked branch growing out of their study (more brand-coded)
-- **Recommend: A) app screenshot first** — researchers want to see the actual tool, not metaphors. Save illustration energy for later sections.
+- B) Animated GIF showing a public study being **forked** into a fresh workspace (literally demonstrates "one click replication")
+- C) Stylized illustration of two researchers connected by a forked branch (more brand-coded)
+- **Recommend: B) animated GIF of the fork action** — directly demonstrates the headline claim. If you can't make a GIF, fall back to A (Builder screenshot with version sidebar visible).
+
+**Why this headline + subhead works:**
+- Leads with replication (the strongest differentiator) instead of versioning (which is plumbing)
+- "One click" makes a concrete claim a researcher can immediately test
+- Subhead's "all without leaving My Research Lab" makes the **one-tool bridge explicit** (prior version implied it; this asserts it)
+- The trio at the end ("your survey builder, your version history, and your OSF connection rolled into one") replaces the previous "Qualtrics / GitHub / OSF" name-dropping — same idea, no comparative-advertising risk, clearer "we ARE the one tool" framing
 
 ---
 
@@ -110,7 +118,7 @@ This section uses an **inverted dark background** (v0.7 dark page bg `#0A0E0C`) 
 
 **Subhead (Plex Sans, 15px, secondary):**
 
-> No more juggling six tools. MRT covers the full research lifecycle in one workspace — with version control under every step.
+> No more juggling six tools. My Research Lab covers the full research lifecycle in one workspace — with version control under every step.
 
 **Visual:** horizontal scroll of 7 stages with → arrows between them. Each stage is a small card with a Tabler icon + label:
 
@@ -130,13 +138,13 @@ This section uses an **inverted dark background** (v0.7 dark page bg `#0A0E0C`) 
 
 ---
 
-## 4. Core features — what sets MRT apart
+## 4. Core features — what sets My Research Lab apart
 
 **Eyebrow:** `BUILT FOR RIGOR`
 
 **Headline (Plex Serif, 32px):**
 
-> What sets MRT apart
+> What sets My Research Lab apart
 
 **Six feature cards in a 3-column grid (2-column on mobile):**
 
@@ -182,7 +190,7 @@ This section uses an **inverted dark background** (v0.7 dark page bg `#0A0E0C`) 
 
 **Subhead:**
 
-> Browse published methodologies. Replicate any of them in one click. Be the first researchers to grow MRT's open-science library.
+> Browse published methodologies. Replicate any of them in one click. Be the first researchers to grow My Research Lab's open-science library.
 
 **Visual:** Card carousel showing 4-6 featured public studies. At launch this section might be sparse — frame it as "be among the first" rather than fake-busy. Each card:
 - Cover image (or generated visual)
@@ -192,7 +200,7 @@ This section uses an **inverted dark background** (v0.7 dark page bg `#0A0E0C`) 
 - Replicate CTA
 
 **Empty-state fallback for launch:**
-> Be among the first researchers to publish a study in the open MRT library. Your work becomes a starting point for replications.
+> Be among the first researchers to publish a study in the open My Research Lab library. Your work becomes a starting point for replications.
 
 **Section CTA:** `Browse all studies →` (links to `/explore`)
 
@@ -212,7 +220,7 @@ A horizontal row of 4-5 trust indicators. Subtle visual treatment (small icon + 
 
 ---
 
-## 7. Comparison strip — MRT vs separate tools
+## 7. Comparison strip — My Research Lab vs separate tools
 
 **Eyebrow:** `BEFORE / AFTER`
 
@@ -223,9 +231,9 @@ A horizontal row of 4-5 trust indicators. Subtle visual treatment (small icon + 
 **Visual:** A simple two-column comparison.
 
 **Left column (light gray background, semi-transparent):**
-> **Before MRT**
+> **Before My Research Lab**
 >
-> - Qualtrics — building the study ($$$/yr seat license)
+> - A survey tool — building the study ($$$/yr seat license)
 > - OSF — preregistration (free but disconnected)
 > - Prolific — recruitment (pass-through but you re-key everything)
 > - Word doc — methodology notes
@@ -234,10 +242,10 @@ A horizontal row of 4-5 trust indicators. Subtle visual treatment (small icon + 
 > - Cost: ~$2,000-15,000 per researcher per year
 
 **Right column (white card with emerald accent):**
-> **With MRT**
+> **With My Research Lab**
 >
 > - One workspace covering design + preregistration + recruitment + collaboration + version history + replication
-> - One subscription (free for individuals; institutional pricing for departments)
+> - One subscription (free for individuals; pay what feels right above that)
 > - Cost: free for individual researchers; BYO Prolific/AI vendor costs
 
 ---
@@ -252,7 +260,7 @@ A horizontal row of 4-5 trust indicators. Subtle visual treatment (small icon + 
 
 **Subhead (Plex Sans, 16px, secondary):**
 
-> MRT is free to use. If it helps your research, you decide what it's worth to you. We built this for science, not for subscription revenue. Pay $0 forever — that's a real option, not a trap.
+> My Research Lab is free to use. If it helps your research, you decide what it's worth to you. We built this for science, not for subscription revenue. Pay $0 forever — that's a real option, not a trap.
 
 **Three suggested tiers (visual cards, but framed as suggestions, not gates — every feature is unlocked at $0):**
 
@@ -260,17 +268,17 @@ A horizontal row of 4-5 trust indicators. Subtle visual treatment (small icon + 
 > **$0 / forever**
 > For PhD students, indie researchers, anyone just starting out.
 > All features. All blocks. BYO vendor accounts.
-> "Help us by using MRT and telling us what's broken."
+> "Help us by using My Research Lab and telling us what's broken."
 
 ### ☕ Supporter
 > **Suggested ~$9 / month**
 > For researchers who want to back the project.
 > Same features as Free. The difference is moral support.
-> "Buy us coffee. Help keep MRT independent."
+> "Buy us coffee. Help keep My Research Lab independent."
 
 ### 🌳 Lab / Group
 > **Suggested ~$29 / month per lab**
-> For labs using MRT as their primary research tool.
+> For labs using My Research Lab as their primary research tool.
 > Same features as Free. Helps fund larger development cycles.
 > "Your lab pays, you stay independent of grant cycles."
 
@@ -294,8 +302,8 @@ A horizontal row of 4-5 trust indicators. Subtle visual treatment (small icon + 
 
 ### Why pay-what-you-want (owner-side reasoning, not in copy)
 
-- Aligns with open-science values; signals MRT cares about access, not extraction
-- Removes pricing friction for individual researchers (the audience that needs MRT most + can pay least)
+- Aligns with open-science values; signals My Research Lab cares about access, not extraction
+- Removes pricing friction for individual researchers (the audience that needs My Research Lab most + can pay least)
 - Doesn't lock you out of monetization — anchoring with suggested amounts ($9 / $29) sets expectations
 - Institutional path stays separate (custom partnership) — universities need a real conversation anyway
 - Reversible: if PAYW doesn't generate enough revenue, you can convert to traditional tiered pricing later. Going the other direction (free → paid) is much harder.
@@ -333,7 +341,7 @@ This is where the audience-bridge work happens. Two columns; each speaks directl
 - Adapter architecture: never locked into a vendor again
 - Pay what feels right at lab level; talk to us about partnerships if you want dedicated infrastructure
 
-**CTA:** `Start your lab on MRT →`
+**CTA:** `Start your lab on My Research Lab →`
 
 ---
 
@@ -407,7 +415,7 @@ This is where the audience-bridge work happens. Two columns; each speaks directl
 - Security disclosure (`security.txt`)
 
 **Bottom bar:**
-- © 2026 Massive Research Tool — built by Paweł Rosner
+- © 2026 My Research Lab — built by Paweł Rosner
 - Sentence-case copyright; no shouting
 
 ---
@@ -477,7 +485,7 @@ Before publishing, verify:
 - **Live demo embed** — requires production-stable demo workspace; defer until V2.x
 - **Blog tease** — no blog yet; add when one exists.
 - **Newsletter signup** — defer; people who care will find their way to docs.
-- **Comparison vs specific competitors named** — "MRT vs Qualtrics" is dangerous (legal); the comparison strip says "before/after" abstractly. Don't name Qualtrics + SurveyMonkey + Sona by name unless you've talked to a lawyer about comparative advertising in EU/US.
+- **Comparison vs specific competitors named** — "My Research Lab vs Qualtrics" is dangerous (legal); the comparison strip says "before/after" abstractly. Don't name Qualtrics + SurveyMonkey + Sona by name unless you've talked to a lawyer about comparative advertising in EU/US.
 - **Status page link in main nav** — keep in footer only; not a top-line trust signal yet.
 
 ---
