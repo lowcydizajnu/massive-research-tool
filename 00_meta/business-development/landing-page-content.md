@@ -242,34 +242,66 @@ A horizontal row of 4-5 trust indicators. Subtle visual treatment (small icon + 
 
 ---
 
-## 8. Pricing tease
+## 8. Pricing tease — pay what you want
 
 **Eyebrow:** `PRICING`
 
 **Headline (Plex Serif, 32px):**
 
-> Free for researchers. Worth it for institutions.
+> Pay what feels right.
 
-**Two-column tier preview:**
+**Subhead (Plex Sans, 16px, secondary):**
 
-### Free
-- Unlimited studies in your personal workspace
-- All 46+ block types
-- BYO Prolific / OSF / Anthropic / Hume (you pay vendors directly, no markup)
-- Public-studies community + one-click replication
-- Open-source methodology + ADRs
-- **$0 forever**
+> MRT is free to use. If it helps your research, you decide what it's worth to you. We built this for science, not for subscription revenue. Pay $0 forever — that's a real option, not a trap.
 
-### Institutional partnership
-- Everything in Free, plus:
-- Dedicated workspaces for your lab / department / faculty
-- SSO via SAML / Shibboleth
-- DPA + GDPR institutional contract
-- Admin dashboard + cost rollups
-- Direct support + roadmap input
-- **From $50k/year — talk to founders**
+**Three suggested tiers (visual cards, but framed as suggestions, not gates — every feature is unlocked at $0):**
 
-**CTA:** `Start free` (primary) · `Talk about institutional →` (secondary, links to partnership page)
+### 🌱 Free
+> **$0 / forever**
+> For PhD students, indie researchers, anyone just starting out.
+> All features. All blocks. BYO vendor accounts.
+> "Help us by using MRT and telling us what's broken."
+
+### ☕ Supporter
+> **Suggested ~$9 / month**
+> For researchers who want to back the project.
+> Same features as Free. The difference is moral support.
+> "Buy us coffee. Help keep MRT independent."
+
+### 🌳 Lab / Group
+> **Suggested ~$29 / month per lab**
+> For labs using MRT as their primary research tool.
+> Same features as Free. Helps fund larger development cycles.
+> "Your lab pays, you stay independent of grant cycles."
+
+**Microcopy below the cards:**
+
+> No tier is locked. No paywall. Pay what your budget allows. Cancel anytime. Pure trust-based pricing.
+
+**Special section below for institutions:**
+
+### For universities + departments
+
+> If you're a department or university interested in a deeper relationship — dedicated infrastructure, SSO, DPA, custom features, design-partner status — we'd rather have a conversation than quote a number. Partnership pricing is custom; scope is too.
+>
+> [Talk about a partnership →] (links to partnership page or email)
+
+**CTA strip:**
+- Primary: `Start free` (links to signup)
+- Secondary: `Pay what feels right →` (links to billing page with suggested amounts + custom-amount input)
+
+---
+
+### Why pay-what-you-want (owner-side reasoning, not in copy)
+
+- Aligns with open-science values; signals MRT cares about access, not extraction
+- Removes pricing friction for individual researchers (the audience that needs MRT most + can pay least)
+- Doesn't lock you out of monetization — anchoring with suggested amounts ($9 / $29) sets expectations
+- Institutional path stays separate (custom partnership) — universities need a real conversation anyway
+- Reversible: if PAYW doesn't generate enough revenue, you can convert to traditional tiered pricing later. Going the other direction (free → paid) is much harder.
+- Honest framing: "we built this for science, not for subscription revenue" reads as integrity, not weakness — at indie scale this works; at scale with VC pressure it may not
+
+**Risk to monitor:** if 95%+ of researchers pay $0 and you can't sustain dev, you'll need to either (a) push harder on institutional partnerships, (b) introduce a "Pro" tier with real features behind it, or (c) accept this is a labor-of-love project funded another way. Track 6-month revenue + adjust accordingly.
 
 ---
 
@@ -299,9 +331,9 @@ This is where the audience-bridge work happens. Two columns; each speaks directl
 - Cross-workspace replications visible from your study page
 - Audit trail for every change — IRB-ready out of the box
 - Adapter architecture: never locked into a vendor again
-- Institutional partnerships keep your lab's data in your control
+- Pay what feels right at lab level; talk to us about partnerships if you want dedicated infrastructure
 
-**CTA:** `Talk about institutional partnership →`
+**CTA:** `Start your lab on MRT →`
 
 ---
 
@@ -401,6 +433,7 @@ This is where the audience-bridge work happens. Two columns; each speaks directl
 - Mintlify docs site live at docs.myresearchlab.app (per Explore + Engagement handoff)
 - `/explore` route live (per Explore + Engagement handoff)
 - Partnership-inquiry page or contact email
+- **Owner's Figma landing-page design** at https://www.figma.com/design/xwjo5GPhnSSIWcgmdYbm4h/Untitled?node-id=1-2 — Code tab has Figma MCP access (`use_figma`, `get_design_context`) and can pull the file directly when implementing. If the Figma design conflicts with anything in this content doc, **the Figma is the visual truth + this doc is the copy/structure truth** — Code tab merges intelligently and flags clashes to owner.
 
 **Nice to have:**
 - 2-3 commissioned hero illustrations (see illustration brief; ~$1-2k investment)
@@ -466,13 +499,13 @@ Before publishing, verify:
 
 ---
 
-## Three open questions for you
+## Open questions for you
 
 1. **Use the name "Qualtrics" explicitly?** You said "I think we should use name qualtrics but github is fine." Naming Qualtrics in marketing copy is legally tricky (comparative advertising — they could complain). I've used "Qualtrics" in the body once (hero subhead) for the analogy. If you want to be safer, swap to "survey tools" generically. If you want it stronger, the comparison strip in Section 7 could explicitly name Qualtrics + OSF + Prolific in the "Before" column. Confirm or override.
 2. **Headline pick.** I've recommended `Built for science that actually replicates.` Alternates worth considering:
    - `Research as it should be.` (more editorial; vaguer)
    - `From hypothesis to published replication in one place.` (more concrete; longer)
    - `The research tool researchers actually deserve.` (more bold; risks reading whiny)
-3. **Pricing transparency.** Section 8 shows "From $50k/year — talk to founders" for institutional. Some founders prefer "Contact us" with no number; some prefer concrete numbers. Concrete number filters out tiny budgets (good — saves your time on calls with people who can't pay) but signals high cost. Confirm or override.
+3. ✅ **Pricing: locked at pay-what-you-want** (owner direction 2026-06-22). Three suggested tiers ($0 / $9 / $29) with explicit "every feature unlocked at $0" framing. Institutional partnerships stay separate (custom scope, custom conversation, no headline number). See risk-to-monitor note in Section 8.
 
 If you want me to also draft the standalone "/partnership" page (institutional pricing detail + the partnership one-pager rendered as a webpage), say the word — that's another ~half-day of content work.
