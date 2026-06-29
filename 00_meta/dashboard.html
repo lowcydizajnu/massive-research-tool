@@ -1213,6 +1213,10 @@
   ],
   "recentActivity": [
     {
+      "text": "Production database migrated US → EU (ADR-0083). Owner spotted the sub-processor table claimed Neon 'EU/USA'; the live Neon project was actually aws-us-east-2 (US), contradicting EU intent. Confirmed via Vercel DATABASE_URL, then migrated live data → empty EU 'MRT Production' (aws-eu-central-1) with pg_dump/pg_restore: exact row-count parity across all 51 public tables. Owner repointed Vercel DATABASE_URL → EU + rebuilt HEAD (460d21e, live). Both region tables corrected to Neon EU (Frankfurt); the Location column was hardcoded, never read deployment config. Follow-ups: rename Neon projects so mrt-production=EU + update local env; decommission US + stale myresearchtool (552 old responses) after backup.",
+      "date": "2026-06-29"
+    },
+    {
       "text": "Feedback re-reports fixed (01KW7WWT/93RP/79N1/943Q). Version-compare flow edges now solid emerald (were faint dashed → read as 'free boxes'). Playground comment drawer raised to z-[55] (was under the feedback FAB). Library · Modules gained a search box (A–Z sort already matched Studies). Group-undo 'blink then revert' root-caused: server dissolves <2-member groups but the optimistic onMutate didn't, leaking a phantom group into undo history — fixed via shared lib/whiteboard/dissolve-groups.ts (+5 tests). Wording re-report (01KW76J5) investigated: pipeline correct end-to-end, no change. 870 tests; clean. f1bf338+0cb7be9 live; cdd6b27 (undo) pending push.",
       "date": "2026-06-29"
     },
