@@ -1,39 +1,83 @@
 ---
 title: Your first study
-description: Build, preview, publish, and run a study end to end.
+description: Build, preview, freeze, and run a study end to end in the Builder.
 ---
+
+This is the full Builder flow — from an empty draft to a running study collecting data. Each section links to the deeper reference page for that surface.
 
 ## 1. Start a study
 
-From **Studies** (or an **Explore** use-case card), click **Start building**. You get a blank draft and land in the **Builder**. To start from existing work instead, **Replicate** a public study from [Browse](https://myresearchlab.app/browse) or use a Library **template**.
+From **Studies**, click **New study**. A new study starts **blank** — an empty draft with no blocks — and drops you into the **Builder**.
+
+To start from existing work instead, you don't begin blank — you copy:
+
+- **Replicate** a finished public study from [Browse](https://myresearchlab.app/browse) — a faithful copy with the lineage preserved. See [Replication](/methodology/replication).
+- **Use as template** — start from someone's design as a fresh study with no lineage and new block identities.
+- **Start from a starter template** on [Explore](https://myresearchlab.app/explore) — e.g. the ready-made [A/B test](/methodology/ab-testing) or [pilot](/methodology/piloting) designs.
+
+<Note>
+In this version, **New study** always begins blank. Starting "from" something always means cloning an existing study or template, not picking a framework in the new-study dialog.
+</Note>
 
 ## 2. Add blocks
 
-The Builder is a list of **blocks** — each is one screen or measure a participant sees. Add blocks from the picker: instructions, Likert scales, multiple choice, open text, stimuli (text/image/video/audio), timers, and more. See the [block catalogue](/builder/blocks).
+The Builder is an ordered list of **blocks** — each is one screen or measure a participant sees. Click **Add blocks** to open the picker: instructions, Likert and other scales, multiple choice, open text, sliders, stimuli (text/image/video/audio/social post), attention checks, timers, and more. See the full [block catalogue](/builder/blocks).
 
-Reorder by dragging. Edit a block's wording and options inline. Everything autosaves as your **Draft**.
+- **Reorder** by dragging.
+- **Edit** a block's wording, options, and settings inline — its config is validated as you go.
+- Everything **autosaves** into your working **Draft** as you type; there's no separate save button for ordinary edits.
 
-## 3. Branch and compare (optional)
+## 3. Branch, split, and reword (optional)
 
-- [**Conditions**](/builder/conditions) show or hide blocks based on earlier answers — for screening, branching, and randomized arms.
-- [**Variants**](/builder/variants) define version-level arms (e.g. an A/B of two stimuli) so participants are split across versions.
-- [**Themes**](/builder/themes) control the look participants see.
+These are distinct mechanisms — don't confuse them:
+
+- [**Conditions**](/builder/conditions) are random-assignment **arms** (each with a name, slug, and allocation weight). A block can be gated to show only in certain conditions. This is how you build a two-arm experiment. See also [A/B testing](/methodology/ab-testing).
+- [**Variants**](/builder/variants) define a **factorial** design — factors with levels (e.g. *tone* × *length*) — where block fields bind to the active level. Participants are split across the resulting cells.
+- [**Wording**](/builder/blocks) lets you override participant-facing chrome (Next/Submit, the required-answer error, the thank-you screen) and block-internal labels. Blank fields inherit the defaults.
+- [**Themes**](/builder/themes) control the visual look participants see.
 
 ## 4. Preview
 
-Click **Preview** to take the study exactly as a participant would — one screen at a time, with live validation and branching. Nothing you do in Preview counts toward results.
+Click **Live preview** to take the study exactly as a participant would — one screen at a time, with live validation and branching, in mobile/tablet/desktop frames. If your study has variants, you can pick which **cell** to preview.
 
-## 5. Make it runnable
+<Note>
+Preview responses are **ephemeral** — they're recorded as preview mode, never as real data, and are excluded from your results and exports.
+</Note>
 
-To collect real data, freeze a version:
+## 5. Freeze a version
 
-- **Publish** — freezes a runnable version (good for pilots/exploratory work).
-- [**Preregister**](/methodology/preregistration) — freezes a version *and* timestamps your plan on the OSF (the open-science path).
+Editing always happens on the mutable **Draft** (the working copy). To create a citable, runnable version you **freeze** the draft into an immutable snapshot:
+
+<CardGroup cols={2}>
+  <Card title="Publish" icon="lock">
+    Freezes a numbered, runnable version **without** an OSF push — good for pilots and exploratory work.
+  </Card>
+  <Card title="Preregister" icon="certificate">
+    Freezes a numbered version **and** timestamps your plan on the [OSF](/integrations/osf) — the open-science path. See [Preregistration](/methodology/preregistration).
+  </Card>
+</CardGroup>
+
+You can also **Save as a named version** to snapshot a milestone without making it the live one. The first frozen version is **v1** — the autosave Draft itself is unnumbered.
+
+<Note>
+Frozen versions are **immutable**. You never edit a published or preregistered version directly — you keep editing the Draft, then push the changes live (or, for a preregistered study, push an **amendment** with a stated reason).
+</Note>
 
 ## 6. Run
 
-On the **Run** stage, **open recruitment** to get a participant link, or connect [Prolific](/integrations/prolific) to recruit a balanced sample. Watch responses land on the study **Dashboard**; export the dataset any time.
+Freezing makes a study **runnable**, but it does **not** open recruitment by itself — that's a separate step.
+
+On the **Run** stage:
+
+1. **Open recruitment** to activate the participant link.
+2. Share the link directly, or connect [Prolific](/integrations/prolific) to recruit a sample straight from the Run stage.
+
+Participants are assigned to a condition at random (by allocation weight) when they start. Watch responses land on the study **Dashboard**, see counts per condition, and export the dataset any time.
+
+<Note>
+If you edit the Draft while a frozen version is live, those edits **don't reach participants** until you make them live (publishing a new version, or pushing an amendment for a preregistered study). The Builder flags this drift.
+</Note>
 
 ## 7. Share
 
-Make the study public so peers can read the record, cite it, and **replicate** it — and turn on your [public profile](https://myresearchlab.app/settings/account?tab=profile) so your work is discoverable.
+Make the study public so peers can read the record, cite it, and [**replicate**](/methodology/replication) it — and turn on your [public profile](https://myresearchlab.app/settings/account?tab=profile) so your work is discoverable.

@@ -20,6 +20,8 @@ export const DOC_URLS = {
   "integrations.anthropic": "/integrations/anthropic",
   "methodology.preregistration": "/methodology/preregistration",
   "methodology.replication": "/methodology/replication",
+  "methodology.ab-testing": "/methodology/ab-testing",
+  "methodology.piloting": "/methodology/piloting",
   "methodology.irb": "/methodology/irb-checklist",
 } as const;
 

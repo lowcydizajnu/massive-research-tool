@@ -1,0 +1,61 @@
+---
+title: A/B testing
+description: Run a two-condition, between-subjects experiment — random assignment, balanced recruitment, and per-condition results.
+---
+
+An **A/B test** here is a between-subjects experiment: each participant is randomly assigned to one of two **conditions** and sees one version of a stimulus, then everyone answers the **same** outcome measures. You compare the arms on those measures.
+
+The fastest way to start is the **A/B test** starter template on [Explore](https://myresearchlab.app/explore) — a real two-condition design you edit and run.
+
+## How the starter is built
+
+The A/B starter is a genuine two-arm design, not a cosmetic one. It ships with:
+
+- **Two conditions** — `Version A` and `Version B` — seeded as random-assignment arms on the version.
+- **Two stimulus screens**, each [gated to one condition](/builder/conditions): the *Version A* screen shows only to the `version-a` arm, the *Version B* screen only to the `version-b` arm. Each holds placeholder wording you replace with the two messages you want to compare.
+- **Shared outcome measures** every participant answers regardless of arm: a 7-point appeal rating, a share-intention question, and an attention check.
+- A welcome screen, consent, and a thank-you screen.
+
+<Note>
+This is **condition-based** (random-assignment arms with per-screen gating), which is the right tool for comparing two whole stimuli. If instead you want to cross **two or more factors** (e.g. tone × length) into a factorial grid, use [variants](/builder/variants).
+</Note>
+
+## Editing it for your study
+
+<Steps>
+  <Step title="Replace the two stimulus screens">
+    Open the *Version A* and *Version B* screens and swap the placeholder text for the two messages, images, or framings you're comparing. Keep everything else about the two screens identical so the wording is the only difference.
+  </Step>
+  <Step title="Adjust the measures">
+    Edit, add, or remove outcome blocks — every participant sees the same measures, so they stay comparable across arms.
+  </Step>
+  <Step title="Check the assignment in Preview">
+    Use **Live preview** to confirm each arm sees the right stimulus. Preview responses don't count toward results.
+  </Step>
+</Steps>
+
+## Random assignment
+
+When a participant starts, the app picks their condition by **weighted random assignment** over the conditions' allocation weights. With the default equal weights, that's a coin flip between the two arms — so the split is even **in expectation**, not a hard 50/50 quota. Natural sampling variance means the arms won't always end up exactly equal.
+
+<Tip>
+You can skew the split deliberately by changing a condition's allocation weight in the Builder (e.g. weight a pilot arm lower).
+</Tip>
+
+## Recruiting a balanced sample on Prolific
+
+From the **Run** stage, connect [Prolific](/integrations/prolific) and create a study with a single **target N**. Prolific recruits that many participants to your one recruitment link; the app then assigns each arriving participant to a condition by the weighted-random rule above. With equal weights, that yields roughly even arms.
+
+<Warning>
+The target N is a **single, study-wide** number — the Prolific form doesn't set per-condition quotas. Even allocation comes from random assignment, not an enforced split. Recruit enough that both arms reach the per-arm sample you need.
+</Warning>
+
+The **Running** view flags a study as **imbalanced** when the gap between the smallest and largest arm exceeds 20% of the largest — a prompt to keep recruiting (or check your gating) rather than an automatic correction.
+
+## Reading results by condition
+
+The study **Results** break down per condition: each arm's name and its completed-response count, plus per-question summaries (means for numeric items, option counts for categorical, counts for text). The exported dataset tags every response with the **condition** the participant was assigned, so you can compare the arms directly in your own analysis.
+
+<Tip>
+Preregister the comparison before you run it — freeze the design and your planned analysis on the [OSF](/integrations/osf) so the A vs. B test you report is the one you planned. See [Preregistration](/methodology/preregistration).
+</Tip>

@@ -74,7 +74,7 @@ const SCENARIOS: ExploreScenario[] = [
     cta: { kind: "template", templateId: STARTER_AB_TEMPLATE_ID },
     ctaLabel: "Start from template",
     iconKey: "split",
-    learnMoreDocKey: "integrations.prolific",
+    learnMoreDocKey: "methodology.ab-testing",
   },
   {
     slug: "pilot-with-friends",
@@ -84,7 +84,7 @@ const SCENARIOS: ExploreScenario[] = [
     cta: { kind: "template", templateId: STARTER_PILOT_TEMPLATE_ID },
     ctaLabel: "Start from template",
     iconKey: "flask",
-    learnMoreDocKey: "getting-started.first-study",
+    learnMoreDocKey: "methodology.piloting",
   },
 ];
 

@@ -45,6 +45,8 @@
         "pages": [
           "methodology/preregistration",
           "methodology/replication",
+          "methodology/ab-testing",
+          "methodology/piloting",
           "methodology/irb-checklist"
         ]
       }

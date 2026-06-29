@@ -1,29 +1,98 @@
 ---
 title: OSF (Open Science Framework)
-description: Connect OSF to preregister and publish your study record.
+description: Connect OSF to preregister your study and keep the public record honest.
 ---
 
-Connecting the **OSF** lets you push a study's frozen version to the Open Science Framework as a timestamped **preregistration** (and later updates/amendments).
+Connecting the **OSF** lets you push a frozen version of your study to the Open Science Framework as a timestamped **preregistration**, push later **amendments** to the same project, and have Massive Research Lab watch the registration for withdrawals and DOI minting.
+
+This page describes exactly what we send, what we deliberately don't, and how the two-way sync behaves — so the record on OSF is something you can stand behind.
 
 ## Connect
 
-Go to **Settings · Account → Connections → OSF**. Connect once with **either**:
+Connect once, in **Settings · Connections → OSF**. Two paths are supported:
 
-- **Personal Access Token** (quickest) — generate one at [osf.io/settings/tokens](https://osf.io/settings/tokens) with the `osf.full_write` scope and paste it. Stored encrypted; never shown again.
-- **Sign in with OSF** (OAuth) — if available for your account.
+<CardGroup cols={2}>
+  <Card title="Personal Access Token (PAT)" icon="key">
+    Generate a token at [osf.io/settings/tokens](https://osf.io/settings/tokens) with the **`osf.full_write`** scope and paste it. We validate it against OSF before storing (a bad or wrong-scope token is rejected on the spot), then keep it **encrypted**. Works everywhere, including self-hosted.
+  </Card>
+  <Card title="Sign in with OSF (OAuth)" icon="right-to-bracket">
+    If your Massive Research Lab instance has the OSF OAuth app configured, you can authorize via OSF directly. The OAuth flow requests the same `osf.full_write` scope. When OAuth isn't configured on the server, only the PAT path is shown.
+  </Card>
+</CardGroup>
 
-The connection is **per researcher** (your token), and is used when you push from any workspace you belong to.
+<Note>
+The connection is **per researcher**, not per workspace — it's tied to your OSF identity, not your lab. When you push, your token creates the OSF project and you are its admin. Co-authors are added as contributors (see below). Disconnecting revokes the stored token; it is never shown again.
+</Note>
 
-## Preregister
+## What we push when you preregister
 
-When you [preregister](/methodology/preregistration) a study, the frozen version is pushed to OSF:
+When you [preregister](/methodology/preregistration) a study, a background job sends the frozen version to OSF in this sequence:
 
-- Hypotheses, design, and the study materials are recorded.
-- You get a timestamped registration and a DOI/link back.
+<Steps>
+  <Step title="Create an OSF project node">
+    A new **private** OSF project is created with your study **title**, and — when present — its **description** and **tags**. (Amendments reuse the original project rather than creating a new one.)
+  </Step>
+  <Step title="Add co-authors as contributors">
+    Other **active members of the workspace** (everyone except you, the pusher) are added to the OSF project as **unregistered contributors** — by display name, with email if available, marked bibliographic, with write permission. We pass `send_email=false`, so OSF doesn't send them surprise claim emails. A contributor that fails to add never aborts the registration. Contributors are added **only when the project is first created**.
+  </Step>
+  <Step title="File a draft registration">
+    A draft registration is created under the project, bound to the **"Open-Ended Registration"** schema (a single free-text summary field). Declared replications instead file under the **"Replication Recipe (Brandt et al., 2014): Pre-Registration"** schema, mapping the fields we hold (target effect, original study, planned sample, differences, analysis plan).
+  </Step>
+  <Step title="Fill the registration body">
+    The summary contains, in human-readable form: your **abstract**, **numbered hypotheses**, and the **auto-generated protocol** (the ordered list of blocks/screens participants see). Below the prose we append a **machine-readable JSON design snapshot** — the full version definition, the frozen module-version locks, and the theme — so the registration is a lossless record of the design. If the study uses an AI conversation block, a standard **non-determinism disclosure** is appended automatically.
+  </Step>
+  <Step title="Register immediately">
+    The draft is registered with OSF's `registration_choice: "immediate"`, which puts it into **pending approval** on OSF. You get the registration URL right away.
+  </Step>
+</Steps>
 
-## Amendments & updates
+### Exactly what reaches OSF
 
-After the first push, MRL distinguishes a **plan amendment** (changes to the registered plan, pushed as an amendment on the same OSF node) from a non-plan update. The app also **watches** your OSF record for withdrawals or external changes and reflects them back in the study.
+| We send | Where it lands |
+|---|---|
+| Study title, description, tags | OSF project node attributes |
+| Co-authors (workspace members) | OSF contributors (unregistered) |
+| Abstract, hypotheses, protocol narrative | Registration summary (prose) |
+| Full design snapshot (definition + module locks + theme) | Registration summary (JSON, appended below the prose) |
+| AI non-determinism disclosure (if an AI block is present) | Registration summary |
+
+## What we don't push
+
+Be clear-eyed about the boundaries — a naive reading might assume more than the integration does:
+
+<Warning>
+- **No participant data.** Raw responses, completion records, and recruitment data never leave Massive Research Lab in any OSF push.
+- **No uploaded files or stimuli.** Images, audio, video, and other uploaded materials are **not** uploaded to OSF as files. The *design* (including the text of stimuli that live in the protocol) is captured in the JSON snapshot, but binary materials stay in the app.
+- **No rendered PDF.** The registration is the prose summary plus the JSON snapshot — there is no separately generated PDF artifact.
+- **No automatic DOI at push time.** OSF mints the DOI only after the registration is **approved**, so the DOI is empty immediately after pushing and is backfilled later (see the watch below).
+</Warning>
+
+## Amendments vs. record updates
+
+After your first successful push, the app treats two kinds of change very differently:
+
+- **Plan amendment** — you changed the *registered plan* and re-preregister. We detect that an earlier version of the same study was already pushed, and file a **new registration on the same OSF project**. The amendment body is prefixed with an `AMENDMENT — supersedes …` header that includes your stated reason (from the amendment dialog) and an auto-generated list of changes since the prior registration. The original registration is never altered — both stay on the record. Contributors are not re-added (they already exist on the reused project).
+
+- **Record update (non-plan)** — you edited the *public study record* (abstract, article link) after preregistering. That does **not** create a new registration. It PATCHes the **OSF project's description** only, leaving the frozen registration untouched.
+
+<Note>
+This distinction is the whole point: the timestamped plan is immutable, amendments are honest supersessions on the record, and cosmetic record edits never masquerade as changes to the plan.
+</Note>
+
+## The OSF watch
+
+Massive Research Lab periodically polls your pushed registrations and reflects two things back into the study:
+
+- **DOI backfill** — once OSF approves the registration and mints a DOI, the watch reads it and stores it against the version, so your citation resolves.
+- **Withdrawal** — if a registration is withdrawn/retracted on OSF, the watch marks the version as **withdrawn** and notifies you. (OSF keeps a public tombstone — title, contributors, justification — after withdrawal.)
+
+<Warning>
+The watch reads **withdrawal status and the DOI** — it does **not** sync content you edit directly on osf.io back into the app. Make design changes here and push an amendment, rather than editing the registration on OSF.
+</Warning>
+
+## Withdrawing a registration
+
+Withdrawal is requested from the app and PATCHes the OSF registration with a justification. OSF then runs its own approval flow — a withdrawal is **pending the approval of the registration's contributors** before it takes effect, and once complete the registration becomes a public tombstone. It cannot be undone.
 
 <Warning>
 Preregistration is a commitment: once a version is registered, it's frozen. Make your edits *before* you preregister — or push a clearly-labelled amendment afterward.
