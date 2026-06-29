@@ -70,14 +70,24 @@ export function OnboardingTour() {
     if (replay || !seen) setRun(true);
   }, [isLoaded, isSignedIn, user, onTargetSurface, replay]);
 
+  // Design-system-consistent tooltip (feedback #10e). Joyride v3 takes a combined
+  // `options` config. The prior values were hardcoded hex; switch to our design
+  // tokens (CSS vars resolve as inline styles) so the tour reads as a
+  // parchment-surface card with the emerald CTA + Plex text colours, not generic
+  // chrome. Behaviour flags (progress, skip, no beacon, click-scrim/Esc = skip)
+  // stay in `options` per the v3 API.
   const options = useMemo(
     () => ({
-      primaryColor: "#047144", // brand CTA green (matches the primary CTA token)
-      textColor: "#1c1a17",
-      overlayColor: "rgba(0,0,0,0.45)",
       zIndex: 70,
+      primaryColor: "var(--color-primary)",
+      textColor: "var(--color-text-primary)",
+      backgroundColor: "var(--color-surface-canvas)",
+      arrowColor: "var(--color-surface-canvas)",
+      overlayColor: "rgba(0,0,0,0.45)",
+      width: 360,
       showProgress: true, // "2 / 4" in the tooltip footer
-      skipBeacon: true, // continuous tour — show tooltips immediately, no beacon dots
+      showSkipButton: true,
+      skipBeacon: true, // continuous tour — tooltips show immediately, no beacon dots
       skipScroll: true, // respect reduced motion; targets are above the fold
       overlayClickAction: "close" as const, // click the scrim = skip
       dismissKeyAction: "close" as const, // Esc = skip
