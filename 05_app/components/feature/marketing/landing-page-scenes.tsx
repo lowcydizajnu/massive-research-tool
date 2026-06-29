@@ -73,11 +73,11 @@ export function LandingPageScenes() {
         <div className="flex flex-col items-start gap-6 text-left">
           <Eyebrow>My Research Lab</Eyebrow>
           <h1 className="font-serif text-[2.5rem] font-medium leading-[1.08] tracking-[-0.01em] sm:text-[3.5rem]">
-            Replicate any study in <span style={{ color: ORANGE }}>one click</span>.
+            Create. <span style={{ color: ORANGE }}>Replicate.</span> Repeat.
           </h1>
           <p className="max-w-xl text-[18px] leading-relaxed text-white/80">
-            Start from any published study and adapt it freely. Design, preregister, recruit, run, analyze — all without
-            leaving My Research Lab. Your OSF, Prolific, and AI vendor accounts connect through. One workspace.
+            Start from scratch or any published study and adapt it freely. Design, preregister, recruit, run, analyze — all
+            without leaving My Research Lab. Your OSF, Prolific, and AI vendor accounts connect through. One workspace.
           </p>
           <div className="flex flex-wrap items-center gap-3">
             <Primary href="/signup">

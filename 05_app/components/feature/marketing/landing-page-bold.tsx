@@ -70,11 +70,11 @@ export function LandingPageBold() {
         <div className="absolute inset-0 -z-10 bg-black/60" aria-hidden />
         <div className="flex max-w-2xl flex-col items-start gap-6 text-left">
           <h1 className="font-serif text-[2.75rem] font-bold leading-[1.05] tracking-[-0.01em] text-white sm:text-[4.5rem]">
-            Replicate any study in one click.
+            Create. Replicate. Repeat.
           </h1>
           <p className="max-w-xl text-[length:var(--text-body)] leading-relaxed text-white/85 sm:text-[18px]">
-            Start from any published study and adapt it freely. Design, preregister, recruit, run, analyze — all without
-            leaving My Research Lab. Your OSF, Prolific, and AI vendor accounts connect through. One workspace.
+            Start from scratch or any published study and adapt it freely. Design, preregister, recruit, run, analyze — all
+            without leaving My Research Lab. Your OSF, Prolific, and AI vendor accounts connect through. One workspace.
           </p>
           <div className="flex flex-wrap items-center gap-3">
             <Pill href="/signup">
