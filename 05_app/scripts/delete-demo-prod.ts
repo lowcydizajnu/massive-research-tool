@@ -5,7 +5,9 @@
  * from the Neon API via `.env.production`'s NEON_API_KEY; never prints it; never
  * reads TOKEN_ENCRYPTION_KEY. Idempotent (a clean DB yields all-zero counts).
  *
- * Usage:  cd 05_app && npm run db:delete-demo:prod [owner-email]
+ * Usage:  cd 05_app && npm run db:delete-demo:prod [owner-email] [--dry-run]
+ *   --dry-run prints what WOULD be deleted and changes nothing (preview before
+ *   the irreversible run).
  */
 import { config } from "dotenv";
 
@@ -40,10 +42,12 @@ async function main() {
   // Set DATABASE_URL before importing the deleter so the lazy DB client uses prod.
   process.env.DATABASE_URL = url;
   const { deleteDemoContent } = await import("@/server/db/delete-demo");
-  const email = (process.argv[2] ?? "lowcydizajnu@gmail.com").toLowerCase();
-  const counts = await deleteDemoContent(email);
+  const args = process.argv.slice(2);
+  const dryRun = args.includes("--dry-run");
+  const email = (args.find((a) => !a.startsWith("--")) ?? "lowcydizajnu@gmail.com").toLowerCase();
+  const counts = await deleteDemoContent(email, { dryRun });
   console.log(
-    `Deleted demo content for ${email}: ` +
+    `${dryRun ? "DRY RUN — would delete" : "Deleted"} demo content for ${email}: ` +
       `${counts.studies} studies, ${counts.members} members, ${counts.users} users ` +
       `across ${counts.workspaces} workspace(s).`,
   );

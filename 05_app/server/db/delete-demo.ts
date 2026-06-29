@@ -59,6 +59,7 @@ const DEMO_EXTERNAL_IDS = ["demo-sofia", "demo-maya"] as const;
  */
 export async function deleteDemoContent(
   ownerEmail: string,
+  opts: { dryRun?: boolean } = {},
 ): Promise<{ workspaces: number; studies: number; members: number; users: number }> {
   const email = ownerEmail.toLowerCase();
 
@@ -84,6 +85,31 @@ export async function deleteDemoContent(
       .from(experiment)
       .where(and(inArray(experiment.tenantId, workspaceIds), eq(experiment.isDemo, true)));
     const experimentIds = demoStudies.map((e) => e.id);
+
+    // Resolve demo teammates up-front so a dry-run can preview the member/user
+    // counts without mutating anything.
+    const demoUsersPreview = await tx
+      .select({ id: user.id })
+      .from(user)
+      .where(inArray(user.externalId, [...DEMO_EXTERNAL_IDS]));
+    const demoUserIdsPreview = demoUsersPreview.map((u) => u.id);
+    const demoMembersPreview = demoUserIdsPreview.length
+      ? await tx
+          .select({ id: member.id })
+          .from(member)
+          .where(and(inArray(member.workspaceId, workspaceIds), inArray(member.userId, demoUserIdsPreview)))
+      : [];
+
+    if (opts.dryRun) {
+      // Read-only: report what WOULD be removed (users is an upper bound — the
+      // real run skips any demo user still referenced outside this scope).
+      return {
+        workspaces: workspaceIds.length,
+        studies: experimentIds.length,
+        members: demoMembersPreview.length,
+        users: demoUserIdsPreview.length,
+      };
+    }
 
     if (experimentIds.length > 0) {
       const demoVersions = await tx
