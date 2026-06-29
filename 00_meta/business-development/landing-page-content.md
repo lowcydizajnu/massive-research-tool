@@ -58,7 +58,7 @@ The copy below threads this needle — confident + modern + visually current, bu
 
 **Subhead (Plex Sans 17px, weight 400, secondary text color):**
 
-> Fork any published study into your workspace and adapt it freely. Design, preregister, recruit, run, analyze — **all without leaving My Research Lab.** It's your survey builder, your version history, and your OSF connection rolled into one workspace.
+> Start from any published study and adapt it freely. Design, preregister, recruit, run, analyze — **all without leaving My Research Lab.** Your survey builder and version history live here. Your OSF, Prolific, and AI vendor accounts connect through. One workspace.
 
 **Primary CTA (emerald button):** `Start free →`
 **Secondary CTA (ghost button):** `Watch the demo`
@@ -76,8 +76,10 @@ The copy below threads this needle — confident + modern + visually current, bu
 **Why this headline + subhead works:**
 - Leads with replication (the strongest differentiator) instead of versioning (which is plumbing)
 - "One click" makes a concrete claim a researcher can immediately test
-- Subhead's "all without leaving My Research Lab" makes the **one-tool bridge explicit** (prior version implied it; this asserts it)
-- The trio at the end ("your survey builder, your version history, and your OSF connection rolled into one") replaces the previous "Qualtrics / GitHub / OSF" name-dropping — same idea, no comparative-advertising risk, clearer "we ARE the one tool" framing
+- "Start from any published study and adapt it freely" replaces the earlier "fork" wording — researchers say "adapt" / "replicate" not "fork" (per project vocabulary rule in `00_meta/rules/design-rules.md`)
+- The accurate-claim ending: **builds in** the survey builder + version history; **connects through to** OSF, Prolific, AI vendors. We don't replace OSF or Prolific — we integrate with them. This phrasing is honest + still asserts "one workspace" as the unifying promise.
+
+**What this section is NOT:** a replacement claim for OSF / Prolific / Anthropic / Hume. Those are integrations, not replacements. The page tells the truth about the relationship.
 
 ---
 
