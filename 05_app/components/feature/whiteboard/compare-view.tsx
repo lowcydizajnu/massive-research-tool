@@ -38,9 +38,10 @@ function toFlow(nodes: CompareNode[], positions: Positions = {}): { rfNodes: Nod
 
   // Sequential flow edges: connect each block to the next in presentation order
   // so the side reads as a CONNECTED diagram (screen→screen), not loose boxes
-  // (owner feedback). Uses the dedicated top/bottom handles so these never clash
-  // with the left/right condition edges. Muted + dashed = "order", distinct from
-  // the solid arrowed condition links.
+  // (owner feedback, re-reported — the earlier dashed-grey treatment read as "not
+  // connected"). SOLID + arrowed + emerald so the screen order is unmistakable;
+  // uses the dedicated top/bottom handles so it never clashes with the left/right
+  // condition edges.
   const flowEdges: Edge[] = nodes.slice(0, -1).map((n, i) => ({
     id: `flow:${n.instanceId}->${nodes[i + 1].instanceId}`,
     source: n.instanceId,
@@ -48,8 +49,8 @@ function toFlow(nodes: CompareNode[], positions: Positions = {}): { rfNodes: Nod
     target: nodes[i + 1].instanceId,
     targetHandle: "flow-in",
     type: "smoothstep",
-    markerEnd: { type: MarkerType.ArrowClosed },
-    style: { stroke: "var(--color-border-strong, #94a3b8)", strokeWidth: 1.5, strokeDasharray: "4 4" },
+    markerEnd: { type: MarkerType.ArrowClosed, color: "var(--color-primary, #0AB667)" },
+    style: { stroke: "var(--color-primary, #0AB667)", strokeWidth: 2 },
   }));
 
   const rfEdges: Edge[] = [...flowEdges, ...condEdges];
