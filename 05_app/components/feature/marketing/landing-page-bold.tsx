@@ -38,6 +38,9 @@ import { LandingSwitcher } from "@/components/feature/marketing/landing-switcher
  * Plain <img> (not next/image) keeps it dependency-free for the proposal.
  */
 const IMG = "/marketing/figma";
+// Deep emerald sampled from the "Tired of…" lounge illustration — the tile
+// background for the bold direction (owner: "use green … as a background").
+const TILE_GREEN = "#176848";
 
 function Pill({ href, children, dark }: { href: string; children: React.ReactNode; dark?: boolean }) {
   return (
@@ -61,7 +64,8 @@ export function LandingPageBold() {
       <section className="relative isolate flex min-h-[88vh] items-center px-6 py-24 sm:px-12">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={`${IMG}/hero.png`} alt="" className="absolute inset-0 -z-10 size-full object-cover" />
-        <div className="absolute inset-0 -z-10 bg-gradient-to-r from-black/70 via-black/45 to-transparent" aria-hidden />
+        {/* Even full-bleed dim (was a left-weighted gradient that read unbalanced). */}
+        <div className="absolute inset-0 -z-10 bg-black/60" aria-hidden />
         <div className="flex max-w-2xl flex-col items-start gap-6 text-left">
           <h1 className="font-serif text-[2.75rem] font-bold leading-[1.05] tracking-[-0.01em] text-white sm:text-[4.5rem]">
             Replicate any study in one click.
@@ -110,28 +114,6 @@ export function LandingPageBold() {
         </div>
       </section>
 
-      {/* Community — scattered figures */}
-      <section className="relative bg-[var(--color-surface-canvas)] px-6 py-24">
-        <div className="mx-auto flex w-full max-w-5xl flex-col items-center gap-8 text-center">
-          <h2 className="font-serif text-[2rem] font-bold leading-tight text-[var(--color-text-primary)] sm:text-[3rem]">
-            Real studies from real researchers
-          </h2>
-          <p className="max-w-2xl text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
-            Browse published methodologies. Replicate any of them in one click. Be among the first to grow the open
-            library.
-          </p>
-          <div className="flex flex-wrap items-end justify-center gap-6">
-            {["fig1", "fig2", "astronaut", "fig3", "fig4"].map((f) => (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img key={f} src={`${IMG}/${f}.png`} alt="" className="h-44 w-auto object-contain sm:h-56" />
-            ))}
-          </div>
-          <Pill href="/explore" dark>
-            Browse all studies <ArrowRight className="size-4" aria-hidden />
-          </Pill>
-        </div>
-      </section>
-
       {/* Workflow */}
       <section className="bg-[#0A0E0C] px-6 py-24">
         <div className="mx-auto w-full max-w-6xl">
@@ -152,10 +134,10 @@ export function LandingPageBold() {
             ].map(([Icon, label, desc]) => {
               const I = Icon as typeof Lightbulb;
               return (
-                <li key={label as string} className="flex flex-col gap-2 rounded-[var(--radius-lg)] border border-white/15 bg-white/5 p-5">
-                  <I className="size-5 text-[var(--color-primary)]" aria-hidden />
+                <li key={label as string} className="flex flex-col gap-2 rounded-[var(--radius-lg)] p-5" style={{ backgroundColor: TILE_GREEN }}>
+                  <I className="size-5 text-white" aria-hidden />
                   <span className="text-[17px] font-medium text-white">{label as string}</span>
-                  <span className="text-[15px] text-white/65">{desc as string}</span>
+                  <span className="text-[15px] text-white/75">{desc as string}</span>
                 </li>
               );
             })}
@@ -178,10 +160,10 @@ export function LandingPageBold() {
             ].map(([Icon, title, body]) => {
               const I = Icon as typeof GitCommit;
               return (
-                <div key={title as string} className="flex flex-col gap-2 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] p-5">
-                  <I className="size-5 text-[var(--color-primary-text-on-subtle)]" aria-hidden />
-                  <h3 className="font-serif text-[19px] font-bold text-[var(--color-text-primary)]">{title as string}</h3>
-                  <p className="text-[15px] leading-relaxed text-[var(--color-text-secondary)]">{body as string}</p>
+                <div key={title as string} className="flex flex-col gap-2 rounded-[var(--radius-lg)] p-5" style={{ backgroundColor: TILE_GREEN }}>
+                  <I className="size-5 text-white" aria-hidden />
+                  <h3 className="font-serif text-[19px] font-bold text-white">{title as string}</h3>
+                  <p className="text-[15px] leading-relaxed text-white/80">{body as string}</p>
                 </div>
               );
             })}
@@ -257,11 +239,11 @@ export function LandingPageBold() {
             ].map(([Icon, name, price, body]) => {
               const I = Icon as typeof Sprout;
               return (
-                <div key={name as string} className="flex flex-col gap-2 rounded-[var(--radius-lg)] border border-white/15 bg-white/5 p-6">
-                  <I className="size-5 text-[var(--color-primary)]" aria-hidden />
+                <div key={name as string} className="flex flex-col gap-2 rounded-[var(--radius-lg)] p-6" style={{ backgroundColor: TILE_GREEN }}>
+                  <I className="size-5 text-white" aria-hidden />
                   <h3 className="font-serif text-[19px] font-bold text-white">{name as string}</h3>
                   <p className="text-[16px] font-medium text-white">{price as string}</p>
-                  <p className="text-[15px] text-white/65">{body as string}</p>
+                  <p className="text-[15px] text-white/80">{body as string}</p>
                 </div>
               );
             })}
@@ -314,34 +296,41 @@ export function LandingPageBold() {
         </div>
       </section>
 
-      {/* Relax. Take your space. — emotional dark beat (Figma headline kept) */}
+      {/* Community — moved down (owner); scattered figures */}
+      <section className="relative bg-[var(--color-surface-canvas)] px-6 py-24">
+        <div className="mx-auto flex w-full max-w-5xl flex-col items-center gap-8 text-center">
+          <h2 className="font-serif text-[2rem] font-bold leading-tight text-[var(--color-text-primary)] sm:text-[3rem]">
+            Real studies from real researchers
+          </h2>
+          <p className="max-w-2xl text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
+            Browse published methodologies. Replicate any of them in one click. Be among the first to grow the open
+            library.
+          </p>
+          <div className="flex flex-wrap items-end justify-center gap-6">
+            {["fig1", "fig2", "astronaut", "fig3", "fig4"].map((f) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img key={f} src={`${IMG}/${f}.png`} alt="" className="h-44 w-auto object-contain sm:h-56" />
+            ))}
+          </div>
+          <Pill href="/explore" dark>
+            Browse all studies <ArrowRight className="size-4" aria-hidden />
+          </Pill>
+        </div>
+      </section>
+
+      {/* Relax. Take your (work)space. — emotional dark beat (Figma headline kept) */}
       <section className="relative isolate flex min-h-[70vh] items-center justify-center px-6 py-24 text-center">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={`${IMG}/room.png`} alt="" className="absolute inset-0 -z-10 size-full object-cover" />
         <div className="absolute inset-0 -z-10 bg-black/55" aria-hidden />
         <div className="flex max-w-3xl flex-col items-center gap-6">
           <h2 className="font-serif text-[2.75rem] font-bold leading-[1.05] text-white sm:text-[4.5rem]">
-            Relax. Take your space.
+            Relax. Take your (work)space.
           </h2>
           <p className="max-w-xl text-[length:var(--text-body)] text-white/85">
             Free for individual researchers. Pay what feels right above that. No per-response fees, no lock-in.
           </p>
           <Pill href="/signup">Sign up</Pill>
-        </div>
-      </section>
-
-      {/* Final CTA */}
-      <section className="bg-[var(--color-surface-canvas)] px-6 py-24 text-center">
-        <div className="mx-auto flex max-w-2xl flex-col items-center gap-5">
-          <h2 className="font-serif text-[2.5rem] font-bold leading-tight text-[var(--color-text-primary)] sm:text-[3.5rem]">
-            Ready to run better research?
-          </h2>
-          <p className="text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
-            Free for individual researchers. Institutional partnerships available.
-          </p>
-          <Pill href="/signup" dark>
-            Start your first study <ArrowRight className="size-4" aria-hidden />
-          </Pill>
         </div>
       </section>
 

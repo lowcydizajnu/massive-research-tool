@@ -73,9 +73,6 @@ function GhostCta({ href, children }: { href: string; children: React.ReactNode 
 function Hero() {
   return (
     <section className="relative mx-auto flex w-full max-w-6xl flex-col items-start gap-6 px-6 pt-20 text-left sm:pt-28">
-      {/* Scattered 3D character (Figma renders) — decorative. */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/marketing/figma/astronaut.png" alt="" aria-hidden className="pointer-events-none absolute -top-2 right-2 hidden h-44 w-auto select-none lg:block" />
       <Eyebrow>My Research Lab</Eyebrow>
       <h1 className={`${SERIF} max-w-3xl text-[2rem] font-medium leading-[1.1] tracking-[-0.01em] sm:text-[3.25rem]`}>
         Replicate any study in <span className="text-[var(--color-primary-text-on-subtle)]">one click</span>.
@@ -218,10 +215,6 @@ function Features() {
 function Community() {
   return (
     <section className="relative mx-auto w-full max-w-4xl px-6 py-20 text-center">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/marketing/figma/fig1.png" alt="" aria-hidden className="pointer-events-none absolute bottom-4 left-0 hidden h-32 w-auto select-none lg:block" />
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/marketing/figma/fig2.png" alt="" aria-hidden className="pointer-events-none absolute right-0 top-6 hidden h-32 w-auto select-none lg:block" />
       <div className="flex flex-col items-center gap-3">
         <Eyebrow>From the community</Eyebrow>
         <h2 className={`${SERIF} text-[length:var(--text-heading-1)] font-medium`}>Real studies from real researchers</h2>
@@ -414,10 +407,6 @@ function Audiences() {
 function FinalCta() {
   return (
     <section className="relative mx-auto flex w-full max-w-3xl flex-col items-center gap-5 px-6 py-24 text-center">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/marketing/figma/fig3.png" alt="" aria-hidden className="pointer-events-none absolute left-0 top-10 hidden h-32 w-auto select-none lg:block" />
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/marketing/figma/fig4.png" alt="" aria-hidden className="pointer-events-none absolute bottom-10 right-0 hidden h-32 w-auto select-none lg:block" />
       <h2 className={`${SERIF} text-[length:var(--text-display)] font-medium`}>Ready to run better research?</h2>
       <p className="text-[16px] text-[var(--color-text-secondary)]">
         Free for individual researchers. Institutional partnerships available.
