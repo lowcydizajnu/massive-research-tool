@@ -1,6 +1,28 @@
 import Link from "next/link";
 import type { Route } from "next";
-import { ArrowRight } from "lucide-react";
+import {
+  ArrowRight,
+  BarChart3,
+  BookOpen,
+  Check,
+  Coffee,
+  Eye,
+  GitCommit,
+  GitFork,
+  KeyRound,
+  Lightbulb,
+  Mic,
+  Pencil,
+  PlayCircle,
+  PlugZap,
+  Puzzle,
+  ShieldCheck,
+  Sprout,
+  Stamp,
+  TreePine,
+  Users,
+  UsersRound,
+} from "lucide-react";
 
 import { LandingSwitcher } from "@/components/feature/marketing/landing-switcher";
 
@@ -107,6 +129,188 @@ export function LandingPageBold() {
           <Pill href="/explore" dark>
             Browse all studies <ArrowRight className="size-4" aria-hidden />
           </Pill>
+        </div>
+      </section>
+
+      {/* Workflow */}
+      <section className="bg-[#0A0E0C] px-6 py-24">
+        <div className="mx-auto w-full max-w-6xl">
+          <h2 className="font-serif text-[2.25rem] font-bold leading-tight text-white sm:text-[3.25rem]">One tool. The whole workflow.</h2>
+          <p className="mt-3 max-w-2xl text-[17px] text-white/75">
+            No more juggling six tools. My Research Lab covers the full research lifecycle in one workspace — with version
+            control under every step.
+          </p>
+          <ol className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              [Lightbulb, "Playground", "Collect inspiration, links, drafts before a study exists"],
+              [Pencil, "Design", "Drag blocks, set conditions, configure variants"],
+              [Stamp, "Preregister", "One-click OSF preregistration; frozen version forever"],
+              [Users, "Recruit", "Connect Prolific or open recruitment to your own panel"],
+              [PlayCircle, "Run", "Participants take the study; real-time response collection"],
+              [BarChart3, "Analyze", "Live results, condition breakdowns, exports in any format"],
+              [GitFork, "Replicate", "Replicate any public study; track divergence from the original"],
+            ].map(([Icon, label, desc]) => {
+              const I = Icon as typeof Lightbulb;
+              return (
+                <li key={label as string} className="flex flex-col gap-2 rounded-[var(--radius-lg)] border border-white/15 bg-white/5 p-5">
+                  <I className="size-5 text-[var(--color-primary)]" aria-hidden />
+                  <span className="text-[17px] font-medium text-white">{label as string}</span>
+                  <span className="text-[15px] text-white/65">{desc as string}</span>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+      </section>
+
+      {/* Features */}
+      <section className="bg-[var(--color-surface-canvas)] px-6 py-24">
+        <div className="mx-auto w-full max-w-6xl">
+          <h2 className="font-serif text-[2.25rem] font-bold leading-tight text-[var(--color-text-primary)] sm:text-[3.25rem]">What sets My Research Lab apart</h2>
+          <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {[
+              [GitCommit, "Version everything", "Every save is a version. Every preregistration is frozen forever. Compare versions side-by-side. Restore any prior state. Your changelog writes itself."],
+              [GitFork, "One-click replication", "Found a study you want to replicate? Bring it into your workspace. Same blocks, same conditions — adapt freely. Original authors see who's replicating their work."],
+              [UsersRound, "Live collaboration", "See who's editing what. Comment on any block. @mention teammates. Soft-lock prevents accidental conflicts. Threaded discussions stay with the study."],
+              [Mic, "Modern stimuli", "46+ block types: text, image, audio recording, voice conversation with AI, emotion scoring, A/B factorial variants, social-media-post mockups, signature capture, hot-spot interactions."],
+              [PlugZap, "Open integrations", "OSF preregistration. Prolific recruitment. Anthropic Claude. Hume emotion AI. BYO keys — your data, your accounts, no markup. Add new providers via our open adapter pattern."],
+              [Eye, "Radical transparency", "Open by default. Public studies are replicable by anyone. Your workflow is visible to your team. Methodology you can audit. Source-available; commercial-friendly."],
+            ].map(([Icon, title, body]) => {
+              const I = Icon as typeof GitCommit;
+              return (
+                <div key={title as string} className="flex flex-col gap-2 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] p-5">
+                  <I className="size-5 text-[var(--color-primary-text-on-subtle)]" aria-hidden />
+                  <h3 className="font-serif text-[19px] font-bold text-[var(--color-text-primary)]">{title as string}</h3>
+                  <p className="text-[15px] leading-relaxed text-[var(--color-text-secondary)]">{body as string}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* Trust signals */}
+      <section className="bg-[#0A0E0C] px-6 py-16">
+        <div className="mx-auto grid w-full max-w-6xl grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-5">
+          {[
+            [Stamp, "OSF-native", "Preregister + replicate in one click"],
+            [ShieldCheck, "GDPR-aligned", "Anonymous participant IDs by default"],
+            [KeyRound, "BYO API keys", "Your vendor accounts, no markup, no lock-in"],
+            [BookOpen, "Open methodology", "Every design decision documented"],
+            [Puzzle, "Swap any vendor", "Auth, OSF, recruitment, AI — all replaceable"],
+          ].map(([Icon, label, line]) => {
+            const I = Icon as typeof Stamp;
+            return (
+              <div key={label as string} className="flex flex-col gap-1.5">
+                <I className="size-5 text-[var(--color-primary)]" aria-hidden />
+                <span className="text-[16px] font-medium text-white">{label as string}</span>
+                <span className="text-[15px] text-white/60">{line as string}</span>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* Comparison */}
+      <section className="bg-[var(--color-surface-canvas)] px-6 py-24">
+        <div className="mx-auto w-full max-w-5xl">
+          <h2 className="font-serif text-[2.25rem] font-bold leading-tight text-[var(--color-text-primary)] sm:text-[3rem]">Replace six tools with one workspace.</h2>
+          <div className="mt-8 grid gap-4 md:grid-cols-2">
+            <div className="flex flex-col gap-3 rounded-[var(--radius-lg)] bg-[var(--color-surface-subtle)] p-6">
+              <p className="text-[16px] font-medium text-[var(--color-text-secondary)]">Before My Research Lab</p>
+              <ul className="flex flex-col gap-2 text-[15px] text-[var(--color-text-muted)]">
+                {["A survey tool — building the study ($$$/yr seat license)", "OSF — preregistration (free but disconnected)", "Prolific — recruitment (pass-through, but you re-key everything)", "Word doc — methodology notes", "Spreadsheets — tracking which version ran when", "Email threads — collaboration"].map((b) => (
+                  <li key={b}>— {b}</li>
+                ))}
+              </ul>
+              <p className="mt-1 text-[15px] text-[var(--color-text-muted)]">≈ $2,000–15,000 per researcher per year.</p>
+            </div>
+            <div className="flex flex-col gap-3 rounded-[var(--radius-lg)] border-2 border-[var(--color-primary)] bg-[var(--color-surface-canvas)] p-6">
+              <p className="text-[16px] font-medium text-[var(--color-primary-text-on-subtle)]">With My Research Lab</p>
+              <ul className="flex flex-col gap-2 text-[15px] text-[var(--color-text-primary)]">
+                {["One workspace: design + preregistration + recruitment + collaboration + version history + replication", "One subscription — free for individuals; pay what feels right above that", "BYO Prolific / AI vendor costs — no markup"].map((a) => (
+                  <li key={a} className="flex items-start gap-2">
+                    <Check className="mt-0.5 size-4 shrink-0 text-[var(--color-primary-text-on-subtle)]" aria-hidden />
+                    {a}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-1 text-[15px] font-medium text-[var(--color-text-primary)]">Free for individual researchers.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing */}
+      <section className="bg-[#0A0E0C] px-6 py-24">
+        <div className="mx-auto w-full max-w-5xl">
+          <h2 className="font-serif text-[2.25rem] font-bold leading-tight text-white sm:text-[3.25rem]">Pay what feels right.</h2>
+          <p className="mt-3 max-w-2xl text-[17px] text-white/75">
+            My Research Lab is free to use. If it helps your research, you decide what it&apos;s worth. We built this for
+            science, not for subscription revenue. Pay $0 forever — that&apos;s a real option, not a trap.
+          </p>
+          <div className="mt-8 grid gap-4 md:grid-cols-3">
+            {[
+              [Sprout, "Free", "$0 / forever", "For PhD students, indie researchers, anyone just starting out. All features. All blocks. BYO vendor accounts."],
+              [Coffee, "Supporter", "Suggested ~$9 / month", "For researchers who want to back the project. Same features as Free — the difference is moral support."],
+              [TreePine, "Lab / Group", "Suggested ~$29 / month", "For labs using My Research Lab as their primary tool. Same features as Free; funds larger development cycles."],
+            ].map(([Icon, name, price, body]) => {
+              const I = Icon as typeof Sprout;
+              return (
+                <div key={name as string} className="flex flex-col gap-2 rounded-[var(--radius-lg)] border border-white/15 bg-white/5 p-6">
+                  <I className="size-5 text-[var(--color-primary)]" aria-hidden />
+                  <h3 className="font-serif text-[19px] font-bold text-white">{name as string}</h3>
+                  <p className="text-[16px] font-medium text-white">{price as string}</p>
+                  <p className="text-[15px] text-white/65">{body as string}</p>
+                </div>
+              );
+            })}
+          </div>
+          <p className="mt-4 text-[15px] text-white/55">No tier is locked. No paywall. Pay what your budget allows. Cancel anytime.</p>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Pill href="/signup">Start free</Pill>
+            <Link href={"mailto:lowcydizajnu@gmail.com?subject=My%20Research%20Lab%20partnership" as Route} className="rounded-full border border-white/40 px-6 py-3 text-[length:var(--text-body)] font-medium text-white hover:bg-white/10">
+              Talk about a partnership
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Audiences */}
+      <section className="bg-[var(--color-surface-canvas)] px-6 py-24">
+        <div className="mx-auto grid w-full max-w-5xl gap-6 md:grid-cols-2">
+          {[
+            {
+              eyebrow: "For PhD students + postdocs",
+              h: "Designed for the way you actually work",
+              items: ["Build complex studies without writing a line of code", "Replicate any published methodology in one click", "Comment with your advisor on specific blocks", "Save versions before every meeting; restore anytime", "Free forever; bring your own Prolific account", "Export in CSV / SPSS / R-friendly formats"],
+              cta: "Start your first study",
+            },
+            {
+              eyebrow: "For PIs + lab directors",
+              h: "Built for the standards you uphold",
+              items: ["Preregistration is the default, not an afterthought", "Every study version is frozen + cited individually", "Cross-workspace replications visible from your study page", "Audit trail for every change — IRB-ready", "Adapter architecture: never locked into a vendor", "Pay what feels right at lab level; partnerships available"],
+              cta: "Start your lab",
+            },
+          ].map((col) => (
+            <div key={col.h} className="flex flex-col gap-3 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] p-6">
+              <span className="text-[length:var(--text-label)] font-medium uppercase tracking-wide text-[var(--color-primary-text-on-subtle)]">{col.eyebrow}</span>
+              <h3 className="font-serif text-[22px] font-bold text-[var(--color-text-primary)]">{col.h}</h3>
+              <ul className="flex flex-col gap-2">
+                {col.items.map((i) => (
+                  <li key={i} className="flex items-start gap-2 text-[15px] text-[var(--color-text-secondary)]">
+                    <Check className="mt-0.5 size-4 shrink-0 text-[var(--color-primary-text-on-subtle)]" aria-hidden />
+                    {i}
+                  </li>
+                ))}
+              </ul>
+              <div className="pt-1">
+                <Pill href="/signup" dark>
+                  {col.cta} <ArrowRight className="size-4" aria-hidden />
+                </Pill>
+              </div>
+            </div>
+          ))}
         </div>
       </section>
 

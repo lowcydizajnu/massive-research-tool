@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/server/adapters/auth";
 import { LandingPage } from "@/components/feature/marketing/landing-page";
 import { LandingPageBold } from "@/components/feature/marketing/landing-page-bold";
+import { LandingPageScenes } from "@/components/feature/marketing/landing-page-scenes";
 
 /**
  * /  — auth-aware redirect.
@@ -32,5 +33,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   // Two proposals to compare (floating switcher): default = the v0.7 minimal
   // build; ?style=bold = the Figma 3D-illustration direction.
   const { style } = await searchParams;
-  return style === "bold" ? <LandingPageBold /> : <LandingPage />;
+  if (style === "bold") return <LandingPageBold />;
+  if (style === "scenes") return <LandingPageScenes />;
+  return <LandingPage />;
 }

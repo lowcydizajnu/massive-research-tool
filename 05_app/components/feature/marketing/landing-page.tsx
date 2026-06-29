@@ -51,7 +51,7 @@ function PrimaryCta({ href, children, large }: { href: string; children: React.R
   return (
     <Link
       href={href as Route}
-      className={`inline-flex items-center gap-1.5 rounded-[var(--radius-md)] bg-[var(--color-primary)] font-medium text-white hover:opacity-90 ${large ? "px-6 py-3 text-[length:var(--text-body)]" : "px-4 py-2 text-[length:var(--text-body-emphasis)]"}`}
+      className={`inline-flex items-center gap-1.5 rounded-[var(--radius-md)] bg-[var(--color-primary)] font-medium text-white hover:opacity-90 ${large ? "px-6 py-3 text-[16px]" : "px-4 py-2 text-[length:var(--text-body-emphasis)]"}`}
     >
       {children}
     </Link>
@@ -72,7 +72,7 @@ function GhostCta({ href, children }: { href: string; children: React.ReactNode 
 /* ---------------- 1. Hero ---------------- */
 function Hero() {
   return (
-    <section className="relative mx-auto flex w-full max-w-5xl flex-col items-start gap-6 px-6 pt-20 text-left sm:pt-28">
+    <section className="relative mx-auto flex w-full max-w-6xl flex-col items-start gap-6 px-6 pt-20 text-left sm:pt-28">
       {/* Scattered 3D character (Figma renders) — decorative. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="/marketing/figma/astronaut.png" alt="" aria-hidden className="pointer-events-none absolute -top-2 right-2 hidden h-44 w-auto select-none lg:block" />
@@ -94,7 +94,7 @@ function Hero() {
           <PlayCircle className="size-4" aria-hidden /> Browse the library
         </GhostCta>
       </div>
-      <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+      <p className="text-[15px] text-[var(--color-text-muted)]">
         Free for individual researchers · BYO Prolific / OSF / Anthropic / Hume · No credit card
       </p>
     </section>
@@ -123,7 +123,7 @@ function PainPoints() {
             </div>
             <ul className="flex flex-col gap-4">
               {PAINS.map(([lead, rest]) => (
-                <li key={lead} className="flex items-start gap-3 text-[length:var(--text-body)] text-[var(--color-text-secondary)] sm:text-[17px]">
+                <li key={lead} className="flex items-start gap-3 text-[16px] text-[var(--color-text-secondary)] sm:text-[17px]">
                   <ArrowRight className="mt-1 size-4 shrink-0 text-[var(--color-primary)]" aria-hidden />
                   <span>
                     <span className="font-medium text-[var(--color-text-primary)]">{lead}</span>
@@ -158,7 +158,7 @@ function Workflow() {
       <div className="flex flex-col gap-3">
         <Eyebrow>End-to-end</Eyebrow>
         <h2 className={`${SERIF} text-[length:var(--text-display)] font-medium`}>One tool. The whole workflow.</h2>
-        <p className="max-w-2xl text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
+        <p className="max-w-2xl text-[16px] text-[var(--color-text-secondary)]">
           No more juggling six tools. My Research Lab covers the full research lifecycle in one workspace — with version
           control under every step.
         </p>
@@ -171,11 +171,11 @@ function Workflow() {
           >
             <s.icon className="size-5 text-[var(--color-primary-text-on-subtle)]" aria-hidden />
             <span className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">{s.label}</span>
-            <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">{s.desc}</span>
+            <span className="text-[15px] text-[var(--color-text-muted)]">{s.desc}</span>
           </li>
         ))}
       </ol>
-      <p className="mt-4 text-[length:var(--text-small)] italic text-[var(--color-text-muted)]">
+      <p className="mt-4 text-[15px] italic text-[var(--color-text-muted)]">
         Every step versioned. Every change tracked. Every study replicable.
       </p>
     </section>
@@ -205,7 +205,7 @@ function Features() {
             <div key={f.title} className="flex flex-col gap-2 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-5">
               <f.icon className="size-5 text-[var(--color-primary-text-on-subtle)]" aria-hidden />
               <h3 className="text-[17px] font-medium text-[var(--color-text-primary)] font-serif">{f.title}</h3>
-              <p className="text-[length:var(--text-small)] leading-relaxed text-[var(--color-text-secondary)]">{f.body}</p>
+              <p className="text-[15px] leading-relaxed text-[var(--color-text-secondary)]">{f.body}</p>
             </div>
           ))}
         </div>
@@ -225,7 +225,7 @@ function Community() {
       <div className="flex flex-col items-center gap-3">
         <Eyebrow>From the community</Eyebrow>
         <h2 className={`${SERIF} text-[length:var(--text-heading-1)] font-medium`}>Real studies from real researchers</h2>
-        <p className="max-w-2xl text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
+        <p className="max-w-2xl text-[16px] text-[var(--color-text-secondary)]">
           Browse published methodologies. Replicate any of them in one click. Be among the first researchers to publish a
           study in the open My Research Lab library — your work becomes a starting point for replications.
         </p>
@@ -256,7 +256,7 @@ function TrustSignals() {
           <div key={t.label} className="flex flex-col gap-1.5">
             <t.icon className="size-5 text-[var(--color-primary-text-on-subtle)]" aria-hidden />
             <span className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">{t.label}</span>
-            <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">{t.line}</span>
+            <span className="text-[15px] text-[var(--color-text-muted)]">{t.line}</span>
           </div>
         ))}
       </div>
@@ -290,22 +290,22 @@ function Comparison() {
           <p className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-secondary)]">Before My Research Lab</p>
           <ul className="flex flex-col gap-2">
             {before.map((b) => (
-              <li key={b} className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">— {b}</li>
+              <li key={b} className="text-[15px] text-[var(--color-text-muted)]">— {b}</li>
             ))}
           </ul>
-          <p className="mt-1 text-[length:var(--text-small)] text-[var(--color-text-muted)]">≈ $2,000–15,000 per researcher per year.</p>
+          <p className="mt-1 text-[15px] text-[var(--color-text-muted)]">≈ $2,000–15,000 per researcher per year.</p>
         </div>
         <div className="flex flex-col gap-3 rounded-[var(--radius-lg)] border-2 border-[var(--color-primary)] bg-[var(--color-surface-canvas)] p-6">
           <p className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-primary-text-on-subtle)]">With My Research Lab</p>
           <ul className="flex flex-col gap-2">
             {after.map((a) => (
-              <li key={a} className="flex items-start gap-2 text-[length:var(--text-small)] text-[var(--color-text-primary)]">
+              <li key={a} className="flex items-start gap-2 text-[15px] text-[var(--color-text-primary)]">
                 <Check className="mt-0.5 size-4 shrink-0 text-[var(--color-primary-text-on-subtle)]" aria-hidden />
                 {a}
               </li>
             ))}
           </ul>
-          <p className="mt-1 text-[length:var(--text-small)] font-medium text-[var(--color-text-primary)]">Free for individual researchers.</p>
+          <p className="mt-1 text-[15px] font-medium text-[var(--color-text-primary)]">Free for individual researchers.</p>
         </div>
       </div>
     </section>
@@ -326,7 +326,7 @@ function Pricing() {
         <div className="flex flex-col gap-3">
           <Eyebrow>Pricing</Eyebrow>
           <h2 className={`${SERIF} text-[length:var(--text-display)] font-medium`}>Pay what feels right.</h2>
-          <p className="max-w-2xl text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
+          <p className="max-w-2xl text-[16px] text-[var(--color-text-secondary)]">
             My Research Lab is free to use. If it helps your research, you decide what it&apos;s worth. We built this for
             science, not for subscription revenue. Pay $0 forever — that&apos;s a real option, not a trap.
           </p>
@@ -337,18 +337,18 @@ function Pricing() {
               <t.icon className="size-5 text-[var(--color-primary-text-on-subtle)]" aria-hidden />
               <h3 className="text-[17px] font-medium text-[var(--color-text-primary)] font-serif">{t.name}</h3>
               <p className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">{t.price}</p>
-              <p className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">{t.who}</p>
-              <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">{t.note}</p>
+              <p className="text-[15px] text-[var(--color-text-secondary)]">{t.who}</p>
+              <p className="text-[15px] text-[var(--color-text-muted)]">{t.note}</p>
             </div>
           ))}
         </div>
-        <p className="mt-4 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+        <p className="mt-4 text-[15px] text-[var(--color-text-muted)]">
           No tier is locked. No paywall. Pay what your budget allows. Cancel anytime.
         </p>
 
         <div className="mt-8 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6">
           <h3 className="text-[17px] font-medium text-[var(--color-text-primary)] font-serif">For universities + departments</h3>
-          <p className="mt-2 max-w-2xl text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+          <p className="mt-2 max-w-2xl text-[15px] text-[var(--color-text-secondary)]">
             Interested in a deeper relationship — dedicated infrastructure, SSO, DPA, custom features, design-partner
             status? We&apos;d rather have a conversation than quote a number. Partnership pricing is custom; scope is too.
           </p>
@@ -393,7 +393,7 @@ function Audiences() {
           <h3 className={`${SERIF} text-[length:var(--text-heading-1)] font-medium`}>{col.h}</h3>
           <ul className="flex flex-col gap-2">
             {col.items.map((i) => (
-              <li key={i} className="flex items-start gap-2 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+              <li key={i} className="flex items-start gap-2 text-[15px] text-[var(--color-text-secondary)]">
                 <Check className="mt-0.5 size-4 shrink-0 text-[var(--color-primary-text-on-subtle)]" aria-hidden />
                 {i}
               </li>
@@ -419,7 +419,7 @@ function FinalCta() {
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="/marketing/figma/fig4.png" alt="" aria-hidden className="pointer-events-none absolute bottom-10 right-0 hidden h-32 w-auto select-none lg:block" />
       <h2 className={`${SERIF} text-[length:var(--text-display)] font-medium`}>Ready to run better research?</h2>
-      <p className="text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
+      <p className="text-[16px] text-[var(--color-text-secondary)]">
         Free for individual researchers. Institutional partnerships available.
       </p>
       <div className="flex flex-wrap items-center justify-center gap-3">
@@ -428,7 +428,7 @@ function FinalCta() {
         </PrimaryCta>
         <GhostCta href="/explore">Browse the library</GhostCta>
       </div>
-      <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+      <p className="text-[15px] text-[var(--color-text-muted)]">
         No credit card · BYO vendor accounts · Open methodology
       </p>
     </section>
@@ -448,18 +448,18 @@ function Footer() {
       <div className="mx-auto grid w-full max-w-6xl gap-8 px-6 sm:grid-cols-2 md:grid-cols-4">
         <div className="flex flex-col gap-2">
           <span className={`${SERIF} text-[length:var(--text-body-emphasis)] font-medium`}>My Research Lab</span>
-          <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">Run better research, in one workspace.</span>
+          <span className="text-[15px] text-[var(--color-text-muted)]">Run better research, in one workspace.</span>
         </div>
         {cols.map((c) => (
           <nav key={c.h} className="flex flex-col gap-2" aria-label={c.h}>
             <span className="text-[length:var(--text-label)] uppercase tracking-wide text-[var(--color-text-muted)]">{c.h}</span>
             {c.links.map((l) =>
               l.external ? (
-                <a key={l.label} href={l.href} className="text-[length:var(--text-small)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
+                <a key={l.label} href={l.href} className="text-[15px] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
                   {l.label}
                 </a>
               ) : (
-                <Link key={l.label} href={l.href as Route} className="text-[length:var(--text-small)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
+                <Link key={l.label} href={l.href as Route} className="text-[15px] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
                   {l.label}
                 </Link>
               ),
@@ -467,7 +467,7 @@ function Footer() {
           </nav>
         ))}
       </div>
-      <p className="mx-auto mt-8 w-full max-w-6xl px-6 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+      <p className="mx-auto mt-8 w-full max-w-6xl px-6 text-[15px] text-[var(--color-text-muted)]">
         © 2026 My Research Lab — built by Paweł Rosner
       </p>
     </footer>
