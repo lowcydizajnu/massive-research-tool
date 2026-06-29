@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Route } from "next";
 import { LandingSwitcher } from "@/components/feature/marketing/landing-switcher";
+import { LandingNav } from "@/components/feature/marketing/landing-nav";
 import {
   ArrowRight,
   BarChart3,
@@ -468,6 +469,7 @@ export function LandingPage() {
     // Minimal leans hard into IBM Plex Mono (owner): the whole page defaults to
     // font-mono; only the serif display headlines (font-serif) opt back out.
     <main className="relative min-h-screen overflow-hidden bg-[var(--color-surface-page)] font-mono">
+      <LandingNav variant="minimal" />
       <LandingSwitcher current="minimal" />
       <Hero />
       <PainPoints />

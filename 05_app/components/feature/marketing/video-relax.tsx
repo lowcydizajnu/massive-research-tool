@@ -1,24 +1,39 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import Link from "next/link";
+import type { Route } from "next";
 
 /**
- * Full-bleed closing video beat for the marketing landing. The clip plays only
- * when at least half of the section is on screen (owner direction) and pauses
- * when it scrolls away — an IntersectionObserver at threshold 0.5 drives
- * play()/pause(). Muted + playsInline so autoplay is allowed on mobile Safari;
- * loops so it keeps running while in view. The headline sits on a dark scrim.
+ * Closing video beat for the "Scenes" landing. Contained to the same centered
+ * column as the other sections (max-w-6xl) with the shared rounded-[20px] image
+ * radius — NOT full-bleed (owner). The clip plays only when at least half the
+ * card is on screen and pauses when it scrolls away (IntersectionObserver at
+ * threshold 0.5, reduced-motion respected). Muted + playsInline so autoplay is
+ * allowed; loops while in view. The headline matches the section-title size and
+ * a "Sign up" pill matches the Scenes Primary button (orange).
  *
- * Proposal-only component (the "Scenes" landing). No design tokens by intent —
- * the Scenes variant runs a free, illustration-sampled palette.
+ * Proposal-only component — no design tokens by intent (Scenes uses a free,
+ * illustration-sampled palette).
  */
-export function VideoRelax({ src, heading }: { src: string; heading: string }) {
+const ORANGE = "#E2692E";
+
+export function VideoRelax({
+  src,
+  heading,
+  ctaHref = "/signup",
+  ctaLabel = "Sign up",
+}: {
+  src: string;
+  heading: string;
+  ctaHref?: string;
+  ctaLabel?: string;
+}) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     const el = videoRef.current;
     if (!el) return;
-    // Respect reduced-motion: don't autoplay if the user opted out.
     if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
 
     const observer = new IntersectionObserver(
@@ -36,21 +51,30 @@ export function VideoRelax({ src, heading }: { src: string; heading: string }) {
   }, []);
 
   return (
-    <section className="relative isolate flex min-h-[80vh] items-center justify-center overflow-hidden px-6 py-24 text-center">
-      <video
-        ref={videoRef}
-        className="absolute inset-0 -z-10 size-full object-cover"
-        src={src}
-        muted
-        loop
-        playsInline
-        preload="metadata"
-        aria-hidden
-      />
-      <div className="absolute inset-0 -z-10 bg-black/55" aria-hidden />
-      <h2 className="max-w-3xl font-serif text-[2.75rem] font-medium leading-[1.05] text-white sm:text-[4.5rem]">
-        {heading}
-      </h2>
+    <section className="mx-auto w-full max-w-6xl px-6 pb-24">
+      <div className="relative isolate flex min-h-[440px] items-center justify-center overflow-hidden rounded-[20px] px-6 py-20 text-center">
+        <video
+          ref={videoRef}
+          className="absolute inset-0 -z-10 size-full object-cover"
+          src={src}
+          muted
+          loop
+          playsInline
+          preload="metadata"
+          aria-hidden
+        />
+        <div className="absolute inset-0 -z-10 bg-black/55" aria-hidden />
+        <div className="flex flex-col items-center gap-6">
+          <h2 className="font-serif text-[2.25rem] font-medium leading-tight text-white sm:text-[3rem]">{heading}</h2>
+          <Link
+            href={ctaHref as Route}
+            className="inline-flex items-center gap-1.5 rounded-full px-5 py-2.5 text-[16px] font-medium text-white hover:opacity-90"
+            style={{ backgroundColor: ORANGE }}
+          >
+            {ctaLabel}
+          </Link>
+        </div>
+      </div>
     </section>
   );
 }

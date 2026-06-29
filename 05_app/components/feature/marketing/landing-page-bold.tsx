@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 
 import { LandingSwitcher } from "@/components/feature/marketing/landing-switcher";
+import { LandingNav } from "@/components/feature/marketing/landing-nav";
 
 /**
  * Landing proposal B — the BOLD direction from the owner's Figma
@@ -58,6 +59,7 @@ function Pill({ href, children, dark }: { href: string; children: React.ReactNod
 export function LandingPageBold() {
   return (
     <main className="overflow-x-hidden bg-[var(--color-surface-canvas)]">
+      <LandingNav variant="bold" />
       <LandingSwitcher current="bold" />
 
       {/* Hero — full-bleed 3D scene (Figma node 2:19); left-aligned text. */}

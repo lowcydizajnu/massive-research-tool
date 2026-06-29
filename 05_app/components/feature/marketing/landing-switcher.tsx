@@ -16,7 +16,7 @@ export function LandingSwitcher({ current }: { current: "minimal" | "bold" | "sc
     { label: "Scenes", href: "/?style=scenes", key: "scenes" },
   ];
   return (
-    <div className="fixed right-4 top-4 z-[90] flex items-center gap-1 rounded-full border border-[var(--color-border-subtle)] bg-[var(--color-surface-raised)] p-1 shadow-[var(--shadow-md)]">
+    <div className="fixed bottom-4 right-4 z-[90] flex items-center gap-1 rounded-full border border-[var(--color-border-subtle)] bg-[var(--color-surface-raised)] p-1 shadow-[var(--shadow-md)]">
       <span className="px-2 text-[11px] uppercase tracking-wide text-[var(--color-text-muted)]">Proposal</span>
       {opts.map((o) => (
         <Link key={o.key} href={o.href as never} className={`${base} ${current === o.key ? on : off}`}>

@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 
 import { LandingSwitcher } from "@/components/feature/marketing/landing-switcher";
+import { LandingNav } from "@/components/feature/marketing/landing-nav";
 import { VideoRelax } from "@/components/feature/marketing/video-relax";
 
 /**
@@ -64,6 +65,7 @@ function Ghost({ href, children }: { href: string; children: React.ReactNode }) 
 export function LandingPageScenes() {
   return (
     <main className="text-white" style={{ backgroundColor: NAVY }}>
+      <LandingNav variant="scenes" />
       <LandingSwitcher current="scenes" />
 
       {/* Hero — robot/child-hand render */}
@@ -147,7 +149,7 @@ export function LandingPageScenes() {
         <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {[
             ["Version everything", "Every save is a version. Every preregistration is frozen forever. Compare side-by-side; restore any prior state.", GREEN, "lab-desks"],
-            ["One-click replication", "Bring any study into your workspace — same blocks, same conditions — and adapt freely. Original authors are credited once your replication is public.", BLUE, "silhouette-screen"],
+            ["One-click replication", "Bring any study into your workspace — same blocks, same conditions — and adapt freely. Original authors are credited once your replication is public.", BLUE, "horizon-road"],
             ["Live collaboration", "See who's editing what. Comment on any block. @mention teammates. Threaded discussions stay with the study.", ORANGE, "people-desk"],
             ["Modern stimuli", "46+ block types: audio recording, voice conversation with AI, emotion scoring, factorial variants, hot-spots, and more.", GREEN, "tools"],
             ["Open integrations", "OSF, Prolific, Anthropic, Hume — BYO keys, your accounts, no markup. New providers via our open adapter pattern.", BLUE, "robot-desk"],
@@ -276,7 +278,7 @@ export function LandingPageScenes() {
       {/* Real studies — MOVED DOWN (owner) — near the end */}
       <section className="mx-auto grid w-full max-w-6xl items-center gap-10 px-6 pb-24 md:grid-cols-2">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={`${S}/horizon-road.png`} alt="" className="w-full rounded-[20px] object-cover" />
+        <img src={`${S}/silhouette-screen.png`} alt="" className="w-full rounded-[20px] object-cover" />
         <div className="flex flex-col gap-4">
           <Eyebrow>From the community</Eyebrow>
           <h2 className="font-serif text-[2rem] font-medium leading-tight sm:text-[2.75rem]">Real studies from real researchers</h2>
