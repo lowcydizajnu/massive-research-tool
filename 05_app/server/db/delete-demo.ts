@@ -19,14 +19,26 @@ import { and, eq, inArray, or } from "drizzle-orm";
 
 import { db } from "@/server/db/client";
 import {
+  activityEvent,
   comment,
   condition,
   experiment,
   experimentVersion,
+  follow,
   member,
+  mention,
+  notification,
+  panelMember,
+  playgroundCard,
+  playgroundCardVote,
+  previewToken,
+  providerSubmission,
+  qualityFlag,
   recruitmentSession,
+  registryPush,
   response,
   responseItem,
+  studyPresence,
   user,
   workspace,
 } from "@/server/db/schema";
@@ -127,24 +139,59 @@ export async function deleteDemoContent(
           .where(inArray(response.experimentVersionId, versionIds));
         const responseIds = demoResponses.map((r) => r.id);
         if (responseIds.length > 0) {
+          // Both responseItem AND qualityFlag reference response (RESTRICT). The
+          // seeder doesn't write qualityFlags, but a prod quality job can flag the
+          // fake responses after the fact — so clear them defensively first.
           await tx.delete(responseItem).where(inArray(responseItem.responseId, responseIds));
+          await tx.delete(qualityFlag).where(inArray(qualityFlag.responseId, responseIds));
         }
 
         // response → {condition, recruitmentSession, experimentVersion}: responses
         // reference all three (RESTRICT), so they go before any of those parents.
         await tx.delete(response).where(inArray(response.experimentVersionId, versionIds));
 
-        // condition + recruitmentSession both reference experimentVersion (RESTRICT)
-        // and are now free of responses.
+        // providerSubmission → recruitmentSession (RESTRICT). Collect the demo
+        // session ids, drop any external-recruitment submissions hung off them,
+        // then the sessions. condition also references the version (RESTRICT).
+        const demoSessions = await tx
+          .select({ id: recruitmentSession.id })
+          .from(recruitmentSession)
+          .where(inArray(recruitmentSession.experimentVersionId, versionIds));
+        const sessionIds = demoSessions.map((s) => s.id);
+        if (sessionIds.length > 0) {
+          await tx.delete(providerSubmission).where(inArray(providerSubmission.recruitmentSessionId, sessionIds));
+        }
         await tx
           .delete(recruitmentSession)
           .where(inArray(recruitmentSession.experimentVersionId, versionIds));
         await tx.delete(condition).where(inArray(condition.experimentVersionId, versionIds));
+        // registryPush → experimentVersion (RESTRICT): OSF push records for a demo
+        // version (a prod watch/push job can create these even though the seeder
+        // doesn't).
+        await tx.delete(registryPush).where(inArray(registryPush.experimentVersionId, versionIds));
       }
+
+      // Nullable experiment back-refs from elsewhere (RESTRICT): a playground card
+      // that was "converted" into a demo study, or a panel whose source study is a
+      // demo study. Null the link (keep the card/panel) so the experiment delete
+      // doesn't trip the FK. Demo rarely produces these, but prod might.
+      await tx
+        .update(playgroundCard)
+        .set({ convertedStudyId: null })
+        .where(inArray(playgroundCard.convertedStudyId, experimentIds));
+      await tx
+        .update(panelMember)
+        .set({ sourceExperimentId: null })
+        .where(inArray(panelMember.sourceExperimentId, experimentIds));
 
       // comment → experiment (studyId, RESTRICT). The seeder writes a couple of
       // comments on the flagship demo study; remove them before the experiment.
       await tx.delete(comment).where(inArray(comment.experimentId, experimentIds));
+
+      // studyPresence + previewToken → experiment (RESTRICT). Live-presence rows
+      // and preview tokens for the demo studies must go before the experiments.
+      await tx.delete(studyPresence).where(inArray(studyPresence.studyId, experimentIds));
+      await tx.delete(previewToken).where(inArray(previewToken.experimentId, experimentIds));
 
       // Break ALL experiment self-refs before deleting versions/experiments:
       //   - currentVersionId → experimentVersion (the working tip)
@@ -219,6 +266,32 @@ export async function deleteDemoContent(
         )
         .returning({ id: member.id });
       membersDeleted = deletedMembers.length;
+
+      // Clear the social/activity rows that RESTRICT-reference the demo users, so
+      // the user delete below doesn't trip an FK. The seeder + its emit() side
+      // effects produce activity_event rows authored by the demo teammates; a prod
+      // instance may also have notifications / follows / mentions / presence /
+      // votes. All of this is demo noise — remove it.
+      await tx
+        .delete(activityEvent)
+        .where(
+          or(
+            inArray(activityEvent.actorUserId, demoUserIds),
+            inArray(activityEvent.relatedAuthorUserId, demoUserIds),
+          ),
+        );
+      await tx
+        .delete(notification)
+        .where(
+          or(
+            inArray(notification.recipientUserId, demoUserIds),
+            inArray(notification.actorUserId, demoUserIds),
+          ),
+        );
+      await tx.delete(follow).where(inArray(follow.userId, demoUserIds));
+      await tx.delete(mention).where(inArray(mention.mentionedUserId, demoUserIds));
+      await tx.delete(studyPresence).where(inArray(studyPresence.userId, demoUserIds));
+      await tx.delete(playgroundCardVote).where(inArray(playgroundCardVote.userId, demoUserIds));
 
       // Delete the demo USER rows only if nothing else references them anymore:
       // no remaining member rows (any workspace) and no owned experiment. This
