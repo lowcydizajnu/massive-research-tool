@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { auth } from "@/server/adapters/auth";
+import { LandingPage } from "@/components/feature/marketing/landing-page";
 
 /**
  * /  — auth-aware redirect.
@@ -23,5 +24,9 @@ import { auth } from "@/server/adapters/auth";
  */
 export default async function HomePage() {
   const user = await auth.getCurrentUser();
-  redirect(user ? "/studies" : "/signup");
+  // Authenticated → the canonical app landing. Logged-out visitors get the
+  // public marketing landing (myresearchlab.app) instead of being bounced
+  // straight to /signup (landing-page-content.md).
+  if (user) redirect("/studies");
+  return <LandingPage />;
 }
