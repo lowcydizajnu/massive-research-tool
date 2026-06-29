@@ -15,7 +15,7 @@
  *
  * NOT imported by the app; invoked only via `scripts/delete-demo-prod.ts`.
  */
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, or } from "drizzle-orm";
 
 import { db } from "@/server/db/client";
 import {
@@ -158,10 +158,35 @@ export async function deleteDemoContent(
       // experiment_fork_consistency holds because we null BOTH fork columns
       // together. (A demo fork of a NON-demo upstream would also just null out —
       // we delete the referer, never the upstream.)
+      // 1) Demo studies' own working tip.
       await tx
         .update(experiment)
-        .set({ currentVersionId: null, forkOfVersionId: null, forkOfExperimentId: null })
+        .set({ currentVersionId: null })
         .where(inArray(experiment.id, experimentIds));
+
+      // 2) Fork pointers INTO the demo scope — from ANY experiment, demo or not.
+      // A real (non-demo) study can replicate a demo study, so its forkOf*
+      // columns point at demo rows we're about to delete (RESTRICT). Null BOTH
+      // columns together (the experiment_fork_consistency CHECK requires them
+      // paired). The lineage pointer would dangle anyway once the demo source is
+      // gone; this is the correct outcome of removing the upstream.
+      if (versionIds.length > 0) {
+        await tx
+          .update(experiment)
+          .set({ forkOfVersionId: null, forkOfExperimentId: null })
+          .where(
+            or(
+              inArray(experiment.forkOfExperimentId, experimentIds),
+              inArray(experiment.forkOfVersionId, versionIds),
+            ),
+          );
+        // 3) supersedesVersionId INTO the demo scope — a non-demo version that
+        // supersedes a demo version (nullable, RESTRICT). Break it too.
+        await tx
+          .update(experimentVersion)
+          .set({ supersedesVersionId: null })
+          .where(inArray(experimentVersion.supersedesVersionId, versionIds));
+      }
 
       // experimentVersion → experiment (RESTRICT): versions before their study.
       await tx

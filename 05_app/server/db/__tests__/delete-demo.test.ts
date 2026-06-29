@@ -33,14 +33,20 @@ const OWNER_EMAIL = "owner@example.com";
 const DEMO_EXTERNAL_IDS = ["demo-sofia", "demo-maya"];
 
 /** Stand up the owner user + their workspace (the seeder requires both to exist). */
-async function seedOwnerAndWorkspace() {
+async function seedOwnerAndWorkspace(opts?: { email?: string; externalId?: string; slug?: string }) {
+  // The pglite instance is shared across tests in this file, so callers that run
+  // after another test must pass unique ids to avoid unique-constraint clashes.
   const [owner] = await db
     .insert(user)
-    .values({ externalId: "owner-clerk-id", email: OWNER_EMAIL, displayName: "Owner" })
+    .values({
+      externalId: opts?.externalId ?? "owner-clerk-id",
+      email: opts?.email ?? OWNER_EMAIL,
+      displayName: "Owner",
+    })
     .returning();
   const [ws] = await db
     .insert(workspace)
-    .values({ name: "Owner Workspace", slug: "owner-ws", ownerId: owner.id })
+    .values({ name: "Owner Workspace", slug: opts?.slug ?? "owner-ws", ownerId: owner.id })
     .returning();
   return { owner, ws };
 }
@@ -201,6 +207,55 @@ describe("deleteDemoContent", () => {
 
     // Real content still there after the second run.
     expect(await db.select().from(experiment).where(eq(experiment.id, real.experimentId))).toHaveLength(1);
+  });
+
+  it("nulls fork/supersedes pointers from NON-demo rows into the demo scope", async () => {
+    const email = "owner2@example.com";
+    const { owner, ws } = await seedOwnerAndWorkspace({ email, externalId: "owner2-clerk", slug: "owner2-ws" });
+    await seedDemoWorkspace(email);
+
+    // A real (non-demo) study that REPLICATED a demo study — its forkOf* columns
+    // point INTO the demo scope (RESTRICT). This is the cross-reference that broke
+    // the first prod run. (supersedesVersionId is handled the same way in the
+    // deleter but isn't exercised here — a valid superseding version needs
+    // amendment metadata, out of scope for this regression.)
+    const [demoStudy] = await db.select().from(experiment).where(eq(experiment.isDemo, true)).limit(1);
+    const [demoVer] = await db
+      .select()
+      .from(experimentVersion)
+      .where(eq(experimentVersion.experimentId, demoStudy.id))
+      .limit(1);
+    const realId = crypto.randomUUID();
+    const realVerId = crypto.randomUUID();
+    await db.insert(experiment).values({
+      id: realId,
+      tenantId: ws.id,
+      ownerId: owner.id,
+      title: "Real replication of a demo study",
+      isDemo: false,
+      forkOfExperimentId: demoStudy.id,
+      forkOfVersionId: demoVer.id,
+    });
+    await db.insert(experimentVersion).values({
+      id: realVerId,
+      experimentId: realId,
+      createdBy: owner.id,
+      versionNumber: 1,
+      kind: "published",
+      name: "v1",
+      definitionSnapshot: { blocks: [] },
+      moduleVersionLocks: [],
+    });
+    await db.update(experiment).set({ currentVersionId: realVerId }).where(eq(experiment.id, realId));
+
+    await deleteDemoContent(email);
+
+    // Demo is gone; the real replication survives with its lineage pointers nulled.
+    expect(await db.select().from(experiment).where(eq(experiment.isDemo, true))).toHaveLength(0);
+    const [realAfter] = await db.select().from(experiment).where(eq(experiment.id, realId));
+    expect(realAfter).toBeDefined();
+    expect(realAfter.forkOfExperimentId).toBeNull();
+    expect(realAfter.forkOfVersionId).toBeNull();
   });
 
   it("returns all-zero for an unknown owner email", async () => {
