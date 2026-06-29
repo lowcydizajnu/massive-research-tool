@@ -1300,9 +1300,11 @@ export function BuilderWorkspace({
               </div>
             </DetailRow>
 
-            <fieldset disabled={!canEdit} className="contents">
-              <ConditionsSection studyId={study.id} />
-            </fieldset>
+            <div data-tour="builder-conditions">
+              <fieldset disabled={!canEdit} className="contents">
+                <ConditionsSection studyId={study.id} />
+              </fieldset>
+            </div>
           </div>
         )}
         </>

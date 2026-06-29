@@ -23,11 +23,11 @@ describe("scenarioTourFor", () => {
 });
 
 describe("SCENARIO_TOUR_STEPS", () => {
-  it("defines 3-4 steps for every tour scenario, all with content", () => {
+  it("defines a handful of steps for every tour scenario, all with content", () => {
     for (const slug of SCENARIO_TOUR_SLUGS) {
       const steps = SCENARIO_TOUR_STEPS[slug];
       expect(steps.length).toBeGreaterThanOrEqual(3);
-      expect(steps.length).toBeLessThanOrEqual(4);
+      expect(steps.length).toBeLessThanOrEqual(9);
       for (const step of steps) {
         expect(step.target).toBeTruthy();
         expect(step.content).toBeTruthy();
@@ -39,9 +39,13 @@ describe("SCENARIO_TOUR_STEPS", () => {
     const allowed = new Set([
       "body",
       '[data-tour="builder-blocks"]',
+      '[data-tour="builder-conditions"]',
       '[data-tour="builder-preview"]',
       '[data-tour="builder-save"]',
       '[data-tour="builder-add-block"]',
+      '[data-tour="stage-design"]',
+      '[data-tour="stage-run"]',
+      '[data-tour="stage-results"]',
     ]);
     for (const slug of SCENARIO_TOUR_SLUGS) {
       for (const step of SCENARIO_TOUR_STEPS[slug]) {

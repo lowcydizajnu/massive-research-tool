@@ -62,6 +62,7 @@ export function StudyStageNav({ studyId }: { studyId: string }) {
               key={stage}
               href={hrefFor(stage, studyId)}
               role="tab"
+              data-tour={`stage-${stage.toLowerCase()}`}
               aria-current={isActive ? "page" : undefined}
               className={cn(
                 "rounded-[var(--radius-md)] px-3 py-1 text-[length:var(--text-body)]",

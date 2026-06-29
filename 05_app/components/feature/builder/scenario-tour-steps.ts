@@ -12,17 +12,21 @@ import type { Step } from "react-joyride";
  * /browse, not the Builder, so it has no entry here.
  *
  * Anchors used (must exist on first Builder load for a freshly-forked study):
- *   - body                         → centered welcome step
- *   - [data-tour="builder-blocks"] → the Blocks section (block list/canvas)
- *   - [data-tour="builder-preview"]→ the Live preview toggle
- *   - [data-tour="builder-save"]   → the Save (named version) control
- * The add-block affordance ([data-tour="builder-add-block"]) is available too,
- * but the four scenarios below lean on the seeded blocks, so they point at the
- * block list rather than the empty-add path.
+ *   - body                          → centered welcome step
+ *   - [data-tour="builder-blocks"]  → the Blocks section (block list/canvas)
+ *   - [data-tour="builder-conditions"] → the Conditions section (study details)
+ *   - [data-tour="builder-preview"] → the Live preview toggle
+ *   - [data-tour="builder-save"]    → the Save (named version) control
+ *   - [data-tour="stage-design"]    → the Design stage tab (study stage nav)
+ *   - [data-tour="stage-run"]       → the Run stage tab
+ *   - [data-tour="stage-results"]   → the Results stage tab
+ * All are persistent in the Builder/study chrome on first load. The add-block
+ * affordance ([data-tour="builder-add-block"]) is available too but unused — the
+ * scenarios lean on the seeded blocks.
  *
- * Copy is accurate to how the Builder works: edits autosave to the Draft, Save
- * writes a named version, and recruitment opens from the Run stage after the
- * design is ready (freeze-then-recruit).
+ * Copy is accurate to how the app works: edits autosave to the Draft, Save writes
+ * a named version, Design restyles, recruitment opens from Run (freeze-then-
+ * recruit), and Results breaks responses down by condition.
  */
 export const SCENARIO_TOUR_SLUGS = [
   "misinformation-study",
@@ -31,6 +35,38 @@ export const SCENARIO_TOUR_SLUGS = [
 ] as const;
 
 export type ScenarioTourSlug = (typeof SCENARIO_TOUR_SLUGS)[number];
+
+/** Steps shared across every scenario (the build → design → run → analyze arc).
+ *  `conditions` + `run` copy varies per scenario, so they're built per-scenario. */
+const designStep: Step = {
+  target: '[data-tour="stage-design"]',
+  title: "Adapt the design",
+  content:
+    "Open Design to restyle the study to your brand — theme colours, fonts, and (for AI/chat blocks) the assistant's look. Nothing about your design is locked.",
+};
+const previewStep: Step = {
+  target: '[data-tour="builder-preview"]',
+  title: "See it as a participant",
+  content: "Open the live preview to walk the study exactly as a participant will, screen by screen.",
+};
+const saveStep: Step = {
+  target: '[data-tour="builder-save"]',
+  title: "Save a version",
+  content:
+    "Edits autosave to the Draft as you go. When the design is right, Save a named version — that's what you preregister, publish, and recruit against.",
+};
+const resultsStep: Step = {
+  target: '[data-tour="stage-results"]',
+  title: "Analyze your data",
+  content:
+    "As responses arrive, Results shows them broken down by condition, with per-respondent views and a one-click export for your own analysis.",
+};
+const conditionsStep = (content: string): Step => ({
+  target: '[data-tour="builder-conditions"]',
+  title: "Add conditions",
+  content,
+});
+const runStep = (content: string): Step => ({ target: '[data-tour="stage-run"]', title: "Start recruiting", content });
 
 export const SCENARIO_TOUR_STEPS: Record<ScenarioTourSlug, Step[]> = {
   "misinformation-study": [
@@ -47,17 +83,14 @@ export const SCENARIO_TOUR_STEPS: Record<ScenarioTourSlug, Step[]> = {
       content:
         "These are the participant screens. Each post is grouped with its accuracy and share questions — click any block to edit its headline, body, or wording.",
     },
-    {
-      target: '[data-tour="builder-preview"]',
-      title: "See it as a participant",
-      content: "Open the live preview to walk the study exactly as a participant will, screen by screen.",
-    },
-    {
-      target: '[data-tour="builder-save"]',
-      title: "Save, then recruit",
-      content:
-        "Your edits autosave to the Draft. When the design is right, Save a named version — then open recruitment from the Run stage.",
-    },
+    conditionsStep(
+      "Want to compare groups (e.g. with vs. without a warning label)? Add conditions here and participants are randomly assigned across them.",
+    ),
+    designStep,
+    previewStep,
+    saveStep,
+    runStep("Open recruitment from Run — share a link or connect a participant panel to start collecting."),
+    resultsStep,
   ],
   "prolific-ab-test": [
     {
@@ -73,17 +106,14 @@ export const SCENARIO_TOUR_STEPS: Record<ScenarioTourSlug, Step[]> = {
       content:
         "The two stimulus screens are condition-gated — each arm sees only its own variant, then everyone answers the same measures. Click a stimulus block to replace the placeholder wording.",
     },
-    {
-      target: '[data-tour="builder-preview"]',
-      title: "See it as a participant",
-      content: "Open the live preview to walk through one assigned arm exactly as a participant will.",
-    },
-    {
-      target: '[data-tour="builder-save"]',
-      title: "Save, then recruit on Prolific",
-      content:
-        "Your edits autosave to the Draft. Save a named version when the wording is set — then connect Prolific from the Run stage to recruit a balanced sample.",
-    },
+    conditionsStep(
+      "Your two arms — version-a and version-b — live here. Rename them, rebalance assignment, or add a third condition; the gated stimulus screens follow.",
+    ),
+    designStep,
+    previewStep,
+    saveStep,
+    runStep("Connect Prolific from Run to recruit a balanced sample across both arms straight from the platform."),
+    resultsStep,
   ],
   "pilot-with-friends": [
     {
@@ -99,17 +129,14 @@ export const SCENARIO_TOUR_STEPS: Record<ScenarioTourSlug, Step[]> = {
       content:
         "The draft-scale items are grouped on one screen. Click any item to swap the placeholder wording for your own statements.",
     },
-    {
-      target: '[data-tour="builder-preview"]',
-      title: "See it as a participant",
-      content: "Open the live preview to answer the draft items exactly as a colleague will.",
-    },
-    {
-      target: '[data-tour="builder-save"]',
-      title: "Save, then share the link",
-      content:
-        "Your edits autosave to the Draft. Save a named version, then share the link from the Run stage — watch responses land and tighten the wording before a full sample.",
-    },
+    conditionsStep(
+      "Piloting two versions of the wording? Add conditions here to split your testers into groups — otherwise leave it as a single group.",
+    ),
+    designStep,
+    previewStep,
+    saveStep,
+    runStep("Save a version, then share the link from Run — watch responses land and tighten the wording before a full sample."),
+    resultsStep,
   ],
 };
 
