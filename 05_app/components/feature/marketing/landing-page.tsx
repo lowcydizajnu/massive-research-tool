@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Route } from "next";
+import { LandingSwitcher } from "@/components/feature/marketing/landing-switcher";
 import {
   ArrowRight,
   BarChart3,
@@ -461,6 +462,7 @@ function Footer() {
 export function LandingPage() {
   return (
     <main className="min-h-screen bg-[var(--color-surface-page)]">
+      <LandingSwitcher current="minimal" />
       <Hero />
       <PainPoints />
       <Workflow />

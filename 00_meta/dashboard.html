@@ -1213,6 +1213,10 @@
   ],
   "recentActivity": [
     {
+      "text": "Second landing proposal (Figma 'Bold' direction) + A/B switcher. The owner's Figma was a 3D-illustration concept conflicting with the locked v0.7 system + content-doc copy; flagged, and per the owner built it as a switchable second proposal to compare. landing-page-bold.tsx (full-bleed 3D scenes from Figma → public/marketing/figma, oversized Plex Serif, product copy woven in) + landing-switcher.tsx (floating Minimal/Bold toggle). app/page.tsx renders Bold on ?style=bold else the v0.7 Minimal. tsc/lint clean; build compiles. ~23MB Figma assets added for the proposal (remove if Bold not chosen). No migration.",
+      "date": "2026-06-29"
+    },
+    {
       "text": "Public marketing landing page shipped at / (My Research Lab). 11 sections from business-development/landing-page-content.md: hero, pain-points (dark), 7-stage workflow, 6 feature cards, community tease, trust signals, before/after comparison, pay-what-you-want pricing + partnerships, two audience columns, final CTA, footer. app/page.tsx renders components/feature/marketing/landing-page.tsx for logged-out visitors (authed → /studies). v0.7 tokens only. Locked copy: headline 'Replicate any study in one click.'; Qualtrics genericized; demo CTA → /explore; docs → external. Static server component; tsc/lint/build clean. Deferred: Figma-alignment pass, hero screenshot, featured studies, /partnership page. No migration.",
       "date": "2026-06-29"
     },

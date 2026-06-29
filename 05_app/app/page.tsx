@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 
 import { auth } from "@/server/adapters/auth";
 import { LandingPage } from "@/components/feature/marketing/landing-page";
+import { LandingPageBold } from "@/components/feature/marketing/landing-page-bold";
 
 /**
  * /  — auth-aware redirect.
@@ -22,11 +23,14 @@ import { LandingPage } from "@/components/feature/marketing/landing-page";
  * any DOM renders, so an authenticated test session arrives at /studies just
  * as it would after the onboarding flow.
  */
-export default async function HomePage() {
+export default async function HomePage({ searchParams }: { searchParams: Promise<{ style?: string }> }) {
   const user = await auth.getCurrentUser();
   // Authenticated → the canonical app landing. Logged-out visitors get the
   // public marketing landing (myresearchlab.app) instead of being bounced
   // straight to /signup (landing-page-content.md).
   if (user) redirect("/studies");
-  return <LandingPage />;
+  // Two proposals to compare (floating switcher): default = the v0.7 minimal
+  // build; ?style=bold = the Figma 3D-illustration direction.
+  const { style } = await searchParams;
+  return style === "bold" ? <LandingPageBold /> : <LandingPage />;
 }
