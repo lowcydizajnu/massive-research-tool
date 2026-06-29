@@ -15,6 +15,10 @@ export interface StorageAdapter {
    *  a 302) — pass "attachment" for participant-uploaded files so a crafted
    *  HTML upload can't execute when opened (ADR-0003 am. 2026-06-13). */
   presignDownload(key: string, expiresSeconds?: number, disposition?: "inline" | "attachment"): Promise<string>;
+  /** Hard-delete an object (idempotent — deleting a missing key is a no-op).
+   *  Used by study/response erasure (ADR-0082/0083 data-lifecycle). No-op when
+   *  storage is unconfigured (local dev) so callers can fire-and-forget. */
+  delete(key: string): Promise<void>;
 }
 
 // Active implementation. Switching vendors is a one-line change here.

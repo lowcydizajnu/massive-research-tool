@@ -1815,7 +1815,7 @@ describe("studies.delete + unarchive (ADR-0037)", () => {
     await db.update(experiment).set({ finishedAt: new Date() }).where(eq(experiment.id, id)); // cross-workspace fork needs Finished (ADR-0054)
     const { id: forkId } = await sofia.studies.fork({ studyId: id });
 
-    await hanna.studies.delete({ studyId: id });
+    await hanna.studies.deleteStudy({ studyId: id, confirmTitle: "Doomed" });
 
     await expect(hanna.studies.get({ id })).rejects.toThrow();
     expect(await db.select().from(experimentVersion).then((r) => r.filter((v) => v.experimentId === id))).toHaveLength(0);
@@ -1833,7 +1833,7 @@ describe("studies.delete + unarchive (ADR-0037)", () => {
     const { id } = await a.studies.create({ kind: "blank", title: "Shelved" });
     await a.studies.archive({ studyId: id });
     await expect(b.studies.unarchive({ studyId: id })).rejects.toThrow();
-    await expect(b.studies.delete({ studyId: id })).rejects.toThrow();
+    await expect(b.studies.deleteStudy({ studyId: id, confirmTitle: "Shelved" })).rejects.toThrow();
     await a.studies.unarchive({ studyId: id });
     expect((await a.studies.list()).find((s) => s.id === id)).toBeDefined();
   });

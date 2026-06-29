@@ -58,4 +58,15 @@ export const r2Storage: StorageAdapter = {
   presignUpload: (key, contentType, expiresSeconds = 600) =>
     presign(key, "PUT", expiresSeconds, contentType),
   presignDownload: (key, expiresSeconds = 3600, disposition) => presign(key, "GET", expiresSeconds, undefined, disposition),
+  // Erasure (ADR-0083). aws4fetch signs + executes the DELETE directly (bytes
+  // don't stream through us). R2 returns 204 whether or not the key existed, so
+  // it's idempotent. No-op when unconfigured so callers fire-and-forget.
+  delete: async (key) => {
+    const cfg = init();
+    if (!cfg) return;
+    const res = await cfg.client.fetch(`${cfg.endpoint}/${key}`, { method: "DELETE" });
+    if (!res.ok && res.status !== 404) {
+      throw new Error(`R2 delete failed for ${key}: ${res.status}`);
+    }
+  },
 };

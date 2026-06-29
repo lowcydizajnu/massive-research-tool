@@ -1213,6 +1213,10 @@
   ],
   "recentActivity": [
     {
+      "text": "Full study deletion shipped (ADR-0082 data-lifecycle). studies.deleteStudy + server/db/delete-study.ts hard-delete an entire study + its full FK graph in one transaction (exhaustive schema audit; covers the RESTRICT referrers delete-demo skipped; fixes a latent amendment-CHECK bug). External-workspace replications kept, lineage severed. R2 erasure of participant files (resp/ media + AI sidecars) via a new storage.delete(); researcher ws/ stimuli retained (shared-key footgun — documented follow-up). UI: study ⋯ menu typed-title confirm + replication warning + delete-template checkbox, fed by deleteStudyPreflight. Removed the old buggy inline studies.delete. +5 tests; 875 total; clean. No migration — push-only.",
+      "date": "2026-06-29"
+    },
+    {
       "text": "Production database migrated US → EU (ADR-0083). Owner spotted the sub-processor table claimed Neon 'EU/USA'; the live Neon project was actually aws-us-east-2 (US), contradicting EU intent. Confirmed via Vercel DATABASE_URL, then migrated live data → empty EU 'MRT Production' (aws-eu-central-1) with pg_dump/pg_restore: exact row-count parity across all 51 public tables. Owner repointed Vercel DATABASE_URL → EU + rebuilt HEAD (460d21e, live). Both region tables corrected to Neon EU (Frankfurt); the Location column was hardcoded, never read deployment config. Follow-ups: rename Neon projects so mrt-production=EU + update local env; decommission US + stale myresearchtool (552 old responses) after backup.",
       "date": "2026-06-29"
     },

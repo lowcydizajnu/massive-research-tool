@@ -8,6 +8,8 @@ import { registry } from "@/server/adapters/registry";
 import { trackEvent } from "@/server/analytics/track";
 import { db } from "@/server/db/client";
 import { deleteStudyResponses, StudyNotFoundError } from "@/server/db/delete-responses";
+import { collectStudyParticipantMediaKeys } from "@/server/db/collect-study-media";
+import { deleteStudy, StudyNotFoundError as StudyGoneError, TemplateExistsError } from "@/server/db/delete-study";
 import { emit } from "@/server/events/emit";
 import { createHash } from "node:crypto";
 
@@ -4618,6 +4620,107 @@ export const studiesRouter = router({
     }),
 
   /**
+   * Preflight for whole-study deletion (ADR-0083) — counts the delete would
+   * affect, so the confirm dialog can warn accurately + show the template
+   * opt-in. Read-only (deleteStudy dryRun, which skips the template guard).
+   */
+  deleteStudyPreflight: workspaceProcedure
+    .input(z.object({ studyId: z.string().uuid() }))
+    .query(
+      async ({
+        ctx,
+        input,
+      }): Promise<{ responses: number; externalReplications: number; templates: number }> => {
+        try {
+          const { responses, externalReplications, templates } = await deleteStudy(
+            input.studyId,
+            ctx.workspace.id,
+            { dryRun: true },
+          );
+          return { responses, externalReplications, templates };
+        } catch (e) {
+          if (e instanceof StudyGoneError) throw new TRPCError({ code: "NOT_FOUND" });
+          throw e;
+        }
+      },
+    ),
+
+  /**
+   * Hard-delete an ENTIRE study (ADR-0083 data-lifecycle) — design, all
+   * versions, responses, and participant files (R2). Irreversible; the
+   * reversible option is `archive`. Guards mirror deleteResponses: writeProcedure
+   * blocks viewers + all mutations during operator support access; only the
+   * study author OR a workspace owner/admin may run it; typed-title confirm.
+   * `deleteTemplates` opts in to also deleting saved templates derived from the
+   * study (else TemplateExistsError → PRECONDITION_FAILED so the UI can ask).
+   * Participant R2 objects are collected first, then best-effort deleted after
+   * the DB transaction commits (researcher-uploaded stimuli are retained — they
+   * may be shared across studies; see ADR-0083).
+   */
+  deleteStudy: writeProcedure
+    .input(
+      z.object({
+        studyId: z.string().uuid(),
+        confirmTitle: z.string(),
+        deleteTemplates: z.boolean().default(false),
+      }),
+    )
+    .mutation(
+      async ({
+        ctx,
+        input,
+      }): Promise<{ responses: number; externalReplications: number; templates: number; mediaDeleted: number }> => {
+        const [study] = await db
+          .select({ title: experiment.title, ownerId: experiment.ownerId })
+          .from(experiment)
+          .where(and(eq(experiment.id, input.studyId), eq(experiment.tenantId, ctx.workspace.id)))
+          .limit(1);
+        if (!study) throw new TRPCError({ code: "NOT_FOUND" });
+
+        const isPrivileged =
+          ctx.role === "owner" || ctx.role === "admin" || study.ownerId === ctx.dbUser.id;
+        if (!isPrivileged) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Only the study author or a workspace owner/admin can delete a study.",
+          });
+        }
+        if (input.confirmTitle.trim() !== study.title.trim()) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Study title confirmation did not match." });
+        }
+
+        // Collect participant R2 keys BEFORE the delete (response_items + AI
+        // payloads cascade away in the transaction).
+        const mediaKeys = await collectStudyParticipantMediaKeys(input.studyId);
+
+        let result;
+        try {
+          result = await deleteStudy(input.studyId, ctx.workspace.id, { deleteTemplates: input.deleteTemplates });
+        } catch (e) {
+          if (e instanceof TemplateExistsError) {
+            throw new TRPCError({
+              code: "PRECONDITION_FAILED",
+              message: `This study backs ${e.count} saved template${e.count === 1 ? "" : "s"}. Confirm deleting them too.`,
+            });
+          }
+          if (e instanceof StudyGoneError) throw new TRPCError({ code: "NOT_FOUND" });
+          throw e;
+        }
+
+        // Best-effort R2 cleanup after the DB commit — never fail the delete if a
+        // blob delete errors (the DB rows are already gone; orphaned blobs are
+        // unreachable). storage.delete is idempotent + no-op when unconfigured.
+        let mediaDeleted = 0;
+        if (mediaKeys.length > 0) {
+          const settled = await Promise.allSettled(mediaKeys.map((k) => storage.delete(k)));
+          mediaDeleted = settled.filter((s) => s.status === "fulfilled").length;
+        }
+
+        return { ...result, mediaDeleted };
+      },
+    ),
+
+  /**
    * Results (results-stage.md): per-condition completion counts, per-question
    * summaries (likert mean + n), and per-response rows for CSV export. By default
    * POOLS all runnable versions (preregistered OR published) so a made-live v2
@@ -5677,96 +5780,6 @@ export const studiesRouter = router({
       return { ok: true };
     }),
 
-  /** Hard delete (ADR-0037): one transaction, FK order; forks survive with
-   *  their lineage pointers nulled; responses die with the study. */
-  delete: writeProcedure
-    .input(z.object({ studyId: z.string().uuid() }))
-    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
-      const [exp] = await db
-        .select({ id: experiment.id })
-        .from(experiment)
-        .where(and(eq(experiment.id, input.studyId), eq(experiment.tenantId, ctx.workspace.id)))
-        .limit(1);
-      if (!exp) throw new TRPCError({ code: "NOT_FOUND" });
-
-      await db.transaction(async (tx) => {
-        // Clear every row that FK-references this study (or its versions) before
-        // dropping the versions/experiment, else the delete is blocked and the UI
-        // silently no-ops. Order matters where tables chain (quality_flag ->
-        // response/provider_submission; payout_record -> provider_submission;
-        // provider_submission -> recruitment_session), so these run first.
-        // Comments (study + block-instance) + their mentions.
-        const commentIds = (
-          await tx.select({ id: comment.id }).from(comment).where(eq(comment.experimentId, exp.id))
-        ).map((c) => c.id);
-        if (commentIds.length) await tx.delete(mention).where(inArray(mention.commentId, commentIds));
-        await tx.delete(comment).where(eq(comment.experimentId, exp.id));
-        // Live-cooperation presence (ADR-0060) — the row for whoever has the study
-        // open is what was blocking "Delete forever" from the Builder.
-        await tx.delete(studyPresence).where(eq(studyPresence.studyId, exp.id));
-        await tx.delete(studyRecord).where(eq(studyRecord.experimentId, exp.id));
-        await tx.delete(savedRecord).where(eq(savedRecord.experimentId, exp.id));
-        // Recruitment subsystem (empty for drafts). quality_flag/payout_record
-        // reference provider_submission + responses, so go before both.
-        await tx.delete(qualityFlag).where(eq(qualityFlag.experimentId, exp.id));
-        await tx.delete(payoutRecord).where(eq(payoutRecord.experimentId, exp.id));
-        await tx.delete(providerSubmission).where(eq(providerSubmission.experimentId, exp.id));
-        // Keep these rows; just drop their pointer to this study.
-        await tx.update(panelMember).set({ sourceExperimentId: null }).where(eq(panelMember.sourceExperimentId, exp.id));
-        await tx.update(playgroundCard).set({ convertedStudyId: null }).where(eq(playgroundCard.convertedStudyId, exp.id));
-
-        const versionIds = (
-          await tx
-            .select({ id: experimentVersion.id })
-            .from(experimentVersion)
-            .where(eq(experimentVersion.experimentId, exp.id))
-        ).map((v) => v.id);
-
-        if (versionIds.length) {
-          const sessionIds = (
-            await tx
-              .select({ id: recruitmentSession.id })
-              .from(recruitmentSession)
-              .where(inArray(recruitmentSession.experimentVersionId, versionIds))
-          ).map((r) => r.id);
-          if (sessionIds.length) {
-            const responseIds = (
-              await tx
-                .select({ id: responseTable.id })
-                .from(responseTable)
-                .where(inArray(responseTable.recruitmentSessionId, sessionIds))
-            ).map((r) => r.id);
-            if (responseIds.length) {
-              await tx.delete(responseItem).where(inArray(responseItem.responseId, responseIds));
-              await tx.delete(responseTable).where(inArray(responseTable.id, responseIds));
-            }
-            await tx.delete(recruitmentSession).where(inArray(recruitmentSession.id, sessionIds));
-          }
-          await tx.delete(condition).where(inArray(condition.experimentVersionId, versionIds));
-          await tx.delete(registryPush).where(inArray(registryPush.experimentVersionId, versionIds));
-        }
-        await tx.delete(previewToken).where(eq(previewToken.experimentId, exp.id));
-        await tx
-          .delete(changeProposal)
-          .where(or(eq(changeProposal.sourceExperimentId, exp.id), eq(changeProposal.targetExperimentId, exp.id)));
-        // (Comments + mentions already cleared above, keyed by experimentId.)
-        // Forks are their own studies — keep them, drop the lineage pointers.
-        await tx
-          .update(experiment)
-          .set({ forkOfExperimentId: null, forkOfVersionId: null })
-          .where(eq(experiment.forkOfExperimentId, exp.id));
-        await tx.update(experiment).set({ currentVersionId: null }).where(eq(experiment.id, exp.id));
-        // Templates saved FROM this study reference its experiment + a frozen
-        // version (FK = no action), so they must go before the versions/experiment
-        // or the delete is blocked (ADR-0063/0064 L1 bug, 2026-06-22). A template's
-        // source_version_id is always a version of source_experiment_id, so keying
-        // on the experiment covers both FKs.
-        await tx.delete(workspaceTemplate).where(eq(workspaceTemplate.sourceExperimentId, exp.id));
-        await tx.delete(experimentVersion).where(eq(experimentVersion.experimentId, exp.id));
-        await tx.delete(experiment).where(eq(experiment.id, exp.id));
-      });
-      return { ok: true };
-    }),
 
   setForkable: writeProcedure
     .input(

@@ -106,7 +106,9 @@ export async function deleteStudy(
           ? or(eq(workspaceTemplate.sourceExperimentId, studyId), inArray(workspaceTemplate.sourceVersionId, V))
           : eq(workspaceTemplate.sourceExperimentId, studyId),
       );
-    if (tmpl.length > 0 && !opts.deleteTemplates) throw new TemplateExistsError(tmpl.length);
+    // (Skip the guard in dryRun so a preflight can read the counts — incl. how
+    // many templates would need the opt-in — without throwing.)
+    if (!opts.dryRun && tmpl.length > 0 && !opts.deleteTemplates) throw new TemplateExistsError(tmpl.length);
 
     const responses = V.length
       ? await tx.select({ id: response.id }).from(response).where(inArray(response.experimentVersionId, V))

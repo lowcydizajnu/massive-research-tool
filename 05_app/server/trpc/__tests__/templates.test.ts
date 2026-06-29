@@ -229,8 +229,11 @@ describe("deleting a template's source study", () => {
     const caller = createCaller({ authUser: authUser("hanna") });
     const { id: templateId } = await caller.templates.create({ studyId, name: "From-source", shareScope: "workspace" });
 
-    // Before the fix, the workspace_template FK blocked this delete.
-    await expect(caller.studies.delete({ studyId })).resolves.toMatchObject({ ok: true });
+    // Before the fix, the workspace_template FK blocked this delete. Now the
+    // template opt-in (deleteTemplates) removes it in one move (ADR-0083).
+    await expect(
+      caller.studies.deleteStudy({ studyId, confirmTitle: "Source", deleteTemplates: true }),
+    ).resolves.toMatchObject({ templates: 1 });
     expect((await db.select().from(workspaceTemplate).where(eq(workspaceTemplate.id, templateId)))).toHaveLength(0);
     expect((await db.select().from(experiment).where(eq(experiment.id, studyId)))).toHaveLength(0);
   });
@@ -265,7 +268,9 @@ describe("deleting a template CLONE that has legacy fork lineage", () => {
     await db.insert(studyPresence).values({ studyId: clone.id, userId: u.id, blockId: null });
     await db.insert(comment).values({ id: ulid(), workspaceId: ws.id, targetType: "block_instance", targetId: "b0", experimentId: clone.id, authorUserId: u.id, bodyMd: "note" });
 
-    await expect(caller.studies.delete({ studyId: clone.id })).resolves.toMatchObject({ ok: true });
+    await expect(
+      caller.studies.deleteStudy({ studyId: clone.id, confirmTitle: "ChitChat" }),
+    ).resolves.toMatchObject({ versions: 1 });
     expect((await db.select().from(experiment).where(eq(experiment.id, clone.id)))).toHaveLength(0);
     // The source + its template are untouched by deleting the clone.
     expect((await db.select().from(experiment).where(eq(experiment.id, sourceId)))).toHaveLength(1);
