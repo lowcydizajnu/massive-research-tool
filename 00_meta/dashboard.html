@@ -1213,6 +1213,10 @@
   ],
   "recentActivity": [
     {
+      "text": "Feedback re-reports fixed (01KW7WWT/93RP/79N1/943Q). Version-compare flow edges now solid emerald (were faint dashed → read as 'free boxes'). Playground comment drawer raised to z-[55] (was under the feedback FAB). Library · Modules gained a search box (A–Z sort already matched Studies). Group-undo 'blink then revert' root-caused: server dissolves <2-member groups but the optimistic onMutate didn't, leaking a phantom group into undo history — fixed via shared lib/whiteboard/dissolve-groups.ts (+5 tests). Wording re-report (01KW76J5) investigated: pipeline correct end-to-end, no change. 870 tests; clean. f1bf338+0cb7be9 live; cdd6b27 (undo) pending push.",
+      "date": "2026-06-29"
+    },
+    {
       "text": "Privacy step #3 — researcher-controlled response erasure (ADR-0082 data-lifecycle). New server/db/delete-responses.ts (deleteStudyResponses) hard-deletes a study's response/responseItem/qualityFlag rows in one transaction, keeps the design, and recomputes each recruitment session's currentN from surviving completed/run responses. Exposed as studies.deleteResponses (writeProcedure: study-author or workspace owner/admin; typed-title confirm; NOT_FOUND cross-tenant; blocked under impersonation). Results-stage UI manage-data.tsx (owner/admin danger card + typed-title modal; hidden during support access). olderThanDays is the retention-cron seam. Public Security page upgraded from 'contact us' to a real self-serve control; ADR-0082 gains an implementation-status note. Also fixed a stray NUL byte in studies.ts (audio cache-key hash → String.fromCharCode(0), identical hash). +5 delete-responses tests; 865 tests; tsc/lint/build/validator clean. No migration — push-only deploy. Committed, unpushed.",
       "date": "2026-06-29"
     },
