@@ -25,10 +25,12 @@ export const SUBPROCESSORS: Subprocessor[] = [
   { name: "Cloudflare CDN", purpose: "Delivery + DDoS protection", location: "Global", dataAccessed: "HTTP request metadata (coarse country)" },
   { name: "Upstash Redis", purpose: "Rate limiting", location: "USA", dataAccessed: "One-way-hashed coarse buckets; never raw IPs" },
   { name: "Inngest", purpose: "Background jobs", location: "USA", dataAccessed: "Job metadata; study data only as a job requires" },
-  { name: "OSF", purpose: "Preregistration", location: "USA", dataAccessed: "Study metadata you choose to push", byoKey: true },
-  { name: "Anthropic", purpose: "AI text features", location: "USA", dataAccessed: "Prompts + content you send per study config", byoKey: true },
-  { name: "Hume AI", purpose: "Voice/emotion AI", location: "USA", dataAccessed: "Content/audio per study config, with consent", byoKey: true },
-  { name: "Prolific", purpose: "Recruitment", location: "UK", dataAccessed: "Recruitment metadata; opaque participant IDs", byoKey: true },
+  // byoKey providers: connected with the researcher's OWN account/key, so the
+  // region is determined by THEIR account — we don't assert one ("—").
+  { name: "OSF", purpose: "Preregistration", location: "—", dataAccessed: "Study metadata you choose to push", byoKey: true },
+  { name: "Anthropic", purpose: "AI text features", location: "—", dataAccessed: "Prompts + content you send per study config", byoKey: true },
+  { name: "Hume AI", purpose: "Voice/emotion AI", location: "—", dataAccessed: "Content/audio per study config, with consent", byoKey: true },
+  { name: "Prolific", purpose: "Recruitment", location: "—", dataAccessed: "Recruitment metadata; opaque participant IDs", byoKey: true },
 ];
 
 /** Display name with the bring-your-own-key qualifier the policy uses. */
