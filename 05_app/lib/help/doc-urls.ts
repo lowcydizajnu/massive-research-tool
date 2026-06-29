@@ -23,6 +23,7 @@ export const DOC_URLS = {
   "methodology.ab-testing": "/methodology/ab-testing",
   "methodology.piloting": "/methodology/piloting",
   "methodology.irb": "/methodology/irb-checklist",
+  "trust.security": "/trust/data-and-security",
 } as const;
 
 export type HelpDocKey = keyof typeof DOC_URLS;

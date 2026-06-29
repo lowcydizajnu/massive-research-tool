@@ -1,64 +1,102 @@
 {
-  "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Massive Research Lab",
-  "description": "Build, preregister, run, and share psychology experiments.",
-  "colors": {
-    "primary": "#15803d",
-    "light": "#22c55e",
-    "dark": "#166534"
+ "$schema": "https://mintlify.com/docs.json",
+ "theme": "mint",
+ "name": "Massive Research Lab",
+ "description": "Build, preregister, run, and share psychology experiments.",
+ "colors": {
+  "primary": "#15803d",
+  "light": "#22c55e",
+  "dark": "#166534"
+ },
+ "favicon": "/favicon.svg",
+ "fonts": {
+  "heading": {
+   "family": "IBM Plex Serif"
   },
-  "favicon": "/favicon.svg",
-  "fonts": {
-    "heading": { "family": "IBM Plex Serif" },
-    "body": { "family": "IBM Plex Sans" }
-  },
-  "navigation": {
-    "groups": [
-      {
-        "group": "Getting started",
-        "pages": [
-          "getting-started/quickstart",
-          "getting-started/signing-up",
-          "getting-started/your-first-study"
-        ]
-      },
-      {
-        "group": "Builder",
-        "pages": [
-          "builder/blocks",
-          "builder/conditions",
-          "builder/variants",
-          "builder/themes"
-        ]
-      },
-      {
-        "group": "Integrations",
-        "pages": [
-          "integrations/osf",
-          "integrations/prolific",
-          "integrations/anthropic"
-        ]
-      },
-      {
-        "group": "Methodology",
-        "pages": [
-          "methodology/preregistration",
-          "methodology/replication",
-          "methodology/ab-testing",
-          "methodology/piloting",
-          "methodology/irb-checklist"
-        ]
-      }
-    ]
-  },
-  "navbar": {
-    "primary": { "type": "button", "label": "Open the app", "href": "https://myresearchlab.app" }
-  },
-  "footer": {
-    "links": [
-      { "header": "Product", "items": [{ "label": "App", "href": "https://myresearchlab.app" }, { "label": "Explore", "href": "https://myresearchlab.app/explore" }] },
-      { "header": "Legal", "items": [{ "label": "Terms", "href": "https://myresearchlab.app/legal/terms" }, { "label": "Privacy", "href": "https://myresearchlab.app/legal/privacy" }] }
-    ]
+  "body": {
+   "family": "IBM Plex Sans"
   }
+ },
+ "navigation": {
+  "groups": [
+   {
+    "group": "Getting started",
+    "pages": [
+     "getting-started/quickstart",
+     "getting-started/signing-up",
+     "getting-started/your-first-study"
+    ]
+   },
+   {
+    "group": "Builder",
+    "pages": [
+     "builder/blocks",
+     "builder/conditions",
+     "builder/variants",
+     "builder/themes"
+    ]
+   },
+   {
+    "group": "Integrations",
+    "pages": [
+     "integrations/osf",
+     "integrations/prolific",
+     "integrations/anthropic"
+    ]
+   },
+   {
+    "group": "Methodology",
+    "pages": [
+     "methodology/preregistration",
+     "methodology/replication",
+     "methodology/ab-testing",
+     "methodology/piloting",
+     "methodology/irb-checklist"
+    ]
+   },
+   {
+    "group": "Trust & security",
+    "pages": [
+     "trust/data-and-security"
+    ]
+   }
+  ]
+ },
+ "navbar": {
+  "primary": {
+   "type": "button",
+   "label": "Open the app",
+   "href": "https://myresearchlab.app"
+  }
+ },
+ "footer": {
+  "links": [
+   {
+    "header": "Product",
+    "items": [
+     {
+      "label": "App",
+      "href": "https://myresearchlab.app"
+     },
+     {
+      "label": "Explore",
+      "href": "https://myresearchlab.app/explore"
+     }
+    ]
+   },
+   {
+    "header": "Legal",
+    "items": [
+     {
+      "label": "Terms",
+      "href": "https://myresearchlab.app/legal/terms"
+     },
+     {
+      "label": "Privacy",
+      "href": "https://myresearchlab.app/legal/privacy"
+     }
+    ]
+   }
+  ]
+ }
 }

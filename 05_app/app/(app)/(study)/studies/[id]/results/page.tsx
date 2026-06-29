@@ -119,6 +119,13 @@ export default async function ResultsStagePage({
           <>
             <ResultsActions studyId={study.id} results={results} includePreview={includePreview} />
 
+            {results.participantDataHidden ? (
+              <p className="rounded-[var(--radius-md)] bg-[var(--color-surface-subtle)] px-3 py-2 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+                Aggregate results are shown. Individual participant responses and exports are hidden
+                during support access.
+              </p>
+            ) : null}
+
             <section className="flex flex-col gap-2">
               <h2 className="font-serif text-[17px] font-medium text-[var(--color-text-primary)]">
                 By condition

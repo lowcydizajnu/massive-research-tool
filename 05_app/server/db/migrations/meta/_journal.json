@@ -372,6 +372,13 @@
       "when": 1782721643886,
       "tag": "0052_peaceful_onslaught",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1782727974440,
+      "tag": "0053_jittery_dragon_man",
+      "breakpoints": true
     }
   ]
 }

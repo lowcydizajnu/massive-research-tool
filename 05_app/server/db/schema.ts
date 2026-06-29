@@ -179,6 +179,12 @@ export const workspace = pgTable("workspace", {
    * kinds are filtered out at query time. Owners/admins edit via Settings.
    */
   activityFilterKinds: jsonb("activity_filter_kinds").$type<string[]>().notNull().default([]),
+  /**
+   * Whether a platform operator may use "View as" to access this workspace for
+   * support (ADR-0082). On by default; a workspace doing sensitive work can turn
+   * it off so its studies/results are excluded from any impersonated view.
+   */
+  supportAccessEnabled: boolean("support_access_enabled").notNull().default(true),
 });
 
 export const member = pgTable(
@@ -1315,6 +1321,8 @@ export const adminViewAsLog = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     action: text("action").notNull(), // 'enter' | 'exit'
+    /** Break-glass typed reason captured on enter (ADR-0082). Null on exit rows. */
+    reason: text("reason"),
     at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

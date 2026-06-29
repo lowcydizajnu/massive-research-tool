@@ -108,6 +108,9 @@ export const meRouter = router({
             isNull(experiment.archivedAt),
             // A demo study shows here only if its own workspace opts in (ADR-0023).
             crossWorkspaceDemoStudyCondition(),
+            // ADR-0082: during support access (View-as), hide even the titles of
+            // workspaces that disabled operator access.
+            ctx.isImpersonating ? eq(workspace.supportAccessEnabled, true) : undefined,
           ),
         )
         .orderBy(desc(experiment.updatedAt))
@@ -138,6 +141,8 @@ export const meRouter = router({
           isNull(experiment.archivedAt),
           // A demo study shows here only if its own workspace opts in (ADR-0023).
           crossWorkspaceDemoStudyCondition(),
+          // ADR-0082: hide support-disabled workspaces during View-as.
+          ctx.isImpersonating ? eq(workspace.supportAccessEnabled, true) : undefined,
         ),
       );
     // One open session per study is the invariant (ADR-0044); dedupe defensively.
@@ -166,6 +171,8 @@ export const meRouter = router({
           eq(experiment.ownerId, ctx.dbUser.id),
           isNull(experiment.archivedAt),
           crossWorkspaceDemoStudyCondition(),
+          // ADR-0082: hide support-disabled workspaces during View-as.
+          ctx.isImpersonating ? eq(workspace.supportAccessEnabled, true) : undefined,
         ),
       );
     const ids = authored.map((a) => a.id);

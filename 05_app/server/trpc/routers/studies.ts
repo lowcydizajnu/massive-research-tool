@@ -782,6 +782,11 @@ export type ResultsSummary = {
   availableVersions: number[];
   totalCompleted: number;
   includesPreview: boolean;
+  /** ADR-0082: true when an operator is in a "View as" support session — raw
+   *  participant responses (`rows`, per-respondent spatial rows, exports) are
+   *  withheld; aggregate counts/means/option-counts still resolve. The UI shows
+   *  a "Hidden during support access" state instead of the dataset. */
+  participantDataHidden?: boolean;
   conditions: { slug: string; name: string; completed: number }[];
   /** Per-variant-combination completed counts (ADR-0058); empty unless factorial. */
   combinations: { label: string; completed: number }[];
@@ -4979,6 +4984,30 @@ export const studiesRouter = router({
       const combinations = [...combAgg.entries()]
         .sort((a, b) => a[0].localeCompare(b[0]))
         .map(([label, count]) => ({ label, completed: count }));
+
+      // ADR-0082: during operator "View as" support access, never expose raw
+      // participant responses. Aggregate/structural data (version list, counts,
+      // per-condition + per-combination tallies, question means/option-counts/
+      // emotion aggregates) stays visible; only row-level participant data is
+      // withheld — the per-response `rows` (PID + raw answers) and the
+      // per-respondent spatial `responses` rows (incl. signature R2 keys).
+      if (ctx.isImpersonating) {
+        const redactedQuestions = questions.map((q) =>
+          q.spatial ? { ...q, spatial: { ...q.spatial, responses: undefined } } : q,
+        );
+        return {
+          versionNumber: latest.n,
+          selectedVersion: selected ? selected.n : null,
+          availableVersions,
+          totalCompleted: completed.length,
+          includesPreview: input.includePreview,
+          participantDataHidden: true,
+          conditions,
+          combinations,
+          questions: redactedQuestions,
+          rows: [],
+        };
+      }
 
       return {
         versionNumber: latest.n,

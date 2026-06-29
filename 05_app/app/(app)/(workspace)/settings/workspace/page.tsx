@@ -1,6 +1,7 @@
 import { ActivityFilterSettings } from "@/components/feature/settings/activity-filter-settings";
 import { AiProviderSettings } from "@/components/feature/settings/ai-provider-settings";
 import { DemoContentToggle } from "@/components/feature/settings/demo-content-toggle";
+import { SupportAccessToggle } from "@/components/feature/settings/support-access-toggle";
 import { getCurrentDbUser } from "@/server/auth/current-db-user";
 import { isAdminUser } from "@/server/admin/is-admin";
 import { getServerApi } from "@/server/trpc/server";
@@ -40,6 +41,12 @@ export default async function WorkspaceSettingsPage() {
         {isAdmin ? <DemoContentToggle /> : null}
         <div className={isAdmin ? "mt-2 border-t border-[var(--color-border-subtle)] pt-4" : ""}>
           <ActivityFilterSettings />
+        </div>
+        <div className="mt-2 border-t border-[var(--color-border-subtle)] pt-4">
+          <h3 className="mb-2 text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">
+            Privacy
+          </h3>
+          <SupportAccessToggle />
         </div>
         <div className="mt-2 border-t border-[var(--color-border-subtle)] pt-4">
           <h3 className="mb-2 text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">

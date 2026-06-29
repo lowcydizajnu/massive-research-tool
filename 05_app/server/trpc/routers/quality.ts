@@ -50,6 +50,8 @@ export type ResponsePreview = {
   status: string | null;
   durationSec: number | null;
   items: Array<{ blockInstanceId: string; moduleKey: string; answer: unknown }>;
+  /** ADR-0082: true when withheld during operator "View as" support access. */
+  participantDataHidden?: boolean;
 };
 
 const SEVERITY_RANK: Record<string, number> = { high: 0, medium: 1, low: 2 };
@@ -197,6 +199,11 @@ export const qualityRouter = router({
   responsePreview: workspaceProcedure
     .input(z.object({ flagId: z.string() }))
     .query(async ({ ctx, input }): Promise<ResponsePreview> => {
+      // ADR-0082: the flagged participant's raw answers are participant response
+      // data — never expose them during operator "View as" support access.
+      if (ctx.isImpersonating) {
+        return { responseId: null, status: null, durationSec: null, items: [], participantDataHidden: true };
+      }
       const [flag] = await db
         .select({ responseId: qualityFlag.responseId })
         .from(qualityFlag)

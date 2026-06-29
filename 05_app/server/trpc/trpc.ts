@@ -64,7 +64,12 @@ export const protectedProcedure = t.procedure.use(async ({ ctx, next, type }) =>
     });
   }
 
-  return next({ ctx: { authUser: ctx.authUser, dbUser, viewingAs } });
+  // ADR-0082: `isImpersonating` lets individual procedures that return raw
+  // participant responses / exports refuse to leak them during support access,
+  // while aggregate/structural reads (config, counts, history) stay visible.
+  const isImpersonating = Boolean(viewingAs);
+
+  return next({ ctx: { authUser: ctx.authUser, dbUser, viewingAs, isImpersonating } });
 });
 
 /**
@@ -90,6 +95,15 @@ export const workspaceProcedure = protectedProcedure.use(async ({ ctx, next }) =
     throw new TRPCError({
       code: "FORBIDDEN",
       message: "No workspace for this user.",
+    });
+  }
+  // ADR-0082: a workspace can opt out of operator support access. While
+  // impersonating, that workspace is excluded from the impersonated view —
+  // every workspace-scoped read (its studies, results, exports) is denied.
+  if (ctx.isImpersonating && !active.workspace.supportAccessEnabled) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "This workspace has disabled administrator support access.",
     });
   }
   return next({ ctx: { workspace: active.workspace, role: active.role } });

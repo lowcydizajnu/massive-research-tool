@@ -25,6 +25,8 @@ export type ActiveWorkspace = {
   name: string;
   slug: string;
   showDemoContent: boolean;
+  /** Whether a platform operator may use "View as" support access here (ADR-0082). */
+  supportAccessEnabled: boolean;
   /** The caller's role here — drives client-side write gating (mirrors writeProcedure). */
   role: MemberRole;
   /** Activity-event kinds hidden from this workspace's feed (ADR-0046); empty = show all. */
@@ -79,6 +81,7 @@ export const workspaceRouter = router({
     name: ctx.workspace.name,
     slug: ctx.workspace.slug,
     showDemoContent: ctx.workspace.showDemoContent,
+    supportAccessEnabled: ctx.workspace.supportAccessEnabled,
     role: ctx.role as MemberRole,
     activityFilterKinds: ctx.workspace.activityFilterKinds ?? [],
   })),
@@ -107,6 +110,8 @@ export const workspaceRouter = router({
           eq(member.status, "active"),
           isNull(member.removedAt), // soft-removed memberships drop out of the list (T3 / ADR-0046)
           isNull(workspace.archivedAt),
+          // ADR-0082: a support-disabled workspace is invisible during View-as.
+          ctx.isImpersonating ? eq(workspace.supportAccessEnabled, true) : undefined,
         ),
       );
     if (memberships.length === 0) return [];
@@ -425,6 +430,22 @@ export const workspaceRouter = router({
       await db
         .update(workspace)
         .set({ showDemoContent: input.show })
+        .where(eq(workspace.id, ctx.workspace.id));
+      return { ok: true };
+    }),
+
+  /**
+   * Toggle whether a platform operator may use "View as" support access to this
+   * workspace (ADR-0082). When off, this workspace's studies/results are excluded
+   * from any impersonated view (enforced in `workspaceProcedure`). Owner/admin
+   * write-gated via `writeProcedure`.
+   */
+  setSupportAccessEnabled: writeProcedure
+    .input(z.object({ enabled: z.boolean() }))
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      await db
+        .update(workspace)
+        .set({ supportAccessEnabled: input.enabled })
         .where(eq(workspace.id, ctx.workspace.id));
       return { ok: true };
     }),

@@ -80,6 +80,14 @@ export function ExportBuilder({ studyId, title }: { studyId: string; title: stri
   if (results.isLoading || !cols) {
     return <p className="text-[length:var(--text-body)] text-[var(--color-text-muted)]">Loading dataset…</p>;
   }
+  if (results.data?.participantDataHidden) {
+    // ADR-0082: raw participant responses are withheld during operator support access.
+    return (
+      <p className="rounded-[var(--radius-md)] bg-[var(--color-surface-subtle)] p-6 text-center text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
+        Participant responses are hidden during support access.
+      </p>
+    );
+  }
   if (!results.data || results.data.rows.length === 0) {
     return (
       <p className="rounded-[var(--radius-md)] bg-[var(--color-surface-subtle)] p-6 text-center text-[length:var(--text-body)] text-[var(--color-text-secondary)]">

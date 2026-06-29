@@ -366,6 +366,14 @@ function describe(n: NotificationDTO): {
           : "a card";
       return { text: `${actor} added ${kindLabel} to the Playground`, href: "/playground" as Route };
     }
+    case "admin.support_access": {
+      // ADR-0082 transparency: read-only operator support session, with reason.
+      const reason = typeof p.reason === "string" && p.reason ? ` — “${p.reason}”` : "";
+      return {
+        text: `An administrator opened a read-only support session on your account${reason}`,
+        href: null,
+      };
+    }
     default:
       return { text: `${actor} updated ${named}`, href: studyHref };
   }

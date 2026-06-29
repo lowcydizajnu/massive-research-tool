@@ -1213,6 +1213,10 @@
   ],
   "recentActivity": [
     {
+      "text": "Privacy: View-as tightening + public Security & data page (ADR-0082). Four operator-access tightenings: (1) no raw participant responses during View-as (ctx.isImpersonating; getResults hides rows + strips per-respondent/signature data, aggregates stay; quality preview blocked; CSV export hidden; media 403s); (2) typed-reason break-glass stored on the audit log; (3) target researcher notified (admin.support_access notification + activity event with reason); (4) per-workspace supportAccessEnabled toggle (Settings → Privacy) enforced in workspaceProcedure AND the cross-workspace personal feeds (gap closed — even study titles of a support-disabled workspace vanish while impersonating). Migration 0053. Public Security & data docs page (six trust questions, grounded in real sub-processors/PII/encryption/no-AI-training/BYO-key). View-as tests 3→9; 860 tests; clean. ⚠️ migration 0053 → db:migrate:prod BEFORE push. Committed, unpushed.",
+      "date": "2026-06-29"
+    },
+    {
       "text": "ADR-0082: privacy & operator-access model. Settles the privacy posture (owner asked 'would researchers be skeptical for sensitive work?'). Keep View-as but tighten to consent-gated, data-minimized, transparent support access — read-only + never exposes raw participant responses + typed-reason break-glass + researcher-visible session + per-workspace support-access setting; plus the published posture (PII-min, encryption + token encryption, no AI training on customer data, BYO-key, sub-processor transparency, export/hard-delete/retention direction, GDPR-aligned). Phase-gate ADR before the View-as code + public Security page. Validator clean. Committed, unpushed.",
       "date": "2026-06-29"
     },

@@ -70,13 +70,16 @@ export function ResultsActions({
       >
         {includePreview ? "Including preview responses" : "Include preview responses"}
       </Link>
-      <button
-        type="button"
-        onClick={download}
-        className="rounded-[var(--radius-md)] bg-[var(--color-primary)] px-4 py-1.5 text-[length:var(--text-body-emphasis)] font-medium text-white hover:opacity-90"
-      >
-        Export CSV
-      </button>
+      {/* ADR-0082: no participant-response export during operator support access. */}
+      {results.participantDataHidden ? null : (
+        <button
+          type="button"
+          onClick={download}
+          className="rounded-[var(--radius-md)] bg-[var(--color-primary)] px-4 py-1.5 text-[length:var(--text-body-emphasis)] font-medium text-white hover:opacity-90"
+        >
+          Export CSV
+        </button>
+      )}
     </div>
   );
 }
