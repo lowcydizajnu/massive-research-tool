@@ -881,8 +881,11 @@ function CommentDrawer({
   const del = api.playground.deleteComment.useMutation({ onSuccess: refresh });
   const [body, setBody] = useState("");
 
+  // z-[55] sits above the floating feedback FAB (z-50, bottom-right) so the
+  // comment composer's Post button is never overlapped (01KW93RP); still below
+  // the feedback modal (z-[65]).
   return (
-    <div className="fixed inset-0 z-40 flex justify-end bg-black/30" onClick={onClose}>
+    <div className="fixed inset-0 z-[55] flex justify-end bg-black/30" onClick={onClose}>
       <aside
         className="flex h-full w-full max-w-md flex-col gap-3 border-l border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-5 shadow-[var(--shadow-md)]"
         onClick={(e) => e.stopPropagation()}

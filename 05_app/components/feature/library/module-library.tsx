@@ -33,11 +33,22 @@ function moduleId(m: CatalogueModule): string {
 export function ModuleLibrary({ modules }: { modules: CatalogueModule[] }) {
   const [category, setCategory] = useState<string | null>(null);
   const [sort, setSort] = useState<Sort>("name");
+  const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const categories = [...new Set(modules.flatMap((m) => m.categoryTags))].sort();
+  // Search across name, identifier, description, and category tags (01KW79N1).
+  const q = query.trim().toLowerCase();
   const filtered = modules
     .filter((m) => !category || m.categoryTags.includes(category))
+    .filter(
+      (m) =>
+        !q ||
+        m.name.toLowerCase().includes(q) ||
+        moduleId(m).toLowerCase().includes(q) ||
+        m.description.toLowerCase().includes(q) ||
+        m.categoryTags.some((t) => t.toLowerCase().includes(q)),
+    )
     .sort((a, b) =>
       sort === "name" ? a.name.localeCompare(b.name) : moduleId(a).localeCompare(moduleId(b)),
     );
@@ -45,8 +56,16 @@ export function ModuleLibrary({ modules }: { modules: CatalogueModule[] }) {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Filter + sort bar. */}
+      {/* Search + filter + sort bar. */}
       <div className="flex flex-wrap items-center gap-3">
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search modules…"
+          aria-label="Search modules"
+          className="min-w-[12rem] flex-1 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-3 py-1.5 text-[length:var(--text-small)] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)]"
+        />
         <label className="flex items-center gap-1.5 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
           Category
           <select
@@ -80,14 +99,17 @@ export function ModuleLibrary({ modules }: { modules: CatalogueModule[] }) {
         {filtered.length === 0 ? (
           <div className="flex flex-col items-start gap-2 rounded-[var(--radius-md)] bg-[var(--color-surface-subtle)] p-6">
             <p className="text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
-              No modules match this filter.
+              No modules match{q ? " your search" : " this filter"}.
             </p>
             <button
               type="button"
-              onClick={() => setCategory(null)}
+              onClick={() => {
+                setCategory(null);
+                setQuery("");
+              }}
               className="text-[length:var(--text-small)] font-medium text-[var(--color-primary)] hover:opacity-90"
             >
-              Reset filter
+              Reset
             </button>
           </div>
         ) : (
