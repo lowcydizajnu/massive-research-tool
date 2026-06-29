@@ -72,7 +72,10 @@ function GhostCta({ href, children }: { href: string; children: React.ReactNode 
 /* ---------------- 1. Hero ---------------- */
 function Hero() {
   return (
-    <section className="mx-auto flex w-full max-w-5xl flex-col items-center gap-6 px-6 pt-20 text-center sm:pt-28">
+    <section className="relative mx-auto flex w-full max-w-5xl flex-col items-start gap-6 px-6 pt-20 text-left sm:pt-28">
+      {/* Scattered 3D character (Figma renders) — decorative. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/marketing/figma/astronaut.png" alt="" aria-hidden className="pointer-events-none absolute -top-2 right-2 hidden h-44 w-auto select-none lg:block" />
       <Eyebrow>My Research Lab</Eyebrow>
       <h1 className={`${SERIF} max-w-3xl text-[2rem] font-medium leading-[1.1] tracking-[-0.01em] sm:text-[3.25rem]`}>
         Replicate any study in <span className="text-[var(--color-primary-text-on-subtle)]">one click</span>.
@@ -83,7 +86,7 @@ function Hero() {
         survey builder and version history live here. Your OSF, Prolific, and AI vendor accounts connect through. One
         workspace.
       </p>
-      <div className="flex flex-wrap items-center justify-center gap-3 pt-1">
+      <div className="flex flex-wrap items-center gap-3 pt-1">
         <PrimaryCta href="/signup">
           Start free <ArrowRight className="size-4" aria-hidden />
         </PrimaryCta>
@@ -112,22 +115,26 @@ function PainPoints() {
   return (
     <section className="mt-20" data-theme="dark">
       <div className="bg-[var(--color-surface-page)] py-20">
-        <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-6">
-          <div className="flex flex-col gap-3">
-            <Eyebrow>The status quo</Eyebrow>
-            <h2 className={`${SERIF} text-[length:var(--text-display)] font-medium`}>Tired of…</h2>
+        <div className="mx-auto grid w-full max-w-6xl items-center gap-10 px-6 md:grid-cols-[1fr_auto]">
+          <div className="flex flex-col gap-8">
+            <div className="flex flex-col gap-3">
+              <Eyebrow>The status quo</Eyebrow>
+              <h2 className={`${SERIF} text-[length:var(--text-display)] font-medium`}>Tired of…</h2>
+            </div>
+            <ul className="flex flex-col gap-4">
+              {PAINS.map(([lead, rest]) => (
+                <li key={lead} className="flex items-start gap-3 text-[length:var(--text-body)] text-[var(--color-text-secondary)] sm:text-[17px]">
+                  <ArrowRight className="mt-1 size-4 shrink-0 text-[var(--color-primary)]" aria-hidden />
+                  <span>
+                    <span className="font-medium text-[var(--color-text-primary)]">{lead}</span>
+                    {rest}
+                  </span>
+                </li>
+              ))}
+            </ul>
           </div>
-          <ul className="flex flex-col gap-4">
-            {PAINS.map(([lead, rest]) => (
-              <li key={lead} className="flex items-start gap-3 text-[length:var(--text-body)] text-[var(--color-text-secondary)] sm:text-[17px]">
-                <ArrowRight className="mt-1 size-4 shrink-0 text-[var(--color-primary)]" aria-hidden />
-                <span>
-                  <span className="font-medium text-[var(--color-text-primary)]">{lead}</span>
-                  {rest}
-                </span>
-              </li>
-            ))}
-          </ul>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/marketing/figma/orange-lounge.png" alt="A researcher taking a break" className="mx-auto hidden w-full max-w-xs select-none object-contain md:block" />
         </div>
       </div>
     </section>
@@ -210,7 +217,11 @@ function Features() {
 /* ---------------- 5. Community tease ---------------- */
 function Community() {
   return (
-    <section className="mx-auto w-full max-w-4xl px-6 py-20 text-center">
+    <section className="relative mx-auto w-full max-w-4xl px-6 py-20 text-center">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/marketing/figma/fig1.png" alt="" aria-hidden className="pointer-events-none absolute bottom-4 left-0 hidden h-32 w-auto select-none lg:block" />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/marketing/figma/fig2.png" alt="" aria-hidden className="pointer-events-none absolute right-0 top-6 hidden h-32 w-auto select-none lg:block" />
       <div className="flex flex-col items-center gap-3">
         <Eyebrow>From the community</Eyebrow>
         <h2 className={`${SERIF} text-[length:var(--text-heading-1)] font-medium`}>Real studies from real researchers</h2>
@@ -402,7 +413,11 @@ function Audiences() {
 /* ---------------- 10. Final CTA ---------------- */
 function FinalCta() {
   return (
-    <section className="mx-auto flex w-full max-w-3xl flex-col items-center gap-5 px-6 py-24 text-center">
+    <section className="relative mx-auto flex w-full max-w-3xl flex-col items-center gap-5 px-6 py-24 text-center">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/marketing/figma/fig3.png" alt="" aria-hidden className="pointer-events-none absolute left-0 top-10 hidden h-32 w-auto select-none lg:block" />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/marketing/figma/fig4.png" alt="" aria-hidden className="pointer-events-none absolute bottom-10 right-0 hidden h-32 w-auto select-none lg:block" />
       <h2 className={`${SERIF} text-[length:var(--text-display)] font-medium`}>Ready to run better research?</h2>
       <p className="text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
         Free for individual researchers. Institutional partnerships available.
@@ -461,7 +476,7 @@ function Footer() {
 
 export function LandingPage() {
   return (
-    <main className="min-h-screen bg-[var(--color-surface-page)]">
+    <main className="relative min-h-screen overflow-hidden bg-[var(--color-surface-page)]">
       <LandingSwitcher current="minimal" />
       <Hero />
       <PainPoints />

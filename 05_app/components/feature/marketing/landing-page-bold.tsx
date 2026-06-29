@@ -35,20 +35,20 @@ export function LandingPageBold() {
     <main className="overflow-x-hidden bg-[var(--color-surface-canvas)]">
       <LandingSwitcher current="bold" />
 
-      {/* Hero — full-bleed scene + oversized serif headline */}
-      <section className="relative isolate flex min-h-[88vh] items-center justify-center px-6 py-24 text-center">
+      {/* Hero — full-bleed 3D scene (Figma node 2:19); left-aligned text. */}
+      <section className="relative isolate flex min-h-[88vh] items-center px-6 py-24 sm:px-12">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={`${IMG}/bg-top.png`} alt="" className="absolute inset-0 -z-10 size-full object-cover" />
-        <div className="absolute inset-0 -z-10 bg-black/45" aria-hidden />
-        <div className="flex max-w-3xl flex-col items-center gap-6">
+        <img src={`${IMG}/hero.png`} alt="" className="absolute inset-0 -z-10 size-full object-cover" />
+        <div className="absolute inset-0 -z-10 bg-gradient-to-r from-black/70 via-black/45 to-transparent" aria-hidden />
+        <div className="flex max-w-2xl flex-col items-start gap-6 text-left">
           <h1 className="font-serif text-[2.75rem] font-bold leading-[1.05] tracking-[-0.01em] text-white sm:text-[4.5rem]">
             Replicate any study in one click.
           </h1>
           <p className="max-w-xl text-[length:var(--text-body)] leading-relaxed text-white/85 sm:text-[18px]">
-            Design, preregister, recruit, run, analyze — all in one workspace. Your OSF, Prolific, and AI vendor accounts
-            connect through.
+            Start from any published study and adapt it freely. Design, preregister, recruit, run, analyze — all without
+            leaving My Research Lab. Your OSF, Prolific, and AI vendor accounts connect through. One workspace.
           </p>
-          <div className="flex flex-wrap items-center justify-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Pill href="/signup">
               Start free <ArrowRight className="size-4" aria-hidden />
             </Pill>
@@ -56,6 +56,9 @@ export function LandingPageBold() {
               Browse the library
             </Link>
           </div>
+          <p className="text-[length:var(--text-small)] text-white/70">
+            Free for individual researchers · BYO Prolific / OSF / Anthropic / Hume · No credit card
+          </p>
         </div>
       </section>
 
@@ -66,11 +69,12 @@ export function LandingPageBold() {
             <h2 className="font-serif text-[3rem] font-bold leading-none text-white sm:text-[5rem]">Tired of…</h2>
             <ul className="flex flex-col gap-3 text-[length:var(--text-body)] text-white/80">
               {[
-                "Rebuilding the same study three times across three tools to run it once.",
-                "Replicating a published study meaning rebuilding it from the methods section.",
-                "Losing track of which version your last 200 participants saw.",
-                "Modern stimuli — audio, voice, emotion scoring — being impossible or a hack.",
-                "Paying per response when your grant already pays for participants.",
+                "Rebuilding the same study three times across three tools just to run it once.",
+                "Replicating a published study meaning rebuilding it from scratch out of the methods section.",
+                "Losing track of which version your last 200 participants actually saw.",
+                "Modern stimulus types (audio, voice conversation, emotion scoring) being either impossible or a hack.",
+                "Paying per response just to collect data when your grant is already paying for participants.",
+                "Vendor lock-in that means leaving means losing five years of study designs.",
               ].map((p) => (
                 <li key={p} className="flex items-start gap-3">
                   <ArrowRight className="mt-1 size-4 shrink-0 text-[var(--color-primary)]" aria-hidden />
@@ -95,7 +99,7 @@ export function LandingPageBold() {
             library.
           </p>
           <div className="flex flex-wrap items-end justify-center gap-6">
-            {["fig1", "fig2", "fig3", "fig4"].map((f) => (
+            {["fig1", "fig2", "astronaut", "fig3", "fig4"].map((f) => (
               // eslint-disable-next-line @next/next/no-img-element
               <img key={f} src={`${IMG}/${f}.png`} alt="" className="h-44 w-auto object-contain sm:h-56" />
             ))}
