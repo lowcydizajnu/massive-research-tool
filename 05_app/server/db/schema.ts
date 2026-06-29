@@ -146,6 +146,11 @@ export const user = pgTable("user", {
   lastActiveAt: timestamp("last_active_at", { withTimezone: true }),
   /** Per-user opt-out of the weekly digest (Settings toggle; opt-out, not opt-in). */
   emailDigestOptedOut: boolean("email_digest_opted_out").notNull().default(false),
+  /** Marketing/product-update consent (feedback #9). GDPR-clean explicit opt-IN,
+   *  default OFF. DISTINCT from `emailDigestOptedOut` above: that is an opt-OUT of
+   *  activity/engagement emails; this is an opt-IN to promotional product updates.
+   *  Captured at signup (unchecked by default), editable later in Settings. */
+  marketingOptIn: boolean("marketing_opt_in").notNull().default(false),
   /** Cooldown anchors so the workers never double-send. */
   digestLastSentAt: timestamp("digest_last_sent_at", { withTimezone: true }),
   nudgeLastSentAt: timestamp("nudge_last_sent_at", { withTimezone: true }),

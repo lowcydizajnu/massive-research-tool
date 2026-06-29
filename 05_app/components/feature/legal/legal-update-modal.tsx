@@ -1,5 +1,6 @@
 "use client";
 
+import { useClerk } from "@clerk/nextjs";
 import Link from "next/link";
 import type { Route } from "next";
 import { usePathname } from "next/navigation";
@@ -29,6 +30,7 @@ export function LegalUpdateModal() {
   });
   const utils = api.useUtils();
   const accept = api.legal.acceptUpdate.useMutation();
+  const { signOut } = useClerk();
   const [submitting, setSubmitting] = useState(false);
 
   const items = outstanding.data ?? [];
@@ -67,20 +69,32 @@ export function LegalUpdateModal() {
           {items.map((it) => (
             <li
               key={it.documentKind}
-              className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-3"
+              className="flex items-start gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-3"
             >
-              <Link
-                href={`/legal/${it.documentKind}` as Route}
-                target="_blank"
-                className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-primary)] hover:opacity-90"
-              >
-                {it.title}
-              </Link>
-              {it.summary ? (
-                <p className="mt-1 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-                  {it.summary}
-                </p>
-              ) : null}
+              {/* Required + fixed-checked: the clickwrap is the "I agree" button. */}
+              <input
+                type="checkbox"
+                checked
+                disabled
+                readOnly
+                aria-label={`${it.title} (required)`}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-primary)]"
+              />
+              <div className="min-w-0">
+                <Link
+                  href={`/legal/${it.documentKind}` as Route}
+                  target="_blank"
+                  className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-primary)] hover:opacity-90"
+                >
+                  {it.title}
+                </Link>{" "}
+                <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">Required</span>
+                {it.summary ? (
+                  <p className="mt-1 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                    {it.summary}
+                  </p>
+                ) : null}
+              </div>
             </li>
           ))}
         </ul>
@@ -92,6 +106,17 @@ export function LegalUpdateModal() {
           className="mt-5 w-full rounded-[var(--radius-md)] bg-[var(--color-primary)] px-4 py-2 text-[length:var(--text-body)] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80 disabled:opacity-60"
         >
           {submitting ? "Saving…" : "I agree to the updated terms"}
+        </button>
+
+        {/* Decline → sign out + return to the landing page (feedback #9). Mirrors
+            the user-menu sign-out (components/chrome/user-menu.tsx). */}
+        <button
+          type="button"
+          onClick={() => void signOut({ redirectUrl: "/" })}
+          disabled={submitting}
+          className="mt-2 w-full rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-4 py-2 text-[length:var(--text-body)] font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-subtle)] disabled:opacity-60"
+        >
+          Decline and sign out
         </button>
       </div>
     </div>

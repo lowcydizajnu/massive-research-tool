@@ -35,6 +35,9 @@ export type FinalizeOnboardingInput = {
   displayName: string;
   workspaceName: string;
   themeChoice: ThemeChoice;
+  /** Optional marketing/product-update consent (feedback #9). Explicit opt-in,
+   *  default false — the signup form sends the unchecked-by-default checkbox state. */
+  marketingOptIn: boolean;
 };
 
 export type FinalizeOnboardingResult = {
@@ -90,10 +93,16 @@ export async function finalizeOnboarding(
         externalId: current.id,
         email: current.email,
         displayName,
+        marketingOptIn: input.marketingOptIn,
       })
       .onConflictDoUpdate({
         target: user.externalId,
-        set: { email: current.email, displayName, updatedAt: new Date() },
+        set: {
+          email: current.email,
+          displayName,
+          marketingOptIn: input.marketingOptIn,
+          updatedAt: new Date(),
+        },
       })
       .returning();
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useSignUp, useUser } from "@clerk/nextjs";
+import { useClerk, useSignUp, useUser } from "@clerk/nextjs";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Suspense, useEffect, useRef, useState } from "react";
@@ -38,13 +38,17 @@ function SignupFlow() {
   const searchParams = useSearchParams();
   const { isLoaded, signUp, setActive } = useSignUp();
   const { isLoaded: userLoaded, isSignedIn, user } = useUser();
+  const { signOut } = useClerk();
   const { choice } = useTheme();
 
   const [step, setStep] = useState<Step>("identify");
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [workspaceName, setWorkspaceName] = useState("");
-  const [acceptedLegal, setAcceptedLegal] = useState(false);
+  // Marketing/product-update consent (feedback #9) — optional, OFF by default.
+  // ToS + Privacy are mandatory (rendered as checked + disabled rows), so there
+  // is no acceptance state to track: completing this step IS the clickwrap.
+  const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [identifyState, setIdentifyState] = useState<IdentifyState>(
     searchParams.get("error") === "oauth" ? "error" : "idle",
   );
@@ -186,19 +190,23 @@ function SignupFlow() {
 
   async function handleFinalize(e: React.FormEvent) {
     e.preventDefault();
-    if (!acceptedLegal) {
-      setError("Please accept the Terms of Service and Privacy Policy to continue.");
-      return;
-    }
+    // ToS + Privacy are mandatory + fixed-checked, so submitting the form is the
+    // clickwrap consent (feedback #9). No accept-guard needed.
     setSubmitting(true);
     setError(null);
     try {
-      await finalizeOnboarding({ displayName, workspaceName, themeChoice: choice });
+      await finalizeOnboarding({ displayName, workspaceName, themeChoice: choice, marketingOptIn });
       router.replace("/studies");
     } catch (err) {
       setSubmitting(false);
       setError(messageFrom(err, "Couldn't finish setting up your workspace."));
     }
+  }
+
+  // Decline the Terms / Privacy Policy → sign out and return to the landing page
+  // (feedback #9). Mirrors the user-menu sign-out (components/chrome/user-menu.tsx).
+  function handleDecline() {
+    void signOut({ redirectUrl: "/" });
   }
 
   return (
@@ -350,34 +358,91 @@ function SignupFlow() {
             </span>
           </label>
 
-          <label className="flex items-start gap-2 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
-            <input
-              type="checkbox"
-              required
-              checked={acceptedLegal}
-              onChange={(e) => setAcceptedLegal(e.target.checked)}
-              className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-primary)]"
-            />
-            <span>
-              I agree to the{" "}
-              <Link href="/legal/terms" target="_blank" className="font-medium text-[var(--color-primary)] hover:opacity-90">
-                Terms of Service
-              </Link>{" "}
-              and{" "}
-              <Link href="/legal/privacy" target="_blank" className="font-medium text-[var(--color-primary)] hover:opacity-90">
-                Privacy Policy
-              </Link>
-              .
-            </span>
-          </label>
+          <fieldset className="flex flex-col gap-2.5">
+            <legend className="text-[length:var(--text-label)] uppercase tracking-wide text-[var(--color-text-muted)]">
+              Agreements
+            </legend>
+
+            {/* Required: Terms of Service — checked + disabled (mandatory). The
+                clickwrap is completing signup; acceptance is recorded server-side. */}
+            <label className="flex items-start gap-2 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+              <input
+                type="checkbox"
+                checked
+                disabled
+                readOnly
+                aria-describedby="tos-required-hint"
+                className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-primary)]"
+              />
+              <span>
+                I agree to the{" "}
+                <Link href="/legal/terms" target="_blank" className="font-medium text-[var(--color-primary)] hover:opacity-90">
+                  Terms of Service
+                </Link>
+                .{" "}
+                <span id="tos-required-hint" className="text-[var(--color-text-muted)]">
+                  Required
+                </span>
+              </span>
+            </label>
+
+            {/* Required: Privacy Policy — checked + disabled (mandatory). */}
+            <label className="flex items-start gap-2 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+              <input
+                type="checkbox"
+                checked
+                disabled
+                readOnly
+                aria-describedby="privacy-required-hint"
+                className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-primary)]"
+              />
+              <span>
+                I agree to the{" "}
+                <Link href="/legal/privacy" target="_blank" className="font-medium text-[var(--color-primary)] hover:opacity-90">
+                  Privacy Policy
+                </Link>
+                .{" "}
+                <span id="privacy-required-hint" className="text-[var(--color-text-muted)]">
+                  Required
+                </span>
+              </span>
+            </label>
+
+            {/* Optional: marketing consent — OFF by default (feedback #9). */}
+            <label className="flex items-start gap-2 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+              <input
+                type="checkbox"
+                checked={marketingOptIn}
+                onChange={(e) => setMarketingOptIn(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-primary)]"
+              />
+              <span>
+                Send me occasional product updates and tips.{" "}
+                <span className="text-[var(--color-text-muted)]">Optional</span>
+              </span>
+            </label>
+          </fieldset>
 
           <button
             type="submit"
-            disabled={submitting || !acceptedLegal}
+            disabled={submitting}
             className="rounded-[var(--radius-md)] bg-[var(--color-primary)] px-4 py-2 text-[length:var(--text-body)] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80 disabled:opacity-60"
           >
             {submitting ? "Setting up…" : "Create workspace"}
           </button>
+
+          <div className="flex flex-col gap-1 border-t border-[var(--color-border-subtle)] pt-3">
+            <button
+              type="button"
+              onClick={handleDecline}
+              className="self-start text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] underline hover:text-[var(--color-text-primary)]"
+            >
+              Decline and sign out
+            </button>
+            <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+              You must accept the Terms and Privacy Policy to use MRT.
+            </p>
+          </div>
         </form>
       ) : null}
     </div>

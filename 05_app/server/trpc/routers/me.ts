@@ -62,6 +62,8 @@ export const meRouter = router({
    *  both the weekly digest and the return-nudge. */
   emailPrefs: protectedProcedure.query(({ ctx }) => ({
     engagementEmailsOptedOut: ctx.dbUser.emailDigestOptedOut,
+    // Marketing/product-update consent (feedback #9) — explicit opt-IN, default off.
+    marketingOptIn: ctx.dbUser.marketingOptIn,
   })),
 
   setEngagementEmailOptOut: protectedProcedure
@@ -72,6 +74,18 @@ export const meRouter = router({
         .set({ emailDigestOptedOut: input.optedOut })
         .where(eq(user.id, ctx.dbUser.id));
       return { optedOut: input.optedOut };
+    }),
+
+  /** Marketing/product-update consent (feedback #9). Explicit opt-in, distinct
+   *  from the engagement-email digest above. Editable from Account → Notifications. */
+  setMarketingOptIn: protectedProcedure
+    .input(z.object({ optIn: z.boolean() }))
+    .mutation(async ({ ctx, input }) => {
+      await db
+        .update(user)
+        .set({ marketingOptIn: input.optIn })
+        .where(eq(user.id, ctx.dbUser.id));
+      return { optIn: input.optIn };
     }),
 
   /** Recently-updated studies the caller authored, across all their workspaces. */

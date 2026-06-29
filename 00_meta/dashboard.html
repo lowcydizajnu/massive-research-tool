@@ -1213,6 +1213,10 @@
   ],
   "recentActivity": [
     {
+      "text": "Feedback #9: ToS/Privacy acceptance rework. Decline → sign out on both the signup gate and the version-bump re-prompt modal; ToS + Privacy render as checked + disabled 'Required' rows; a separate optional marketing opt-in (OFF by default) in a new user.marketing_opt_in column (migration 0052, distinct from the engagement-digest opt-out) + a Settings → Account toggle. finalizeOnboarding persists the choice. QA audit logged (consent-sensitive). 850 tests; clean. ⚠️ migration 0052 → db:migrate:prod BEFORE push. Committed, unpushed.",
+      "date": "2026-06-29"
+    },
+    {
       "text": "Feedback: demo content fully removed from prod. Owner still saw demo after the toggle fix — root cause was prod data (member.is_demo post-dated the rows; demo also lived in a 2nd workspace). Built deleteDemoContent() (pglite-tested) + db:delete-demo:prod with a --dry-run preview, hardened against every RESTRICT referrer a live instance accumulates (fork/supersedes, qualityFlag, providerSubmission, registryPush, studyPresence, previewToken, activityEvent, notification, follow, mention, playgroundCardVote; playgroundCard/panelMember nulled). Prod: deleted 14 demo studies, 4 members, 2 users across 2 workspaces; dry-run now zero; real data untouched. Scripts only.",
       "date": "2026-06-29"
     },

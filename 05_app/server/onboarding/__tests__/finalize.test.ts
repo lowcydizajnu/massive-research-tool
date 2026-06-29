@@ -71,6 +71,7 @@ describe("finalizeOnboarding (happy path)", () => {
       displayName: "Hanna Kowalczyk",
       workspaceName: "Misinformation Lab",
       themeChoice: "dark",
+      marketingOptIn: false,
     });
 
     const users = await db.select().from(user);
@@ -104,6 +105,7 @@ describe("finalizeOnboarding (happy path)", () => {
       displayName: "Hanna",
       workspaceName: "Lab",
       themeChoice: "system",
+      marketingOptIn: false,
     });
     const users = await db.select().from(user);
     const accepts = await db.select().from(legalAcceptance);
@@ -126,6 +128,7 @@ describe("finalizeOnboarding (happy path)", () => {
       displayName: "Hanna",
       workspaceName: "Lab",
       themeChoice: "light",
+      marketingOptIn: false,
     });
 
     expect(mockAuth.setUserMetadata).toHaveBeenCalledWith("ext_user_1", {
@@ -140,6 +143,7 @@ describe("finalizeOnboarding (happy path)", () => {
       displayName: "   ",
       workspaceName: "Lab",
       themeChoice: "system",
+      marketingOptIn: false,
     });
     const users = await db.select().from(user);
     expect(users[0].displayName).toBe("hanna@example.com");
@@ -150,19 +154,43 @@ describe("finalizeOnboarding (happy path)", () => {
       displayName: "Hanna",
       workspaceName: "Lab",
       themeChoice: "system",
+      marketingOptIn: false,
     });
     await finalizeOnboarding({
       displayName: "Hanna",
       workspaceName: "Lab",
       themeChoice: "system",
+      marketingOptIn: false,
     });
     const slugs = (await db.select().from(workspace)).map((w) => w.slug).sort();
     expect(slugs).toEqual(["lab", "lab-2"]);
   });
 
+  it("persists marketingOptIn=true on the user (feedback #9)", async () => {
+    await finalizeOnboarding({
+      displayName: "Hanna",
+      workspaceName: "Lab",
+      themeChoice: "system",
+      marketingOptIn: true,
+    });
+    const users = await db.select().from(user);
+    expect(users[0].marketingOptIn).toBe(true);
+  });
+
+  it("persists marketingOptIn=false on the user (default, feedback #9)", async () => {
+    await finalizeOnboarding({
+      displayName: "Hanna",
+      workspaceName: "Lab",
+      themeChoice: "system",
+      marketingOptIn: false,
+    });
+    const users = await db.select().from(user);
+    expect(users[0].marketingOptIn).toBe(false);
+  });
+
   it("upserts the user on repeat (one user row, not two)", async () => {
-    await finalizeOnboarding({ displayName: "Hanna", workspaceName: "A", themeChoice: "system" });
-    await finalizeOnboarding({ displayName: "Hanna R.", workspaceName: "B", themeChoice: "system" });
+    await finalizeOnboarding({ displayName: "Hanna", workspaceName: "A", themeChoice: "system", marketingOptIn: false });
+    await finalizeOnboarding({ displayName: "Hanna R.", workspaceName: "B", themeChoice: "system", marketingOptIn: false });
     const users = await db.select().from(user).where(eq(user.externalId, "ext_user_1"));
     expect(users).toHaveLength(1);
     expect(users[0].displayName).toBe("Hanna R.");
@@ -173,7 +201,7 @@ describe("finalizeOnboarding (auth failure)", () => {
   it("propagates the unauthorized error and writes nothing", async () => {
     mockAuth.requireCurrentUser.mockRejectedValue(new Error("Not authenticated"));
     await expect(
-      finalizeOnboarding({ displayName: "X", workspaceName: "Y", themeChoice: "system" }),
+      finalizeOnboarding({ displayName: "X", workspaceName: "Y", themeChoice: "system", marketingOptIn: false }),
     ).rejects.toThrow();
     expect(await db.select().from(user)).toHaveLength(0);
     expect(await db.select().from(workspace)).toHaveLength(0);

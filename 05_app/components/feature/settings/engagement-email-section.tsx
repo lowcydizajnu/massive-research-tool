@@ -13,8 +13,14 @@ export function EngagementEmailSection() {
   const set = api.me.setEngagementEmailOptOut.useMutation({
     onSuccess: () => void utils.me.emailPrefs.invalidate(),
   });
+  // Marketing/product-update consent (feedback #9) — explicit opt-in, distinct
+  // from the engagement-email digest opt-out above.
+  const setMarketing = api.me.setMarketingOptIn.useMutation({
+    onSuccess: () => void utils.me.emailPrefs.invalidate(),
+  });
 
   const optedOut = q.data?.engagementEmailsOptedOut ?? false;
+  const marketingOptIn = q.data?.marketingOptIn ?? false;
 
   return (
     <section className="flex flex-col gap-3">
@@ -32,6 +38,22 @@ export function EngagementEmailSection() {
         />
         Send me engagement emails
       </label>
+
+      <div className="mt-1 border-t border-[var(--color-border-subtle)] pt-3">
+        <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+          Product &amp; marketing emails — occasional updates, tips, and announcements about new features.
+          Off unless you opt in.
+        </p>
+        <label className="mt-2 flex items-center gap-2 text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
+          <input
+            type="checkbox"
+            checked={marketingOptIn}
+            disabled={q.isLoading || setMarketing.isPending}
+            onChange={(e) => setMarketing.mutate({ optIn: e.target.checked })}
+          />
+          Send me product &amp; marketing emails
+        </label>
+      </div>
     </section>
   );
 }
