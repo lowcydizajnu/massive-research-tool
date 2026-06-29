@@ -27,7 +27,7 @@ const pick = <T>(arr: T[]): T => arr[randInt(0, arr.length - 1)];
  * Idempotent: returns early if demo studies already exist. Throws on error.
  */
 export async function seedDemoWorkspace(email: string): Promise<void> {
-  const { and, eq } = await import("drizzle-orm");
+  const { and, eq, inArray } = await import("drizzle-orm");
   const { ulid } = await import("ulid");
   const { db } = await import("@/server/db/client");
   const s = await import("@/server/db/schema");
@@ -119,6 +119,29 @@ export async function seedDemoWorkspace(email: string): Promise<void> {
   if (!owner) throw new Error(`No user with email ${email}.`);
   const [ws] = await db.select().from(s.workspace).where(eq(s.workspace.ownerId, owner.id)).limit(1);
   if (!ws) throw new Error(`No workspace owned by ${email}.`);
+
+  // Reconcile is_demo on pre-existing demo teammates BEFORE the idempotency bail.
+  // member.is_demo post-dates the first prod demo seed, so those rows defaulted to
+  // false and the Team toggle couldn't hide them (feedback). Runs every time, even
+  // when the bail below short-circuits the rest. Idempotent.
+  const demoUsers = await db
+    .select({ id: s.user.id })
+    .from(s.user)
+    .where(inArray(s.user.externalId, ["demo-sofia", "demo-maya"]));
+  if (demoUsers.length) {
+    await db
+      .update(s.member)
+      .set({ isDemo: true })
+      .where(
+        and(
+          eq(s.member.workspaceId, ws.id),
+          inArray(
+            s.member.userId,
+            demoUsers.map((u) => u.id),
+          ),
+        ),
+      );
+  }
 
   // Idempotency: bail if demo studies already exist.
   const existing = await db
