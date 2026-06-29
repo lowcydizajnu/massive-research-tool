@@ -25,10 +25,14 @@ const seenKey = (slug: string) => `mrt:builder-tour-seen:${slug}`;
 export function BuilderScenarioTour() {
   const searchParams = useSearchParams();
   const slug = scenarioTourFor(searchParams.get("tour"));
+  // `&replay=1` forces the tour even if already seen — lets the owner re-check a
+  // scenario tour on demand (mirrors the product tour's `?tour=replay`).
+  const replay = searchParams.get("replay") === "1";
   const [run, setRun] = useState(false);
 
   useEffect(() => {
-    // No/unknown scenario, or already seen → never run.
+    // No/unknown scenario → never run. Otherwise run on first sight, or whenever
+    // replay is explicitly requested.
     if (!slug) return;
     let seen = false;
     try {
@@ -36,8 +40,8 @@ export function BuilderScenarioTour() {
     } catch {
       // localStorage unavailable (private mode / blocked) — run once this session.
     }
-    if (!seen) setRun(true);
-  }, [slug]);
+    if (replay || !seen) setRun(true);
+  }, [slug, replay]);
 
   if (!slug || !run) return null;
 
