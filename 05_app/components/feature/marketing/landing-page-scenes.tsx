@@ -150,12 +150,12 @@ export function LandingPageScenes() {
         <h2 className="mt-3 font-serif text-[2.25rem] font-medium leading-tight sm:text-[3rem]">What sets My Research Lab apart</h2>
         <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {[
-            [GitCommit, "Version everything", "Every save is a version. Every preregistration is frozen forever. Compare side-by-side; restore any prior state.", GREEN],
-            [GitFork, "One-click replication", "Bring any study into your workspace. Same blocks, same conditions — adapt freely. Authors see who's replicating.", BLUE],
-            [UsersRound, "Live collaboration", "See who's editing what. Comment on any block. @mention teammates. Threaded discussions stay with the study.", ORANGE],
+            [GitCommit, "Version everything", "Every save is a version. Every preregistration is frozen forever. Compare side-by-side; restore any prior state.", GREEN, "scene1"],
+            [GitFork, "One-click replication", "Bring any study into your workspace. Same blocks, same conditions — adapt freely. Authors see who's replicating.", BLUE, "scene2"],
+            [UsersRound, "Live collaboration", "See who's editing what. Comment on any block. @mention teammates. Threaded discussions stay with the study.", ORANGE, "room-art"],
             [Mic, "Modern stimuli", "46+ block types: audio recording, voice conversation with AI, emotion scoring, factorial variants, hot-spots, and more.", GREEN, "tools"],
-            [PlugZap, "Open integrations", "OSF, Prolific, Anthropic, Hume — BYO keys, your accounts, no markup. New providers via our open adapter pattern.", ORANGE],
-            [Eye, "Radical transparency", "Open by default. Public studies are replicable by anyone. Methodology you can audit. Source-available.", BLUE],
+            [PlugZap, "Open integrations", "OSF, Prolific, Anthropic, Hume — BYO keys, your accounts, no markup. New providers via our open adapter pattern.", ORANGE, "room-blue"],
+            [Eye, "Radical transparency", "Open by default. Public studies are replicable by anyone. Methodology you can audit. Source-available.", BLUE, "desk"],
           ].map(([Icon, title, body, color, img]) => {
             const I = Icon as typeof GitCommit;
             return (
