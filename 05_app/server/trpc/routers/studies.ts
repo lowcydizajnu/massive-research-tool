@@ -2989,8 +2989,14 @@ export const studiesRouter = router({
         });
       }
 
-      // Deterministic cache key from the inputs that change the audio.
-      const hash = createHash("sha256").update(`${script} ${description}`).digest("hex").slice(0, 32);
+      // Deterministic cache key from the inputs that change the audio. The two
+      // free-text fields are joined with a NUL delimiter so ("ab","c") and
+      // ("a","bc") can't produce the same key. We emit the NUL via
+      // String.fromCharCode(0) rather than a literal NUL byte in source — a raw
+      // NUL once made git/grep treat this whole file as binary. Same bytes hashed,
+      // so existing cached audio keys stay valid.
+      const sep = String.fromCharCode(0);
+      const hash = createHash("sha256").update(`${script}${sep}${description}`).digest("hex").slice(0, 32);
       const key = `ws/${ctx.workspace.id}/audio-stimulus/${hash}.mp3`;
       const url = `/api/media/${key}`;
 
