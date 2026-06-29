@@ -7,6 +7,7 @@ import { useState } from "react";
 import { PendingButton } from "@/components/ui/pending-button";
 import { canWriteRole, READ_ONLY_TITLE, useWorkspaceRole } from "@/components/feature/workspace/role-gate";
 import { api } from "@/lib/trpc/react";
+import { MultiSelect } from "@/components/ui/multi-select";
 import { LANGUAGES, PROLIFIC_COUNTRIES, countryName } from "@/lib/iso-countries";
 import { PROVIDER_STATE_BADGE } from "@/lib/recruitment-status";
 
@@ -151,7 +152,6 @@ function CreateForm({ studyId, studyTitle, canWrite }: { studyId: string; studyT
   const [currency, setCurrency] = useState<"USD" | "EUR" | "GBP">("GBP");
   const [countries, setCountries] = useState<string[]>([]);
   const [languages, setLanguages] = useState<string[]>([]);
-  const [countryFilter, setCountryFilter] = useState("");
   const [includePanelId, setIncludePanelId] = useState("");
   const [excludePanelId, setExcludePanelId] = useState("");
   const [err, setErr] = useState<string | null>(null);
@@ -164,13 +164,6 @@ function CreateForm({ studyId, studyTitle, canWrite }: { studyId: string; studyT
     },
     onError: (e) => setErr(e.message),
   });
-
-  const toggle = (list: string[], set: (v: string[]) => void, code: string) =>
-    set(list.includes(code) ? list.filter((c) => c !== code) : [...list, code]);
-
-  const visibleCountries = PROLIFIC_COUNTRIES.filter((c) =>
-    c.name.toLowerCase().includes(countryFilter.trim().toLowerCase()),
-  );
 
   return (
     <fieldset disabled={!canWrite} className="flex flex-col gap-4 border-0 p-0">
@@ -216,15 +209,16 @@ function CreateForm({ studyId, studyTitle, canWrite }: { studyId: string; studyT
           </div>
         </label>
         <div className="flex flex-col gap-1">
-          <span className="text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)]">Languages</span>
-          <div className="flex flex-wrap gap-2">
-            {LANGUAGES.map((l) => (
-              <label key={l.code} className="flex items-center gap-1 text-[length:var(--text-small)]">
-                <input type="checkbox" checked={languages.includes(l.code)} onChange={() => toggle(languages, setLanguages, l.code)} className="size-3.5 accent-[var(--color-primary)]" />
-                {l.name}
-              </label>
-            ))}
-          </div>
+          <span className="text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)]">
+            Languages {languages.length ? `(${languages.length})` : ""}
+          </span>
+          <MultiSelect
+            options={LANGUAGES}
+            selected={languages}
+            onChange={setLanguages}
+            placeholder="Add a language…"
+            emptyLabel="Any language"
+          />
         </div>
       </div>
 
@@ -232,21 +226,13 @@ function CreateForm({ studyId, studyTitle, canWrite }: { studyId: string; studyT
         <span className="text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)]">
           Countries {countries.length ? `(${countries.length} selected)` : "(all Prolific countries)"}
         </span>
-        <input
-          value={countryFilter}
-          onChange={(e) => setCountryFilter(e.target.value)}
-          placeholder="Filter countries…"
-          aria-label="Filter countries"
-          className="w-full max-w-xs rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-3 py-1 text-[length:var(--text-small)] text-[var(--color-text-primary)]"
+        <MultiSelect
+          options={PROLIFIC_COUNTRIES}
+          selected={countries}
+          onChange={setCountries}
+          placeholder="Add a country…"
+          emptyLabel="All Prolific countries"
         />
-        <div className="flex max-h-40 flex-wrap content-start gap-x-4 gap-y-1 overflow-y-auto rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-2">
-          {visibleCountries.map((c) => (
-            <label key={c.code} className="flex w-40 items-center gap-1 text-[length:var(--text-small)] text-[var(--color-text-primary)]">
-              <input type="checkbox" checked={countries.includes(c.code)} onChange={() => toggle(countries, setCountries, c.code)} className="size-3.5 accent-[var(--color-primary)]" />
-              <span aria-hidden>{c.flag}</span> {c.name}
-            </label>
-          ))}
-        </div>
         <a
           href="https://app.prolific.com/researcher/studies"
           target="_blank"

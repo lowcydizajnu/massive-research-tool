@@ -1213,6 +1213,10 @@
   ],
   "recentActivity": [
     {
+      "text": "Feedback #8: Prolific country/language dropdowns. Replaced the two walls of checkboxes in the Prolific recruit card with a new reusable components/ui/multi-select.tsx — a dependency-free searchable dropdown with removable chips (token-styled; inherits fieldset disabled for read-only). Countries + Languages now pick from a filtered list and show selections as chips. Dropped dead countryFilter/visibleCountries/toggle; eligibility payload unchanged. tsc/lint/build clean; no migration. Committed, unpushed.",
+      "date": "2026-06-29"
+    },
+    {
       "text": "Feedback #7C: A/B + Pilot starter templates. The Explore 'Run an A/B test on Prolific' + 'Pilot a new measure with friends' scenarios started BLANK; they now fork real public starter workspace_templates, mirroring the Misinfo starter. Added stable ids in lib/system/starter.ts (AB/Pilot experiment+version+template + two AB condition ids); factored seed-misinfo-starter.ts into ensureSystemAccount() + a generic seedStarter(spec) + a seedStarters() umbrella wired into db:seed:prod and dev seed.ts. A/B is a real two-condition design (version-a/version-b condition rows cloned by templates.useTemplate, gating two showIfCondition stimulus screens + shared likert-7/share-intention outcomes). Pilot is a Draft scale group (4× likert-7 + 1× vas) + a free-text 'what was confusing?' question. Scenario CTAs → template/'Start from template'. +4 seed tests. 842 tests; tsc/lint/build/validator clean. ⚠️ deploy needs db:seed:prod. Committed, unpushed.",
       "date": "2026-06-28"
     },
