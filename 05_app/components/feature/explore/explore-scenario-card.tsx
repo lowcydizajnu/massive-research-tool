@@ -6,6 +6,7 @@ import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { scenarioTourFor } from "@/components/feature/builder/scenario-tour-steps";
 import type { ExploreScenario, ExploreScenarioIcon } from "@/content/explore/scenarios";
 import { docUrl } from "@/lib/help/doc-urls";
 import { createStudyAction } from "@/server/studies/create";
@@ -54,7 +55,11 @@ export function ExploreScenarioCard({
         cta.kind === "template"
           ? await forkTemplateAction({ templateId: cta.templateId })
           : await createStudyAction({ kind: "blank", title: scenario.title });
-      router.push(`/studies/${id}/build` as Route);
+      // Drop the researcher into the Builder with a scenario-specific guided tour
+      // (feedback #7D), but only for scenarios that actually have one.
+      const tour = scenarioTourFor(scenario.slug);
+      const dest = tour ? `/studies/${id}/build?tour=${tour}` : `/studies/${id}/build`;
+      router.push(dest as Route);
     } catch {
       setPending(false); // surface re-enables the button; toast handled globally
     }

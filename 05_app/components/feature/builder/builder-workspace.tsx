@@ -641,6 +641,7 @@ export function BuilderWorkspace({
               <PresenceAvatars users={everyonePresent} />
               <button
                 type="button"
+                data-tour="builder-preview"
                 onClick={togglePreview}
                 aria-pressed={previewOpen}
                 title="Toggle the live participant preview"
@@ -666,6 +667,7 @@ export function BuilderWorkspace({
               </button>
               <button
                 type="button"
+                data-tour="builder-save"
                 onClick={() => setSaveOpen(true)}
                 disabled={!canEdit}
                 title={canEdit ? undefined : READ_ONLY_TITLE}
@@ -677,11 +679,12 @@ export function BuilderWorkspace({
           </div>
 
           {/* Blocks */}
-          <section className="flex flex-col gap-3">
+          <section data-tour="builder-blocks" className="flex flex-col gap-3">
             <div className="flex items-center justify-between border-b border-[var(--color-border-subtle)] pb-1">
               <h2 className="font-serif text-[17px] font-medium text-[var(--color-text-primary)]">Blocks</h2>
               <button
                 type="button"
+                data-tour="builder-add-block"
                 onClick={() => setPickerOpen(true)}
                 disabled={!canEdit}
                 title={canEdit ? undefined : READ_ONLY_TITLE}

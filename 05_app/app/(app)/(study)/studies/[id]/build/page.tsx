@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 
+import { BuilderScenarioTour } from "@/components/feature/builder/builder-scenario-tour";
 import { BuilderWorkspace } from "@/components/feature/builder/builder-workspace";
 import { getCurrentDbUser } from "@/server/auth/current-db-user";
 import { getServerApi } from "@/server/trpc/server";
@@ -34,11 +35,16 @@ export default async function BuildStagePage({
   const dbUser = await getCurrentDbUser();
 
   return (
-    <BuilderWorkspace
-      study={study}
-      currentUserId={dbUser?.id ?? null}
-      currentUserName={dbUser?.displayName ?? null}
-      initialPreviewOpen={initialPreviewOpen}
-    />
+    <>
+      <BuilderWorkspace
+        study={study}
+        currentUserId={dbUser?.id ?? null}
+        currentUserName={dbUser?.displayName ?? null}
+        initialPreviewOpen={initialPreviewOpen}
+      />
+      {/* Per-scenario guided tour (feedback #7D) — reads ?tour=<scenario-slug>,
+          runs once per scenario, client-side only. */}
+      <BuilderScenarioTour />
+    </>
   );
 }
