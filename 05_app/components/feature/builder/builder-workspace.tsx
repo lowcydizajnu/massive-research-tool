@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 
 import { SortableList } from "@/components/feature/whiteboard/sortable-list";
 import { useBlockHistory } from "@/lib/whiteboard/use-block-history";
+import { dissolveSmallGroups } from "@/lib/whiteboard/dissolve-groups";
 import { regroupAfterMove } from "@/lib/whiteboard/screens";
 import { groupToDefinition } from "@/lib/custom-modules";
 import {
@@ -246,13 +247,17 @@ export function BuilderWorkspace({
       const prev = utils.studies.get.getData({ id: study.id });
       if (prev) {
         const byId = new Map(prev.blocks.map((b) => [b.instanceId, b]));
-        const blocks = prev.blocks.length
+        const merged = prev.blocks.length
           ? input.blocks.flatMap((ib) => {
               const full = byId.get(ib.instanceId);
               return full ? [{ ...full, groupId: ib.groupId ?? null }] : [];
             })
           : prev.blocks;
-        utils.studies.get.setData({ id: study.id }, { ...prev, blocks, groups: input.groups });
+        // Mirror the server's ≥2-member dissolve so the optimistic cache equals
+        // what setGroups will persist — otherwise a phantom 1-member group leaks
+        // into undo history and replaying it "blinks then reverts" (01KW943Q).
+        const { blocks, groups } = dissolveSmallGroups(merged, input.groups);
+        utils.studies.get.setData({ id: study.id }, { ...prev, blocks, groups });
       }
       return { prev };
     },
