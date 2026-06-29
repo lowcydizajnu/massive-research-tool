@@ -45,6 +45,11 @@ The reasoning: for sensitive research the deciding questions are *where does my 
 - **Easier:** marketing/sales and IRB conversations get one authoritative "Security & data" page; new features inherit a clear privacy contract instead of inventing promises.
 - **Harder:** View-as gains a data-scoping rule + a workspace flag + researcher-facing surfacing; we must keep the public page *accurate* as the system changes (it can only claim what the code does — never aspirational).
 - **Committed to:** no participant-data exposure via operator access; honoring a workspace's support-access setting; not training on customer data; maintaining the sub-processor list; building export + hard-delete + retention controls.
+
+### Implementation status (data-lifecycle)
+
+- **Shipped (2026-06-29):** researcher-controlled **response erasure** — `studies.deleteResponses` + `server/db/delete-responses.ts` hard-delete a study's `response`/`responseItem`/`qualityFlag` rows in one transaction (keeping the design) and recompute each recruitment session's `currentN`. Surfaced on the Results stage (`components/feature/results/manage-data.tsx`) for workspace owner/admin or the study's author, behind a typed-title confirmation and blocked during operator support access. The `olderThanDays` parameter is the seam a future automated-retention job reuses. The public Security page now describes this as a real self-serve control (no longer "contact us").
+- **Still committed, not yet built:** automated retention windows (the cron over `olderThanDays`) and full study deletion (generalize `delete-demo.ts` for a single non-demo study, with a policy for external replications).
 - **Precluded from:** silent full-fidelity impersonation; any AI-training-on-customer-data arrangement; adding a sub-processor without listing it.
 
 ## Revisit triggers

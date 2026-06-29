@@ -3,6 +3,7 @@ import type { Route } from "next";
 import { notFound } from "next/navigation";
 
 import { FinishStudyCard } from "@/components/feature/results/finish-study-card";
+import { ManageData } from "@/components/feature/results/manage-data";
 import { ResultsActions } from "@/components/feature/results/results-actions";
 import { ReanalyzeEmotionButton } from "@/components/feature/results/reanalyze-emotion-button";
 import { SpatialOverlay } from "@/components/feature/results/spatial-overlay";
@@ -274,6 +275,16 @@ export default async function ResultsStagePage({
                 </ul>
               )}
             </section>
+
+            {/* ADR-0082 data-lifecycle: owner/admin erasure of collected responses.
+                Hidden during operator support access (mutations are blocked then). */}
+            {results.participantDataHidden ? null : (
+              <ManageData
+                studyId={study.id}
+                studyTitle={study.title}
+                totalCompleted={results.totalCompleted}
+              />
+            )}
           </>
         )}
       </div>

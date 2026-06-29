@@ -7,6 +7,7 @@ import { jobs } from "@/server/adapters/jobs";
 import { registry } from "@/server/adapters/registry";
 import { trackEvent } from "@/server/analytics/track";
 import { db } from "@/server/db/client";
+import { deleteStudyResponses, StudyNotFoundError } from "@/server/db/delete-responses";
 import { emit } from "@/server/events/emit";
 import { createHash } from "node:crypto";
 
@@ -4559,6 +4560,62 @@ export const studiesRouter = router({
         return { versionNumber: nextNumber, versionKind, pushStatus };
       },
     ),
+
+  /**
+   * Hard-delete the study's collected participant responses, keeping the design
+   * (ADR-0082 data-lifecycle). The researcher-controlled erasure primitive:
+   * removes response + responseItem + qualityFlag rows and recomputes each
+   * recruitment session's currentN (see server/db/delete-responses.ts). NOT
+   * reversible — guarded three ways: writeProcedure blocks viewers and all
+   * mutations during operator support-access (ADR-0075); only the workspace
+   * owner/admin OR the study's own author may run it; and the caller must type
+   * the study title back as `confirmTitle`. `olderThanDays` (optional) scopes to
+   * a retention window; omitted = erase everything.
+   */
+  deleteResponses: writeProcedure
+    .input(
+      z.object({
+        studyId: z.string().uuid(),
+        confirmTitle: z.string(),
+        mode: z.enum(["run", "preview", "all"]).default("all"),
+        olderThanDays: z.number().int().positive().nullable().default(null),
+      }),
+    )
+    .mutation(async ({ ctx, input }): Promise<{ responses: number; items: number; flags: number }> => {
+      const [study] = await db
+        .select({ title: experiment.title, ownerId: experiment.ownerId })
+        .from(experiment)
+        .where(and(eq(experiment.id, input.studyId), eq(experiment.tenantId, ctx.workspace.id)))
+        .limit(1);
+      if (!study) throw new TRPCError({ code: "NOT_FOUND" });
+
+      // Destructive: restrict beyond writeProcedure (which allows editors) to the
+      // workspace owner/admin or the study's own author.
+      const isPrivileged =
+        ctx.role === "owner" || ctx.role === "admin" || study.ownerId === ctx.dbUser.id;
+      if (!isPrivileged) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Only the study author or a workspace owner/admin can delete responses.",
+        });
+      }
+
+      // Typed-title confirmation (trimmed; exact match) — the last guard against
+      // an accidental irreversible wipe.
+      if (input.confirmTitle.trim() !== study.title.trim()) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Study title confirmation did not match." });
+      }
+
+      try {
+        return await deleteStudyResponses(input.studyId, ctx.workspace.id, {
+          mode: input.mode,
+          olderThanDays: input.olderThanDays,
+        });
+      } catch (e) {
+        if (e instanceof StudyNotFoundError) throw new TRPCError({ code: "NOT_FOUND" });
+        throw e;
+      }
+    }),
 
   /**
    * Results (results-stage.md): per-condition completion counts, per-question
