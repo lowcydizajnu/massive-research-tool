@@ -80,7 +80,7 @@ function Hero() {
       <h1 className={`${SERIF} max-w-3xl text-[2rem] font-medium leading-[1.1] tracking-[-0.01em] sm:text-[3.25rem]`}>
         Replicate any study in <span className="text-[var(--color-primary-text-on-subtle)]">one click</span>.
       </h1>
-      <p className="max-w-2xl text-[length:var(--text-body)] leading-relaxed text-[var(--color-text-secondary)] sm:text-[17px]">
+      <p className="max-w-2xl text-[17px] leading-relaxed text-[var(--color-text-secondary)] sm:text-[20px]">
         Start from any published study and adapt it freely. Design, preregister, recruit, run, analyze —{" "}
         <span className="font-medium text-[var(--color-text-primary)]">all without leaving My Research Lab.</span> Your
         survey builder and version history live here. Your OSF, Prolific, and AI vendor accounts connect through. One
