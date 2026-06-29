@@ -1213,6 +1213,10 @@
   ],
   "recentActivity": [
     {
+      "text": "Feedback #10e v2: custom design-system tour tooltip + pulse preview. The tour still showed Joyride's default square/centered card (v3 options only swaps a few colours), so replaced it with a real tooltipComponent (TourTooltip): a parchment card (radius-lg, shadow, hairline), Plex-Serif title, left-aligned body, 'N of M' counter, emerald Next/Done + quiet Back/Skip + clean close (no thick focus ring). Exported TourTooltip + TOUR_OPTIONS for the #7D scenario tour to reuse. Added ?newstudy=pulse preview override so an existing user can see the first-run New-study dot. tsc/lint/build clean; no migration. Committed, unpushed.",
+      "date": "2026-06-29"
+    },
+    {
       "text": "Feedback #10f: Builder first-run 'New study' dot. A brand-new researcher (me.stats.studiesAuthored === 0) sees a soft animated pulse on the New study button (TopBar + empty-state), drawing the eye to where a study begins. Clears permanently once they open the modal (localStorage); never shows for users who already have a study or lack write access. Pure CSS (animate-ping + token colours); no migration. Remaining #10: per-scenario tours (7D) — the last open piece of the batch. Committed, unpushed.",
       "date": "2026-06-29"
     },

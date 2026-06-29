@@ -3,10 +3,101 @@
 import { useUser } from "@clerk/nextjs";
 import dynamic from "next/dynamic";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import type { EventData, Step } from "react-joyride";
+import { X } from "lucide-react";
+import { useEffect, useState } from "react";
+import type { EventData, Step, TooltipRenderProps } from "react-joyride";
 
 import { markTourSeen } from "@/app/actions/complete-tour";
+
+/**
+ * Custom tour tooltip (feedback #10e). Joyride's `options` only swaps a few
+ * colours — not enough to look like the app — so we render the whole card
+ * ourselves: a parchment-surface card with a Plex-Serif title, left-aligned
+ * body, a step counter, and the app's emerald primary button + quiet
+ * Back/Skip/close. Spread the render-props joyride passes for behaviour.
+ */
+export function TourTooltip({
+  index,
+  size,
+  step,
+  isLastStep,
+  backProps,
+  closeProps,
+  primaryProps,
+  skipProps,
+  tooltipProps,
+}: TooltipRenderProps) {
+  return (
+    <div
+      {...tooltipProps}
+      className="relative w-[360px] max-w-[90vw] rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-5 text-left shadow-[var(--shadow-md)]"
+    >
+      <button
+        {...closeProps}
+        className="absolute right-3 top-3 rounded-[var(--radius-sm)] p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)] hover:text-[var(--color-text-secondary)]"
+      >
+        <X className="size-4" aria-hidden />
+      </button>
+
+      {step.title ? (
+        <h2 className="pr-6 font-serif text-[length:var(--text-heading-2)] font-medium text-[var(--color-ink-deep)]">
+          {step.title}
+        </h2>
+      ) : null}
+      <div className="mt-2 text-[length:var(--text-body)] leading-relaxed text-[var(--color-text-secondary)]">
+        {step.content}
+      </div>
+
+      <div className="mt-5 flex items-center justify-between gap-3">
+        {!isLastStep ? (
+          <button
+            {...skipProps}
+            className="text-[length:var(--text-small)] font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
+          >
+            Skip
+          </button>
+        ) : (
+          <span />
+        )}
+        <div className="flex items-center gap-2">
+          <span className="text-[length:var(--text-small)] tabular-nums text-[var(--color-text-muted)]">
+            {index + 1} of {size}
+          </span>
+          {index > 0 ? (
+            <button
+              {...backProps}
+              className="rounded-[var(--radius-md)] px-2.5 py-1 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
+            >
+              Back
+            </button>
+          ) : null}
+          <button
+            {...primaryProps}
+            className="rounded-[var(--radius-md)] bg-[var(--color-primary)] px-3 py-1.5 text-[length:var(--text-small)] font-medium text-white outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] focus-visible:ring-offset-2"
+          >
+            {isLastStep ? "Done" : "Next"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Shared Joyride behaviour/scrim config (the visual card is <TourTooltip>).
+ * Exported so the per-scenario Builder tour (#7D) runs with identical chrome.
+ * skipBeacon → tooltips show immediately; scrim-click / Esc = skip; arrowColor
+ * matches the card surface so the pointer blends in.
+ */
+export const TOUR_OPTIONS = {
+  zIndex: 70,
+  overlayColor: "rgba(0,0,0,0.45)",
+  arrowColor: "var(--color-surface-canvas)",
+  skipBeacon: true,
+  skipScroll: true,
+  overlayClickAction: "close" as const,
+  dismissKeyAction: "close" as const,
+};
 
 // Lazy-load react-joyride (ADR-0072) only when the tour actually runs — keeps it
 // out of the shared bundle for the common case (returning users). v3 has no
@@ -70,31 +161,6 @@ export function OnboardingTour() {
     if (replay || !seen) setRun(true);
   }, [isLoaded, isSignedIn, user, onTargetSurface, replay]);
 
-  // Design-system-consistent tooltip (feedback #10e). Joyride v3 takes a combined
-  // `options` config. The prior values were hardcoded hex; switch to our design
-  // tokens (CSS vars resolve as inline styles) so the tour reads as a
-  // parchment-surface card with the emerald CTA + Plex text colours, not generic
-  // chrome. Behaviour flags (progress, skip, no beacon, click-scrim/Esc = skip)
-  // stay in `options` per the v3 API.
-  const options = useMemo(
-    () => ({
-      zIndex: 70,
-      primaryColor: "var(--color-primary)",
-      textColor: "var(--color-text-primary)",
-      backgroundColor: "var(--color-surface-canvas)",
-      arrowColor: "var(--color-surface-canvas)",
-      overlayColor: "rgba(0,0,0,0.45)",
-      width: 360,
-      showProgress: true, // "2 / 4" in the tooltip footer
-      showSkipButton: true,
-      skipBeacon: true, // continuous tour — tooltips show immediately, no beacon dots
-      skipScroll: true, // respect reduced motion; targets are above the fold
-      overlayClickAction: "close" as const, // click the scrim = skip
-      dismissKeyAction: "close" as const, // Esc = skip
-    }),
-    [],
-  );
-
   if (!run) return null;
 
   const handleEvent = (data: EventData) => {
@@ -112,7 +178,8 @@ export function OnboardingTour() {
       run={run}
       continuous
       onEvent={handleEvent}
-      options={options}
+      options={TOUR_OPTIONS}
+      tooltipComponent={TourTooltip}
       locale={{ back: "Back", close: "Close", last: "Done", next: "Next", skip: "Skip" }}
     />
   );

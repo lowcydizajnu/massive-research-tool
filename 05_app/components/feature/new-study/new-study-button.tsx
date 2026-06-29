@@ -1,6 +1,7 @@
 "use client";
 
 import { Plus } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { READ_ONLY_TITLE, useWorkspaceRole } from "@/components/feature/workspace/role-gate";
@@ -32,6 +33,9 @@ export function NewStudyButton({
   const { open } = useNewStudy();
   const { canWrite } = useWorkspaceRole();
   const stats = api.me.stats.useQuery(undefined, { staleTime: 5 * 60 * 1000 });
+  // Preview override: `?newstudy=pulse` forces the dot on for anyone (so an
+  // existing researcher can see the first-run nudge without a fresh account).
+  const previewPulse = useSearchParams().get("newstudy") === "pulse";
 
   // Assume dismissed until storage is read, so the dot never flashes for the
   // (common) returning researcher before hydration settles.
@@ -40,7 +44,7 @@ export function NewStudyButton({
     setDismissed(localStorage.getItem(PULSE_DISMISSED_KEY) === "true");
   }, []);
 
-  const pulse = canWrite && !dismissed && stats.data?.studiesAuthored === 0;
+  const pulse = previewPulse || (canWrite && !dismissed && stats.data?.studiesAuthored === 0);
 
   const handleOpen = () => {
     if (!dismissed) {
