@@ -1213,6 +1213,10 @@
   ],
   "recentActivity": [
     {
+      "text": "Feedback: demo content fully removed from prod. Owner still saw demo after the toggle fix — root cause was prod data (member.is_demo post-dated the rows; demo also lived in a 2nd workspace). Built deleteDemoContent() (pglite-tested) + db:delete-demo:prod with a --dry-run preview, hardened against every RESTRICT referrer a live instance accumulates (fork/supersedes, qualityFlag, providerSubmission, registryPush, studyPresence, previewToken, activityEvent, notification, follow, mention, playgroundCardVote; playgroundCard/panelMember nulled). Prod: deleted 14 demo studies, 4 members, 2 users across 2 workspaces; dry-run now zero; real data untouched. Scripts only.",
+      "date": "2026-06-29"
+    },
+    {
       "text": "Feedback #8: Prolific country/language dropdowns. Replaced the two walls of checkboxes in the Prolific recruit card with a new reusable components/ui/multi-select.tsx — a dependency-free searchable dropdown with removable chips (token-styled; inherits fieldset disabled for read-only). Countries + Languages now pick from a filtered list and show selections as chips. Dropped dead countryFilter/visibleCountries/toggle; eligibility payload unchanged. tsc/lint/build clean; no migration. Committed, unpushed.",
       "date": "2026-06-29"
     },
