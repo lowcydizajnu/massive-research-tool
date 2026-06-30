@@ -126,7 +126,8 @@ async function boundAvailability(studyId: string): Promise<Record<string, boolea
     .select({ done: count() })
     .from(response)
     .innerJoin(experimentVersion, eq(response.experimentVersionId, experimentVersion.id))
-    .where(and(eq(experimentVersion.experimentId, studyId), eq(response.status, "completed")));
+    // Real responses only — Preview (mode:"preview") must never inflate a public record's N.
+    .where(and(eq(experimentVersion.experimentId, studyId), eq(response.status, "completed"), eq(response.mode, "run")));
 
   const hasResponses = Number(done) > 0;
 

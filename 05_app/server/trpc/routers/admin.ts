@@ -165,7 +165,7 @@ export const adminRouter = router({
             .from(response)
             .innerJoin(experimentVersion, eq(response.experimentVersionId, experimentVersion.id))
             .innerJoin(experiment, eq(experimentVersion.experimentId, experiment.id))
-            .where(and(eq(response.status, "completed"), notSystemExperiment, notDemoExperiment)),
+            .where(and(eq(response.status, "completed"), eq(response.mode, "run"), notSystemExperiment, notDemoExperiment)),
           db
             .select({ n: sql<number>`count(distinct ${experiment.id})::int` })
             .from(recruitmentSession)

@@ -984,6 +984,33 @@ describe("studies.conditions (builder-conditions.md)", () => {
     expect(await caller.studies.listConditions({ studyId: id })).toHaveLength(1);
   });
 
+  it("studyDashboard + changelog ignore Preview artifacts (no phantom recruiting / responses / 'Opened recruitment')", async () => {
+    const { caller, id } = await studyWithBlock();
+    const c = await caller.studies.addCondition({ studyId: id, name: "Control" });
+    const [tipv] = await db.select().from(experimentVersion).where(eq(experimentVersion.kind, "autosave"));
+    // A Preview opens an "open" recruitment session on the DRAFT version and writes
+    // a completed mode:"preview" response — neither is real data.
+    const rsId = ulid();
+    await db.insert(recruitmentSession).values({ id: rsId, experimentVersionId: tipv.id, status: "open" });
+    await db.insert(response).values({
+      id: ulid(),
+      recruitmentSessionId: rsId,
+      experimentVersionId: tipv.id,
+      conditionId: c.id,
+      mode: "preview",
+      status: "completed",
+    });
+
+    const dash = await caller.studies.studyDashboard({ studyId: id });
+    expect(dash.completedResponses).toBe(0);
+    expect(dash.recruitment.status).toBeNull();
+    expect(dash.lifecycle.find((s) => s.key === "recruiting")?.done).toBe(false);
+    expect(dash.lifecycle.find((s) => s.key === "data")?.done).toBe(false);
+
+    const log = await caller.studies.changelog({ studyId: id });
+    expect(log.some((e) => e.title === "Opened recruitment")).toBe(false);
+  });
+
   it("preregister copies the working-tip conditions onto the immutable version", async () => {
     const { caller, id } = await studyWithBlock();
     await caller.studies.addCondition({ studyId: id, name: "Control" });

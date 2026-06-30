@@ -4072,11 +4072,18 @@ export const studiesRouter = router({
       const wasWithdrawn = versions.some((v) => v.kind === "preregistered" && v.withdrawn);
       const hasPublished = versions.some((v) => v.kind === "published");
 
+      // Recruitment + responses must reflect the LIVE study only — never the
+      // ephemeral artifacts a Preview leaves behind. Preview opens a recruitment
+      // session on the DRAFT version and writes a `mode:"preview"` response
+      // (startPreview → runtime openRecruitment), so the dashboard restricts to
+      // recruitment on a frozen runnable version and to `mode:"run"` responses —
+      // matching what Run/Results consider "running" (otherwise the dashboard
+      // showed Recruiting/Data-in/1-response for a study that was only previewed).
       const [rs] = await db
         .select({ status: recruitmentSession.status, targetN: recruitmentSession.targetN })
         .from(recruitmentSession)
         .innerJoin(experimentVersion, eq(recruitmentSession.experimentVersionId, experimentVersion.id))
-        .where(eq(experimentVersion.experimentId, input.studyId))
+        .where(and(eq(experimentVersion.experimentId, input.studyId), inArray(experimentVersion.kind, RUNNABLE_KINDS)))
         .orderBy(desc(recruitmentSession.openedAt))
         .limit(1);
 
@@ -4084,7 +4091,7 @@ export const studiesRouter = router({
         .select({ done: count() })
         .from(responseTable)
         .innerJoin(experimentVersion, eq(responseTable.experimentVersionId, experimentVersion.id))
-        .where(and(eq(experimentVersion.experimentId, input.studyId), eq(responseTable.status, "completed")));
+        .where(and(eq(experimentVersion.experimentId, input.studyId), eq(responseTable.status, "completed"), eq(responseTable.mode, "run")));
       const completedResponses = Number(done);
 
       // Conditions live per version; pool by name across the study's versions.
@@ -4094,7 +4101,7 @@ export const studiesRouter = router({
         .innerJoin(experimentVersion, eq(condition.experimentVersionId, experimentVersion.id))
         .leftJoin(
           responseTable,
-          and(eq(responseTable.conditionId, condition.id), eq(responseTable.status, "completed")),
+          and(eq(responseTable.conditionId, condition.id), eq(responseTable.status, "completed"), eq(responseTable.mode, "run")),
         )
         .where(eq(experimentVersion.experimentId, input.studyId))
         .groupBy(condition.name);
@@ -4282,11 +4289,14 @@ export const studiesRouter = router({
 
       // Recruitment open/close aren't activity events — synthesize them from the
       // session rows so "start/stop" shows in the timeline (owner request).
+      // Only sessions on a frozen runnable version are real recruitment — a
+      // Preview opens a session on the DRAFT version, which must NOT surface as
+      // "Opened recruitment" in the timeline.
       const sessions = await db
         .select({ id: recruitmentSession.id, status: recruitmentSession.status, openedAt: recruitmentSession.openedAt, closedAt: recruitmentSession.closedAt })
         .from(recruitmentSession)
         .innerJoin(experimentVersion, eq(recruitmentSession.experimentVersionId, experimentVersion.id))
-        .where(eq(experimentVersion.experimentId, input.studyId));
+        .where(and(eq(experimentVersion.experimentId, input.studyId), inArray(experimentVersion.kind, RUNNABLE_KINDS)));
       // Recruitment open/close aren't activity events — synthesize from the
       // LATEST session only (the one the Dashboard reflects). Reopening makes a
       // NEW session, so older closed sessions would otherwise surface a stale
@@ -5930,17 +5940,19 @@ export const studiesRouter = router({
         .where(and(eq(experiment.id, input.studyId), eq(experiment.tenantId, ctx.workspace.id)))
         .limit(1);
       if (!exp) throw new TRPCError({ code: "NOT_FOUND", message: "Study not found." });
+      // Exclude Preview artifacts (recruitment session on the draft + mode:"preview"
+      // responses) so a previewed-but-never-run study isn't shown as recruiting/with data.
       const [open] = await db
         .select({ id: recruitmentSession.id })
         .from(recruitmentSession)
         .innerJoin(experimentVersion, eq(recruitmentSession.experimentVersionId, experimentVersion.id))
-        .where(and(eq(experimentVersion.experimentId, input.studyId), eq(recruitmentSession.status, "open")))
+        .where(and(eq(experimentVersion.experimentId, input.studyId), inArray(experimentVersion.kind, RUNNABLE_KINDS), eq(recruitmentSession.status, "open")))
         .limit(1);
       const [{ n }] = await db
         .select({ n: count() })
         .from(responseTable)
         .innerJoin(experimentVersion, eq(responseTable.experimentVersionId, experimentVersion.id))
-        .where(and(eq(experimentVersion.experimentId, input.studyId), eq(responseTable.status, "completed")));
+        .where(and(eq(experimentVersion.experimentId, input.studyId), eq(responseTable.status, "completed"), eq(responseTable.mode, "run")));
       return { finishedAt: exp.finishedAt?.toISOString() ?? null, completedResponses: Number(n), hasOpenRecruitment: !!open };
     }),
 
@@ -5964,16 +5976,18 @@ export const studiesRouter = router({
           .select({ id: recruitmentSession.id })
           .from(recruitmentSession)
           .innerJoin(experimentVersion, eq(recruitmentSession.experimentVersionId, experimentVersion.id))
-          .where(and(eq(experimentVersion.experimentId, input.studyId), eq(recruitmentSession.status, "open")))
+          .where(and(eq(experimentVersion.experimentId, input.studyId), inArray(experimentVersion.kind, RUNNABLE_KINDS), eq(recruitmentSession.status, "open")))
           .limit(1);
         if (open) {
           throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Stop recruitment before marking the study finished." });
         }
+        // Real (mode:"run") responses only — a Preview response must not satisfy the
+        // "collect at least one response" gate.
         const [{ n }] = await db
           .select({ n: count() })
           .from(responseTable)
           .innerJoin(experimentVersion, eq(responseTable.experimentVersionId, experimentVersion.id))
-          .where(and(eq(experimentVersion.experimentId, input.studyId), eq(responseTable.status, "completed")));
+          .where(and(eq(experimentVersion.experimentId, input.studyId), eq(responseTable.status, "completed"), eq(responseTable.mode, "run")));
         if (Number(n) === 0) {
           throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Collect at least one completed response before marking the study finished." });
         }
