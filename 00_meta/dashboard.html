@@ -1214,6 +1214,10 @@
   ],
   "recentActivity": [
     {
+      "text": "Round 5h — comment count bumps on participant comment (committed, unpushed; no migration). Owner: 'when I add a comment we should bump the number — we already do it for sharing and likes, why not comments?' Extended the ReactionGroup context with commentsAdded + bumpComments(delta); the composer and a reply each bumpComments(1) on post (a reply is a comment too), and both the engagement summary 'N comments' and the action-bar 'Comment N' (new CommentActionLabel client island, replacing the static span) now add commentsAdded to the researcher-set base. Mirrors the existing Like/Share +1 behavior; the researcher-set count stays the social-proof baseline and the participant's own comments add on top. 895 tests; tsc/lint/build/validator clean.",
+      "date": "2026-06-30"
+    },
+    {
       "text": "Owner corrections round 5g (committed, unpushed; no migration). POST FONT NOW STATIC: reverted the 5e change that made the FB post headline/body scale with the study font setting — owner wants post copy to always render at the same default size; back to fixed 15px (FB-native). The study font-size setting still drives general study text on other blocks, just not the social-post copy. LIKE-ICON SIZE (root cause): the post Like had paths at two sizes — ReactionButton + the live ReactionPicker trigger inherit the action bar's 16px, but the ReactionPicker inert/display-only paths hardcoded text-[13px], so a post with reactions set display-only rendered the Like at 13px while an interactive one rendered 16px (same post, two sizes). Dropped the hardcoded sizes so every Like path inherits the action bar size. COMMENT COUNT: 'View more comments' now only shows when the comment count actually exceeds the seeded comments on display (was always shown, implying hidden comments that don't exist). 895 tests; tsc/lint/build/validator clean.",
       "date": "2026-06-30"
     },

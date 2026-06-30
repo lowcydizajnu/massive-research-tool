@@ -30,9 +30,21 @@ type ReactionState = {
   shared: boolean;
   toggle: (kind: "liked" | "shared") => void;
   disabled: boolean;
+  /** How many comments the participant has posted (composer + replies). The
+   *  comment count in the summary + action bar adds this, mirroring how Like
+   *  and Share bump their counts (owner: "why not for comments?"). */
+  commentsAdded: number;
+  bumpComments: (delta: number) => void;
 };
 
-const Ctx = createContext<ReactionState>({ liked: false, shared: false, toggle: () => {}, disabled: true });
+const Ctx = createContext<ReactionState>({
+  liked: false,
+  shared: false,
+  toggle: () => {},
+  disabled: true,
+  commentsAdded: 0,
+  bumpComments: () => {},
+});
 
 export function ReactionGroup({
   np,
@@ -47,6 +59,8 @@ export function ReactionGroup({
   children: React.ReactNode;
 }) {
   const [state, setState] = useState({ liked: false, shared: false });
+  const [commentsAdded, setCommentsAdded] = useState(0);
+  const bumpComments = (delta: number) => setCommentsAdded((c) => Math.max(0, c + delta));
   const toggle = (kind: "liked" | "shared") =>
     setState((s) => {
       const next = { ...s, [kind]: !s[kind] };
@@ -57,7 +71,7 @@ export function ReactionGroup({
       return next;
     });
   return (
-    <Ctx.Provider value={{ ...state, toggle, disabled }}>
+    <Ctx.Provider value={{ ...state, toggle, disabled, commentsAdded, bumpComments }}>
       {state.liked ? <input type="hidden" name={`${np}liked`} value="on" /> : null}
       {state.shared ? <input type="hidden" name={`${np}shared`} value="on" /> : null}
       {children}
@@ -238,6 +252,7 @@ export function CommentComposer({
   placeholder: string;
   authorName?: string;
 }) {
+  const ctx = useContext(Ctx);
   const [value, setValue] = useState("");
   const [added, setAdded] = useState<string[]>([]);
   const commit = () => {
@@ -245,6 +260,7 @@ export function CommentComposer({
     if (!t) return;
     setAdded((a) => [...a, t]);
     setValue("");
+    ctx.bumpComments(1); // mirror Like/Share: posting a comment bumps the count
   };
   // Capture posted comments AND any in-progress draft, so a participant who types
   // but doesn't press Enter before advancing still has their comment recorded.
@@ -311,6 +327,7 @@ export function CommentFooter({
   label?: string;
   authorName?: string;
 }) {
+  const ctx = useContext(Ctx);
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState("");
   const [added, setAdded] = useState<string[]>([]);
@@ -321,6 +338,7 @@ export function CommentFooter({
     setAdded((a) => [...a, t]);
     setValue("");
     setOpen(false);
+    ctx.bumpComments(1); // a reply is a comment too — bump the post's count
   };
   return (
     <div className="flex flex-col gap-1">
@@ -390,13 +408,30 @@ export function EngagementSummary({
 }) {
   const ctx = useContext(Ctx);
   const shownShares = shares + (ctx.shared ? 1 : 0);
-  const showComments = comments > 0 && allowComments;
+  const shownComments = comments + ctx.commentsAdded;
+  const showComments = shownComments > 0 && allowComments;
   if (!likes && !showComments && !shownShares) return null;
   return (
     <span className="text-[16px] text-[#65676B]">
       {likes ? `${emojis} ${fmt(likes)}` : ""}
-      {showComments ? `${likes ? " · " : ""}${fmt(comments)} comments` : ""}
+      {showComments ? `${likes ? " · " : ""}${fmt(shownComments)} comments` : ""}
       {shownShares ? `${likes || showComments ? " · " : ""}${fmt(shownShares)} shares` : ""}
+    </span>
+  );
+}
+
+/**
+ * The action-bar "Comment N" label. Like the summary, it adds the participant's
+ * posted comments to the researcher-set base so the count bumps when they
+ * comment — mirroring the Like/Share action-bar counts. Scoped client.
+ */
+export function CommentActionLabel({ base, label }: { base: number; label: string }) {
+  const ctx = useContext(Ctx);
+  const shown = base + ctx.commentsAdded;
+  return (
+    <span>
+      💬 {label}
+      {shown > 0 ? ` ${fmt(shown)}` : ""}
     </span>
   );
 }

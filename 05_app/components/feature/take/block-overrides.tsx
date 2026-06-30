@@ -6,7 +6,7 @@
  * the default BlockView renderer under their token overrides.
  */
 
-import { CommentComposer, CommentFooter, EngagementSummary, ReactionButton, ReactionGroup, ReactionPicker } from "@/components/feature/take/reaction-toggles";
+import { CommentActionLabel, CommentComposer, CommentFooter, EngagementSummary, ReactionButton, ReactionGroup, ReactionPicker } from "@/components/feature/take/reaction-toggles";
 import type { BlockCopyKey } from "@/lib/take/ui-copy";
 import { effectiveBrandingTier, type CustomSlot, type ReactionKey, type SocialPostDesign } from "@/lib/themes/themes";
 
@@ -231,7 +231,7 @@ function FacebookSocialPost({ config, np = "", interactive = true, blockCopy: bc
             <ReactionButton kind="liked" label={`👍 ${lab(bc, "postLike", "Like")}`} count={e.likes} activeCls={accentText} />
           )
         ) : null}
-        {showComment ? <span>💬 {lab(bc, "postComment", "Comment")}{e.comments ? ` ${fmt(e.comments)}` : ""}</span> : null}
+        {showComment ? <CommentActionLabel base={e.comments ?? 0} label={lab(bc, "postComment", "Comment")} /> : null}
         {showShare ? <ReactionButton kind="shared" label={`↪ ${lab(bc, "postShare", "Share")}`} count={e.shares} activeCls={accentText} /> : null}
         {slotIn("action-bar").map((s) => (
           <SlotView key={s.id} s={s} />
