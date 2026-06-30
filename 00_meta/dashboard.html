@@ -1214,7 +1214,15 @@
   ],
   "recentActivity": [
     {
-      "text": "Wider blocks + FB-scale social-post sizing (committed, unpushed; no migration). Content width bumped for ALL blocks (not just social): narrow 480->560, medium 640->720 (default), wide 800->960. The Design preview was hard-capped at 448px (max-w-md) — that's why it looked tiny — now ~600px. Social-post sized to a real Facebook post: action row 13->15px (medium weight, taller tap targets), engagement summary 12->14px, author subline 12->13px, hover reaction-tray emoji 20->28px. 895 tests; tsc/lint/build clean.",
+      "text": "Owner corrections round 5e (committed, unpushed; no migration). FONT ROOT CAUSE: 'Large renders small' had two causes — the S/M/L scale was far too subtle (L body was 17px vs M's 15px → now S15/M16/L19), AND the social-post headline/body were hardcoded at 15px and ignored the font setting entirely (now use --text-* vars, so font size applies to the post in both the Design preview and runtime; FB chrome stays fixed for fidelity). COMPOSER CHIPS removed — can't attach real media in a study, so per owner it's text input only (chips + editor toggles gone). PARTICIPANT REPLY on a seeded comment now renders in the Design preview too (dropped the interactive-only gate that hid it). Engagement summary 14->16px. 895 tests; tsc/lint/build clean.",
+      "date": "2026-06-30"
+    },
+    {
+      "text": "Wider blocks + FB-scale social-post sizing (DEPLOYED 7ae3f1e).",
+      "date": "2026-06-30"
+    },
+    {
+      "text": "Wider blocks + FB-scale sizing (detail). Content width bumped for ALL blocks (not just social): narrow 480->560, medium 640->720 (default), wide 800->960. The Design preview was hard-capped at 448px (max-w-md) — that's why it looked tiny — now ~600px. Social-post sized to a real Facebook post: action row 13->15px (medium weight, taller tap targets), engagement summary 12->14px, author subline 12->13px, hover reaction-tray emoji 20->28px. 895 tests; tsc/lint/build clean.",
       "date": "2026-06-30"
     },
     {
