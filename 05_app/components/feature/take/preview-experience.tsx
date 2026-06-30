@@ -1,7 +1,8 @@
 "use client";
 
 import { Columns2, ExternalLink, RotateCcw, X } from "lucide-react";
-import { useRouter } from "next/navigation";
+import type { Route } from "next";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { PreviewShareMenu } from "@/components/feature/take/preview-share-menu";
@@ -22,9 +23,15 @@ const DEVICES = Object.keys(WIDTHS) as Device[];
  */
 export function PreviewExperience({ studyId, title }: { studyId: string; title: string }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [device, setDevice] = useState<Device>("Desktop");
   const [responseId, setResponseId] = useState<string | null>(null);
-  const close = useCallback(() => router.push(`/studies/${studyId}/build`), [router, studyId]);
+  // Return to the section the preview was opened from (?from=design|run|…),
+  // defaulting to Builder. So closing a preview launched from Design lands back
+  // on Design, not the Builder.
+  const from = searchParams.get("from");
+  const returnTo = (from === "design" ? `/studies/${studyId}/design` : from === "run" ? `/studies/${studyId}/run` : `/studies/${studyId}/build`) as Route;
+  const close = useCallback(() => router.push(returnTo), [router, returnTo]);
 
   const start = api.studies.startPreview.useMutation({
     onSuccess: (r) => setResponseId(r.responseId),

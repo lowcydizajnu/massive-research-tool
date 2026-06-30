@@ -374,10 +374,9 @@ export function ConfigureForm({
       </div>
 
       {/* Emotion analysis runs on Claude (text only) since Hume EM was discontinued —
-          voice-emotion is archived. Offered on text blocks + on a social-post when it
-          collects a comment (the comment is scored) (ADR-0066 amendment). */}
-      {["free-text", "text-emotion-probe"].includes(block.key) ||
-      (block.key === "social-post" && (draft as { allowComments?: boolean }).allowComments !== false) ? (
+          voice-emotion is archived. Offered on text blocks here; for social-post it
+          lives in Design → Social (alongside the comments section) per owner UX. */}
+      {["free-text", "text-emotion-probe"].includes(block.key) ? (
         (() => {
           const ea = draft.emotionAnalysis as { enabled?: boolean } | undefined;
           // The dedicated text-emotion-probe forces emotion ON — no toggle.
@@ -393,7 +392,7 @@ export function ConfigureForm({
           };
           return (
             <EmotionAnalysisToggle
-              block={block}
+              blockKey={block.key}
               alwaysOn={alwaysOn}
               enabled={alwaysOn || Boolean(ea?.enabled)}
               onToggle={(enabled) => write({ enabled })}
@@ -1007,13 +1006,13 @@ function clampedCentered(n: number): { x: number; y: number; w: number; h: numbe
  * vocal-prosody emotion was archived when Hume EM was discontinued. The lightbulb
  * opens setup + how-to-read-the-data guidance.
  */
-function EmotionAnalysisToggle({
-  block,
+export function EmotionAnalysisToggle({
+  blockKey,
   enabled,
   alwaysOn = false,
   onToggle,
 }: {
-  block: StudyBlock;
+  blockKey: string;
   enabled: boolean;
   alwaysOn?: boolean;
   onToggle: (enabled: boolean) => void;
@@ -1021,7 +1020,7 @@ function EmotionAnalysisToggle({
   const list = api.ai.connections.list.useQuery();
   const claudeConnected = (list.data ?? []).some((c) => c.provider === "anthropic");
   const [helpOpen, setHelpOpen] = useState(false);
-  const subject = block.key === "social-post" ? "comment" : "answer"; // what gets scored
+  const subject = blockKey === "social-post" ? "comment" : "answer"; // what gets scored
 
   // Provider gate (flip in lib/ai/emotion-availability.ts to pause the feature).
   if (!EMOTION_ANALYSIS_AVAILABLE) {

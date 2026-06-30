@@ -6,6 +6,7 @@ import { api } from "@/lib/trpc/react";
 import { getBlockOverride } from "@/components/feature/take/block-overrides";
 import { UploadButton } from "@/components/feature/builder/upload-button";
 import { PickFromMaterialsButton } from "@/components/feature/builder/pick-from-materials-button";
+import { EmotionAnalysisToggle } from "@/components/feature/builder/configure-form";
 import { cn } from "@/lib/utils";
 import { BRANDING_TIERS, REACTION_KEYS, effectiveBrandingTier, type BrandingTier, type ReactionKey, type SocialPostDesign } from "@/lib/themes/themes";
 
@@ -107,12 +108,9 @@ export function SocialPostAppearanceEditor({
   const [irbChecked, setIrbChecked] = useState(false);
   // Optimistic attestation state (the server stamps who/when via setIrbAttestation).
   const [attested, setAttested] = useState(social.irbAttestation?.attested === true);
-  const attestMut = api.studies.setIrbAttestation.useMutation({
-    onSuccess: () => {
-      setAttested(true);
-      setIrbOpen(false);
-    },
-  });
+  const attestMut = api.studies.setIrbAttestation.useMutation();
+  const withdrawAttestation = () =>
+    attestMut.mutate({ studyId, attested: false, statement: IRB_STATEMENT }, { onSuccess: () => setAttested(false) });
   const toggleReaction = (k: ReactionKey, on: boolean) => {
     const next = REACTION_KEYS.filter((r) => (r === k ? on : enabled.has(r)));
     onChange({ ...social, reactionsEnabled: next });
@@ -228,7 +226,7 @@ export function SocialPostAppearanceEditor({
                 </label>
               ))}
             </div>
-            {cfgStr("brandingTier") === "branded" ? (
+            {effectiveBrandingTier({ brandingTier: cfgStr("brandingTier") }, social) === "branded" ? (
               <div className="flex flex-col gap-1">
                 <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">Brand logo (this post)</span>
                 <div className="flex flex-wrap items-center gap-1.5">
@@ -282,7 +280,17 @@ export function SocialPostAppearanceEditor({
             <div className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] p-3">
               <span className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">IRB attestation</span>
               {attested ? (
-                <p className="text-[length:var(--text-small)] text-[var(--color-success-text-on-subtle)]">✓ Attested — recorded and frozen into preregistration.</p>
+                <div className="flex flex-col gap-1.5">
+                  <p className="text-[length:var(--text-small)] text-[var(--color-success-text-on-subtle)]">✓ Attested — recorded and frozen into preregistration.</p>
+                  <button
+                    type="button"
+                    disabled={attestMut.isPending}
+                    onClick={withdrawAttestation}
+                    className="self-start rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-2.5 py-1 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)] disabled:opacity-50"
+                  >
+                    Withdraw attestation
+                  </button>
+                </div>
               ) : (
                 <>
                   <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
@@ -329,6 +337,40 @@ export function SocialPostAppearanceEditor({
           <Toggle checked={social.showReactionSummary} onChange={(v) => onChange({ ...social, showReactionSummary: v })}>
             Show the reaction summary + counts
           </Toggle>
+          {social.showReactionSummary ? (
+            <div className="flex flex-col gap-1">
+              <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+                Faces shown in the summary — what the post <em>received</em>, separate from what a participant can pick
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {REACTION_KEYS.map((k) => {
+                  const on = social.summaryReactions.includes(k);
+                  return (
+                    <label
+                      key={k}
+                      className={cn(
+                        "flex cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 text-[length:var(--text-small)]",
+                        on
+                          ? "border-[var(--color-primary)] bg-[var(--color-primary-subtle)] text-[var(--color-primary-text-on-subtle)]"
+                          : "border-[var(--color-border-subtle)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]",
+                      )}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={on}
+                        onChange={(e) =>
+                          onChange({ ...social, summaryReactions: REACTION_KEYS.filter((r) => (r === k ? e.target.checked : social.summaryReactions.includes(r))) })
+                        }
+                        className="sr-only"
+                      />
+                      <span aria-hidden>{REACTION_META[k].emoji}</span>
+                      {REACTION_META[k].label}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
         </fieldset>
 
         <fieldset className="flex flex-col gap-2">
@@ -396,6 +438,18 @@ export function SocialPostAppearanceEditor({
               );
             })}
           </div>
+          {selected ? (
+            (() => {
+              const ea = selectedCfg?.emotionAnalysis as { enabled?: boolean } | undefined;
+              return (
+                <EmotionAnalysisToggle
+                  blockKey="social-post"
+                  enabled={Boolean(ea?.enabled)}
+                  onToggle={(enabled) => patchBlock({ emotionAnalysis: { provider: "anthropic", modality: "text", ...(ea ?? {}), enabled } })}
+                />
+              );
+            })()
+          ) : null}
         </fieldset>
 
         <fieldset className="flex flex-col gap-2">
@@ -450,6 +504,54 @@ export function SocialPostAppearanceEditor({
                   <button type="button" onClick={() => onChange({ ...social, comments: { ...social.comments, seeded: social.comments.seeded.map((c, idx) => (idx === i ? { ...c, authorAvatarKey: null } : c)) } })} className="text-[length:var(--text-small)] text-[var(--color-text-muted)] hover:underline">Remove</button>
                 ) : null}
               </div>
+              {/* Replies (one level, mirrors the participant thread). */}
+              {(cm.replies ?? []).length ? (
+                <div className="flex flex-col gap-1.5 border-l border-[var(--color-border-subtle)] pl-2">
+                  {(cm.replies ?? []).map((rp, ri) => (
+                    <div key={rp.id} className="flex flex-col gap-1">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={rp.authorName}
+                          placeholder="Reply author"
+                          maxLength={120}
+                          onChange={(e) =>
+                            onChange({ ...social, comments: { ...social.comments, seeded: social.comments.seeded.map((c, idx) => (idx === i ? { ...c, replies: (c.replies ?? []).map((r, rj) => (rj === ri ? { ...r, authorName: e.target.value } : r)) } : c)) } })
+                          }
+                          className={`${FIELD_CLS} flex-1`}
+                        />
+                        <button
+                          type="button"
+                          aria-label="Remove reply"
+                          onClick={() => onChange({ ...social, comments: { ...social.comments, seeded: social.comments.seeded.map((c, idx) => (idx === i ? { ...c, replies: (c.replies ?? []).filter((_, rj) => rj !== ri) } : c)) } })}
+                          className="rounded-[var(--radius-md)] px-2 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)]"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                      <textarea
+                        value={rp.body}
+                        placeholder="Reply text"
+                        rows={2}
+                        maxLength={2000}
+                        onChange={(e) =>
+                          onChange({ ...social, comments: { ...social.comments, seeded: social.comments.seeded.map((c, idx) => (idx === i ? { ...c, replies: (c.replies ?? []).map((r, rj) => (rj === ri ? { ...r, body: e.target.value } : r)) } : c)) } })
+                        }
+                        className={FIELD_CLS}
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              <button
+                type="button"
+                onClick={() =>
+                  onChange({ ...social, comments: { ...social.comments, seeded: social.comments.seeded.map((c, idx) => (idx === i ? { ...c, replies: [...(c.replies ?? []), { id: crypto.randomUUID(), authorName: "", authorAvatarKey: null, topFan: false, verified: false, body: "", timeLabel: "", reactionCount: 0, reactions: [] }] } : c)) } })
+                }
+                className="self-start text-[length:var(--text-small)] font-medium text-[var(--color-primary)] hover:underline"
+              >
+                + Add reply
+              </button>
             </div>
           ))}
           <button
@@ -550,7 +652,12 @@ export function SocialPostAppearanceEditor({
               <button
                 type="button"
                 disabled={!irbChecked || attestMut.isPending}
-                onClick={() => attestMut.mutate({ studyId, attested: true, statement: IRB_STATEMENT })}
+                onClick={() =>
+                  attestMut.mutate(
+                    { studyId, attested: true, statement: IRB_STATEMENT },
+                    { onSuccess: () => { setAttested(true); setIrbOpen(false); } },
+                  )
+                }
                 className="rounded-[var(--radius-md)] bg-[var(--color-primary)] px-3 py-1.5 text-[length:var(--text-small)] font-medium text-white hover:opacity-90 disabled:opacity-50"
               >
                 {attestMut.isPending ? "Saving…" : "Confirm attestation"}
@@ -601,10 +708,21 @@ function SocialPostPreview({ social, config: cfgIn }: { social: SocialPostDesign
   const Override = getBlockOverride("facebook", "social-post");
   return (
     <div className="mx-auto max-w-md overflow-hidden rounded-[var(--radius-lg)] border border-[#E4E6EB] bg-white shadow-[var(--shadow-md)]">
-      {/* Decorative platform bar (matches the participant page frame). */}
+      {/* Decorative platform bar (matches the participant page frame). The
+          trademarked "f" logo + "Facebook" wordmark only show on the fully-branded
+          tier; "layout" (inspired) stays generic. */}
       <div className="flex items-center gap-2 border-b border-[#E4E6EB] px-3 py-2">
-        <span className="flex size-7 items-center justify-center rounded-full bg-[#0866FF] text-[13px] font-bold lowercase text-white">f</span>
-        <span className="rounded-full bg-[#F0F2F5] px-3 py-1 text-[12px] text-[#65676B]">Search</span>
+        {tier === "branded" ? (
+          <>
+            <span className="flex size-7 items-center justify-center rounded-full bg-[#0866FF] text-[13px] font-bold lowercase text-white">f</span>
+            <span className="rounded-full bg-[#F0F2F5] px-3 py-1 text-[12px] text-[#65676B]">Search Facebook</span>
+          </>
+        ) : (
+          <>
+            <span className="flex size-7 items-center justify-center rounded-full bg-[#65676B] text-[13px] text-white">◎</span>
+            <span className="rounded-full bg-[#F0F2F5] px-3 py-1 text-[12px] text-[#65676B]">Search</span>
+          </>
+        )}
       </div>
       <div className="p-3">{Override ? Override({ config, np: "preview_", interactive: false, social }) : null}</div>
       {tier === "branded" ? (

@@ -438,7 +438,7 @@ export function DesignWorkspace({
           </div>
         </div>
         <Link
-          href={`/studies/${studyId}/preview` as Route}
+          href={`/studies/${studyId}/preview?from=design` as Route}
           className="self-start text-[length:var(--text-small)] font-medium text-[var(--color-primary)] underline-offset-2 hover:underline"
         >
           Open real preview →
