@@ -539,10 +539,12 @@ const RADII: Record<StudyTheme["shape"]["radius"], { sm: string; md: string; lg:
   rounded: { sm: "4px", md: "8px", lg: "12px" },
   pill: { sm: "8px", md: "16px", lg: "20px" },
 };
+// Base type scale (ADR-0024). The tiers must read as genuinely different — the
+// old L (17px body) was only 2px over M, so "Large" looked unchanged (owner).
 const SIZES: Record<StudyTheme["typography"]["baseSize"], { small: string; body: string; emphasis: string; title: string }> = {
-  S: { small: "12px", body: "14px", emphasis: "14px", title: "17px" },
-  M: { small: "13px", body: "15px", emphasis: "15px", title: "19px" },
-  L: { small: "14px", body: "17px", emphasis: "17px", title: "21px" },
+  S: { small: "13px", body: "15px", emphasis: "16px", title: "20px" },
+  M: { small: "14px", body: "16px", emphasis: "18px", title: "23px" },
+  L: { small: "16px", body: "19px", emphasis: "22px", title: "28px" },
 };
 const DENSITY: Record<StudyTheme["shape"]["density"], { cardPad: string; blockGap: string; fieldGap: string }> = {
   compact: { cardPad: "1.25rem", blockGap: "1rem", fieldGap: "0.75rem" },

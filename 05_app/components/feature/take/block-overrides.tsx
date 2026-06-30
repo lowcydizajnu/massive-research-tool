@@ -74,7 +74,7 @@ type CommentLike = {
 };
 
 /** A static seeded comment under a Facebook post (display-only). */
-function SeededCommentView({ c, np, interactive = false, reply = false }: { c: CommentLike; np?: string; interactive?: boolean; reply?: boolean }) {
+function SeededCommentView({ c, np, reply = false }: { c: CommentLike; np?: string; reply?: boolean }) {
   const reactionGlyphs = c.reactions && c.reactions.length ? c.reactions.map((k) => REACTION_EMOJI[k]).join("") : "👍";
   return (
     <div className={`flex gap-2 ${reply ? "ml-8" : ""}`}>
@@ -97,13 +97,13 @@ function SeededCommentView({ c, np, interactive = false, reply = false }: { c: C
         </div>
         <div className="flex items-center gap-3 px-3 pt-0.5 text-[11px] text-[#65676B]">
           <CommentLikeButton />
-          {/* Participant reply: live affordance only when interactive (take/preview);
-              the editor preview keeps it as a static label. */}
-          {!reply && interactive && np ? null : <span>Reply</span>}
+          {/* Top-level comments get a working Reply (below); nested replies keep a
+              static label. Works in preview + take (no `interactive` gate). */}
+          {!reply && np ? null : <span>Reply</span>}
           {c.timeLabel ? <span>{c.timeLabel}</span> : null}
           {c.reactionCount ? <span>{reactionGlyphs} {fmt(c.reactionCount)}</span> : null}
         </div>
-        {!reply && interactive && np ? <CommentReply np={np} /> : null}
+        {!reply && np ? <CommentReply np={np} /> : null}
         {!reply && c.replies && c.replies.length ? (
           <div className="flex flex-col gap-2 pt-1">
             {c.replies.map((rp) => (
@@ -206,8 +206,11 @@ function FacebookSocialPost({ config, np = "", interactive = true, blockCopy: bc
           <SlotView s={s} />
         </div>
       ))}
-      {headline ? <p className="text-[15px] font-semibold">{headline}</p> : null}
-      {body ? <p className="text-[15px] leading-snug">{body}</p> : null}
+      {/* Post copy scales with the study's font-size setting (--text-* vars) — at the
+          default M it matches Facebook (~15-16px); larger when the researcher picks L.
+          The FB chrome (buttons, meta) stays fixed for platform fidelity. */}
+      {headline ? <p className="text-[length:var(--text-body-emphasis)] font-semibold">{headline}</p> : null}
+      {body ? <p className="text-[length:var(--text-body)] leading-snug">{body}</p> : null}
       <PostImage config={config} className="-mx-3 !w-[calc(100%+1.5rem)] max-w-none" />
       {slotIn("below-body").map((s) => (
         <div key={s.id}>
@@ -231,7 +234,7 @@ function FacebookSocialPost({ config, np = "", interactive = true, blockCopy: bc
           <SlotView key={s.id} s={s} />
         ))}
       </div>
-      {showComposer ? <CommentComposer np={np} placeholder={composerPlaceholder} slots={r?.composer.slots ?? []} /> : null}
+      {showComposer ? <CommentComposer np={np} placeholder={composerPlaceholder} /> : null}
       {slotIn("pinned-comment").map((s) => (
         <div key={s.id} className="rounded-[8px] bg-[#F7F8FA] p-2">
           <SlotView s={s} />
@@ -240,7 +243,7 @@ function FacebookSocialPost({ config, np = "", interactive = true, blockCopy: bc
       {seeded.length ? (
         <div className="flex flex-col gap-2 pt-1">
           {seeded.map((cm) => (
-            <SeededCommentView key={cm.id} c={cm} np={np} interactive={interactive} />
+            <SeededCommentView key={cm.id} c={cm} np={np} />
           ))}
           {r?.comments.enabled ? (
             <span className="text-[13px] font-semibold text-[#65676B]">
