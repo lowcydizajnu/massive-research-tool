@@ -154,12 +154,14 @@ function FacebookSocialPost({ config, np = "", interactive = true, blockCopy: bc
     <article className="flex flex-col gap-2 rounded-[8px] border border-[#E4E6EB] bg-white p-3 text-[#050505] shadow-sm">
       <ReactionGroup np={np} single={isSingle(config)} disabled={!interactive}>
       <div className="flex items-center gap-2">
-        <span
-          aria-hidden
-          className="flex size-10 items-center justify-center rounded-full bg-[#0866FF] font-bold text-white"
-        >
-          {source.charAt(0).toUpperCase()}
-        </span>
+        {str(config.authorAvatarKey).trim() ? (
+          // eslint-disable-next-line @next/next/no-img-element -- researcher-supplied URL
+          <img src={str(config.authorAvatarKey)} alt="" className="size-10 rounded-full object-cover" />
+        ) : (
+          <span aria-hidden className="flex size-10 items-center justify-center rounded-full bg-[#0866FF] font-bold text-white">
+            {source.charAt(0).toUpperCase()}
+          </span>
+        )}
         <span className="flex flex-col leading-tight">
           <span className="text-[15px] font-semibold">{source}</span>
           <span className="text-[12px] text-[#65676B]">Suggested for you · {e.time} · 🌐</span>

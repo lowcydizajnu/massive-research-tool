@@ -215,6 +215,8 @@ const socialPostV2: CoreModuleDef = {
     commentsCount: z.number().int().min(0).max(100_000_000).optional(),
     sharesCount: z.number().int().min(0).max(100_000_000).optional(),
     authorHandle: z.string().max(60).optional(),
+    /** Researcher-uploaded author avatar (R2). Blank = initials fallback. */
+    authorAvatarKey: mediaUrl.optional(),
     timeLabel: z.string().max(40).optional(),
     allowComments: z.boolean().optional(),
     /** Participant may pick ONLY ONE reaction (Like OR Share) when true. */
@@ -260,6 +262,7 @@ const socialPostV2: CoreModuleDef = {
       commentsCount: { type: "integer", minimum: 0 },
       sharesCount: { type: "integer", minimum: 0 },
       authorHandle: { type: "string" },
+      authorAvatarKey: { type: "string" },
       timeLabel: { type: "string" },
       allowComments: { type: "boolean" },
       singleReaction: { type: "boolean" },

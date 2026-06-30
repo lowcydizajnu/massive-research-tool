@@ -4,6 +4,8 @@ import { useState, type CSSProperties } from "react";
 
 import { api } from "@/lib/trpc/react";
 import { getBlockOverride } from "@/components/feature/take/block-overrides";
+import { UploadButton } from "@/components/feature/builder/upload-button";
+import { PickFromMaterialsButton } from "@/components/feature/builder/pick-from-materials-button";
 import { cn } from "@/lib/utils";
 import { BRANDING_TIERS, REACTION_KEYS, effectiveBrandingTier, type BrandingTier, type ReactionKey, type SocialPostDesign } from "@/lib/themes/themes";
 
@@ -71,6 +73,30 @@ export function SocialPostAppearanceEditor({
   const enabled = new Set(social.reactionsEnabled);
   const [selectedId, setSelectedId] = useState<string | null>(blocks[0]?.instanceId ?? null);
   const selected = blocks.find((b) => b.instanceId === selectedId) ?? blocks[0] ?? null;
+  // Per-post content lives on the block config (saved via updateBlockConfig); the
+  // editor holds a local copy so the live preview reflects edits immediately.
+  const [blockCfgs, setBlockCfgs] = useState<Record<string, Record<string, unknown>>>(
+    () => Object.fromEntries(blocks.map((b) => [b.instanceId, b.config])),
+  );
+  const selectedCfg: Record<string, unknown> | null = selected ? blockCfgs[selected.instanceId] ?? selected.config : null;
+  const updateBlockMut = api.studies.updateBlockConfig.useMutation();
+  const patchBlock = (patch: Record<string, unknown>) => {
+    if (!selected) return;
+    const next = { ...(selectedCfg ?? {}), ...patch };
+    setBlockCfgs((m) => ({ ...m, [selected.instanceId]: next }));
+    updateBlockMut.mutate({ studyId, instanceId: selected.instanceId, config: next });
+  };
+  const cfgStr = (k: string) => (typeof selectedCfg?.[k] === "string" ? (selectedCfg![k] as string) : "");
+  const cfgNum = (k: string) => (typeof selectedCfg?.[k] === "number" ? (selectedCfg![k] as number) : 0);
+  /** Set the per-post branding tier override; "" deletes the key (= inherit). */
+  const setBlockTier = (val: string) => {
+    if (!selected) return;
+    const next = { ...(selectedCfg ?? {}) };
+    if (val) next.brandingTier = val;
+    else delete next.brandingTier;
+    setBlockCfgs((m) => ({ ...m, [selected.instanceId]: next }));
+    updateBlockMut.mutate({ studyId, instanceId: selected.instanceId, config: next });
+  };
   const [irbOpen, setIrbOpen] = useState(false);
   const [irbChecked, setIrbChecked] = useState(false);
   // Optimistic attestation state (the server stamps who/when via setIrbAttestation).
@@ -108,6 +134,109 @@ export function SocialPostAppearanceEditor({
           <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
             Add a <span className="font-medium">Social post</span> block in Build to preview it here. These settings still save.
           </p>
+        ) : null}
+
+        {selected ? (
+          <fieldset className="flex flex-col gap-3">
+            <legend className={LEGEND_CLS}>This post — content</legend>
+            <label className="flex flex-col gap-1">
+              <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">Author / page name</span>
+              <input type="text" value={cfgStr("source")} placeholder="e.g. Health Buzz" onChange={(e) => patchBlock({ source: e.target.value })} className={FIELD_CLS} />
+            </label>
+            <div className="flex gap-2">
+              <label className="flex flex-1 flex-col gap-1">
+                <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">Handle</span>
+                <input type="text" value={cfgStr("authorHandle")} placeholder="@handle" onChange={(e) => patchBlock({ authorHandle: e.target.value })} className={FIELD_CLS} />
+              </label>
+              <label className="flex w-24 flex-col gap-1">
+                <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">Time</span>
+                <input type="text" value={cfgStr("timeLabel")} placeholder="2h" onChange={(e) => patchBlock({ timeLabel: e.target.value })} className={FIELD_CLS} />
+              </label>
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">Author avatar</span>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {cfgStr("authorAvatarKey") ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={cfgStr("authorAvatarKey")} alt="" className="size-8 rounded-full object-cover" />
+                ) : null}
+                <UploadButton kind="image" label="Upload…" onUploaded={(url) => patchBlock({ authorAvatarKey: url })} />
+                <PickFromMaterialsButton kind="image" onPick={(url) => patchBlock({ authorAvatarKey: url })} />
+                {cfgStr("authorAvatarKey") ? (
+                  <button type="button" onClick={() => patchBlock({ authorAvatarKey: "" })} className="text-[length:var(--text-small)] text-[var(--color-text-muted)] hover:underline">Remove</button>
+                ) : null}
+              </div>
+            </div>
+            <label className="flex flex-col gap-1">
+              <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">Headline</span>
+              <input type="text" value={cfgStr("headline")} placeholder="Post headline" onChange={(e) => patchBlock({ headline: e.target.value })} className={FIELD_CLS} />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">Body</span>
+              <textarea value={cfgStr("body")} placeholder="Post text" rows={3} onChange={(e) => patchBlock({ body: e.target.value })} className={FIELD_CLS} />
+            </label>
+            <div className="flex flex-col gap-1">
+              <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">Post image</span>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <UploadButton kind="image" label="Upload…" onUploaded={(url) => patchBlock({ imageUrl: url })} />
+                <PickFromMaterialsButton kind="image" onPick={(url) => patchBlock({ imageUrl: url })} />
+                {cfgStr("imageUrl") ? (
+                  <button type="button" onClick={() => patchBlock({ imageUrl: "" })} className="text-[length:var(--text-small)] text-[var(--color-text-muted)] hover:underline">Remove image</button>
+                ) : null}
+              </div>
+            </div>
+            <div className="flex gap-2">
+              {(["likesCount", "commentsCount", "sharesCount"] as const).map((k) => (
+                <label key={k} className="flex flex-1 flex-col gap-1">
+                  <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">{k === "likesCount" ? "Likes" : k === "commentsCount" ? "Comments" : "Shares"}</span>
+                  <input type="number" min={0} value={cfgNum(k)} onChange={(e) => patchBlock({ [k]: Math.max(0, Number(e.target.value) || 0) })} className={FIELD_CLS} />
+                </label>
+              ))}
+            </div>
+            <label className="flex flex-col gap-1">
+              <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">Veracity (analysis ground-truth)</span>
+              <select value={cfgStr("veracityGroundTruth") || "unverified"} onChange={(e) => patchBlock({ veracityGroundTruth: e.target.value })} className={FIELD_CLS}>
+                {(["true", "false", "misleading", "unverified"] as const).map((v) => (
+                  <option key={v} value={v}>{v}</option>
+                ))}
+              </select>
+            </label>
+          </fieldset>
+        ) : null}
+
+        {selected ? (
+          <fieldset className="flex flex-col gap-2">
+            <legend className={LEGEND_CLS}>This post — branding</legend>
+            <div role="radiogroup" aria-label="This post branding" className="flex flex-col gap-1">
+              {(
+                [
+                  ["", "Inherit study default"],
+                  ["block", TIER_LABELS.block.label],
+                  ["layout", TIER_LABELS.layout.label],
+                  ["branded", TIER_LABELS.branded.label],
+                ] as const
+              ).map(([val, label]) => (
+                <label key={val} className="flex items-center gap-2 text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
+                  <input type="radio" name="postTier" checked={cfgStr("brandingTier") === val} onChange={() => setBlockTier(val)} className="size-4 accent-[var(--color-primary)]" />
+                  {label}
+                </label>
+              ))}
+            </div>
+            {cfgStr("brandingTier") === "branded" ? (
+              <div className="flex flex-col gap-1">
+                <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">Brand logo (this post)</span>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {cfgStr("brandLogoKey") ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={cfgStr("brandLogoKey")} alt="" className="h-7 w-auto rounded" />
+                  ) : null}
+                  <UploadButton kind="image" label="Upload…" onUploaded={(url) => patchBlock({ brandLogoKey: url })} />
+                  <PickFromMaterialsButton kind="image" onPick={(url) => patchBlock({ brandLogoKey: url })} />
+                </div>
+                <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">Upload only marks you’re authorized to use — requires the study’s IRB attestation to publish.</span>
+              </div>
+            ) : null}
+          </fieldset>
         ) : null}
 
         <fieldset className="flex flex-col gap-2">
@@ -379,7 +508,7 @@ export function SocialPostAppearanceEditor({
       <div className="flex min-w-0 flex-1 flex-col gap-2 lg:sticky lg:top-3 lg:self-start">
         <span className={LEGEND_CLS}>Participant preview</span>
         <div aria-hidden style={themeVars} className="rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-page)] p-6">
-          <SocialPostPreview social={social} block={selected} />
+          <SocialPostPreview social={social} config={selectedCfg} />
         </div>
       </div>
 
@@ -436,8 +565,8 @@ const SAMPLE_POST: Record<string, unknown> = {
  * slots, branding) is reflected exactly. The "Just the post" tier shows the
  * plain card (no platform styling), mirroring the runtime.
  */
-function SocialPostPreview({ social, block }: { social: SocialPostDesign; block: SocialBlockRef | null }) {
-  const config = block?.config ?? SAMPLE_POST;
+function SocialPostPreview({ social, config: cfgIn }: { social: SocialPostDesign; config: Record<string, unknown> | null }) {
+  const config = cfgIn ?? SAMPLE_POST;
   const tier = effectiveBrandingTier(config as { brandingTier?: unknown }, social);
   const headline = typeof config.headline === "string" ? config.headline : "";
   const body = typeof config.body === "string" ? config.body : "";
