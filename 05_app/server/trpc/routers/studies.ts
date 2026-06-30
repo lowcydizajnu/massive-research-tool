@@ -70,7 +70,7 @@ import {
   validateConfig,
 } from "@/server/modules/blocks";
 import { cellLabel, pruneBindings, type VariantBinding, type VariantFactor } from "@/lib/variants/factorial";
-import { changelogBetween, initialVersionSummary } from "@/server/modules/changelog";
+import { changelogBetween, initialVersionSummary, DEFAULT_NEW_STUDY_SNAPSHOT } from "@/server/modules/changelog";
 import { readConsent, type StudyConsent } from "@/server/modules/consent";
 import { runPreflight, type PreflightCheck } from "@/server/modules/preflight";
 import { BRANDING_GATE_MESSAGE, evaluateBrandingGate } from "@/server/modules/branding-gate";
@@ -4243,12 +4243,16 @@ export const studiesRouter = router({
         .limit(1);
       if (draft) {
         const lastFrozen = vrows.length ? vrows[vrows.length - 1] : null;
+        // Never-frozen draft: diff against the default-new-study baseline so the
+        // full differ enumerates the researcher's edits (blocks, design, consent,
+        // overview, config) instead of a bare "Initial version — N blocks" that
+        // hid them (ADR-0033 amendment, owner: "changelog missing a lot of changes").
         const detail = lastFrozen
           ? changelogBetween(lastFrozen.snapshot, draft.snapshot)
-          : initialVersionSummary(draft.snapshot);
+          : changelogBetween(DEFAULT_NEW_STUDY_SNAPSHOT, draft.snapshot);
         // Only when there's actually something pending (a frozen baseline that
-        // differs, or a brand-new study with no frozen version yet).
-        if (detail.length && (lastFrozen ? detail.length > 0 : readBlocks(draft.snapshot).length > 0)) {
+        // differs, or a brand-new study with any edits yet).
+        if (detail.length) {
           draftEntries.push({
             id: "draft",
             at: exp.updatedAt.toISOString(),

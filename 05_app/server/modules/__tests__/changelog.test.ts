@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { changelogBetween, initialVersionSummary } from "@/server/modules/changelog";
+import { changelogBetween, initialVersionSummary, DEFAULT_NEW_STUDY_SNAPSHOT } from "@/server/modules/changelog";
 
 /** Minimal snapshot factory matching the definition_snapshot shape (ADR-0012). */
 const snap = (
@@ -75,5 +75,21 @@ describe("changelogBetween (ADR-0033)", () => {
 
   it("describes the first frozen version instead of diffing", () => {
     expect(initialVersionSummary(snap([likert(), attention]))).toEqual(["Initial version — 2 blocks"]);
+  });
+
+  it("never-frozen draft vs the default baseline: enumerates real edits, no false positives (ADR-0033 amendment)", () => {
+    // An untouched blank study (the baseline itself) → nothing to report.
+    expect(changelogBetween(DEFAULT_NEW_STUDY_SNAPSHOT, snap([]))).toEqual([]);
+
+    // A draft where the researcher added a block + switched the design preset +
+    // edited consent → each surfaces (these were hidden behind "Initial version — N blocks").
+    const draft = snap([likert({ title: "Accuracy rating" })], {
+      theme: { presetKey: "facebook" },
+      consent: { title: "Custom consent", body: "Please read.", agreeLabel: "I agree", disagreeLabel: "No", declineMessage: "Thanks." },
+    });
+    const lines = changelogBetween(DEFAULT_NEW_STUDY_SNAPSHOT, draft);
+    expect(lines.some((l) => l.startsWith("＋ Added") && l.includes("Accuracy rating"))).toBe(true);
+    expect(lines.some((l) => l.includes("Design preset") && l.includes("facebook"))).toBe(true);
+    expect(lines).toContain("～ Consent screen updated");
   });
 });

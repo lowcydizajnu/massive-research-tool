@@ -121,3 +121,14 @@ export function initialVersionSummary(snapshot: unknown): string[] {
   const n = readBlocks(snapshot).length;
   return [`Initial version — ${n} block${n === 1 ? "" : "s"}`];
 }
+
+/**
+ * The canonical snapshot a brand-new blank study is created with (`{ blocks: [] }`).
+ * `readTheme`/`readConsent`/`readOverview` normalize a snapshot with these keys
+ * absent to the same defaults an untouched study carries, so diffing a
+ * never-frozen draft against THIS baseline (ADR-0033 amendment) surfaces the
+ * researcher's actual edits — added blocks, design preset, consent, overview —
+ * with zero false "changed" lines for fields they never touched. Diffing against
+ * `{}` would falsely flag design/consent because `readTheme({})` is null.
+ */
+export const DEFAULT_NEW_STUDY_SNAPSHOT = { blocks: [] } as const;
