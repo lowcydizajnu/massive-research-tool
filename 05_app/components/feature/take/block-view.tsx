@@ -6,6 +6,7 @@ import { AudioStimulusView } from "@/components/feature/take/audio-stimulus-view
 import { DrillDownInput } from "@/components/feature/take/drill-down-input";
 import { TimedExposureInput } from "@/components/feature/take/timed-exposure-input";
 import { ForcedWaitInput } from "@/components/feature/take/forced-wait-input";
+import { ForceWatchVideo } from "@/components/feature/take/force-watch-video";
 import { HeatMapInput } from "@/components/feature/take/heat-map-input";
 import { HotSpotInput } from "@/components/feature/take/hot-spot-input";
 import { GraphicSliderInput } from "@/components/feature/take/graphic-slider-input";
@@ -449,6 +450,9 @@ function VideoView({ config }: { config: Record<string, unknown> }) {
   const caption = str(config.caption);
   if (!url) return null;
   const embed = embedUrl(url);
+  // Force-watch applies only to a direct video file (YouTube/Vimeo embeds can't be
+  // tracked). The Continue-button gate safely no-ops where there's no take button.
+  const forceWatch = config.requireFullWatch === true && !embed;
   return (
     <figure className="flex flex-col gap-[var(--take-field-gap,1rem)]">
       <div className="aspect-video w-full overflow-hidden rounded-[var(--radius-md)] bg-black">
@@ -460,11 +464,19 @@ function VideoView({ config }: { config: Record<string, unknown> }) {
             allowFullScreen
             className="h-full w-full border-0"
           />
+        ) : forceWatch ? (
+          <ForceWatchVideo url={url} />
         ) : (
           // eslint-disable-next-line jsx-a11y/media-has-caption -- researcher stimulus; captions optional
           <video src={url} controls className="h-full w-full" />
         )}
       </div>
+      {forceWatch ? (
+        <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">Please watch the full video to continue.</p>
+      ) : null}
+      {config.requireFullWatch === true && embed ? (
+        <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">Full-watch enforcement needs a direct video file — YouTube/Vimeo embeds can’t be tracked.</p>
+      ) : null}
       {caption ? <figcaption className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">{caption}</figcaption> : null}
     </figure>
   );

@@ -53,7 +53,7 @@ export default async function ThemedTakeLayout({
           {Frame()}
         </div>
       ) : null}
-      <main className="w-full px-4 py-10" style={{ maxWidth: WIDTHS[theme.layout.width] }}>
+      <main className="w-full px-0 py-6 sm:px-4 sm:py-10" style={{ maxWidth: WIDTHS[theme.layout.width] }}>
         {children}
       </main>
     </div>

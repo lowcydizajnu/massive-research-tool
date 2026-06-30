@@ -132,8 +132,9 @@ export function PreviewExperience({ studyId, title }: { studyId: string; title: 
         </button>
       </div>
 
-      {/* Device-framed REAL participant run. */}
-      <div className="flex-1 overflow-hidden p-6">
+      {/* Device-framed REAL participant run. No padding on mobile so the preview
+          isn't a box-in-a-box (feedback 01KWCJ30X9); framed from sm up. */}
+      <div className="flex-1 overflow-hidden p-0 sm:p-6">
         <div
           className="mx-auto flex h-full w-full flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] shadow-[var(--shadow-md)]"
           style={{ maxWidth: WIDTHS[device] }}

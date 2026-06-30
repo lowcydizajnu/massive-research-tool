@@ -1,8 +1,13 @@
 /** Shared participant-runtime presentational parts (participant-runtime.md). */
 
 export function Card({ children }: { children: React.ReactNode }) {
+  // Edge-to-edge on mobile (full-bleed: no side border / rounding, tighter pad) so
+  // the stimulus + the flush progress bar use the whole width and aren't "boxed in
+  // a box" (feedback 01KWCJ30X9); a centered, rounded, bordered card from `sm` up.
+  // `--take-card-pad` scales with the padding so ScreenHeader's negative-margin
+  // full-bleed stays exact at every breakpoint.
   return (
-    <div className="flex flex-col gap-4 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-[var(--take-card-pad,2rem)] shadow-[var(--shadow-md)]">
+    <div className="flex flex-col gap-4 border-y border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-[var(--take-card-pad)] shadow-[var(--shadow-md)] [--take-card-pad:1rem] sm:rounded-[var(--radius-lg)] sm:border sm:[--take-card-pad:2rem]">
       {children}
     </div>
   );

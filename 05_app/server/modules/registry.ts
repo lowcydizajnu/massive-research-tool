@@ -620,11 +620,15 @@ const videoBlock: CoreModuleDef = {
   configSchema: z.object({
     url: mediaUrl,
     caption: z.string(),
+    // Force-watch (feedback 01KWCFEFBQ): gate Continue until the participant
+    // finishes + block skipping ahead. Enforceable only on a direct video file
+    // (YouTube/Vimeo embeds can't be tracked) — advisory for embeds.
+    requireFullWatch: z.boolean().default(false),
   }),
-  defaultConfig: { url: "", caption: "" },
+  defaultConfig: { url: "", caption: "", requireFullWatch: false },
   jsonSchema: {
     type: "object",
-    properties: { url: { type: "string" }, caption: { type: "string" } },
+    properties: { url: { type: "string" }, caption: { type: "string" }, requireFullWatch: { type: "boolean" } },
     required: ["url"],
     additionalProperties: false,
   },
