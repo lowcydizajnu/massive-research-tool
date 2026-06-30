@@ -42,12 +42,6 @@ const REACTION_META: Record<ReactionKey, { emoji: string; label: string }> = {
   sad: { emoji: "😢", label: "Sad" },
   angry: { emoji: "😡", label: "Angry" },
 };
-const COMPOSER_ICONS: { key: "emoji" | "photo" | "gif" | "sticker"; glyph: string; label: string }[] = [
-  { key: "emoji", glyph: "🙂", label: "Emoji" },
-  { key: "photo", glyph: "📷", label: "Photo" },
-  { key: "gif", glyph: "GIF", label: "GIF" },
-  { key: "sticker", glyph: "🩷", label: "Sticker" },
-];
 
 function Toggle({ checked, onChange, children }: { checked: boolean; onChange: (v: boolean) => void; children: React.ReactNode }) {
   return (
@@ -401,39 +395,6 @@ export function SocialPostAppearanceEditor({
               className={FIELD_CLS}
             />
           </label>
-          <div className="flex flex-wrap gap-2">
-            {COMPOSER_ICONS.map((ic) => {
-              const on = social.composer.slots.includes(ic.key);
-              return (
-                <label
-                  key={ic.key}
-                  className={cn(
-                    "flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-[length:var(--text-small)]",
-                    on
-                      ? "border-[var(--color-primary)] bg-[var(--color-primary-subtle)] text-[var(--color-primary-text-on-subtle)]"
-                      : "border-[var(--color-border-subtle)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]",
-                  )}
-                >
-                  <input
-                    type="checkbox"
-                    checked={on}
-                    onChange={(e) =>
-                      onChange({
-                        ...social,
-                        composer: {
-                          ...social.composer,
-                          slots: COMPOSER_ICONS.filter((x) => (x.key === ic.key ? e.target.checked : social.composer.slots.includes(x.key))).map((x) => x.key),
-                        },
-                      })
-                    }
-                    className="sr-only"
-                  />
-                  <span aria-hidden>{ic.glyph}</span>
-                  {ic.label}
-                </label>
-              );
-            })}
-          </div>
           {selected ? (
             (() => {
               const ea = selectedCfg?.emotionAnalysis as { enabled?: boolean } | undefined;

@@ -225,26 +225,13 @@ export function ReactionPicker({
  * platform), and the typed/posted text rides the screen form via a hidden
  * `${np}comment` input so the take action captures it unchanged. Scoped client.
  */
-/** The composer affordance icons (Emoji / Photo / GIF / Sticker, ADR-0085).
- *  `insert` is appended to the comment when the chip is clicked so each one
- *  actually does something (owner: "for what is it if I cannot click it"). */
-const COMPOSER_SLOT_META: Record<string, { glyph: string; label: string; insert: string }> = {
-  emoji: { glyph: "🙂", label: "Emoji", insert: "🙂" },
-  photo: { glyph: "📷", label: "Photo", insert: "📷" },
-  gif: { glyph: "GIF", label: "GIF", insert: "🎞️" },
-  sticker: { glyph: "🩷", label: "Sticker", insert: "🩷" },
-};
-
 export function CommentComposer({
   np,
   placeholder,
-  slots = [],
   authorName = "You",
 }: {
   np: string;
   placeholder: string;
-  /** Composer affordance icons the researcher enabled (decorative). */
-  slots?: ("emoji" | "photo" | "gif" | "sticker")[];
   authorName?: string;
 }) {
   const [value, setValue] = useState("");
@@ -275,22 +262,6 @@ export function CommentComposer({
         }}
         className="rounded-full border border-[#E4E6EB] bg-[#F0F2F5] px-3 py-1.5 text-[13px] text-[#050505] outline-none"
       />
-      {slots.length ? (
-        <div className="flex flex-wrap items-center gap-1 px-1 text-[#65676B]">
-          {slots.map((s) => (
-            <button
-              key={s}
-              type="button"
-              title={`${COMPOSER_SLOT_META[s].label} — add to your comment`}
-              onClick={() => setValue((v) => v + COMPOSER_SLOT_META[s].insert)}
-              className="inline-flex cursor-pointer items-center gap-1 rounded-full px-2 py-0.5 text-[13px] hover:bg-[#F0F2F5]"
-            >
-              <span aria-hidden>{COMPOSER_SLOT_META[s].glyph}</span>
-              <span className="text-[12px]">{COMPOSER_SLOT_META[s].label}</span>
-            </button>
-          ))}
-        </div>
-      ) : null}
       {added.map((c, i) => (
         <div key={i} className="flex gap-2">
           <span aria-hidden className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[#0866FF] text-[11px] font-bold text-white">
@@ -384,7 +355,7 @@ export function EngagementSummary({
   const showComments = comments > 0 && allowComments;
   if (!likes && !showComments && !shownShares) return null;
   return (
-    <span className="text-[14px] text-[#65676B]">
+    <span className="text-[16px] text-[#65676B]">
       {likes ? `${emojis} ${fmt(likes)}` : ""}
       {showComments ? `${likes ? " · " : ""}${fmt(comments)} comments` : ""}
       {shownShares ? `${likes || showComments ? " · " : ""}${fmt(shownShares)} shares` : ""}
