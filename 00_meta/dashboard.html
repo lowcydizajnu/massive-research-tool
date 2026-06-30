@@ -1214,7 +1214,15 @@
   ],
   "recentActivity": [
     {
-      "text": "Owner corrections to T5 + T6 (committed, unpushed; no migration). T5: force-watch now RECORDS the watch — the video block collects {watched, watchedMs} (plain video = exposure row) so the researcher can see who watched, surfaced in Results/Export; a new module-def conditionSource flag (defaults to collectsResponse) keeps video out of the condition builder since watch data isn't a branch input. T6 (real cause): the A/B STARTER I seeded had 1-member screen-groups (stimulus-a / stimulus-b) which auto-dissolve and can't be recreated via undo — that was the actual bug. Removed those groups (single condition-gated blocks are already their own screen) + added a defensive sub-2-group dissolve in seedStarter. 895 tests; tsc/lint/build clean. WARNING: run db:seed:prod after deploy to refresh the live A/B starter.",
+      "text": "Owner corrections round 5c (committed, unpushed; no migration). PERF (owner's #1): study stages are force-dynamic with no Suspense fallback, so a tab click froze the old page for seconds and provoked repeat-clicks — added loading.tsx so every stage nav shows an instant skeleton. PREVIEW CLOSE: the top-nav Preview tab now carries ?from=<stage> and close returns there (not Builder by default), from any stage incl. Design. COMPOSER CHIPS: Emoji/Photo/GIF/Sticker now render in the Design preview (composer no longer requires interactive) and each is a real button that inserts its glyph into the comment instead of being dead chrome. 895 tests; tsc/lint/build clean.",
+      "date": "2026-06-30"
+    },
+    {
+      "text": "Owner corrections to T5 + T6 (DEPLOYED 08d54e5 + re-seeded).",
+      "date": "2026-06-30"
+    },
+    {
+      "text": "Owner corrections to T5 + T6 (detail). T5: force-watch now RECORDS the watch — the video block collects {watched, watchedMs} (plain video = exposure row) so the researcher can see who watched, surfaced in Results/Export; a new module-def conditionSource flag (defaults to collectsResponse) keeps video out of the condition builder since watch data isn't a branch input. T6 (real cause): the A/B STARTER I seeded had 1-member screen-groups (stimulus-a / stimulus-b) which auto-dissolve and can't be recreated via undo — that was the actual bug. Removed those groups (single condition-gated blocks are already their own screen) + added a defensive sub-2-group dissolve in seedStarter. 895 tests; tsc/lint/build clean. WARNING: run db:seed:prod after deploy to refresh the live A/B starter.",
       "date": "2026-06-30"
     },
     {
