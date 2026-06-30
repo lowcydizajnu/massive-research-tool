@@ -225,13 +225,24 @@ export function ReactionPicker({
  * platform), and the typed/posted text rides the screen form via a hidden
  * `${np}comment` input so the take action captures it unchanged. Scoped client.
  */
+/** The composer affordance icons (Emoji / Photo / GIF / Sticker, ADR-0085). */
+const COMPOSER_SLOT_META: Record<string, { glyph: string; label: string }> = {
+  emoji: { glyph: "🙂", label: "Emoji" },
+  photo: { glyph: "📷", label: "Photo" },
+  gif: { glyph: "GIF", label: "GIF" },
+  sticker: { glyph: "🩷", label: "Sticker" },
+};
+
 export function CommentComposer({
   np,
   placeholder,
+  slots = [],
   authorName = "You",
 }: {
   np: string;
   placeholder: string;
+  /** Composer affordance icons the researcher enabled (decorative). */
+  slots?: ("emoji" | "photo" | "gif" | "sticker")[];
   authorName?: string;
 }) {
   const [value, setValue] = useState("");
@@ -248,17 +259,7 @@ export function CommentComposer({
   return (
     <div className="flex flex-col gap-2">
       <input type="hidden" name={`${np}comment`} value={captured} />
-      {added.map((c, i) => (
-        <div key={i} className="flex gap-2">
-          <span aria-hidden className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[#0866FF] text-[11px] font-bold text-white">
-            {authorName.charAt(0).toUpperCase()}
-          </span>
-          <div className="w-fit rounded-2xl bg-[#F0F2F5] px-3 py-1.5">
-            <div className="text-[13px] font-semibold text-[#050505]">{authorName}</div>
-            <p className="text-[13px] text-[#050505]">{c}</p>
-          </div>
-        </div>
-      ))}
+      {/* Input stays on top; posted comments appear BELOW it (owner request). */}
       <input
         type="text"
         value={value}
@@ -272,6 +273,113 @@ export function CommentComposer({
         }}
         className="rounded-full border border-[#E4E6EB] bg-[#F0F2F5] px-3 py-1.5 text-[13px] text-[#050505] outline-none"
       />
+      {slots.length ? (
+        <div aria-hidden className="flex flex-wrap items-center gap-3 px-2 text-[16px] text-[#65676B]">
+          {slots.map((s) => (
+            <span key={s} title={COMPOSER_SLOT_META[s].label} className="inline-flex items-center gap-1">
+              <span>{COMPOSER_SLOT_META[s].glyph}</span>
+              <span className="text-[12px]">{COMPOSER_SLOT_META[s].label}</span>
+            </span>
+          ))}
+        </div>
+      ) : null}
+      {added.map((c, i) => (
+        <div key={i} className="flex gap-2">
+          <span aria-hidden className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[#0866FF] text-[11px] font-bold text-white">
+            {authorName.charAt(0).toUpperCase()}
+          </span>
+          <div className="w-fit rounded-2xl bg-[#F0F2F5] px-3 py-1.5">
+            <div className="text-[13px] font-semibold text-[#050505]">{authorName}</div>
+            <p className="text-[13px] text-[#050505]">{c}</p>
+          </div>
+        </div>
+      ))}
     </div>
+  );
+}
+
+/**
+ * Participant reply to a seeded comment (ADR-0085 amendment): "Reply" reveals an
+ * inline input; on Enter the reply appears as a nested bubble and is captured via
+ * a hidden `${np}reply` input (the take action collects all of them). Scoped client.
+ */
+export function CommentReply({ np, label = "Reply", authorName = "You" }: { np: string; label?: string; authorName?: string }) {
+  const [open, setOpen] = useState(false);
+  const [value, setValue] = useState("");
+  const [added, setAdded] = useState<string[]>([]);
+  const commit = () => {
+    const t = value.trim();
+    if (!t) return;
+    setAdded((a) => [...a, t]);
+    setValue("");
+    setOpen(false);
+  };
+  return (
+    <div className="flex flex-col gap-1">
+      {added.map((c, i) => (
+        <input key={`h${i}`} type="hidden" name={`${np}reply`} value={c} />
+      ))}
+      <button type="button" onClick={() => setOpen((v) => !v)} className="w-fit cursor-pointer text-[11px] font-semibold text-[#65676B]">
+        {label}
+      </button>
+      {open ? (
+        <input
+          autoFocus
+          type="text"
+          value={value}
+          placeholder="Write a reply…"
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              commit();
+            }
+          }}
+          className="ml-8 rounded-full border border-[#E4E6EB] bg-[#F0F2F5] px-3 py-1 text-[13px] text-[#050505] outline-none"
+        />
+      ) : null}
+      {added.map((c, i) => (
+        <div key={i} className="ml-8 flex gap-2">
+          <span aria-hidden className="flex size-6 shrink-0 items-center justify-center rounded-full bg-[#0866FF] text-[10px] font-bold text-white">
+            {authorName.charAt(0).toUpperCase()}
+          </span>
+          <div className="w-fit rounded-2xl bg-[#F0F2F5] px-3 py-1">
+            <div className="text-[12px] font-semibold text-[#050505]">{authorName}</div>
+            <p className="text-[12px] text-[#050505]">{c}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Post engagement summary (likes · comments · shares). The shares count reflects
+ * the live Share toggle (ReactionGroup context) so it bumps with the action bar
+ * (owner: "share label adapts but the summary doesn't"). Scoped client.
+ */
+export function EngagementSummary({
+  emojis,
+  likes,
+  comments,
+  shares,
+  allowComments,
+}: {
+  emojis: string;
+  likes: number;
+  comments: number;
+  shares: number;
+  allowComments: boolean;
+}) {
+  const ctx = useContext(Ctx);
+  const shownShares = shares + (ctx.shared ? 1 : 0);
+  const showComments = comments > 0 && allowComments;
+  if (!likes && !showComments && !shownShares) return null;
+  return (
+    <span className="text-[12px] text-[#65676B]">
+      {likes ? `${emojis} ${fmt(likes)}` : ""}
+      {showComments ? `${likes ? " · " : ""}${fmt(comments)} comments` : ""}
+      {shownShares ? `${likes || showComments ? " · " : ""}${fmt(shownShares)} shares` : ""}
+    </span>
   );
 }

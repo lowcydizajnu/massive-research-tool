@@ -210,22 +210,18 @@ export function SocialPostAppearanceEditor({
 
         {selected ? (
           <fieldset className="flex flex-col gap-2">
-            <legend className={LEGEND_CLS}>This post — branding</legend>
-            <div role="radiogroup" aria-label="This post branding" className="flex flex-col gap-1">
-              {(
-                [
-                  ["", "Inherit study default"],
-                  ["block", TIER_LABELS.block.label],
-                  ["layout", TIER_LABELS.layout.label],
-                  ["branded", TIER_LABELS.branded.label],
-                ] as const
-              ).map(([val, label]) => (
-                <label key={val} className="flex items-center gap-2 text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
-                  <input type="radio" name="postTier" checked={cfgStr("brandingTier") === val} onChange={() => setBlockTier(val)} className="size-4 accent-[var(--color-primary)]" />
-                  {label}
-                </label>
-              ))}
-            </div>
+            <legend className={LEGEND_CLS}>Branding · this post</legend>
+            <label className="flex flex-col gap-1">
+              <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                Most posts use the study default (set below). Override only this post if you need to.
+              </span>
+              <select value={cfgStr("brandingTier")} onChange={(e) => setBlockTier(e.target.value)} className={FIELD_CLS}>
+                <option value="">Inherit study default — {TIER_LABELS[social.brandingTierDefault].label}</option>
+                <option value="block">{TIER_LABELS.block.label}</option>
+                <option value="layout">{TIER_LABELS.layout.label}</option>
+                <option value="branded">{TIER_LABELS.branded.label}</option>
+              </select>
+            </label>
             {effectiveBrandingTier({ brandingTier: cfgStr("brandingTier") }, social) === "branded" ? (
               <div className="flex flex-col gap-1">
                 <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">Brand logo (this post)</span>
@@ -244,7 +240,7 @@ export function SocialPostAppearanceEditor({
         ) : null}
 
         <fieldset className="flex flex-col gap-2">
-          <legend className={LEGEND_CLS}>Branding (study default)</legend>
+          <legend className={LEGEND_CLS}>Branding · study default (all posts)</legend>
           <div role="radiogroup" aria-label="Branding tier" className="flex flex-col gap-1.5">
             {BRANDING_TIERS.map((t) => {
               const active = social.brandingTierDefault === t;
@@ -274,7 +270,7 @@ export function SocialPostAppearanceEditor({
             })}
           </div>
           <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-            A block can override this in its Configure panel; the logo is uploaded per post there.
+            Applies to every post unless a post overrides it above (Branding · this post).
           </p>
           {social.brandingTierDefault === "branded" ? (
             <div className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] p-3">

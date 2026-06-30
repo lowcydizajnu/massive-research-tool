@@ -133,11 +133,15 @@ function extractAnswer(moduleKey: string, prefix: string, fd: FormData): unknown
     // The seven-reaction picker (ADR-0085) posts the chosen key as `reactionKey`.
     const rk = g("reactionKey");
     const reaction = typeof rk === "string" && (REACTION_KEYS as readonly string[]).includes(rk) ? rk : null;
+    // Participant replies to seeded comments (ADR-0085 amendment): each reply posts
+    // its own `${prefix}reply` hidden input; collect them all.
+    const replies = fd.getAll(`${prefix}reply`).map((v) => String(v).trim()).filter(Boolean);
     return {
       liked: g("liked") != null || single === "liked" || reaction != null,
       shared: g("shared") != null || single === "shared",
       ...(reaction ? { reaction } : {}),
       ...(comment ? { comment } : {}),
+      ...(replies.length ? { replies } : {}),
     };
   }
   if (moduleKey === "file-upload") {

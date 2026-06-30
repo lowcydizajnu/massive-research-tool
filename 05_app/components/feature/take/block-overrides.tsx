@@ -6,7 +6,7 @@
  * the default BlockView renderer under their token overrides.
  */
 
-import { CommentComposer, CommentLikeButton, ReactionButton, ReactionGroup, ReactionPicker } from "@/components/feature/take/reaction-toggles";
+import { CommentComposer, CommentLikeButton, CommentReply, EngagementSummary, ReactionButton, ReactionGroup, ReactionPicker } from "@/components/feature/take/reaction-toggles";
 import type { BlockCopyKey } from "@/lib/take/ui-copy";
 import { effectiveBrandingTier, type CustomSlot, type ReactionKey, type SocialPostDesign } from "@/lib/themes/themes";
 
@@ -74,7 +74,7 @@ type CommentLike = {
 };
 
 /** A static seeded comment under a Facebook post (display-only). */
-function SeededCommentView({ c, reply = false }: { c: CommentLike; reply?: boolean }) {
+function SeededCommentView({ c, np, interactive = false, reply = false }: { c: CommentLike; np?: string; interactive?: boolean; reply?: boolean }) {
   const reactionGlyphs = c.reactions && c.reactions.length ? c.reactions.map((k) => REACTION_EMOJI[k]).join("") : "👍";
   return (
     <div className={`flex gap-2 ${reply ? "ml-8" : ""}`}>
@@ -97,10 +97,13 @@ function SeededCommentView({ c, reply = false }: { c: CommentLike; reply?: boole
         </div>
         <div className="flex items-center gap-3 px-3 pt-0.5 text-[11px] text-[#65676B]">
           <CommentLikeButton />
-          <span>Reply</span>
+          {/* Participant reply: live affordance only when interactive (take/preview);
+              the editor preview keeps it as a static label. */}
+          {!reply && interactive && np ? null : <span>Reply</span>}
           {c.timeLabel ? <span>{c.timeLabel}</span> : null}
           {c.reactionCount ? <span>{reactionGlyphs} {fmt(c.reactionCount)}</span> : null}
         </div>
+        {!reply && interactive && np ? <CommentReply np={np} /> : null}
         {!reply && c.replies && c.replies.length ? (
           <div className="flex flex-col gap-2 pt-1">
             {c.replies.map((rp) => (
@@ -209,12 +212,8 @@ function FacebookSocialPost({ config, np = "", interactive = true, blockCopy: bc
           <SlotView s={s} />
         </div>
       ))}
-      {showSummary && (e.likes || e.comments || e.shares) ? (
-        <span className="text-[12px] text-[#65676B]">
-          {e.likes ? `${summaryEmojis} ${fmt(e.likes)}` : ""}
-          {e.comments && e.allowComments ? ` · ${fmt(e.comments)} comments` : ""}
-          {e.shares ? ` · ${fmt(e.shares)} shares` : ""}
-        </span>
+      {showSummary ? (
+        <EngagementSummary emojis={summaryEmojis} likes={e.likes ?? 0} comments={e.comments ?? 0} shares={e.shares ?? 0} allowComments={e.allowComments} />
       ) : null}
       <div className="flex items-center justify-between border-t border-[#E4E6EB] pt-1 text-[13px] text-[#65676B]">
         {showReact ? (
@@ -230,7 +229,7 @@ function FacebookSocialPost({ config, np = "", interactive = true, blockCopy: bc
           <SlotView key={s.id} s={s} />
         ))}
       </div>
-      {showComposer ? <CommentComposer np={np} placeholder={composerPlaceholder} /> : null}
+      {showComposer ? <CommentComposer np={np} placeholder={composerPlaceholder} slots={r?.composer.slots ?? []} /> : null}
       {slotIn("pinned-comment").map((s) => (
         <div key={s.id} className="rounded-[8px] bg-[#F7F8FA] p-2">
           <SlotView s={s} />
@@ -239,7 +238,7 @@ function FacebookSocialPost({ config, np = "", interactive = true, blockCopy: bc
       {seeded.length ? (
         <div className="flex flex-col gap-2 pt-1">
           {seeded.map((cm) => (
-            <SeededCommentView key={cm.id} c={cm} />
+            <SeededCommentView key={cm.id} c={cm} np={np} interactive={interactive} />
           ))}
           {r?.comments.enabled ? (
             <span className="text-[13px] font-semibold text-[#65676B]">
