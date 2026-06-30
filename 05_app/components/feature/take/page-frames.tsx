@@ -8,7 +8,18 @@
 
 const BAR = "flex w-full items-center gap-3 px-4 py-2 select-none";
 
-function FacebookFrame() {
+function FacebookFrame({ branded = true }: { branded?: boolean } = {}) {
+  // Inspired/"layout" tier (ADR-0084): a generic social masthead — NO trademarked
+  // wordmark or blue "f" logo. Only the fully-branded tier shows the real chrome.
+  if (!branded) {
+    return (
+      <div className={`${BAR} bg-white shadow-sm`}>
+        <span className="flex size-10 items-center justify-center rounded-full bg-[#65676B] text-[18px] text-white">◎</span>
+        <span className="flex h-9 flex-1 max-w-[240px] items-center rounded-full bg-[#F0F2F5] px-3 text-[14px] text-[#65676B]">🔍 Search</span>
+        <span className="ml-auto flex gap-2 text-[18px]">🏠 ▶️ 🛍️ 👥</span>
+      </div>
+    );
+  }
   return (
     <div className={`${BAR} bg-white shadow-sm`}>
       <span className="flex size-10 items-center justify-center rounded-full bg-[#0866FF] text-[22px] font-bold text-white">f</span>
@@ -159,8 +170,16 @@ const FRAMES: Record<string, () => React.ReactNode> = {
   imessage: chatFrame("Study Contact", "bg-[#F6F6F6] border-b border-[#D1D1D6]", "text-black"),
 };
 
-/** The decorative page frame for a preset, or null (baselines / plain custom). */
-export function getPageFrame(presetKey: string | undefined): (() => React.ReactNode) | null {
+/** The decorative page frame for a preset, or null (baselines / plain custom).
+ *  `branded` (default true) lets the Facebook frame drop the trademarked logo +
+ *  wordmark when the study's branding tier is only "layout"/inspired (ADR-0084). */
+export function getPageFrame(
+  presetKey: string | undefined,
+  opts?: { branded?: boolean },
+): (() => React.ReactNode) | null {
   if (!presetKey) return null;
-  return FRAMES[presetKey] ?? null;
+  const Frame = FRAMES[presetKey];
+  if (!Frame) return null;
+  if (presetKey === "facebook") return () => FacebookFrame({ branded: opts?.branded ?? true });
+  return Frame;
 }

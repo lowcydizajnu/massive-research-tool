@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 
 import { db } from "@/server/db/client";
 import { experiment, experimentVersion } from "@/server/db/schema";
-import { WIDTHS, effectivePresetKey, readTheme, showsPlatformChrome, themeToCssVars } from "@/lib/themes/themes";
+import { WIDTHS, effectivePresetKey, readTheme, resolveSocialPost, showsPlatformChrome, themeToCssVars } from "@/lib/themes/themes";
 import { getPageFrame } from "@/components/feature/take/page-frames";
 
 /**
@@ -36,8 +36,12 @@ export default async function ThemedTakeLayout({
   const theme = readTheme(snapshot ?? {});
   const vars = themeToCssVars(theme) as CSSProperties;
   // Page-level platform chrome (ADR-0024, Wave 5c): decorative + inert. The
-  // social branding tier (ADR-0084) suppresses it when set to "block".
-  const Frame = showsPlatformChrome(theme) ? getPageFrame(effectivePresetKey(theme)) : null;
+  // social branding tier (ADR-0084) suppresses it when set to "block", and the
+  // Facebook frame drops its trademarked logo/wordmark unless the study default
+  // tier is fully "branded" (so an "inspired"/layout study stays generic).
+  const Frame = showsPlatformChrome(theme)
+    ? getPageFrame(effectivePresetKey(theme), { branded: resolveSocialPost(theme).brandingTierDefault === "branded" })
+    : null;
 
   return (
     <div

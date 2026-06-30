@@ -97,7 +97,10 @@ describe("effectivePresetKey (custom keeps the base preset's behaviour)", () => 
 });
 
 
-import { VISUAL_CONTEXT_SECTION_ID, applyVisualContext } from "@/lib/themes/themes";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+
+import { VISUAL_CONTEXT_SECTION_ID, applyVisualContext, resolveSocialPost } from "@/lib/themes/themes";
 import { getPageFrame } from "@/components/feature/take/page-frames";
 
 describe("Wave 5c — overview auto-injection + page frames", () => {
@@ -126,5 +129,22 @@ describe("Wave 5c — overview auto-injection + page frames", () => {
     for (const k of ["academic", "clinical", "modern", "playful", "custom", undefined]) {
       expect(getPageFrame(k as string | undefined)).toBeNull();
     }
+  });
+
+  it("the Facebook frame drops the trademarked logo + wordmark unless branded (ADR-0084)", () => {
+    const branded = renderToStaticMarkup(createElement(getPageFrame("facebook", { branded: true })!));
+    expect(branded).toContain("Search Facebook");
+    const inspired = renderToStaticMarkup(createElement(getPageFrame("facebook", { branded: false })!));
+    expect(inspired).not.toContain("Facebook");
+    expect(inspired).toContain("Search");
+  });
+});
+
+describe("social-post design defaults (ADR-0085)", () => {
+  it("resolveSocialPost fills summaryReactions independently of reactionsEnabled", () => {
+    const s = resolveSocialPost({ socialPost: { reactionsEnabled: ["like"] } });
+    expect(s.reactionsEnabled).toEqual(["like"]);
+    // The summary set is its own field — not derived from what's enabled.
+    expect(s.summaryReactions).toEqual(["like", "love", "haha"]);
   });
 });

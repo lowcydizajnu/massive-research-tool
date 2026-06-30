@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 import { type ReactionKey } from "@/lib/themes/themes";
@@ -128,12 +128,13 @@ export function CommentLikeButton({ baseCount = 0, label = "Like" }: { baseCount
 }
 
 /**
- * The seven-reaction picker (ADR-0085). Self-contained scoped client (an
- * ADR-0013 exception, like ReactionButton): single-select among the enabled
- * reactions, click again to deselect, posting the chosen key via a hidden
- * `${np}reactionKey` input with the screen's form. `live=false` renders the
- * reactions inert (display-only — nothing posts). Accessible: a radiogroup of
- * labelled buttons (no hover-reveal dependency).
+ * The Facebook-style reaction control (ADR-0085, amendment). Authentic FB
+ * behavior: a single Like trigger (clicking it quick-likes / un-likes), and the
+ * full reaction tray reveals on hover/focus — you don't see all seven at once.
+ * Picking a reaction from the tray selects it and collapses; the trigger then
+ * shows the chosen reaction in the platform accent. The choice posts via a hidden
+ * `${np}reactionKey` input with the screen's form. `live=false` renders inert
+ * (display-only). Scoped client (an ADR-0013 exception, like ReactionButton).
  */
 export function ReactionPicker({
   np,
@@ -147,41 +148,130 @@ export function ReactionPicker({
   label: string;
 }) {
   const [chosen, setChosen] = useState<ReactionKey | null>(null);
+  const [open, setOpen] = useState(false);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   if (reactions.length === 0) return <span className="text-[13px] text-[#65676B]">{label}</span>;
   if (!live) {
+    // Display-only: show the Like affordance inert (no tray, nothing posts).
     return (
       <span className="flex items-center gap-1 text-[13px] text-[#65676B]">
-        {reactions.map((r) => (
-          <span key={r} aria-hidden>
-            {REACTION_META[r].emoji}
-          </span>
-        ))}
+        <span aria-hidden>👍</span>
         <span>{label}</span>
       </span>
     );
   }
+
+  // The trigger's quick-like uses Like when enabled, else the first enabled reaction.
+  const primary: ReactionKey = reactions.includes("like") ? "like" : reactions[0];
+  const openNow = () => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+    setOpen(true);
+  };
+  const closeSoon = () => {
+    closeTimer.current = setTimeout(() => setOpen(false), 180);
+  };
+  const triggerEmoji = chosen ? REACTION_META[chosen].emoji : REACTION_META[primary].emoji;
+  const triggerLabel = chosen ? REACTION_META[chosen].label : label;
+
   return (
-    <span role="radiogroup" aria-label={label} className="flex flex-wrap items-center gap-0.5">
+    <span className="relative inline-flex" onMouseEnter={openNow} onMouseLeave={closeSoon}>
       {chosen ? <input type="hidden" name={`${np}reactionKey`} value={chosen} /> : null}
-      {reactions.map((r) => {
-        const active = chosen === r;
-        return (
-          <button
-            key={r}
-            type="button"
-            role="radio"
-            aria-checked={active}
-            aria-label={REACTION_META[r].label}
-            onClick={() => setChosen(active ? null : r)}
-            className={cn(
-              "cursor-pointer rounded-full px-2 py-0.5 text-[13px]",
-              active ? "bg-[#E7F3FF] font-bold text-[#0866FF]" : "text-[#65676B] hover:bg-[#F0F2F5]",
-            )}
-          >
-            <span aria-hidden>{REACTION_META[r].emoji}</span> {REACTION_META[r].label}
-          </button>
-        );
-      })}
+      {open && reactions.length > 1 ? (
+        <span
+          role="radiogroup"
+          aria-label={label}
+          className="absolute bottom-full left-0 z-10 mb-1 flex items-center gap-0.5 rounded-full border border-[#E4E6EB] bg-white px-1.5 py-1 shadow-md"
+        >
+          {reactions.map((r) => (
+            <button
+              key={r}
+              type="button"
+              role="radio"
+              aria-checked={chosen === r}
+              aria-label={REACTION_META[r].label}
+              onFocus={openNow}
+              onBlur={closeSoon}
+              onClick={() => {
+                setChosen(r);
+                setOpen(false);
+              }}
+              className="rounded-full px-1 text-[20px] leading-none transition-transform hover:scale-125 focus:scale-125 focus:outline-none"
+            >
+              <span aria-hidden>{REACTION_META[r].emoji}</span>
+            </button>
+          ))}
+        </span>
+      ) : null}
+      <button
+        type="button"
+        aria-haspopup="true"
+        aria-expanded={open}
+        aria-pressed={chosen != null}
+        onFocus={openNow}
+        onBlur={closeSoon}
+        onClick={() => setChosen((c) => (c ? null : primary))}
+        className={cn("cursor-pointer", chosen ? "font-bold text-[#0866FF]" : "")}
+      >
+        <span aria-hidden>{triggerEmoji}</span> {triggerLabel}
+      </button>
     </span>
+  );
+}
+
+/**
+ * Participant comment composer (ADR-0085, amendment): type a comment and press
+ * Enter to post it — it appears as a bubble above the field (mirroring the
+ * platform), and the typed/posted text rides the screen form via a hidden
+ * `${np}comment` input so the take action captures it unchanged. Scoped client.
+ */
+export function CommentComposer({
+  np,
+  placeholder,
+  authorName = "You",
+}: {
+  np: string;
+  placeholder: string;
+  authorName?: string;
+}) {
+  const [value, setValue] = useState("");
+  const [added, setAdded] = useState<string[]>([]);
+  const commit = () => {
+    const t = value.trim();
+    if (!t) return;
+    setAdded((a) => [...a, t]);
+    setValue("");
+  };
+  // Capture posted comments AND any in-progress draft, so a participant who types
+  // but doesn't press Enter before advancing still has their comment recorded.
+  const captured = [...added, value.trim()].filter(Boolean).join("\n");
+  return (
+    <div className="flex flex-col gap-2">
+      <input type="hidden" name={`${np}comment`} value={captured} />
+      {added.map((c, i) => (
+        <div key={i} className="flex gap-2">
+          <span aria-hidden className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[#0866FF] text-[11px] font-bold text-white">
+            {authorName.charAt(0).toUpperCase()}
+          </span>
+          <div className="w-fit rounded-2xl bg-[#F0F2F5] px-3 py-1.5">
+            <div className="text-[13px] font-semibold text-[#050505]">{authorName}</div>
+            <p className="text-[13px] text-[#050505]">{c}</p>
+          </div>
+        </div>
+      ))}
+      <input
+        type="text"
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            commit();
+          }
+        }}
+        className="rounded-full border border-[#E4E6EB] bg-[#F0F2F5] px-3 py-1.5 text-[13px] text-[#050505] outline-none"
+      />
+    </div>
   );
 }

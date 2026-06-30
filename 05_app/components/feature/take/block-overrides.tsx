@@ -6,7 +6,7 @@
  * the default BlockView renderer under their token overrides.
  */
 
-import { CommentLikeButton, ReactionButton, ReactionGroup, ReactionPicker } from "@/components/feature/take/reaction-toggles";
+import { CommentComposer, CommentLikeButton, ReactionButton, ReactionGroup, ReactionPicker } from "@/components/feature/take/reaction-toggles";
 import type { BlockCopyKey } from "@/lib/take/ui-copy";
 import { effectiveBrandingTier, type CustomSlot, type ReactionKey, type SocialPostDesign } from "@/lib/themes/themes";
 
@@ -158,7 +158,13 @@ function FacebookSocialPost({ config, np = "", interactive = true, blockCopy: bc
   const usePicker = !!r && r.reactionsEnabled.length > 0;
   const showComposer = showComment && interactive && (!r || r.composer.enabled);
   const composerPlaceholder = (r?.composer.placeholder || "").trim() || lab(bc, "postCommentPlaceholder", "Write a comment…");
-  const summaryEmojis = usePicker ? r!.reactionsEnabled.map((k) => REACTION_EMOJI[k]).join("") : "👍";
+  // The reaction SUMMARY (faces the post appears to have received) is its own set,
+  // deliberately separate from what a participant can pick (ADR-0085 amendment).
+  const summaryEmojis = r && r.summaryReactions.length ? r.summaryReactions.map((k) => REACTION_EMOJI[k]).join("") : "👍";
+  const handle = e.handle.replace(/^@/, "").trim();
+  const subline = [handle ? `@${handle}` : null, branded ? "Suggested for you" : null, e.time, branded ? "🌐" : null]
+    .filter(Boolean)
+    .join(" · ");
   // Custom slots (ADR-0085): study-level defaults + per-block, rendered by region.
   const slots: CustomSlot[] = [
     ...(r?.slots ?? []),
@@ -180,7 +186,7 @@ function FacebookSocialPost({ config, np = "", interactive = true, blockCopy: bc
         )}
         <span className="flex flex-col leading-tight">
           <span className="text-[15px] font-semibold">{source}</span>
-          <span className="text-[12px] text-[#65676B]">{branded ? `Suggested for you · ${e.time} · 🌐` : e.time}</span>
+          <span className="text-[12px] text-[#65676B]">{subline}</span>
         </span>
         {brandLogo ? (
           // eslint-disable-next-line @next/next/no-img-element -- researcher-supplied brand logo (fully-branded tier only)
@@ -224,14 +230,7 @@ function FacebookSocialPost({ config, np = "", interactive = true, blockCopy: bc
           <SlotView key={s.id} s={s} />
         ))}
       </div>
-      {showComposer ? (
-        <input
-          type="text"
-          name={`${np}comment`}
-          placeholder={composerPlaceholder}
-          className="rounded-full border border-[#E4E6EB] bg-[#F0F2F5] px-3 py-1.5 text-[13px] text-[#050505] outline-none"
-        />
-      ) : null}
+      {showComposer ? <CommentComposer np={np} placeholder={composerPlaceholder} /> : null}
       {slotIn("pinned-comment").map((s) => (
         <div key={s.id} className="rounded-[8px] bg-[#F7F8FA] p-2">
           <SlotView s={s} />

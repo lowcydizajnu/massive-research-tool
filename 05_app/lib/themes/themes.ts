@@ -145,6 +145,11 @@ export const socialPostSchema = z.object({
   reactionsEnabled: z.array(reactionKey).default(["like"]),
   reactionsLive: z.boolean().default(true),
   showReactionSummary: z.boolean().default(true),
+  // The reaction faces shown in the post's engagement SUMMARY (what the post
+  // appears to have received) — deliberately separate from `reactionsEnabled`
+  // (what a participant can pick). On Facebook the summary shows the top few
+  // received reactions, not the full picker (ADR-0085 amendment).
+  summaryReactions: z.array(reactionKey).default(["like", "love", "haha"]),
   actionBar: z
     .object({ react: z.boolean(), comment: z.boolean(), share: z.boolean() })
     .default({ react: true, comment: true, share: true }),
