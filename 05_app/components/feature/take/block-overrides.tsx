@@ -8,7 +8,7 @@
 
 import { CommentLikeButton, ReactionButton, ReactionGroup, ReactionPicker } from "@/components/feature/take/reaction-toggles";
 import type { BlockCopyKey } from "@/lib/take/ui-copy";
-import type { CustomSlot, ReactionKey, SocialPostDesign } from "@/lib/themes/themes";
+import { effectiveBrandingTier, type CustomSlot, type ReactionKey, type SocialPostDesign } from "@/lib/themes/themes";
 
 /** A researcher-defined custom slot (ADR-0085) rendered in the post (display-only). */
 function SlotView({ s }: { s: CustomSlot }) {
@@ -139,6 +139,16 @@ function FacebookSocialPost({ config, np = "", interactive = true, blockCopy: bc
   const headline = str(config.headline);
   const body = str(config.body);
   const e = engagement(config);
+  // Branding tier (ADR-0084): "branded" carries the researcher's uploaded logo
+  // + the platform's true blue chrome + its native "Suggested for you" cue;
+  // "layout" (inspired) keeps the SAME structure but a neutral grey accent, no
+  // logo, and no platform-specific phrasing — so the two tiers read distinctly
+  // (owner: "layout looked identical to fully-branded"). "block" never reaches
+  // this override (block-view suppresses it).
+  const branded = effectiveBrandingTier(config, r) === "branded";
+  const brandLogo = branded ? str(config.brandLogoKey).trim() : "";
+  const accentBg = branded ? "#0866FF" : "#65676B";
+  const accentText = branded ? "text-[#0866FF]" : "text-[#65676B]";
   // Social design (ADR-0085) gates the action bar / reactions / composer when
   // configured; undefined keeps the legacy Like/Share behavior (back-compat).
   const showSummary = !r || r.showReactionSummary;
@@ -164,14 +174,18 @@ function FacebookSocialPost({ config, np = "", interactive = true, blockCopy: bc
           // eslint-disable-next-line @next/next/no-img-element -- researcher-supplied URL
           <img src={str(config.authorAvatarKey)} alt="" className="size-10 rounded-full object-cover" />
         ) : (
-          <span aria-hidden className="flex size-10 items-center justify-center rounded-full bg-[#0866FF] font-bold text-white">
+          <span aria-hidden style={{ backgroundColor: accentBg }} className="flex size-10 items-center justify-center rounded-full font-bold text-white">
             {source.charAt(0).toUpperCase()}
           </span>
         )}
         <span className="flex flex-col leading-tight">
           <span className="text-[15px] font-semibold">{source}</span>
-          <span className="text-[12px] text-[#65676B]">Suggested for you · {e.time} · 🌐</span>
+          <span className="text-[12px] text-[#65676B]">{branded ? `Suggested for you · ${e.time} · 🌐` : e.time}</span>
         </span>
+        {brandLogo ? (
+          // eslint-disable-next-line @next/next/no-img-element -- researcher-supplied brand logo (fully-branded tier only)
+          <img src={brandLogo} alt="" className="ml-auto h-5 w-auto max-w-[96px] object-contain" />
+        ) : null}
         {slotIn("header-badge").map((s) => (
           <SlotView key={s.id} s={s} />
         ))}
@@ -201,11 +215,11 @@ function FacebookSocialPost({ config, np = "", interactive = true, blockCopy: bc
           usePicker ? (
             <ReactionPicker np={np} reactions={r!.reactionsEnabled} live={r!.reactionsLive && interactive} label={lab(bc, "postLike", "Like")} />
           ) : (
-            <ReactionButton kind="liked" label={`👍 ${lab(bc, "postLike", "Like")}`} count={e.likes} activeCls="text-[#0866FF]" />
+            <ReactionButton kind="liked" label={`👍 ${lab(bc, "postLike", "Like")}`} count={e.likes} activeCls={accentText} />
           )
         ) : null}
         {showComment ? <span>💬 {lab(bc, "postComment", "Comment")}{e.comments ? ` ${fmt(e.comments)}` : ""}</span> : null}
-        {showShare ? <ReactionButton kind="shared" label={`↪ ${lab(bc, "postShare", "Share")}`} count={e.shares} activeCls="text-[#0866FF]" /> : null}
+        {showShare ? <ReactionButton kind="shared" label={`↪ ${lab(bc, "postShare", "Share")}`} count={e.shares} activeCls={accentText} /> : null}
         {slotIn("action-bar").map((s) => (
           <SlotView key={s.id} s={s} />
         ))}
