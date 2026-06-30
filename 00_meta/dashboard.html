@@ -1214,7 +1214,15 @@
   ],
   "recentActivity": [
     {
-      "text": "Owner corrections round 5c (committed, unpushed; no migration). PERF (owner's #1): study stages are force-dynamic with no Suspense fallback, so a tab click froze the old page for seconds and provoked repeat-clicks — added loading.tsx so every stage nav shows an instant skeleton. PREVIEW CLOSE: the top-nav Preview tab now carries ?from=<stage> and close returns there (not Builder by default), from any stage incl. Design. COMPOSER CHIPS: Emoji/Photo/GIF/Sticker now render in the Design preview (composer no longer requires interactive) and each is a real button that inserts its glyph into the comment instead of being dead chrome. 895 tests; tsc/lint/build clean.",
+      "text": "Wider blocks + FB-scale social-post sizing (committed, unpushed; no migration). Content width bumped for ALL blocks (not just social): narrow 480->560, medium 640->720 (default), wide 800->960. The Design preview was hard-capped at 448px (max-w-md) — that's why it looked tiny — now ~600px. Social-post sized to a real Facebook post: action row 13->15px (medium weight, taller tap targets), engagement summary 12->14px, author subline 12->13px, hover reaction-tray emoji 20->28px. 895 tests; tsc/lint/build clean.",
+      "date": "2026-06-30"
+    },
+    {
+      "text": "Owner corrections round 5c (DEPLOYED 5379155).",
+      "date": "2026-06-30"
+    },
+    {
+      "text": "Owner corrections round 5c (detail; no migration). PERF (owner's #1): study stages are force-dynamic with no Suspense fallback, so a tab click froze the old page for seconds and provoked repeat-clicks — added loading.tsx so every stage nav shows an instant skeleton. PREVIEW CLOSE: the top-nav Preview tab now carries ?from=<stage> and close returns there (not Builder by default), from any stage incl. Design. COMPOSER CHIPS: Emoji/Photo/GIF/Sticker now render in the Design preview (composer no longer requires interactive) and each is a real button that inserts its glyph into the comment instead of being dead chrome. 895 tests; tsc/lint/build clean.",
       "date": "2026-06-30"
     },
     {
