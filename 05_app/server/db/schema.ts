@@ -1208,6 +1208,27 @@ export const activityEvent = pgTable(
   ],
 );
 
+// Study edit event log (ADR-0086): an ADVISORY, append-only trail of researcher
+// edits to a study's working draft, surfaced as the changelog "Detailed" timeline.
+// Never authoritative (snapshots + frozen versions remain the source of truth),
+// never gates anything, never exported/published. Deliberately NOT activity_event
+// (ADR-0014) so high-frequency edits don't pollute the followable activity feed.
+// `recordStudyEdit` coalesces same-(study,actor,kind) edits within a short window.
+export const studyEditEvent = pgTable(
+  "study_edit_event",
+  {
+    id: text("id").primaryKey(), // ULID; append order = chronological
+    experimentId: uuid("experiment_id")
+      .notNull()
+      .references(() => experiment.id, { onDelete: "cascade" }),
+    actorUserId: uuid("actor_user_id").references(() => user.id, { onDelete: "set null" }),
+    kind: text("kind").notNull(), // blocks | theme | social-post | consent | overview | conditions | variants | wording | title | irb
+    summary: text("summary").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("idx_study_edit_event_study").on(t.experimentId, t.createdAt.desc())],
+);
+
 // Cookie-consent ledger (legal-baseline LG2, ADR-0072 prereq). One row per
 // consent choice; `user_id` null for pre-signup choices (matched on signup via
 // the `pre_signup_id` carried in localStorage). PII-safe (ADR-0014): only a

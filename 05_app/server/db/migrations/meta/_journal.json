@@ -379,6 +379,13 @@
       "when": 1782727974440,
       "tag": "0053_jittery_dragon_man",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1782833853924,
+      "tag": "0054_wild_fabian_cortez",
+      "breakpoints": true
     }
   ]
 }
