@@ -1213,6 +1213,10 @@
   ],
   "recentActivity": [
     {
+      "text": "PR-2 — Design → Social tab + live Facebook preview (ADR-0085), the first visible builder surface. New studies.setSocialPostDesign mutation writes theme.socialPost on the working tip (rides the snapshot; preserves the IRB attestation; no mimic guard). New SocialPostAppearanceEditor mirrors the Chat editor: controls (seven reactions multi-toggle, live/measured vs display-only, reaction summary, action-bar react/comment/share, comments enable, composer enable + placeholder + emoji/photo/gif/sticker) + a live themed FB-style preview re-rendering on every change. Wired into DesignWorkspace as a third tab (Theme · Chat · Social), autosaving via the mutation. PR-0 survey starter seeded to EU prod (db:seed:prod, idempotent). Branding-tier picker + IRB modal = PR-3; seeded-comment + slot editors = PR-4. tsc/lint/build clean; 130 router tests green. No migration.",
+      "date": "2026-06-30"
+    },
+    {
       "text": "PR-1 — social-post branding/IRB data model + hard gate (ADR-0084/0085), two commits. 1a: theme.socialPost schema (branding-tier default, seven reactions + live toggle, reaction summary, action bar, comment thread, composer, custom slots, irbAttestation) + per-block brandingTier/brandLogoKey/slots on social-post v2 + optional reaction response — rides the snapshot, no migration, additive; resolveSocialPost, effectiveBrandingTier (per-block wins), pure evaluateBrandingGate verdict helper. 1b: assertBrandingGate injected into all four freeze points (preregister, amend, publish, makeLive) → PRECONDITION_FAILED when a branded block lacks a researcher-uploaded logo or the study lacks an IRB attestation; new studies.setIrbAttestation mutation records the attestation on the snapshot (frozen with prereg = audit record); advisory branding-irb preflight row. Tests: +8 gate, +1 preflight, +1 end-to-end (preregister rejects then allows). 144 green; tsc/lint/build clean. Next: PR-2 Design→Social tab + live preview.",
       "date": "2026-06-30"
     },

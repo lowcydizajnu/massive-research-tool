@@ -81,7 +81,7 @@ import { protocolText } from "@/server/modules/protocol-text";
 import { decryptSecret } from "@/server/crypto/tokens";
 import { storage } from "@/server/adapters/storage";
 import { runTts, AiBudgetExceededError } from "@/server/runtime/ai-gateway";
-import { applyVisualContext, readTheme, requiresAcknowledgment, resolveSocialPost, studyThemeSchema } from "@/lib/themes/themes";
+import { applyVisualContext, readTheme, requiresAcknowledgment, resolveSocialPost, socialPostSchema, studyThemeSchema } from "@/lib/themes/themes";
 import { sanitizeUiCopy } from "@/lib/take/ui-copy";
 import { resolvePanelIntegration, sanitizePanelIntegration } from "@/lib/take/panel-integration";
 import { diffLines } from "@/lib/diff-lines";
@@ -2847,6 +2847,30 @@ export const studiesRouter = router({
       await db
         .update(experimentVersion)
         .set({ definitionSnapshot: { ...snap, theme: { ...theme, socialPost: nextSocial } } })
+        .where(eq(experimentVersion.id, tip.version.id));
+      await db.update(experiment).set({ updatedAt: new Date() }).where(eq(experiment.id, input.studyId));
+      return { ok: true };
+    }),
+
+  /**
+   * Save the social-post design (ADR-0085, Design → Social) — appearance +
+   * interactions + slots under `theme.socialPost`. Rides the snapshot like
+   * setTheme; no mimic guard (that's the preset's job in setTheme). The IRB
+   * attestation is managed separately (setIrbAttestation) but preserved here
+   * because the editor round-trips the full resolved socialPost object.
+   */
+  setSocialPostDesign: writeProcedure
+    .input(z.object({ studyId: z.string().uuid(), socialPost: socialPostSchema }))
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+      const snap =
+        tip.version.definitionSnapshot && typeof tip.version.definitionSnapshot === "object"
+          ? (tip.version.definitionSnapshot as Record<string, unknown>)
+          : {};
+      const theme = readTheme(tip.version.definitionSnapshot);
+      await db
+        .update(experimentVersion)
+        .set({ definitionSnapshot: { ...snap, theme: { ...theme, socialPost: input.socialPost } } })
         .where(eq(experimentVersion.id, tip.version.id));
       await db.update(experiment).set({ updatedAt: new Date() }).where(eq(experiment.id, input.studyId));
       return { ok: true };

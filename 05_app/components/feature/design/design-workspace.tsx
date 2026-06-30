@@ -7,6 +7,7 @@ import { useEffect, useState, type CSSProperties } from "react";
 import { api } from "@/lib/trpc/react";
 import { getBlockOverride } from "@/components/feature/take/block-overrides";
 import { ChatAppearanceEditor } from "@/components/feature/design/chat-appearance-editor";
+import { SocialPostAppearanceEditor } from "@/components/feature/design/social-post-appearance-editor";
 import { cn } from "@/lib/utils";
 import {
   effectivePresetKey,
@@ -16,6 +17,7 @@ import {
   PRESET_DESCRIPTIONS,
   PRESET_WARNINGS,
   resolveChat,
+  resolveSocialPost,
   THEME_PRESETS,
   WIDTHS,
   themeToCssVars,
@@ -79,7 +81,7 @@ export function DesignWorkspace({
   aiBlocks?: AiChatBlockRef[];
 }) {
   const [theme, setTheme] = useState<StudyTheme>(initialTheme);
-  const [tab, setTab] = useState<"theme" | "chat">("theme");
+  const [tab, setTab] = useState<"theme" | "chat" | "social">("theme");
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
   /** A mimicking preset awaiting the researcher's acknowledgment (ADR-0024). */
   const [pendingMimic, setPendingMimic] = useState<keyof typeof THEME_PRESETS | null>(null);
@@ -88,6 +90,10 @@ export function DesignWorkspace({
   const setThemeMut = api.studies.setTheme.useMutation({
     onSuccess: () => setSavedMsg("Theme saved."),
     onError: () => setSavedMsg("Couldn’t save the theme — check the values."),
+  });
+  const setSocialMut = api.studies.setSocialPostDesign.useMutation({
+    onSuccess: () => setSavedMsg("Social post saved."),
+    onError: () => setSavedMsg("Couldn’t save the social-post design."),
   });
 
   useEffect(() => {
@@ -116,7 +122,7 @@ export function DesignWorkspace({
   return (
     <div className="flex flex-col gap-4">
       <div role="tablist" aria-label="Design sections" className="flex gap-1 border-b border-[var(--color-border-subtle)] pb-2">
-        {(["theme", "chat"] as const).map((t) => (
+        {(["theme", "chat", "social"] as const).map((t) => (
           <button
             key={t}
             type="button"
@@ -130,7 +136,7 @@ export function DesignWorkspace({
                 : "text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]",
             )}
           >
-            {t === "theme" ? "Theme" : "Chat"}
+            {t === "theme" ? "Theme" : t === "chat" ? "Chat" : "Social"}
           </button>
         ))}
       </div>
@@ -141,6 +147,15 @@ export function DesignWorkspace({
           themeVars={vars}
           aiBlocks={aiBlocks}
           onChange={(c) => commit({ ...theme, chat: c })}
+        />
+      ) : tab === "social" ? (
+        <SocialPostAppearanceEditor
+          social={resolveSocialPost(theme)}
+          themeVars={vars}
+          onChange={(sp) => {
+            setTheme({ ...theme, socialPost: sp });
+            setSocialMut.mutate({ studyId, socialPost: sp });
+          }}
         />
       ) : (
       <div className="flex flex-col gap-6 lg:flex-row">

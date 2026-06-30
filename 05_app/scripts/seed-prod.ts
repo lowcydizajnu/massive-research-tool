@@ -49,7 +49,7 @@ async function main() {
   // after the catalogue so the picker resolves the starters' blocks.
   const { seedStarters } = await import("../server/db/seed-misinfo-starter");
   await seedStarters();
-  console.log("✓ starter templates seeded (misinfo + A/B + pilot)");
+  console.log("✓ starter templates seeded (misinfo + A/B + pilot + survey)");
   process.exit(0);
 }
 
