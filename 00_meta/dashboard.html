@@ -1213,6 +1213,10 @@
   ],
   "recentActivity": [
     {
+      "text": "Social-post design builder + branding tiers + IRB gate — phase-gate artifacts (no code yet). Scoped a dedicated social-post builder (mirroring the chat builder) + branding granularity + a new-design starter template. Confirmed scope: Facebook v1 (X/TikTok later), custom slots in v1, branding tier per-block + study default, researcher-uploaded marks only (no shipped trademarked logos), hard IRB gate on Run/Preregister. Layers onto ADR-0024 mimic infra. Authored: user flow build-social-post-stimuli; ADR-0084 (tiers block/layout/branded + IRB hard gate); ADR-0085 (builder arch, FB v1, reaction picker as ADR-0013 client exception); data-model 07-social-post-design (theme.socialPost + per-block brandingTier/brandLogoKey/slots + irbAttestation; reaction export column; no migration); 3 wireframes. Validator clean — 250 instances.",
+      "date": "2026-06-30"
+    },
+    {
       "text": "Second landing proposal (Figma 'Bold' direction) + A/B switcher. The owner's Figma was a 3D-illustration concept conflicting with the locked v0.7 system + content-doc copy; flagged, and per the owner built it as a switchable second proposal to compare. landing-page-bold.tsx (full-bleed 3D scenes from Figma → public/marketing/figma, oversized Plex Serif, product copy woven in) + landing-switcher.tsx (floating Minimal/Bold toggle). app/page.tsx renders Bold on ?style=bold else the v0.7 Minimal. tsc/lint clean; build compiles. ~23MB Figma assets added for the proposal (remove if Bold not chosen). No migration.",
       "date": "2026-06-29"
     },
