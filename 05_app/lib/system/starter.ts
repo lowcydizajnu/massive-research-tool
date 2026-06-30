@@ -61,3 +61,12 @@ export const STARTER_PILOT_EXPERIMENT_ID = "00000000-0000-4000-8000-000000000030
 export const STARTER_PILOT_VERSION_ID = "00000000-0000-4000-8000-000000000031";
 /** The public `starter` workspace_template the Explore "Pilot a measure" scenario forks. */
 export const STARTER_PILOT_TEMPLATE_ID = "starter-pilot-v1";
+
+/* ---- Quick opinion survey starter (the on-brand v0.7 starter) ---- */
+
+/** The system-owned source study the survey starter template freezes from. */
+export const STARTER_SURVEY_EXPERIMENT_ID = "00000000-0000-4000-8000-000000000040";
+/** The frozen published version the template clones. */
+export const STARTER_SURVEY_VERSION_ID = "00000000-0000-4000-8000-000000000041";
+/** The public `starter` workspace_template — a clean general-purpose survey in the v0.7 look. */
+export const STARTER_SURVEY_TEMPLATE_ID = "starter-survey-v1";

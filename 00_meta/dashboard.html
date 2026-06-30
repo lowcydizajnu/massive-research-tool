@@ -1213,6 +1213,10 @@
   ],
   "recentActivity": [
     {
+      "text": "PR-0 — 'Quick opinion survey' starter on the v0.7 look. First build step after the social-post gate: a new app-shipped starter (ADR-0079) that's the broad on-ramp for a fresh account and the first starter to carry a participant theme so the take runtime shows the product identity (warm-white #F8F9F7 page, white card, Plex Serif headings, emerald #047144 AAA accent) instead of the plain Academic default. Extended seedStarter to thread an optional theme into the snapshot (ADR-0024; omitted for the other starters so their Academic fallback is unchanged); added seedSurveyStarter (welcome → familiarity multiple-choice → attitude likert-7 → open free-text → thank-you) wired into seedStarters(); fixed ids in lib/system/starter.ts. +2 tests (block set + theme rides the snapshot + idempotency); seed suite 8/8; tsc/lint/build clean. No migration. Going live needs db:seed:prod (idempotent) after deploy.",
+      "date": "2026-06-30"
+    },
+    {
       "text": "Social-post design builder + branding tiers + IRB gate — phase-gate artifacts (no code yet). Scoped a dedicated social-post builder (mirroring the chat builder) + branding granularity + a new-design starter template. Confirmed scope: Facebook v1 (X/TikTok later), custom slots in v1, branding tier per-block + study default, researcher-uploaded marks only (no shipped trademarked logos), hard IRB gate on Run/Preregister. Layers onto ADR-0024 mimic infra. Authored: user flow build-social-post-stimuli; ADR-0084 (tiers block/layout/branded + IRB hard gate); ADR-0085 (builder arch, FB v1, reaction picker as ADR-0013 client exception); data-model 07-social-post-design (theme.socialPost + per-block brandingTier/brandLogoKey/slots + irbAttestation; reaction export column; no migration); 3 wireframes. Validator clean — 250 instances.",
       "date": "2026-06-30"
     },

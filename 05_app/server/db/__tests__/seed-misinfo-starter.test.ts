@@ -28,9 +28,11 @@ import {
   seedMisinfoStarter,
   seedPilotStarter,
   seedStarters,
+  seedSurveyStarter,
 } from "@/server/db/seed-misinfo-starter";
 import { readBlocks } from "@/server/modules/blocks";
 import { readConsent } from "@/server/modules/consent";
+import { readTheme } from "@/lib/themes/themes";
 import {
   STARTER_AB_EXPERIMENT_ID,
   STARTER_AB_TEMPLATE_ID,
@@ -41,6 +43,9 @@ import {
   STARTER_PILOT_EXPERIMENT_ID,
   STARTER_PILOT_TEMPLATE_ID,
   STARTER_PILOT_VERSION_ID,
+  STARTER_SURVEY_EXPERIMENT_ID,
+  STARTER_SURVEY_TEMPLATE_ID,
+  STARTER_SURVEY_VERSION_ID,
   SYSTEM_USER_ID,
   SYSTEM_WORKSPACE_ID,
 } from "@/lib/system/starter";
@@ -203,15 +208,69 @@ describe("seedPilotStarter", () => {
   });
 });
 
+describe("seedSurveyStarter", () => {
+  it("seeds a public survey source study + published version + v0.7 theme + starter template", async () => {
+    await seedSurveyStarter();
+
+    const [exp] = await db.select().from(experiment).where(eq(experiment.id, STARTER_SURVEY_EXPERIMENT_ID));
+    expect(exp?.tenantId).toBe(SYSTEM_WORKSPACE_ID);
+    expect(exp?.forkableBy).toBe("public");
+    expect(exp?.currentVersionId).toBe(STARTER_SURVEY_VERSION_ID);
+
+    const [ver] = await db
+      .select()
+      .from(experimentVersion)
+      .where(eq(experimentVersion.id, STARTER_SURVEY_VERSION_ID));
+    expect(ver?.kind).toBe("published");
+    expect((ver?.moduleVersionLocks as unknown[]).length).toBeGreaterThan(0);
+
+    // A clean general-purpose survey block set.
+    const keys = readBlocks(ver?.definitionSnapshot).map((b) => b.key);
+    expect(keys).toContain("multiple-choice");
+    expect(keys).toContain("likert-7");
+    expect(keys).toContain("free-text");
+    expect(keys.filter((k) => k === "text")).toHaveLength(2); // welcome + thank-you
+
+    // The on-brand v0.7 theme rides the snapshot (this is the "fits our new
+    // platform design" bit): warm-white page + emerald accent + Plex Serif.
+    const theme = readTheme(ver?.definitionSnapshot);
+    expect(theme.colors.page).toBe("#F8F9F7");
+    expect(theme.colors.accent).toBe("#047144");
+    expect(theme.typography.headingFont).toBe("plex-serif");
+
+    const [tpl] = await db.select().from(workspaceTemplate).where(eq(workspaceTemplate.id, STARTER_SURVEY_TEMPLATE_ID));
+    expect(tpl?.starter).toBe(true);
+    expect(tpl?.shareScope).toBe("public");
+    expect(tpl?.sourceVersionId).toBe(STARTER_SURVEY_VERSION_ID);
+    expect(tpl?.workspaceId).toBe(SYSTEM_WORKSPACE_ID);
+  });
+
+  it("is idempotent — re-running creates no duplicates", async () => {
+    await seedSurveyStarter();
+    await seedSurveyStarter();
+    expect(
+      await db.select().from(experimentVersion).where(eq(experimentVersion.id, STARTER_SURVEY_VERSION_ID)),
+    ).toHaveLength(1);
+    expect(
+      await db.select().from(workspaceTemplate).where(eq(workspaceTemplate.id, STARTER_SURVEY_TEMPLATE_ID)),
+    ).toHaveLength(1);
+  });
+});
+
 describe("seedStarters", () => {
-  it("seeds all three starters and is idempotent", async () => {
+  it("seeds all four starters and is idempotent", async () => {
     await seedStarters();
     await seedStarters();
 
-    for (const id of [STARTER_MISINFO_TEMPLATE_ID, STARTER_AB_TEMPLATE_ID, STARTER_PILOT_TEMPLATE_ID]) {
+    for (const id of [
+      STARTER_MISINFO_TEMPLATE_ID,
+      STARTER_AB_TEMPLATE_ID,
+      STARTER_PILOT_TEMPLATE_ID,
+      STARTER_SURVEY_TEMPLATE_ID,
+    ]) {
       expect(await db.select().from(workspaceTemplate).where(eq(workspaceTemplate.id, id))).toHaveLength(1);
     }
-    // Single shared system account across all three.
+    // Single shared system account across all four.
     expect(await db.select().from(user).where(eq(user.id, SYSTEM_USER_ID))).toHaveLength(1);
     expect(await db.select().from(member).where(eq(member.workspaceId, SYSTEM_WORKSPACE_ID))).toHaveLength(1);
   });

@@ -12,6 +12,7 @@ import {
 } from "@/server/db/schema";
 import { locksFromBlocks, type BlockInstance, type StudyGroup } from "@/server/modules/blocks";
 import { DEFAULT_CONSENT } from "@/server/modules/consent";
+import type { StudyTheme } from "@/lib/themes/themes";
 import {
   STARTER_AB_CONDITION_A_ID,
   STARTER_AB_CONDITION_B_ID,
@@ -24,6 +25,9 @@ import {
   STARTER_PILOT_EXPERIMENT_ID,
   STARTER_PILOT_TEMPLATE_ID,
   STARTER_PILOT_VERSION_ID,
+  STARTER_SURVEY_EXPERIMENT_ID,
+  STARTER_SURVEY_TEMPLATE_ID,
+  STARTER_SURVEY_VERSION_ID,
   SYSTEM_USER_DISPLAY_NAME,
   SYSTEM_USER_EMAIL,
   SYSTEM_USER_EXTERNAL_ID,
@@ -254,6 +258,8 @@ type StarterSpec = {
   consent: typeof STARTER_CONSENT;
   /** Random-assignment arms — real `condition` rows. Empty = single-arm study. */
   conditions?: { id: string; slug: string; name: string; position: number }[];
+  /** Participant-facing theme (ADR-0024, rides the snapshot). Omit = Academic default. */
+  theme?: StudyTheme;
 };
 
 /**
@@ -268,6 +274,9 @@ async function seedStarter(spec: StarterSpec): Promise<void> {
     groups: spec.groups,
     overview: spec.overview,
     consent: spec.consent,
+    // Theme rides the snapshot (ADR-0024). Omit the key entirely when unset so
+    // old-snapshot fallback (Academic) stays the default for the other starters.
+    ...(spec.theme ? { theme: spec.theme } : {}),
   };
 
   await db
@@ -379,6 +388,106 @@ export async function seedStarters(): Promise<void> {
   await seedMisinfoStarter();
   await seedAbStarter();
   await seedPilotStarter();
+  await seedSurveyStarter();
+}
+
+/* ======================================================================== *
+ * Quick opinion survey starter — the on-brand v0.7 starter
+ *
+ * A clean, general-purpose first study (welcome → single-choice → Likert →
+ * open-text → thank-you) carrying a v0.7-aligned participant THEME (warm-white
+ * page, white card, Plex Serif headings, emerald accent). It's the "fits our
+ * new platform design" starter: the broadest on-ramp for a brand-new account,
+ * and the one starter that ships a theme so the participant runtime shows the
+ * product's identity rather than the plain Academic default.
+ * ======================================================================== */
+
+/** v0.7-aligned participant theme (emerald accent uses the AAA on-subtle green
+ *  so white button text stays accessible). `custom` with no base = clean default
+ *  renderer under these tokens (no platform mimic, no warnings). */
+const SURVEY_THEME_V07: StudyTheme = {
+  presetKey: "custom",
+  colors: { page: "#F8F9F7", card: "#FFFFFF", text: "#1A1F2C", muted: "#6E7480", accent: "#047144" },
+  typography: { headingFont: "plex-serif", bodyFont: "plex-sans", baseSize: "M" },
+  shape: { radius: "rounded", density: "normal" },
+  layout: { width: "medium", progress: "bar", backButton: true },
+};
+
+let nSurvey = 0;
+const surveyBlk = (
+  key: string,
+  config: Record<string, unknown>,
+  version = "1.0.0",
+  extra: Partial<BlockInstance> = {},
+): BlockInstance => ({
+  instanceId: `STARTERSURVEY${String(++nSurvey).padStart(9, "0")}`,
+  source: "core",
+  key,
+  version,
+  config,
+  ...extra,
+});
+
+function surveyBlocks(): BlockInstance[] {
+  return [
+    surveyBlk("text", {
+      contentMd:
+        "## Welcome\n\nThanks for sharing your views. This short survey takes about **2 minutes**. There are no right or wrong answers — we just want your honest opinion.\n\n*(This is a starter template — replace these questions with your own in the Builder.)*",
+    }),
+    surveyBlk("multiple-choice", {
+      prompt: "How familiar are you with the topic of this study?",
+      options: ["Not at all familiar", "Slightly familiar", "Moderately familiar", "Very familiar", "Extremely familiar"],
+      multiple: false,
+      required: true,
+      randomizeOrder: false,
+    }),
+    surveyBlk("likert-7", {
+      prompt: "Overall, how positive or negative is your view of this topic?",
+      leftAnchor: "Very negative",
+      rightAnchor: "Very positive",
+      required: true,
+    }),
+    surveyBlk("free-text", {
+      prompt: "In your own words, what shapes your opinion the most?",
+      longForm: true,
+      required: false,
+      maxLength: 2000,
+    }),
+    surveyBlk("text", {
+      contentMd:
+        "## Thank you\n\nThat's everything — thanks for taking part. You can close this tab now.",
+    }),
+  ];
+}
+
+const SURVEY_CONSENT = {
+  body: "You're about to take part in a short opinion survey. You'll answer a few questions about a topic. Participation is voluntary, your answers are recorded anonymously, and you may stop at any time by closing the tab.",
+  agreeLabel: DEFAULT_CONSENT.agreeLabel,
+  disagreeLabel: DEFAULT_CONSENT.disagreeLabel,
+  declineMessage: DEFAULT_CONSENT.declineMessage,
+};
+
+const SURVEY_OVERVIEW =
+  "A clean, ready-to-run opinion survey in the My Research Lab look: a welcome screen, a familiarity question, an overall-attitude scale, and an open-text follow-up, with consent and a thank-you. The fastest on-ramp for a first study — replace the placeholder questions with your own and run.";
+
+export async function seedSurveyStarter(): Promise<void> {
+  await ensureSystemAccount();
+  await seedStarter({
+    experimentId: STARTER_SURVEY_EXPERIMENT_ID,
+    versionId: STARTER_SURVEY_VERSION_ID,
+    templateId: STARTER_SURVEY_TEMPLATE_ID,
+    studyTitle: "Quick opinion survey",
+    templateName: "Quick opinion survey",
+    templateDescription:
+      "A clean, general-purpose survey in the My Research Lab look: a familiarity question, an attitude scale, and an open-text follow-up, with consent and a thank-you. Replace the placeholder questions with your own.",
+    tags: ["survey", "opinion", "starter"],
+    versionName: "Quick opinion survey starter v1",
+    blocks: surveyBlocks(),
+    groups: [],
+    overview: SURVEY_OVERVIEW,
+    consent: SURVEY_CONSENT,
+    theme: SURVEY_THEME_V07,
+  });
 }
 
 /* ======================================================================== *
