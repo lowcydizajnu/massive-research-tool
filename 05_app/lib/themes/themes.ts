@@ -549,10 +549,13 @@ const DENSITY: Record<StudyTheme["shape"]["density"], { cardPad: string; blockGa
   normal: { cardPad: "2rem", blockGap: "1.75rem", fieldGap: "1.125rem" },
   spacious: { cardPad: "2.75rem", blockGap: "2.5rem", fieldGap: "1.75rem" },
 };
+// Content column widths (ADR-0024). Widened to give every block — especially a
+// social-post stimulus — a roomy, real-feed-like reading width (owner: blocks
+// were too narrow; base it on a real Facebook post). `medium` is the default.
 export const WIDTHS: Record<StudyTheme["layout"]["width"], string> = {
-  narrow: "480px",
-  medium: "640px",
-  wide: "800px",
+  narrow: "560px",
+  medium: "720px",
+  wide: "960px",
 };
 
 /**

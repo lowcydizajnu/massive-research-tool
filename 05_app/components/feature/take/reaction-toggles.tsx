@@ -196,7 +196,7 @@ export function ReactionPicker({
                 setChosen(r);
                 setOpen(false);
               }}
-              className="rounded-full px-1 text-[20px] leading-none transition-transform hover:scale-125 focus:scale-125 focus:outline-none"
+              className="rounded-full px-1.5 py-0.5 text-[28px] leading-none transition-transform hover:scale-125 focus:scale-125 focus:outline-none"
             >
               <span aria-hidden>{REACTION_META[r].emoji}</span>
             </button>
@@ -384,7 +384,7 @@ export function EngagementSummary({
   const showComments = comments > 0 && allowComments;
   if (!likes && !showComments && !shownShares) return null;
   return (
-    <span className="text-[12px] text-[#65676B]">
+    <span className="text-[14px] text-[#65676B]">
       {likes ? `${emojis} ${fmt(likes)}` : ""}
       {showComments ? `${likes ? " · " : ""}${fmt(comments)} comments` : ""}
       {shownShares ? `${likes || showComments ? " · " : ""}${fmt(shownShares)} shares` : ""}

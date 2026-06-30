@@ -692,7 +692,7 @@ function SocialPostPreview({ social, config: cfgIn }: { social: SocialPostDesign
 
   if (tier === "block") {
     return (
-      <div className="mx-auto flex max-w-md flex-col gap-2 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-4 text-[var(--color-text-primary)] shadow-[var(--shadow-md)]">
+      <div className="mx-auto flex max-w-[600px] flex-col gap-2 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-4 text-[var(--color-text-primary)] shadow-[var(--shadow-md)]">
         {headline ? <p className="text-[length:var(--text-body-emphasis)] font-medium">{headline}</p> : null}
         {body ? <p className="text-[length:var(--text-body)]">{body}</p> : null}
         {!headline && !body ? <p className="text-[length:var(--text-body)] text-[var(--color-text-muted)]">Your post text appears here.</p> : null}
@@ -703,7 +703,7 @@ function SocialPostPreview({ social, config: cfgIn }: { social: SocialPostDesign
 
   const Override = getBlockOverride("facebook", "social-post");
   return (
-    <div className="mx-auto max-w-md overflow-hidden rounded-[var(--radius-lg)] border border-[#E4E6EB] bg-white shadow-[var(--shadow-md)]">
+    <div className="mx-auto max-w-[600px] overflow-hidden rounded-[var(--radius-lg)] border border-[#E4E6EB] bg-white shadow-[var(--shadow-md)]">
       {/* Decorative platform bar (matches the participant page frame). The
           trademarked "f" logo + "Facebook" wordmark only show on the fully-branded
           tier; "layout" (inspired) stays generic. */}

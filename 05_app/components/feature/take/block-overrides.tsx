@@ -191,7 +191,7 @@ function FacebookSocialPost({ config, np = "", interactive = true, blockCopy: bc
         )}
         <span className="flex flex-col leading-tight">
           <span className="text-[15px] font-semibold">{source}</span>
-          <span className="text-[12px] text-[#65676B]">{subline}</span>
+          <span className="text-[13px] text-[#65676B]">{subline}</span>
         </span>
         {brandLogo ? (
           // eslint-disable-next-line @next/next/no-img-element -- researcher-supplied brand logo (fully-branded tier only)
@@ -217,7 +217,7 @@ function FacebookSocialPost({ config, np = "", interactive = true, blockCopy: bc
       {showSummary ? (
         <EngagementSummary emojis={summaryEmojis} likes={e.likes ?? 0} comments={e.comments ?? 0} shares={e.shares ?? 0} allowComments={e.allowComments} />
       ) : null}
-      <div className="flex items-center justify-between border-t border-[#E4E6EB] pt-1 text-[13px] text-[#65676B]">
+      <div className="flex items-center justify-between border-t border-[#E4E6EB] pt-1.5 text-[15px] font-medium text-[#65676B]">
         {showReact ? (
           usePicker ? (
             <ReactionPicker np={np} reactions={r!.reactionsEnabled} live={r!.reactionsLive && interactive} label={lab(bc, "postLike", "Like")} />
