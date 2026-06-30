@@ -159,7 +159,9 @@ function FacebookSocialPost({ config, np = "", interactive = true, blockCopy: bc
   const showComment = (!r || r.actionBar.comment) && e.allowComments;
   const showShare = !r || r.actionBar.share;
   const usePicker = !!r && r.reactionsEnabled.length > 0;
-  const showComposer = showComment && interactive && (!r || r.composer.enabled);
+  // Composer shows whenever it's enabled (including the design preview), so the
+  // researcher sees the real participant composer + its affordance icons.
+  const showComposer = showComment && (!r || r.composer.enabled);
   const composerPlaceholder = (r?.composer.placeholder || "").trim() || lab(bc, "postCommentPlaceholder", "Write a comment…");
   // The reaction SUMMARY (faces the post appears to have received) is its own set,
   // deliberately separate from what a participant can pick (ADR-0085 amendment).

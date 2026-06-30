@@ -225,12 +225,14 @@ export function ReactionPicker({
  * platform), and the typed/posted text rides the screen form via a hidden
  * `${np}comment` input so the take action captures it unchanged. Scoped client.
  */
-/** The composer affordance icons (Emoji / Photo / GIF / Sticker, ADR-0085). */
-const COMPOSER_SLOT_META: Record<string, { glyph: string; label: string }> = {
-  emoji: { glyph: "🙂", label: "Emoji" },
-  photo: { glyph: "📷", label: "Photo" },
-  gif: { glyph: "GIF", label: "GIF" },
-  sticker: { glyph: "🩷", label: "Sticker" },
+/** The composer affordance icons (Emoji / Photo / GIF / Sticker, ADR-0085).
+ *  `insert` is appended to the comment when the chip is clicked so each one
+ *  actually does something (owner: "for what is it if I cannot click it"). */
+const COMPOSER_SLOT_META: Record<string, { glyph: string; label: string; insert: string }> = {
+  emoji: { glyph: "🙂", label: "Emoji", insert: "🙂" },
+  photo: { glyph: "📷", label: "Photo", insert: "📷" },
+  gif: { glyph: "GIF", label: "GIF", insert: "🎞️" },
+  sticker: { glyph: "🩷", label: "Sticker", insert: "🩷" },
 };
 
 export function CommentComposer({
@@ -274,12 +276,18 @@ export function CommentComposer({
         className="rounded-full border border-[#E4E6EB] bg-[#F0F2F5] px-3 py-1.5 text-[13px] text-[#050505] outline-none"
       />
       {slots.length ? (
-        <div aria-hidden className="flex flex-wrap items-center gap-3 px-2 text-[16px] text-[#65676B]">
+        <div className="flex flex-wrap items-center gap-1 px-1 text-[#65676B]">
           {slots.map((s) => (
-            <span key={s} title={COMPOSER_SLOT_META[s].label} className="inline-flex items-center gap-1">
-              <span>{COMPOSER_SLOT_META[s].glyph}</span>
+            <button
+              key={s}
+              type="button"
+              title={`${COMPOSER_SLOT_META[s].label} — add to your comment`}
+              onClick={() => setValue((v) => v + COMPOSER_SLOT_META[s].insert)}
+              className="inline-flex cursor-pointer items-center gap-1 rounded-full px-2 py-0.5 text-[13px] hover:bg-[#F0F2F5]"
+            >
+              <span aria-hidden>{COMPOSER_SLOT_META[s].glyph}</span>
               <span className="text-[12px]">{COMPOSER_SLOT_META[s].label}</span>
-            </span>
+            </button>
           ))}
         </div>
       ) : null}
