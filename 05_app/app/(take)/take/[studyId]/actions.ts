@@ -3,6 +3,7 @@
 import type { Route } from "next";
 import { redirect } from "next/navigation";
 
+import { REACTION_KEYS } from "@/lib/themes/themes";
 import { aiChatTurn, type AiChatTurnResult } from "@/server/runtime/ai-chat";
 import { recordScreenAnswers, startResponse } from "@/server/runtime/participant";
 import { allowAnswer, allowBegin } from "@/server/runtime/take-rate-limit";
@@ -128,10 +129,14 @@ function extractAnswer(moduleKey: string, prefix: string, fd: FormData): unknown
     // recorded even without interaction (liked/shared false). v1 social-post
     // blocks don't collect, so the runtime skips writing for them.
     const comment = String(g("comment") ?? "").trim();
-    const single = g("reaction"); // single-reaction mode posts one radio instead
+    const single = g("reaction"); // legacy single-reaction mode posts liked/shared here
+    // The seven-reaction picker (ADR-0085) posts the chosen key as `reactionKey`.
+    const rk = g("reactionKey");
+    const reaction = typeof rk === "string" && (REACTION_KEYS as readonly string[]).includes(rk) ? rk : null;
     return {
-      liked: g("liked") != null || single === "liked",
+      liked: g("liked") != null || single === "liked" || reaction != null,
       shared: g("shared") != null || single === "shared",
+      ...(reaction ? { reaction } : {}),
       ...(comment ? { comment } : {}),
     };
   }

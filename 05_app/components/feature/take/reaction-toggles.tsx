@@ -2,6 +2,20 @@
 
 import { createContext, useContext, useState } from "react";
 
+import { cn } from "@/lib/utils";
+import { type ReactionKey } from "@/lib/themes/themes";
+
+/** Display metadata for the seven Facebook reactions (ADR-0085). */
+const REACTION_META: Record<ReactionKey, { emoji: string; label: string }> = {
+  like: { emoji: "👍", label: "Like" },
+  love: { emoji: "❤️", label: "Love" },
+  care: { emoji: "🤗", label: "Care" },
+  haha: { emoji: "😆", label: "Haha" },
+  wow: { emoji: "😮", label: "Wow" },
+  sad: { emoji: "😢", label: "Sad" },
+  angry: { emoji: "😡", label: "Angry" },
+};
+
 /**
  * Reaction state for a social post (ADR-0024): clicking Like/Share bumps the
  * researcher-set count by one, clicking again fully deselects (back to the
@@ -89,5 +103,64 @@ export function ReactionButton({
     >
       {text}
     </button>
+  );
+}
+
+/**
+ * The seven-reaction picker (ADR-0085). Self-contained scoped client (an
+ * ADR-0013 exception, like ReactionButton): single-select among the enabled
+ * reactions, click again to deselect, posting the chosen key via a hidden
+ * `${np}reactionKey` input with the screen's form. `live=false` renders the
+ * reactions inert (display-only — nothing posts). Accessible: a radiogroup of
+ * labelled buttons (no hover-reveal dependency).
+ */
+export function ReactionPicker({
+  np,
+  reactions,
+  live,
+  label,
+}: {
+  np: string;
+  reactions: ReactionKey[];
+  live: boolean;
+  label: string;
+}) {
+  const [chosen, setChosen] = useState<ReactionKey | null>(null);
+  if (reactions.length === 0) return <span className="text-[13px] text-[#65676B]">{label}</span>;
+  if (!live) {
+    return (
+      <span className="flex items-center gap-1 text-[13px] text-[#65676B]">
+        {reactions.map((r) => (
+          <span key={r} aria-hidden>
+            {REACTION_META[r].emoji}
+          </span>
+        ))}
+        <span>{label}</span>
+      </span>
+    );
+  }
+  return (
+    <span role="radiogroup" aria-label={label} className="flex flex-wrap items-center gap-0.5">
+      {chosen ? <input type="hidden" name={`${np}reactionKey`} value={chosen} /> : null}
+      {reactions.map((r) => {
+        const active = chosen === r;
+        return (
+          <button
+            key={r}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            aria-label={REACTION_META[r].label}
+            onClick={() => setChosen(active ? null : r)}
+            className={cn(
+              "cursor-pointer rounded-full px-2 py-0.5 text-[13px]",
+              active ? "bg-[#E7F3FF] font-bold text-[#0866FF]" : "text-[#65676B] hover:bg-[#F0F2F5]",
+            )}
+          >
+            <span aria-hidden>{REACTION_META[r].emoji}</span> {REACTION_META[r].label}
+          </button>
+        );
+      })}
+    </span>
   );
 }

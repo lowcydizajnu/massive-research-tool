@@ -6,8 +6,20 @@
  * the default BlockView renderer under their token overrides.
  */
 
-import { ReactionButton, ReactionGroup } from "@/components/feature/take/reaction-toggles";
+import { ReactionButton, ReactionGroup, ReactionPicker } from "@/components/feature/take/reaction-toggles";
 import type { BlockCopyKey } from "@/lib/take/ui-copy";
+import type { ReactionKey, SocialPostDesign } from "@/lib/themes/themes";
+
+/** Reaction emoji for the summary line (ADR-0085). */
+const REACTION_EMOJI: Record<ReactionKey, string> = {
+  like: "👍",
+  love: "❤️",
+  care: "🤗",
+  haha: "😆",
+  wow: "😮",
+  sad: "😢",
+  angry: "😡",
+};
 
 /** Set block-internal copy overrides (blank/missing key = the skin's native text). */
 type BlockCopy = Partial<Record<BlockCopyKey, string>>;
@@ -28,6 +40,9 @@ type OverrideProps = {
   interactive?: boolean;
   /** Editable Like/Share/Comment labels + comment placeholder (ADR-0070); blank = native. */
   blockCopy?: BlockCopy;
+  /** Social-post design (ADR-0085) — reaction set, action bar, composer. Undefined
+   *  = not configured → legacy Like/Share behavior (back-compat). */
+  social?: SocialPostDesign;
 };
 
 /** Single-reaction mode (social-post config): only one of Like/Share allowed. */
@@ -54,11 +69,21 @@ function PostImage({ config, className = "" }: { config: Record<string, unknown>
 }
 
 /** Facebook-style feed post (social-post stimulus under the facebook preset). */
-function FacebookSocialPost({ config, np = "", interactive = true, blockCopy: bc }: OverrideProps) {
+function FacebookSocialPost({ config, np = "", interactive = true, blockCopy: bc, social: r }: OverrideProps) {
   const source = str(config.source) || "Shared page";
   const headline = str(config.headline);
   const body = str(config.body);
   const e = engagement(config);
+  // Social design (ADR-0085) gates the action bar / reactions / composer when
+  // configured; undefined keeps the legacy Like/Share behavior (back-compat).
+  const showSummary = !r || r.showReactionSummary;
+  const showReact = !r || r.actionBar.react;
+  const showComment = (!r || r.actionBar.comment) && e.allowComments;
+  const showShare = !r || r.actionBar.share;
+  const usePicker = !!r && r.reactionsEnabled.length > 0;
+  const showComposer = showComment && interactive && (!r || r.composer.enabled);
+  const composerPlaceholder = (r?.composer.placeholder || "").trim() || lab(bc, "postCommentPlaceholder", "Write a comment…");
+  const summaryEmojis = usePicker ? r!.reactionsEnabled.map((k) => REACTION_EMOJI[k]).join("") : "👍";
   return (
     <article className="flex flex-col gap-2 rounded-[8px] border border-[#E4E6EB] bg-white p-3 text-[#050505] shadow-sm">
       <ReactionGroup np={np} single={isSingle(config)} disabled={!interactive}>
@@ -77,23 +102,29 @@ function FacebookSocialPost({ config, np = "", interactive = true, blockCopy: bc
       {headline ? <p className="text-[15px] font-semibold">{headline}</p> : null}
       {body ? <p className="text-[15px] leading-snug">{body}</p> : null}
       <PostImage config={config} className="-mx-3 !w-[calc(100%+1.5rem)] max-w-none" />
-      {e.likes || e.comments || e.shares ? (
+      {showSummary && (e.likes || e.comments || e.shares) ? (
         <span className="text-[12px] text-[#65676B]">
-          {e.likes ? `👍 ${fmt(e.likes)}` : ""}
+          {e.likes ? `${summaryEmojis} ${fmt(e.likes)}` : ""}
           {e.comments && e.allowComments ? ` · ${fmt(e.comments)} comments` : ""}
           {e.shares ? ` · ${fmt(e.shares)} shares` : ""}
         </span>
       ) : null}
       <div className="flex items-center justify-between border-t border-[#E4E6EB] pt-1 text-[13px] text-[#65676B]">
-        <ReactionButton kind="liked" label={`👍 ${lab(bc, "postLike", "Like")}`} count={e.likes} activeCls="text-[#0866FF]" />
-        {e.allowComments ? <span>💬 {lab(bc, "postComment", "Comment")}{e.comments ? ` ${fmt(e.comments)}` : ""}</span> : null}
-        <ReactionButton kind="shared" label={`↪ ${lab(bc, "postShare", "Share")}`} count={e.shares} activeCls="text-[#0866FF]" />
+        {showReact ? (
+          usePicker ? (
+            <ReactionPicker np={np} reactions={r!.reactionsEnabled} live={r!.reactionsLive && interactive} label={lab(bc, "postLike", "Like")} />
+          ) : (
+            <ReactionButton kind="liked" label={`👍 ${lab(bc, "postLike", "Like")}`} count={e.likes} activeCls="text-[#0866FF]" />
+          )
+        ) : null}
+        {showComment ? <span>💬 {lab(bc, "postComment", "Comment")}{e.comments ? ` ${fmt(e.comments)}` : ""}</span> : null}
+        {showShare ? <ReactionButton kind="shared" label={`↪ ${lab(bc, "postShare", "Share")}`} count={e.shares} activeCls="text-[#0866FF]" /> : null}
       </div>
-      {e.allowComments && interactive ? (
+      {showComposer ? (
         <input
           type="text"
           name={`${np}comment`}
-          placeholder={lab(bc, "postCommentPlaceholder", "Write a comment…")}
+          placeholder={composerPlaceholder}
           className="rounded-full border border-[#E4E6EB] bg-[#F0F2F5] px-3 py-1.5 text-[13px] text-[#050505] outline-none"
         />
       ) : null}

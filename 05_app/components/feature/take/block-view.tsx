@@ -14,7 +14,7 @@ import { FileUploadInput } from "@/components/feature/take/file-upload-input";
 import { VideoRecordInput } from "@/components/feature/take/video-record-input";
 import { AiChatInput } from "@/components/feature/take/ai-chat-input";
 import { ChatWindowPreview } from "@/components/feature/take/chat-window-preview";
-import { SOCIAL_PLATFORM_PRESETS, type BrandingTier, type ChatAppearance } from "@/lib/themes/themes";
+import { SOCIAL_PLATFORM_PRESETS, type BrandingTier, type ChatAppearance, type SocialPostDesign } from "@/lib/themes/themes";
 import { BLOCK_COPY_DEFAULTS, type BlockCopyKey } from "@/lib/take/ui-copy";
 import type { RuntimeBlock } from "@/server/runtime/participant";
 
@@ -36,7 +36,7 @@ export function BlockView({
   responseId,
   chat,
   blockCopy,
-  socialDefaultTier,
+  social,
 }: {
   block: RuntimeBlock;
   seed?: string;
@@ -49,8 +49,8 @@ export function BlockView({
   chat?: ChatAppearance;
   /** Editable block-internal copy (social-post labels); blank keys = native (ADR-0070). */
   blockCopy?: BlockCopy;
-  /** Study-default branding tier (ADR-0084) — undefined = social design not configured. */
-  socialDefaultTier?: BrandingTier;
+  /** Social-post design (ADR-0084/0085) — undefined = not configured (preset behavior). */
+  social?: SocialPostDesign;
 }) {
   const c = block.config;
   const np = namePrefix;
@@ -76,13 +76,13 @@ export function BlockView({
   // renders WITHOUT the platform chrome (default renderer), even under a social
   // mimic preset. Per-block override wins over the study default; an undefined
   // tier (social design not configured) keeps the preset's renderer (back-compat).
-  const socialTier = (c.brandingTier as BrandingTier | undefined) ?? socialDefaultTier;
+  const socialTier = (c.brandingTier as BrandingTier | undefined) ?? social?.brandingTierDefault;
   const suppressSocialChrome =
     block.key === "social-post" &&
     socialTier === "block" &&
     (SOCIAL_PLATFORM_PRESETS as readonly string[]).includes(presetKey ?? "");
   const Override = suppressSocialChrome ? null : getBlockOverride(presetKey, block.key);
-  if (Override) return <>{Override({ config: c, np, interactive, blockCopy })}</>;
+  if (Override) return <>{Override({ config: c, np, interactive, blockCopy, social })}</>;
   if (block.key === "social-post") return <SocialPostView config={c} np={np} interactive={interactive} blockCopy={blockCopy} />;
   if (block.key === "likert-7") return <Likert7Input config={c} np={np} />;
   if (block.key === "multiple-choice") return <MultipleChoiceInput config={c} seed={seed} np={np} />;

@@ -61,7 +61,7 @@ export default async function ScreenPage({
           return (
             <div key={b.instanceId}>
               <input type="hidden" name="blocks" value={`${b.instanceId}|${b.key}|${prefix}`} />
-              <BlockView block={b} seed={sessionId} namePrefix={prefix} presetKey={effectivePresetKey(s.theme)} responseId={sessionId} chat={resolveChat(s.theme)} blockCopy={s.blockCopy} socialDefaultTier={s.theme.socialPost?.brandingTierDefault} />
+              <BlockView block={b} seed={sessionId} namePrefix={prefix} presetKey={effectivePresetKey(s.theme)} responseId={sessionId} chat={resolveChat(s.theme)} blockCopy={s.blockCopy} social={s.theme.socialPost} />
             </div>
           );
         })}
