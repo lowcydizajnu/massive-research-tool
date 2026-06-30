@@ -8,7 +8,18 @@
 
 import { ReactionButton, ReactionGroup, ReactionPicker } from "@/components/feature/take/reaction-toggles";
 import type { BlockCopyKey } from "@/lib/take/ui-copy";
-import type { ReactionKey, SocialPostDesign } from "@/lib/themes/themes";
+import type { CustomSlot, ReactionKey, SocialPostDesign } from "@/lib/themes/themes";
+
+/** A researcher-defined custom slot (ADR-0085) rendered in the post (display-only). */
+function SlotView({ s }: { s: CustomSlot }) {
+  if (!s.content?.trim()) return null;
+  if (s.kind === "image") {
+    // eslint-disable-next-line @next/next/no-img-element -- researcher-supplied URL
+    return <img src={s.content} alt="" className="max-h-40 w-auto rounded-[6px]" />;
+  }
+  if (s.kind === "icon") return <span aria-hidden>{s.content}</span>;
+  return <span className="rounded bg-[#E7F3FF] px-1.5 py-0.5 text-[12px] font-medium text-[#0866FF]">{s.content}</span>;
+}
 
 /** Reaction emoji for the summary line (ADR-0085). */
 const REACTION_EMOJI: Record<ReactionKey, string> = {
@@ -48,6 +59,54 @@ type OverrideProps = {
 /** Single-reaction mode (social-post config): only one of Like/Share allowed. */
 const isSingle = (config: Record<string, unknown>) => config.singleReaction === true;
 
+/** A seeded comment (ADR-0085) — structural shape (top-level + one reply level). */
+type CommentLike = {
+  id: string;
+  authorName: string;
+  topFan?: boolean;
+  verified?: boolean;
+  body: string;
+  timeLabel?: string;
+  reactionCount?: number;
+  reactions?: ReactionKey[];
+  replies?: CommentLike[];
+};
+
+/** A static seeded comment under a Facebook post (display-only). */
+function SeededCommentView({ c, reply = false }: { c: CommentLike; reply?: boolean }) {
+  const reactionGlyphs = c.reactions && c.reactions.length ? c.reactions.map((k) => REACTION_EMOJI[k]).join("") : "👍";
+  return (
+    <div className={`flex gap-2 ${reply ? "ml-8" : ""}`}>
+      <span aria-hidden className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[#0866FF] text-[11px] font-bold text-white">
+        {(c.authorName || "?").charAt(0).toUpperCase()}
+      </span>
+      <div className="flex min-w-0 flex-col">
+        <div className="w-fit rounded-2xl bg-[#F0F2F5] px-3 py-1.5">
+          <div className="flex items-center gap-1 text-[13px] font-semibold text-[#050505]">
+            <span>{c.authorName}</span>
+            {c.verified ? <span className="text-[#0866FF]" title="Verified">✓</span> : null}
+            {c.topFan ? <span className="rounded bg-[#E7F3FF] px-1 text-[10px] font-semibold text-[#0866FF]">Top fan</span> : null}
+          </div>
+          <p className="text-[13px] text-[#050505]">{c.body}</p>
+        </div>
+        <div className="flex items-center gap-3 px-3 pt-0.5 text-[11px] text-[#65676B]">
+          <span>Like</span>
+          <span>Reply</span>
+          {c.timeLabel ? <span>{c.timeLabel}</span> : null}
+          {c.reactionCount ? <span>{reactionGlyphs} {fmt(c.reactionCount)}</span> : null}
+        </div>
+        {!reply && c.replies && c.replies.length ? (
+          <div className="flex flex-col gap-2 pt-1">
+            {c.replies.map((rp) => (
+              <SeededCommentView key={rp.id} c={rp} reply />
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 /** Researcher-set engagement (social-post v2 config, ADR-0024). */
 function engagement(config: Record<string, unknown>) {
   return {
@@ -84,6 +143,13 @@ function FacebookSocialPost({ config, np = "", interactive = true, blockCopy: bc
   const showComposer = showComment && interactive && (!r || r.composer.enabled);
   const composerPlaceholder = (r?.composer.placeholder || "").trim() || lab(bc, "postCommentPlaceholder", "Write a comment…");
   const summaryEmojis = usePicker ? r!.reactionsEnabled.map((k) => REACTION_EMOJI[k]).join("") : "👍";
+  // Custom slots (ADR-0085): study-level defaults + per-block, rendered by region.
+  const slots: CustomSlot[] = [
+    ...(r?.slots ?? []),
+    ...((Array.isArray(config.slots) ? config.slots : []) as CustomSlot[]),
+  ];
+  const slotIn = (region: CustomSlot["region"]) => slots.filter((s) => s.region === region);
+  const seeded = (r?.comments.enabled ? r.comments.seeded : []) as unknown as CommentLike[];
   return (
     <article className="flex flex-col gap-2 rounded-[8px] border border-[#E4E6EB] bg-white p-3 text-[#050505] shadow-sm">
       <ReactionGroup np={np} single={isSingle(config)} disabled={!interactive}>
@@ -98,10 +164,23 @@ function FacebookSocialPost({ config, np = "", interactive = true, blockCopy: bc
           <span className="text-[15px] font-semibold">{source}</span>
           <span className="text-[12px] text-[#65676B]">Suggested for you · {e.time} · 🌐</span>
         </span>
+        {slotIn("header-badge").map((s) => (
+          <SlotView key={s.id} s={s} />
+        ))}
       </div>
+      {slotIn("sponsored-label").map((s) => (
+        <div key={s.id} className="text-[12px] text-[#65676B]">
+          <SlotView s={s} />
+        </div>
+      ))}
       {headline ? <p className="text-[15px] font-semibold">{headline}</p> : null}
       {body ? <p className="text-[15px] leading-snug">{body}</p> : null}
       <PostImage config={config} className="-mx-3 !w-[calc(100%+1.5rem)] max-w-none" />
+      {slotIn("below-body").map((s) => (
+        <div key={s.id}>
+          <SlotView s={s} />
+        </div>
+      ))}
       {showSummary && (e.likes || e.comments || e.shares) ? (
         <span className="text-[12px] text-[#65676B]">
           {e.likes ? `${summaryEmojis} ${fmt(e.likes)}` : ""}
@@ -119,6 +198,9 @@ function FacebookSocialPost({ config, np = "", interactive = true, blockCopy: bc
         ) : null}
         {showComment ? <span>💬 {lab(bc, "postComment", "Comment")}{e.comments ? ` ${fmt(e.comments)}` : ""}</span> : null}
         {showShare ? <ReactionButton kind="shared" label={`↪ ${lab(bc, "postShare", "Share")}`} count={e.shares} activeCls="text-[#0866FF]" /> : null}
+        {slotIn("action-bar").map((s) => (
+          <SlotView key={s.id} s={s} />
+        ))}
       </div>
       {showComposer ? (
         <input
@@ -127,6 +209,24 @@ function FacebookSocialPost({ config, np = "", interactive = true, blockCopy: bc
           placeholder={composerPlaceholder}
           className="rounded-full border border-[#E4E6EB] bg-[#F0F2F5] px-3 py-1.5 text-[13px] text-[#050505] outline-none"
         />
+      ) : null}
+      {slotIn("pinned-comment").map((s) => (
+        <div key={s.id} className="rounded-[8px] bg-[#F7F8FA] p-2">
+          <SlotView s={s} />
+        </div>
+      ))}
+      {seeded.length ? (
+        <div className="flex flex-col gap-2 pt-1">
+          {seeded.map((cm) => (
+            <SeededCommentView key={cm.id} c={cm} />
+          ))}
+          {r?.comments.enabled ? (
+            <span className="text-[13px] font-semibold text-[#65676B]">
+              {r.comments.viewMoreLabel || "View more comments"}
+              {r.comments.countLabel ? ` · ${r.comments.countLabel}` : ""}
+            </span>
+          ) : null}
+        </div>
       ) : null}
       </ReactionGroup>
     </article>

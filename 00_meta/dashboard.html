@@ -1213,6 +1213,10 @@
   ],
   "recentActivity": [
     {
+      "text": "PR-4b + 4c — social-post comment thread + custom slots (render + editors). 4b: the facebook override renders the seeded comment thread (SeededCommentView: initials avatar, author + verified + Top-fan chip, body bubble, Like/Reply/time, per-comment reaction glyphs + count, one reply level) + View more comments · N of M footer, gated by social.comments.enabled. 4c: custom slots render at their regions (SlotView — text/image/icon) merging study-level theme.socialPost.slots + per-block config.slots (header-badge, sponsored-label, below-body, action-bar, pinned-comment). Editors in Design → Social: seeded-comments (add/remove; author, body, Top-fan, Verified) + custom-slots (region · kind · content), writing theme.socialPost via setSocialPostDesign. Back-compat preserved. tsc/lint/build clean; 138 tests green. No migration. Deferred (small): dedicated reaction export column (value is captured) + per-comment-reaction/reply editing. Next: X + TikTok presets.",
+      "date": "2026-06-30"
+    },
+    {
       "text": "PR-4a — configurable reaction picker on the participant render (ADR-0085), the all-emotions piece. New scoped client ReactionPicker (an ADR-0013 exception): single-select among the study's enabled reactions (the seven 👍❤️🤗😆😮😢😡), click-again to deselect, posting the chosen key via a hidden ${np}reactionKey input (distinct from the legacy reaction=liked/shared field); live=false → display-only. The facebook override now takes the resolved social design and honors reaction set + live toggle, action-bar show/hide, reaction-summary visibility + enabled-emoji cluster, and composer enable + placeholder. social is plumbed BlockView → Override (replaces socialDefaultTier; question page passes s.theme.socialPost). Answer capture (actions.ts) reads reactionKey → sets response reaction (+ liked). Back-compat: unconfigured theme.socialPost keeps the legacy Like/Share renderer. tsc/lint/build clean; 138 tests green. No migration. Next: PR-4b seeded comment thread + reaction export column; PR-4c custom slots; then X/TikTok.",
       "date": "2026-06-30"
     },

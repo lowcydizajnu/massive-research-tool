@@ -240,9 +240,116 @@ export function SocialPostAppearanceEditor({
           </div>
         </fieldset>
 
-        <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-          Branding (logo + IRB), seeded comments, and custom slots are next.
-        </p>
+        <fieldset className="flex flex-col gap-2">
+          <legend className={LEGEND_CLS}>Seeded comments</legend>
+          {social.comments.seeded.map((cm, i) => (
+            <div key={cm.id} className="flex flex-col gap-1 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-2">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={cm.authorName}
+                  placeholder="Author name"
+                  maxLength={120}
+                  onChange={(e) =>
+                    onChange({ ...social, comments: { ...social.comments, seeded: social.comments.seeded.map((c, idx) => (idx === i ? { ...c, authorName: e.target.value } : c)) } })
+                  }
+                  className={`${FIELD_CLS} flex-1`}
+                />
+                <button
+                  type="button"
+                  aria-label="Remove comment"
+                  onClick={() => onChange({ ...social, comments: { ...social.comments, seeded: social.comments.seeded.filter((_, idx) => idx !== i) } })}
+                  className="rounded-[var(--radius-md)] px-2 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)]"
+                >
+                  ✕
+                </button>
+              </div>
+              <textarea
+                value={cm.body}
+                placeholder="Comment text"
+                rows={2}
+                maxLength={2000}
+                onChange={(e) =>
+                  onChange({ ...social, comments: { ...social.comments, seeded: social.comments.seeded.map((c, idx) => (idx === i ? { ...c, body: e.target.value } : c)) } })
+                }
+                className={FIELD_CLS}
+              />
+              <div className="flex flex-wrap gap-3 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+                <label className="flex items-center gap-1.5">
+                  <input type="checkbox" checked={cm.topFan ?? false} onChange={(e) => onChange({ ...social, comments: { ...social.comments, seeded: social.comments.seeded.map((c, idx) => (idx === i ? { ...c, topFan: e.target.checked } : c)) } })} className="size-3.5 accent-[var(--color-primary)]" /> Top fan
+                </label>
+                <label className="flex items-center gap-1.5">
+                  <input type="checkbox" checked={cm.verified ?? false} onChange={(e) => onChange({ ...social, comments: { ...social.comments, seeded: social.comments.seeded.map((c, idx) => (idx === i ? { ...c, verified: e.target.checked } : c)) } })} className="size-3.5 accent-[var(--color-primary)]" /> Verified
+                </label>
+              </div>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() =>
+              onChange({
+                ...social,
+                comments: {
+                  ...social.comments,
+                  enabled: true,
+                  seeded: [...social.comments.seeded, { id: crypto.randomUUID(), authorName: "", authorAvatarKey: null, topFan: false, verified: false, body: "", timeLabel: "", reactionCount: 0, reactions: [], replies: [] }],
+                },
+              })
+            }
+            className="self-start rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-2 py-0.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
+          >
+            + Add comment
+          </button>
+        </fieldset>
+
+        <fieldset className="flex flex-col gap-2">
+          <legend className={LEGEND_CLS}>Custom slots</legend>
+          {social.slots.map((s, i) => (
+            <div key={s.id} className="flex flex-wrap items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-2">
+              <select
+                value={s.region}
+                onChange={(e) => onChange({ ...social, slots: social.slots.map((x, idx) => (idx === i ? { ...x, region: e.target.value as (typeof x)["region"] } : x)) })}
+                className={FIELD_CLS}
+              >
+                {(["header-badge", "sponsored-label", "below-body", "pinned-comment", "action-bar"] as const).map((rg) => (
+                  <option key={rg} value={rg}>{rg}</option>
+                ))}
+              </select>
+              <select
+                value={s.kind}
+                onChange={(e) => onChange({ ...social, slots: social.slots.map((x, idx) => (idx === i ? { ...x, kind: e.target.value as (typeof x)["kind"] } : x)) })}
+                className={FIELD_CLS}
+              >
+                {(["text", "image", "icon"] as const).map((k) => (
+                  <option key={k} value={k}>{k}</option>
+                ))}
+              </select>
+              <input
+                type="text"
+                value={s.content}
+                placeholder={s.kind === "image" ? "Image URL" : s.kind === "icon" ? "Emoji / glyph" : "Text"}
+                maxLength={2000}
+                onChange={(e) => onChange({ ...social, slots: social.slots.map((x, idx) => (idx === i ? { ...x, content: e.target.value } : x)) })}
+                className={`${FIELD_CLS} min-w-[8rem] flex-1`}
+              />
+              <button
+                type="button"
+                aria-label="Remove slot"
+                onClick={() => onChange({ ...social, slots: social.slots.filter((_, idx) => idx !== i) })}
+                className="rounded-[var(--radius-md)] px-2 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)]"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() => onChange({ ...social, slots: [...social.slots, { id: crypto.randomUUID(), region: "below-body", kind: "text", content: "" }] })}
+            className="self-start rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-2 py-0.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
+          >
+            + Add slot
+          </button>
+        </fieldset>
       </div>
 
       {/* Live preview */}
