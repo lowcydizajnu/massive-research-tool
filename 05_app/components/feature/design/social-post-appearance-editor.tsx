@@ -434,6 +434,16 @@ export function SocialPostAppearanceEditor({
                   <input type="checkbox" checked={cm.verified ?? false} onChange={(e) => onChange({ ...social, comments: { ...social.comments, seeded: social.comments.seeded.map((c, idx) => (idx === i ? { ...c, verified: e.target.checked } : c)) } })} className="size-3.5 accent-[var(--color-primary)]" /> Verified
                 </label>
               </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {cm.authorAvatarKey ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={cm.authorAvatarKey} alt="" className="size-6 rounded-full object-cover" />
+                ) : null}
+                <UploadButton kind="image" label="Avatar…" onUploaded={(url) => onChange({ ...social, comments: { ...social.comments, seeded: social.comments.seeded.map((c, idx) => (idx === i ? { ...c, authorAvatarKey: url } : c)) } })} />
+                {cm.authorAvatarKey ? (
+                  <button type="button" onClick={() => onChange({ ...social, comments: { ...social.comments, seeded: social.comments.seeded.map((c, idx) => (idx === i ? { ...c, authorAvatarKey: null } : c)) } })} className="text-[length:var(--text-small)] text-[var(--color-text-muted)] hover:underline">Remove</button>
+                ) : null}
+              </div>
             </div>
           ))}
           <button

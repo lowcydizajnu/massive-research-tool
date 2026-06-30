@@ -6,7 +6,7 @@
  * the default BlockView renderer under their token overrides.
  */
 
-import { ReactionButton, ReactionGroup, ReactionPicker } from "@/components/feature/take/reaction-toggles";
+import { CommentLikeButton, ReactionButton, ReactionGroup, ReactionPicker } from "@/components/feature/take/reaction-toggles";
 import type { BlockCopyKey } from "@/lib/take/ui-copy";
 import type { CustomSlot, ReactionKey, SocialPostDesign } from "@/lib/themes/themes";
 
@@ -63,6 +63,7 @@ const isSingle = (config: Record<string, unknown>) => config.singleReaction === 
 type CommentLike = {
   id: string;
   authorName: string;
+  authorAvatarKey?: string | null;
   topFan?: boolean;
   verified?: boolean;
   body: string;
@@ -77,9 +78,14 @@ function SeededCommentView({ c, reply = false }: { c: CommentLike; reply?: boole
   const reactionGlyphs = c.reactions && c.reactions.length ? c.reactions.map((k) => REACTION_EMOJI[k]).join("") : "👍";
   return (
     <div className={`flex gap-2 ${reply ? "ml-8" : ""}`}>
-      <span aria-hidden className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[#0866FF] text-[11px] font-bold text-white">
-        {(c.authorName || "?").charAt(0).toUpperCase()}
-      </span>
+      {c.authorAvatarKey ? (
+        // eslint-disable-next-line @next/next/no-img-element -- researcher-supplied URL
+        <img src={c.authorAvatarKey} alt="" className="size-7 shrink-0 rounded-full object-cover" />
+      ) : (
+        <span aria-hidden className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[#0866FF] text-[11px] font-bold text-white">
+          {(c.authorName || "?").charAt(0).toUpperCase()}
+        </span>
+      )}
       <div className="flex min-w-0 flex-col">
         <div className="w-fit rounded-2xl bg-[#F0F2F5] px-3 py-1.5">
           <div className="flex items-center gap-1 text-[13px] font-semibold text-[#050505]">
@@ -90,7 +96,7 @@ function SeededCommentView({ c, reply = false }: { c: CommentLike; reply?: boole
           <p className="text-[13px] text-[#050505]">{c.body}</p>
         </div>
         <div className="flex items-center gap-3 px-3 pt-0.5 text-[11px] text-[#65676B]">
-          <span>Like</span>
+          <CommentLikeButton />
           <span>Reply</span>
           {c.timeLabel ? <span>{c.timeLabel}</span> : null}
           {c.reactionCount ? <span>{reactionGlyphs} {fmt(c.reactionCount)}</span> : null}

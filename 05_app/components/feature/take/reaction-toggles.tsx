@@ -107,6 +107,27 @@ export function ReactionButton({
 }
 
 /**
+ * A like toggle on a seeded comment (ADR-0085) — visual only (not recorded): a
+ * participant can "Like" a comment and see it highlight + tick up, mirroring the
+ * platform. Scoped client (ADR-0013), like the post reactions.
+ */
+export function CommentLikeButton({ baseCount = 0, label = "Like" }: { baseCount?: number; label?: string }) {
+  const [liked, setLiked] = useState(false);
+  const shown = baseCount + (liked ? 1 : 0);
+  return (
+    <button
+      type="button"
+      aria-pressed={liked}
+      onClick={() => setLiked((v) => !v)}
+      className={cn("cursor-pointer", liked ? "font-semibold text-[#0866FF]" : "")}
+    >
+      {label}
+      {shown > 0 ? ` ${fmt(shown)}` : ""}
+    </button>
+  );
+}
+
+/**
  * The seven-reaction picker (ADR-0085). Self-contained scoped client (an
  * ADR-0013 exception, like ReactionButton): single-select among the enabled
  * reactions, click again to deselect, posting the chosen key via a hidden
