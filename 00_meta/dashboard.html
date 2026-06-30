@@ -1213,6 +1213,10 @@
   ],
   "recentActivity": [
     {
+      "text": "Fix + PR-3b — branding tier now drives the participant render + per-post logo/tier in Configure. Fix (owner-reported): selecting Block design still showed the full Facebook chrome + logo to participants — the tier wasn't wired into the participant render. Added showsPlatformChrome(theme) + SOCIAL_PLATFORM_PRESETS; the take layout suppresses the platform page-frame and block-view skips the platform post renderer when a social-post block's effective tier (per-block override ?? study default) is block on a social platform; the question page threads socialDefaultTier. Back-compat: no configured theme.socialPost, or a non-social preset, keeps the preset chrome. PR-3b: the social-post Configure panel gains a Branding (this post) section — a tier-override radio (Inherit / Block / Layout / Fully branded) and, when Branded, a logo upload (UploadButton + Pick-from-Materials). So the PR-1 hard gate is now fully satisfiable from the UI. tsc/lint/build clean; 138 tests green. No migration. Next: PR-4 participant reactions/comments/slots; then X/TikTok.",
+      "date": "2026-06-30"
+    },
+    {
       "text": "PR-3 — branding-tier picker + IRB attestation modal (ADR-0084), the compliance UI that makes the PR-1 hard gate satisfiable from the app. Design → Social gains a Branding (study default) radiogroup — Block design / Layout (inspired) / Fully branded → theme.socialPost.brandingTierDefault (saved via setSocialPostDesign). When Fully branded, an IRB attestation row shows status + Review & attest → a focused modal (fixed statement + required checkbox + Confirm) calling studies.setIrbAttestation (server stamps who/when; recorded on the snapshot = audit); optimistic ✓ Attested on success. tsc/lint/build clean; no migration. Remaining for a fully-satisfiable gate: PR-3b per-block logo upload + tier override in Configure (logo is per-post); then PR-4 participant reactions/comments/slots; then X/TikTok.",
       "date": "2026-06-30"
     },

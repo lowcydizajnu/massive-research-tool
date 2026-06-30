@@ -102,11 +102,84 @@ export function ConfigureForm({
         </p>
       </div>
 
+      {block.key === "social-post" ? (
+        <fieldset className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-3">
+          <legend className="px-1 text-[length:var(--text-label)] uppercase tracking-wide text-[var(--color-text-muted)]">
+            Branding (this post)
+          </legend>
+          <div role="radiogroup" aria-label="Branding tier" className="flex flex-col gap-1">
+            {(
+              [
+                ["", "Inherit study default"],
+                ["block", "Block design — no chrome or logo"],
+                ["layout", "Layout (inspired) — no logo"],
+                ["branded", "Fully branded — your uploaded logo"],
+              ] as const
+            ).map(([val, label]) => (
+              <label key={val} className="flex items-center gap-2 text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
+                <input
+                  type="radio"
+                  name="brandingTier"
+                  checked={String(draft.brandingTier ?? "") === val}
+                  onChange={() => {
+                    const next = { ...draft };
+                    if (val === "") delete next.brandingTier;
+                    else next.brandingTier = val;
+                    setDraft(next);
+                    onChange(next);
+                  }}
+                  className="size-4 accent-[var(--color-primary)]"
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+          {draft.brandingTier === "branded" ? (
+            <label className="flex flex-col gap-1">
+              <span className="text-[length:var(--text-label)] uppercase tracking-wide text-[var(--color-text-muted)]">Brand logo</span>
+              <input
+                type="text"
+                value={String(draft.brandLogoKey ?? "")}
+                placeholder="Upload or pick a logo"
+                onChange={(e) => setDraft({ ...draft, brandLogoKey: e.target.value })}
+                onBlur={() => onChange(draft)}
+                className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-1 text-[length:var(--text-body)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+              />
+              <span className="flex flex-wrap gap-1.5">
+                <UploadButton
+                  kind="image"
+                  label="Upload from computer…"
+                  onUploaded={(url) => {
+                    const next = { ...draft, brandLogoKey: url };
+                    setDraft(next);
+                    onChange(next);
+                  }}
+                />
+                <PickFromMaterialsButton
+                  kind="image"
+                  onPick={(url) => {
+                    const next = { ...draft, brandLogoKey: url };
+                    setDraft(next);
+                    onChange(next);
+                  }}
+                />
+              </span>
+              <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                Upload only marks you’re authorized to use — we never provide trademarked logos. Requires the study’s IRB attestation (Design → Social) to publish.
+              </span>
+            </label>
+          ) : null}
+        </fieldset>
+      ) : null}
+
       <div className="flex flex-col gap-3">
         {Object.entries(draft).map(([key, value]) => {
           // Emotion analysis (ADR-0066 H3a) has a dedicated toggle below — never
           // render its nested object through the generic field renderer.
           if (key === "emotionAnalysis") return null;
+          // Social-post branding (ADR-0084) + slots (ADR-0085) get dedicated UI
+          // (the Branding section above / PR-4) — skip the generic renderer.
+          if (key === "brandingTier" || key === "brandLogoKey" || key === "slots") return null;
           const fieldCls =
             "rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-1 text-[length:var(--text-body)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]";
           const labelCls =
