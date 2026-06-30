@@ -73,6 +73,7 @@ import { cellLabel, pruneBindings, type VariantBinding, type VariantFactor } fro
 import { changelogBetween, initialVersionSummary } from "@/server/modules/changelog";
 import { readConsent, type StudyConsent } from "@/server/modules/consent";
 import { runPreflight, type PreflightCheck } from "@/server/modules/preflight";
+import { BRANDING_GATE_MESSAGE, evaluateBrandingGate } from "@/server/modules/branding-gate";
 import { registry as registryAdapter } from "@/server/adapters/registry";
 import { divergenceAgainstPinned, injectReplicationRecipe, type DivergenceStatus } from "@/server/modules/replication";
 import { getModuleDef } from "@/server/modules/registry";
@@ -80,7 +81,7 @@ import { protocolText } from "@/server/modules/protocol-text";
 import { decryptSecret } from "@/server/crypto/tokens";
 import { storage } from "@/server/adapters/storage";
 import { runTts, AiBudgetExceededError } from "@/server/runtime/ai-gateway";
-import { applyVisualContext, readTheme, requiresAcknowledgment, studyThemeSchema } from "@/lib/themes/themes";
+import { applyVisualContext, readTheme, requiresAcknowledgment, resolveSocialPost, studyThemeSchema } from "@/lib/themes/themes";
 import { sanitizeUiCopy } from "@/lib/take/ui-copy";
 import { resolvePanelIntegration, sanitizePanelIntegration } from "@/lib/take/panel-integration";
 import { diffLines } from "@/lib/diff-lines";
@@ -105,6 +106,19 @@ function normalizeTags(raw: string[]): string[] {
     )
     .filter((t) => t.length > 0 && t.length <= 40);
   return [...new Set(slugs)].slice(0, 20);
+}
+
+/**
+ * ADR-0084 hard gate. Refuse to freeze (preregister / amend / publish) or make
+ * live a study whose effectively-`branded` social-post blocks lack a researcher-
+ * uploaded logo, or whose study lacks an IRB attestation. Mirrors the mimic-
+ * acknowledgment rejection in setTheme (PRECONDITION_FAILED). Advisory-only on
+ * the preflight; ENFORCED here.
+ */
+function assertBrandingGate(snapshot: unknown): void {
+  if (!evaluateBrandingGate(snapshot).ok) {
+    throw new TRPCError({ code: "PRECONDITION_FAILED", message: BRANDING_GATE_MESSAGE });
+  }
 }
 
 async function loadWorkingTip(studyId: string, workspaceId: string) {
@@ -2802,6 +2816,42 @@ export const studiesRouter = router({
       return { ok: true };
     }),
 
+  /**
+   * Record (or clear) the IRB attestation for fully-branded stimuli (ADR-0084).
+   * Rides `theme.socialPost.irbAttestation` on the working tip's snapshot, so it
+   * freezes with preregistration + copies on fork. The byUserId + timestamp ARE
+   * the audit record. The freeze mutations hard-gate on this (assertBrandingGate).
+   */
+  setIrbAttestation: writeProcedure
+    .input(
+      z.object({
+        studyId: z.string().uuid(),
+        attested: z.boolean(),
+        statement: z.string().max(2000),
+      }),
+    )
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+      const snap =
+        tip.version.definitionSnapshot && typeof tip.version.definitionSnapshot === "object"
+          ? (tip.version.definitionSnapshot as Record<string, unknown>)
+          : {};
+      const theme = readTheme(tip.version.definitionSnapshot);
+      const social = resolveSocialPost(theme);
+      const nextSocial = {
+        ...social,
+        irbAttestation: input.attested
+          ? { attested: true, byUserId: ctx.dbUser.id, at: new Date().toISOString(), statement: input.statement }
+          : null,
+      };
+      await db
+        .update(experimentVersion)
+        .set({ definitionSnapshot: { ...snap, theme: { ...theme, socialPost: nextSocial } } })
+        .where(eq(experimentVersion.id, tip.version.id));
+      await db.update(experiment).set({ updatedAt: new Date() }).where(eq(experiment.id, input.studyId));
+      return { ok: true };
+    }),
+
   /** Save the consent screen (ADR-0035) — rides definition_snapshot.consent;
    *  empty fields mean "use the default" (merged on read). */
   setConsent: writeProcedure
@@ -3545,6 +3595,7 @@ export const studiesRouter = router({
         input,
       }): Promise<{ versionNumber: number; pushStatus: "pending" | "no_credentials" }> => {
         const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+        assertBrandingGate(tip.version.definitionSnapshot);
 
         const nextNumber = await nextVersionNumber(input.studyId);
 
@@ -3650,6 +3701,7 @@ export const studiesRouter = router({
     )
     .mutation(async ({ ctx, input }): Promise<{ versionNumber: number; pushStatus: "pending" | "no_credentials" }> => {
       const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+      assertBrandingGate(tip.version.definitionSnapshot);
 
       // The amendment supersedes the latest preregistered version.
       const [prior] = await db
@@ -3742,6 +3794,7 @@ export const studiesRouter = router({
     .input(z.object({ studyId: z.string().uuid() }))
     .mutation(async ({ ctx, input }): Promise<{ versionNumber: number }> => {
       const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+      assertBrandingGate(tip.version.definitionSnapshot);
 
       const nextNumber = await nextVersionNumber(input.studyId);
 
@@ -4382,6 +4435,7 @@ export const studiesRouter = router({
         input,
       }): Promise<{ versionNumber: number; versionKind: "preregistered" | "published"; pushStatus: "pending" | "no_credentials" | null }> => {
         const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+        assertBrandingGate(tip.version.definitionSnapshot);
 
         // The live frozen version we're superseding (latest runnable). Tenancy is
         // already enforced by loadWorkingTip, so this can be experimentId-scoped.

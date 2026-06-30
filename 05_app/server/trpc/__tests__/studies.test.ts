@@ -372,6 +372,45 @@ describe("studies.preregister", () => {
     expect(detail.blocks).toHaveLength(1);
   });
 
+  // ADR-0084 hard gate: a fully-branded social-post can't freeze without a logo
+  // AND an IRB attestation. setIrbAttestation records the attestation.
+  it("hard-gates a fully-branded social-post until logo + IRB attestation", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "Branded" });
+    const { instanceId } = await caller.studies.addBlock({
+      studyId: id,
+      source: "core",
+      key: "social-post",
+      version: "2.0.0",
+    });
+    const baseConfig = {
+      headline: "H",
+      body: "",
+      source: "Src",
+      veracityGroundTruth: "unverified",
+      topicTags: [],
+      imageUrl: "",
+      brandingTier: "branded",
+    };
+    // Branded, no logo, no attestation → rejected.
+    await caller.studies.updateBlockConfig({ studyId: id, instanceId, config: baseConfig });
+    await expect(caller.studies.preregister({ studyId: id })).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+
+    // Attestation but still no logo → still rejected.
+    await caller.studies.setIrbAttestation({ studyId: id, attested: true, statement: "IRB approved." });
+    await expect(caller.studies.preregister({ studyId: id })).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+
+    // Add the researcher-uploaded logo → now allowed.
+    await caller.studies.updateBlockConfig({
+      studyId: id,
+      instanceId,
+      config: { ...baseConfig, brandLogoKey: "/api/media/ws/abc/logo.png" },
+    });
+    const res = await caller.studies.preregister({ studyId: id });
+    expect(res.versionNumber).toBeGreaterThan(0);
+  });
+
   it("enqueues the OSF push and marks pending when the researcher is connected", async () => {
     const { user: u } = await seedUserWithWorkspace("ext_a", "Alpha");
     // Seed an active OSF connection for this user.

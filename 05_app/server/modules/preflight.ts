@@ -5,6 +5,7 @@ import {
   type BlockInstance,
 } from "@/server/modules/blocks";
 import { hasCustomConsent } from "@/server/modules/consent";
+import { evaluateBrandingGate } from "@/server/modules/branding-gate";
 import { getModuleDef } from "@/server/modules/registry";
 
 /**
@@ -214,6 +215,31 @@ export function runPreflight(opts: {
           : "The AI's wording varies per participant; each transcript is saved as that block's answer.",
       blocks: aiBlocks.map((b) => ({ instanceId: b.instanceId, name: nameOf(b) })),
     });
+  }
+
+  // branding / IRB (ADR-0084) — only when a branded social-post block exists.
+  // Advisory here; the freeze mutations ENFORCE it (PRECONDITION_FAILED).
+  const brand = evaluateBrandingGate(snapshot);
+  if (brand.requiresAttestation) {
+    out.push(
+      brand.ok
+        ? {
+            id: "branding-irb",
+            status: "pass",
+            title: "Branded stimulus — logo present + IRB attested",
+            detail: "Fully-branded posts carry your uploaded logo and the study's IRB attestation.",
+          }
+        : {
+            id: "branding-irb",
+            status: "fail",
+            title: brand.missingLogo.length
+              ? `${brand.missingLogo.length} branded post${brand.missingLogo.length === 1 ? "" : "s"} missing a logo${brand.hasAttestation ? "" : " + IRB attestation"}`
+              : "Branded stimulus needs an IRB attestation",
+            detail:
+              "Fully-branded posts can't be preregistered, published, or run until each carries your uploaded logo and the study's IRB attestation is confirmed.",
+            blocks: brand.missingLogo,
+          },
+    );
   }
 
   // consent — informational: the consent step always exists (ADR-0035).

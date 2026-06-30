@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { preflightSummary, runPreflight, type PreflightCheck } from "@/server/modules/preflight";
+import { ACADEMIC } from "@/lib/themes/themes";
 
 const snap = (blocks: Record<string, unknown>[], extra: Record<string, unknown> = {}): unknown => ({
   blocks,
@@ -90,5 +91,49 @@ describe("runPreflight (ADR-0034)", () => {
     expect(check.title).toContain("non-deterministic");
     expect(check.detail).toContain("preregistration");
     expect(check.blocks?.[0].instanceId).toBe("ai1");
+  });
+
+  // ADR-0084 — advisory branding/IRB row (the freeze mutations enforce it).
+  it("only flags branded social-post, and passes when logo + attestation present", () => {
+    const sp = (config: Record<string, unknown>) => ({
+      instanceId: "sp1",
+      source: "core",
+      key: "social-post",
+      version: "2.0.0",
+      config,
+    });
+    const base = { headline: "H", source: "S", veracityGroundTruth: "false" };
+
+    // No branded block → no branding row at all.
+    const none = runPreflight({ snapshot: snap([likert()]), conditions: noConditions, mode: "publish" });
+    expect(none.find((c) => c.id === "branding-irb")).toBeUndefined();
+
+    // Branded, no logo / no attestation → fail.
+    const bad = runPreflight({
+      snapshot: snap([sp({ ...base, brandingTier: "branded" })]),
+      conditions: noConditions,
+      mode: "publish",
+    });
+    expect(get(bad, "branding-irb").status).toBe("fail");
+
+    // Logo + IRB attestation → pass.
+    const ok = runPreflight({
+      snapshot: snap([sp({ ...base, brandingTier: "branded", brandLogoKey: "/api/media/ws/a/logo.png" })], {
+        theme: {
+          ...ACADEMIC,
+          socialPost: {
+            irbAttestation: {
+              attested: true,
+              byUserId: "00000000-0000-4000-8000-00000000abcd",
+              at: "2026-06-30T00:00:00Z",
+              statement: "IRB approved.",
+            },
+          },
+        },
+      }),
+      conditions: noConditions,
+      mode: "publish",
+    });
+    expect(get(ok, "branding-irb").status).toBe("pass");
   });
 });
