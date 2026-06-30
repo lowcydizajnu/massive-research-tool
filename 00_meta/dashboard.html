@@ -1214,7 +1214,15 @@
   ],
   "recentActivity": [
     {
-      "text": "Feedback board round 5 — all 6 open tickets fixed (committed, unpushed; no migration). T1 (01KWCKMKN4): per-post branding is now a compact inherit/override select, clearly subordinate to the study-default cards (was two look-alike pickers). T2 (01KWCKHS9G): composer Emoji/Photo/GIF/Sticker affordances now render in the runtime composer. T3 (01KWCJ7CSZ): comment input stays on top (posted comments below); participant can Reply to a seeded comment (inline, captured as answer.replies); engagement-summary share count bumps with the Share toggle. T4 (01KWCJ30X9): take card + main go full-bleed on mobile so the nav + progress bar are flush and the stimulus isn't boxed-in-a-box; framed from sm up. T5 (01KWCFEFBQ): video requireFullWatch gates Continue until the clip ends and blocks skipping ahead (direct files; embeds noted as untrackable). T6 (01KW943Q): undo of an ungroup no longer blinks green then reverts (skip the clobbering refetch on undo/redo restores). 894 tests; tsc/lint/build clean.",
+      "text": "Owner corrections to T5 + T6 (committed, unpushed; no migration). T5: force-watch now RECORDS the watch — the video block collects {watched, watchedMs} (plain video = exposure row) so the researcher can see who watched, surfaced in Results/Export; a new module-def conditionSource flag (defaults to collectsResponse) keeps video out of the condition builder since watch data isn't a branch input. T6 (real cause): the A/B STARTER I seeded had 1-member screen-groups (stimulus-a / stimulus-b) which auto-dissolve and can't be recreated via undo — that was the actual bug. Removed those groups (single condition-gated blocks are already their own screen) + added a defensive sub-2-group dissolve in seedStarter. 895 tests; tsc/lint/build clean. WARNING: run db:seed:prod after deploy to refresh the live A/B starter.",
+      "date": "2026-06-30"
+    },
+    {
+      "text": "Feedback board round 5 — all 6 open tickets fixed (DEPLOYED 8720df4).",
+      "date": "2026-06-30"
+    },
+    {
+      "text": "Feedback board round 5 (detail) — all 6 open tickets fixed. T1 (01KWCKMKN4): per-post branding is now a compact inherit/override select, clearly subordinate to the study-default cards (was two look-alike pickers). T2 (01KWCKHS9G): composer Emoji/Photo/GIF/Sticker affordances now render in the runtime composer. T3 (01KWCJ7CSZ): comment input stays on top (posted comments below); participant can Reply to a seeded comment (inline, captured as answer.replies); engagement-summary share count bumps with the Share toggle. T4 (01KWCJ30X9): take card + main go full-bleed on mobile so the nav + progress bar are flush and the stimulus isn't boxed-in-a-box; framed from sm up. T5 (01KWCFEFBQ): video requireFullWatch gates Continue until the clip ends and blocks skipping ahead (direct files; embeds noted as untrackable). T6 (01KW943Q): undo of an ungroup no longer blinks green then reverts (skip the clobbering refetch on undo/redo restores). 894 tests; tsc/lint/build clean.",
       "date": "2026-06-30"
     },
     {
