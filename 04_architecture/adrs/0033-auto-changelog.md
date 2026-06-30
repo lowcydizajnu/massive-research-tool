@@ -47,3 +47,19 @@ We will derive the changelog on read (Option A): a pure `changelogBetween(prevSn
 - [github-features-backlog](../handoffs/github-features-backlog.md) item 3
 - [ADR-0031](0031-protocol-text-diff.md) (protocol-text diff), [ADR-0019](0019-version-preview-and-restore.md)-era freeze semantics, [ADR-0012](0012-block-format-and-autosave-semantics.md) (snapshot-riding definition)
 - Code: `05_app/server/modules/changelog.ts`, `studies.listVersions`, `versions-panel.tsx`, `save-version-dialog.tsx`
+
+## Amendment (2026-06-30) — never-frozen drafts diff against the default baseline
+
+A brand-new study has no frozen version, so the working-draft changelog fell back to
+`initialVersionSummary` ("Initial version — N blocks") and hid every design/consent/config edit the
+researcher had made (owner: "changelog missing a lot of changes"). Fix: when there is no frozen
+baseline, diff the draft against the **canonical default-new-study snapshot**
+(`DEFAULT_NEW_STUDY_SNAPSHOT` — `blocks: []` + the same default theme/consent/overview the readers
+normalize to) via the existing `changelogBetween`, so the full differ (blocks, config, groups,
+overview, design preset, consent) runs. The baseline must be the real defaults, not `{}`, or
+untouched fields would emit false "Design adjusted"/"Consent updated" lines. Same differ, a
+meaningful baseline.
+
+A complementary **time-ordered edit trail** (the changelog "Detailed" view) is a separate concern
+with its own storage — see [ADR-0086](0086-study-edit-event-log.md). This ADR remains the
+**drift-from-frozen** (Summary) view; ADR-0086 is the **provenance** (Detailed) view.
