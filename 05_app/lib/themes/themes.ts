@@ -78,6 +78,98 @@ export const RADIUS_PX: Record<ChatAppearance["bubbleRadius"], string> = {
   rounded: "16px",
 };
 
+/* ---- Social-post design (ADR-0085 builder + ADR-0084 branding tiers) --------
+ * Rides `theme.socialPost` (study-level defaults; per-block content + overrides
+ * stay on the social-post block config). Optional on the theme — older snapshots
+ * lack it; read via resolveSocialPost, which fills every default. Allowlist-only
+ * (no arbitrary HTML/CSS), consistent with the rest of the theme. */
+
+export const REACTION_KEYS = ["like", "love", "care", "haha", "wow", "sad", "angry"] as const;
+export type ReactionKey = (typeof REACTION_KEYS)[number];
+const reactionKey = z.enum(REACTION_KEYS);
+
+export const BRANDING_TIERS = ["block", "layout", "branded"] as const;
+export type BrandingTier = (typeof BRANDING_TIERS)[number];
+export const brandingTierSchema = z.enum(BRANDING_TIERS);
+
+const slotRegion = z.enum(["header-badge", "sponsored-label", "below-body", "pinned-comment", "action-bar"]);
+export const customSlotSchema = z.object({
+  id: z.string().max(64),
+  region: slotRegion,
+  kind: z.enum(["text", "image", "icon"]),
+  content: z.string().max(2000),
+});
+export type CustomSlot = z.infer<typeof customSlotSchema>;
+
+const seededReply = z.object({
+  id: z.string().max(64),
+  authorName: z.string().max(120),
+  authorAvatarKey: z.string().max(512).nullable().default(null),
+  topFan: z.boolean().default(false),
+  verified: z.boolean().default(false),
+  body: z.string().max(2000),
+  timeLabel: z.string().max(40).default(""),
+  reactionCount: z.number().int().min(0).max(100_000_000).default(0),
+  reactions: z.array(reactionKey).default([]),
+});
+const seededComment = seededReply.extend({
+  replies: z.array(seededReply).max(20).default([]),
+});
+export type SeededComment = z.infer<typeof seededComment>;
+
+const commentThreadSchema = z.object({
+  enabled: z.boolean().default(false),
+  seeded: z.array(seededComment).max(50).default([]),
+  viewMoreLabel: z.string().max(60).default(""),
+  countLabel: z.string().max(40).default(""),
+});
+
+const composerSchema = z.object({
+  enabled: z.boolean().default(true),
+  placeholder: z.string().max(120).default(""),
+  slots: z.array(z.enum(["emoji", "photo", "gif", "sticker"])).default([]),
+});
+
+/** Researcher's IRB attestation for fully-branded stimuli (ADR-0084). Present once
+ *  attested; hard-enforced server-side before preregister/publish/make-live. */
+export const irbAttestationSchema = z.object({
+  attested: z.boolean(),
+  byUserId: z.string().uuid(),
+  at: z.string(),
+  statement: z.string().max(2000),
+});
+export type IrbAttestation = z.infer<typeof irbAttestationSchema>;
+
+export const socialPostSchema = z.object({
+  brandingTierDefault: brandingTierSchema.default("block"),
+  reactionsEnabled: z.array(reactionKey).default(["like"]),
+  reactionsLive: z.boolean().default(true),
+  showReactionSummary: z.boolean().default(true),
+  actionBar: z
+    .object({ react: z.boolean(), comment: z.boolean(), share: z.boolean() })
+    .default({ react: true, comment: true, share: true }),
+  comments: commentThreadSchema.default({}),
+  composer: composerSchema.default({}),
+  slots: z.array(customSlotSchema).max(20).default([]),
+  irbAttestation: irbAttestationSchema.nullable().default(null),
+});
+export type SocialPostDesign = z.infer<typeof socialPostSchema>;
+
+/** Resolve a theme's social-post design with every default filled (optional on theme). */
+export function resolveSocialPost(theme: { socialPost?: unknown } | null | undefined): SocialPostDesign {
+  return socialPostSchema.parse((theme?.socialPost as object) ?? {});
+}
+
+/** Effective branding tier for a block: a per-block override wins over the study default. */
+export function effectiveBrandingTier(
+  blockConfig: { brandingTier?: unknown } | null | undefined,
+  social: { brandingTierDefault?: BrandingTier } | null | undefined,
+): BrandingTier {
+  const perBlock = blockConfig?.brandingTier;
+  if (perBlock === "block" || perBlock === "layout" || perBlock === "branded") return perBlock;
+  return social?.brandingTierDefault ?? "block";
+}
+
 export const studyThemeSchema = z.object({
   presetKey: z.enum([
     "academic", "clinical", "modern", "playful",
@@ -121,6 +213,9 @@ export const studyThemeSchema = z.object({
   /** AI-conversation chat-window appearance (ADR-0065). Optional — read via
    *  resolveChat, which fills defaults; presets don't declare it. */
   chat: chatAppearanceSchema.optional(),
+  /** Social-post design (ADR-0085) + branding-tier default + IRB attestation
+   *  (ADR-0084). Optional — read via resolveSocialPost. */
+  socialPost: socialPostSchema.optional(),
 });
 export type StudyTheme = z.infer<typeof studyThemeSchema>;
 

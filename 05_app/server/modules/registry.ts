@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { HUME_LANGUAGE_CODES } from "@/lib/ai/hume-languages";
+import { REACTION_KEYS, brandingTierSchema, customSlotSchema } from "@/lib/themes/themes";
 
 /**
  * In-repo module registry — the runtime source of truth for module config
@@ -220,6 +221,15 @@ const socialPostV2: CoreModuleDef = {
     singleReaction: z.boolean().optional(),
     /** Optional Claude emotion analysis of the participant's COMMENT (ADR-0066). */
     emotionAnalysis: emotionAnalysisConfig,
+    // Branding tier (ADR-0084) + design slots (ADR-0085). Per-block override of
+    // the study default (`theme.socialPost.brandingTierDefault`); all optional +
+    // additive so existing configs stay valid.
+    brandingTier: brandingTierSchema.optional(),
+    /** Researcher-uploaded logo/marks (R2). Required when the effective tier is
+     *  "branded" — we never ship trademarked assets. Enforced at the publish gate. */
+    brandLogoKey: mediaUrl.optional(),
+    /** Per-block custom slots, appended to the study-level slots. */
+    slots: z.array(customSlotSchema).max(20).optional(),
   }),
   defaultConfig: {
     headline: "",
@@ -254,6 +264,9 @@ const socialPostV2: CoreModuleDef = {
       allowComments: { type: "boolean" },
       singleReaction: { type: "boolean" },
       emotionAnalysis: emotionAnalysisJsonSchema,
+      brandingTier: { enum: ["block", "layout", "branded"] },
+      brandLogoKey: { type: "string" },
+      slots: { type: "array" },
     },
     required: ["headline", "source", "veracityGroundTruth"],
     additionalProperties: false,
@@ -266,6 +279,9 @@ const socialPostV2: CoreModuleDef = {
     liked: z.boolean(),
     shared: z.boolean(),
     comment: z.string().max(2000).optional(),
+    /** The single chosen reaction when the design enables the full picker
+     *  (ADR-0085, reactionsLive). `liked` stays for back-compat (= reaction != null). */
+    reaction: z.enum(REACTION_KEYS).nullable().optional(),
   }),
   // Never blocks the participant — interacting with a stimulus is always optional.
   isAnswerEmpty: () => false,

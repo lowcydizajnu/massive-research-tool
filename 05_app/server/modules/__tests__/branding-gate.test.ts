@@ -1,0 +1,104 @@
+import { describe, expect, it } from "vitest";
+
+import { evaluateBrandingGate } from "@/server/modules/branding-gate";
+import {
+  ACADEMIC,
+  effectiveBrandingTier,
+  resolveSocialPost,
+  socialPostSchema,
+  type StudyTheme,
+} from "@/lib/themes/themes";
+
+const UUID = "00000000-0000-4000-8000-00000000abcd";
+
+const post = (instanceId: string, config: Record<string, unknown>) => ({
+  instanceId,
+  source: "core" as const,
+  key: "social-post",
+  version: "2.0.0",
+  config,
+});
+
+const themeWith = (socialPost: Record<string, unknown>): StudyTheme => ({
+  ...ACADEMIC,
+  socialPost: socialPostSchema.parse(socialPost),
+});
+
+const attestation = { attested: true, byUserId: UUID, at: "2026-06-30T00:00:00Z", statement: "IRB approved." };
+
+describe("socialPostSchema + effectiveBrandingTier", () => {
+  it("fills sensible defaults from an empty object", () => {
+    const s = resolveSocialPost({ socialPost: {} });
+    expect(s.brandingTierDefault).toBe("block");
+    expect(s.reactionsEnabled).toEqual(["like"]);
+    expect(s.reactionsLive).toBe(true);
+    expect(s.comments.enabled).toBe(false);
+    expect(s.irbAttestation).toBeNull();
+  });
+
+  it("a per-block tier overrides the study default", () => {
+    expect(effectiveBrandingTier({ brandingTier: "branded" }, { brandingTierDefault: "block" })).toBe("branded");
+    expect(effectiveBrandingTier({}, { brandingTierDefault: "layout" })).toBe("layout");
+    expect(effectiveBrandingTier(null, null)).toBe("block");
+    // Garbage per-block value falls back to the study default.
+    expect(effectiveBrandingTier({ brandingTier: "nonsense" }, { brandingTierDefault: "layout" })).toBe("layout");
+  });
+});
+
+describe("evaluateBrandingGate", () => {
+  it("passes when there are no social-post blocks", () => {
+    const r = evaluateBrandingGate({ blocks: [], theme: ACADEMIC });
+    expect(r.requiresAttestation).toBe(false);
+    expect(r.ok).toBe(true);
+  });
+
+  it("passes a non-branded post (block / layout tiers don't need attestation)", () => {
+    const snap = { blocks: [post("a", { brandingTier: "layout" })], theme: themeWith({ brandingTierDefault: "block" }) };
+    const r = evaluateBrandingGate(snap);
+    expect(r.requiresAttestation).toBe(false);
+    expect(r.ok).toBe(true);
+  });
+
+  it("blocks a branded post with no logo and no attestation", () => {
+    const snap = { blocks: [post("a", { brandingTier: "branded" })], theme: themeWith({}) };
+    const r = evaluateBrandingGate(snap);
+    expect(r.requiresAttestation).toBe(true);
+    expect(r.hasAttestation).toBe(false);
+    expect(r.missingLogo.map((m) => m.instanceId)).toEqual(["a"]);
+    expect(r.ok).toBe(false);
+  });
+
+  it("blocks a branded post that has attestation but is missing its logo", () => {
+    const snap = {
+      blocks: [post("a", { brandingTier: "branded" })],
+      theme: themeWith({ irbAttestation: attestation }),
+    };
+    const r = evaluateBrandingGate(snap);
+    expect(r.hasAttestation).toBe(true);
+    expect(r.missingLogo).toHaveLength(1);
+    expect(r.ok).toBe(false);
+  });
+
+  it("passes a branded post with both a logo and an attestation", () => {
+    const snap = {
+      blocks: [post("a", { brandingTier: "branded", brandLogoKey: "/api/media/ws/abc/logo.png" })],
+      theme: themeWith({ irbAttestation: attestation }),
+    };
+    const r = evaluateBrandingGate(snap);
+    expect(r.requiresAttestation).toBe(true);
+    expect(r.missingLogo).toHaveLength(0);
+    expect(r.ok).toBe(true);
+  });
+
+  it("honors the study-level default tier (no per-block override)", () => {
+    const blocks = [post("a", { brandLogoKey: "/api/media/ws/abc/logo.png" })];
+    // Default = branded ⇒ the post is branded ⇒ needs attestation.
+    expect(evaluateBrandingGate({ blocks, theme: themeWith({ brandingTierDefault: "branded" }) }).ok).toBe(false);
+    expect(
+      evaluateBrandingGate({
+        blocks,
+        theme: themeWith({ brandingTierDefault: "branded", irbAttestation: attestation }),
+      }).ok,
+    ).toBe(true);
+  });
+});
