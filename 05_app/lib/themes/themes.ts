@@ -170,6 +170,27 @@ export function effectiveBrandingTier(
   return social?.brandingTierDefault ?? "block";
 }
 
+/** Mimic presets whose chrome the social branding tier (ADR-0084) governs. v1
+ *  active = facebook; x/tiktok/instagram render here as the builders ship. */
+export const SOCIAL_PLATFORM_PRESETS = ["facebook", "x", "instagram", "tiktok"] as const;
+
+function isSocialPlatform(preset: string): boolean {
+  return (SOCIAL_PLATFORM_PRESETS as readonly string[]).includes(preset);
+}
+
+/**
+ * Whether the participant page shows the platform chrome (the decorative top
+ * frame). Back-compat: a study with no explicit `theme.socialPost`, or a
+ * non-social preset, keeps the preset's chrome. Once the social design is
+ * configured on a social platform, a study-default tier of "block" suppresses
+ * the chrome (ADR-0084/0085 — "block design" = no platform chrome or logo).
+ */
+export function showsPlatformChrome(theme: StudyTheme): boolean {
+  if (!isSocialPlatform(effectivePresetKey(theme))) return true;
+  if (theme.socialPost == null) return true;
+  return theme.socialPost.brandingTierDefault !== "block";
+}
+
 export const studyThemeSchema = z.object({
   presetKey: z.enum([
     "academic", "clinical", "modern", "playful",

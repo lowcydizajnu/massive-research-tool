@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 
 import { db } from "@/server/db/client";
 import { experiment, experimentVersion } from "@/server/db/schema";
-import { WIDTHS, effectivePresetKey, readTheme, themeToCssVars } from "@/lib/themes/themes";
+import { WIDTHS, effectivePresetKey, readTheme, showsPlatformChrome, themeToCssVars } from "@/lib/themes/themes";
 import { getPageFrame } from "@/components/feature/take/page-frames";
 
 /**
@@ -35,8 +35,9 @@ export default async function ThemedTakeLayout({
   }
   const theme = readTheme(snapshot ?? {});
   const vars = themeToCssVars(theme) as CSSProperties;
-  // Page-level platform chrome (ADR-0024, Wave 5c): decorative + inert.
-  const Frame = getPageFrame(effectivePresetKey(theme));
+  // Page-level platform chrome (ADR-0024, Wave 5c): decorative + inert. The
+  // social branding tier (ADR-0084) suppresses it when set to "block".
+  const Frame = showsPlatformChrome(theme) ? getPageFrame(effectivePresetKey(theme)) : null;
 
   return (
     <div
