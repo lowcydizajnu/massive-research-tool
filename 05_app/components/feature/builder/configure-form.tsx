@@ -1,6 +1,8 @@
 "use client";
 
-import { Eye, EyeOff, Lightbulb, X } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, Lightbulb, X } from "lucide-react";
+import Link from "next/link";
+import type { Route } from "next";
 import { useRef, useState } from "react";
 
 import type { StudyBlock } from "@/server/trpc/routers/studies";
@@ -37,6 +39,62 @@ function humanize(key: string): string {
     .replace(/([A-Z])/g, " $1")
     .replace(/^./, (c) => c.toUpperCase())
     .trim();
+}
+
+/** Branding-tier labels (ADR-0084) — researcher-facing, no "chrome". */
+const TIER_LABELS: Record<string, string> = {
+  block: "Just the post",
+  layout: "Platform look",
+  branded: "Platform look + logo",
+};
+
+/**
+ * Configure-panel pointer for a social-post block (owner UX request): the whole
+ * post — content, look, branding, reactions, comments, slots — is edited in one
+ * place (Design → Social), so Configure shows only a one-line why, a deep link
+ * straight to this post in the Design editor, and a short summary of what's
+ * already set (so the researcher can see the block isn't empty without leaving).
+ */
+function SocialPostDesignPointer({ studyId, block }: { studyId: string; block: StudyBlock }) {
+  const cfg = block.config as Record<string, unknown>;
+  const str = (k: string) => (typeof cfg[k] === "string" ? (cfg[k] as string).trim() : "");
+  const tier = typeof cfg.brandingTier === "string" ? (cfg.brandingTier as string) : "";
+  const bits: string[] = [];
+  bits.push(`Branding: ${tier ? TIER_LABELS[tier] ?? tier : "study default"}`);
+  if (str("brandLogoKey")) bits.push("Logo uploaded");
+  if (str("headline") || str("body")) bits.push("Content written");
+  if (str("imageUrl")) bits.push("Image set");
+  if (str("authorAvatarKey")) bits.push("Avatar set");
+  const slots = Array.isArray(cfg.slots) ? cfg.slots.length : 0;
+  if (slots) bits.push(`${slots} custom slot${slots > 1 ? "s" : ""}`);
+
+  return (
+    <div className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] p-3">
+      <p className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+        The whole post — content, look, branding, reactions, comments, and slots — is edited in one place, with a live preview.
+      </p>
+      <Link
+        href={`/studies/${studyId}/design?tab=social&block=${block.instanceId}` as Route}
+        className="inline-flex w-fit items-center gap-1.5 rounded-[var(--radius-md)] bg-[var(--color-primary)] px-3 py-1.5 text-[length:var(--text-small)] font-medium text-[var(--color-on-primary)] hover:opacity-90"
+      >
+        Edit in Design → Social
+        <ArrowRight className="size-3.5" aria-hidden />
+      </Link>
+      <div className="flex flex-col gap-0.5 pt-1">
+        <span className="text-[length:var(--text-label)] uppercase tracking-wide text-[var(--color-text-muted)]">In this post</span>
+        <ul className="flex flex-wrap gap-1">
+          {bits.map((b) => (
+            <li
+              key={b}
+              className="rounded-full bg-[var(--color-surface-canvas)] px-2 py-0.5 text-[length:var(--text-small)] text-[var(--color-text-secondary)]"
+            >
+              {b}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
 }
 
 export function ConfigureForm({
@@ -103,10 +161,7 @@ export function ConfigureForm({
       </div>
 
       {block.key === "social-post" ? (
-        <p className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] p-3 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
-          Edit this post’s content, look, branding, reactions, comments, and slots in{" "}
-          <span className="font-medium text-[var(--color-text-primary)]">Design → Social</span> — one place for the whole post, with a live preview.
-        </p>
+        <SocialPostDesignPointer studyId={studyId} block={block} />
       ) : null}
 
       <div className="flex flex-col gap-3">

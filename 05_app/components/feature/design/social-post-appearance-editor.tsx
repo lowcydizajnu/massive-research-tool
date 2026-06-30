@@ -63,15 +63,21 @@ export function SocialPostAppearanceEditor({
   social,
   themeVars,
   onChange,
+  initialBlockId,
 }: {
   studyId: string;
   blocks?: SocialBlockRef[];
   social: SocialPostDesign;
   themeVars: CSSProperties;
   onChange: (next: SocialPostDesign) => void;
+  /** Deep-link target from the Configure → "Edit in Design" button: preselect
+   *  this block so the researcher lands on the post they clicked. */
+  initialBlockId?: string;
 }) {
   const enabled = new Set(social.reactionsEnabled);
-  const [selectedId, setSelectedId] = useState<string | null>(blocks[0]?.instanceId ?? null);
+  const [selectedId, setSelectedId] = useState<string | null>(
+    (initialBlockId && blocks.some((b) => b.instanceId === initialBlockId) ? initialBlockId : blocks[0]?.instanceId) ?? null,
+  );
   const selected = blocks.find((b) => b.instanceId === selectedId) ?? blocks[0] ?? null;
   // Per-post content lives on the block config (saved via updateBlockConfig); the
   // editor holds a local copy so the live preview reflects edits immediately.

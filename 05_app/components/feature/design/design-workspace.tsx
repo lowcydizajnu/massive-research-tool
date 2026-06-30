@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import type { Route } from "next";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useState, type CSSProperties } from "react";
 
 import { api } from "@/lib/trpc/react";
@@ -83,7 +84,14 @@ export function DesignWorkspace({
   socialBlocks?: AiChatBlockRef[];
 }) {
   const [theme, setTheme] = useState<StudyTheme>(initialTheme);
-  const [tab, setTab] = useState<"theme" | "chat" | "social">("theme");
+  // Deep link from Configure → "Edit in Design" (?tab=social&block=<id>). Clamp to
+  // a tab that actually exists for this study so a stale link can't strand the user.
+  const searchParams = useSearchParams();
+  const wantTab = searchParams.get("tab");
+  const deepBlockId = searchParams.get("block") ?? undefined;
+  const [tab, setTab] = useState<"theme" | "chat" | "social">(
+    wantTab === "social" && socialBlocks.length ? "social" : wantTab === "chat" && aiBlocks.length ? "chat" : "theme",
+  );
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
   /** A mimicking preset awaiting the researcher's acknowledgment (ADR-0024). */
   const [pendingMimic, setPendingMimic] = useState<keyof typeof THEME_PRESETS | null>(null);
@@ -158,6 +166,7 @@ export function DesignWorkspace({
         <SocialPostAppearanceEditor
           studyId={studyId}
           blocks={socialBlocks}
+          initialBlockId={deepBlockId}
           social={resolveSocialPost(theme)}
           themeVars={vars}
           onChange={(sp) => {

@@ -35,6 +35,7 @@ import { ConditionsSection } from "./conditions-section";
 import { ConfigureForm } from "./configure-form";
 import { BlockLibraryModal } from "./block-library-modal";
 import { ForkableControl, ReplicateButton, ReplicationsPanel } from "./replications-panel";
+import { ScrollableTabs } from "@/components/ui/scrollable-tabs";
 import { SaveAsTemplateModal } from "./save-as-template-modal";
 import { SaveVersionDialog } from "./save-version-dialog";
 import { TagsSection } from "./tags-section";
@@ -1072,7 +1073,7 @@ export function BuilderWorkspace({
           </fieldset>
         ) : (
         <>
-        <nav role="tablist" aria-label="Context" className="flex flex-nowrap items-center gap-1 overflow-x-auto [&>*]:shrink-0 [&>*]:whitespace-nowrap">
+        <ScrollableTabs aria-label="Context">
           {selected ? (
             <>
               {/* Clickable: returns to the study Details by deselecting the block. */}
@@ -1167,7 +1168,7 @@ export function BuilderWorkspace({
               <TabSoon label="Comments" />
             </>
           )}
-        </nav>
+        </ScrollableTabs>
 
         {selected && blockTab === "history" ? (
           <BlockHistoryPanel studyId={study.id} instanceId={selected.instanceId} />
