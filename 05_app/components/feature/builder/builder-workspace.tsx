@@ -3,7 +3,7 @@
 import { GripVertical, Plus, Redo2, Trash2, Undo2 } from "lucide-react";
 import Link from "next/link";
 import type { Route } from "next";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { SortableList } from "@/components/feature/whiteboard/sortable-list";
 import { useBlockHistory } from "@/lib/whiteboard/use-block-history";
@@ -239,6 +239,12 @@ export function BuilderWorkspace({
   // local state keyed by block id, which a restore doesn't change). Normal edits
   // don't bump it, so typing isn't interrupted.
   const [panelEpoch, setPanelEpoch] = useState(0);
+  // Undo/redo restores a previously-valid snapshot; onMutate already mirrors the
+  // server's ≥2-member dissolve exactly, so the post-success refetch is redundant
+  // AND can clobber the just-restored optimistic state under read-after-write lag —
+  // the "blink green group then revert to ungrouped" bug (01KW943Q). Skip the
+  // refetch for restores only; normal drag/drop edits still reconcile via invalidate.
+  const skipNextGroupsInvalidate = useRef(false);
   const setGroupsMut = api.studies.setGroups.useMutation({
     // Optimistic — a dropped block must STAY where it was dropped (owner: "it
     // comes back to the initial position and then moves"). Patch the cache with
@@ -266,13 +272,20 @@ export function BuilderWorkspace({
       if (mctx?.prev) utils.studies.get.setData({ id: study.id }, mctx.prev);
     },
     onSuccess: () => {
+      if (skipNextGroupsInvalidate.current) {
+        skipNextGroupsInvalidate.current = false;
+        setPanelEpoch((e) => e + 1);
+        return;
+      }
       void invalidate();
       setPanelEpoch((e) => e + 1);
     },
   });
-  const { canUndo, canRedo, undo, redo } = useBlockHistory(study.id, study.blocks, study.groups, (snap) =>
-    setGroupsMut.mutate({ studyId: study.id, blocks: snap.blocks, groups: snap.groups }),
-  );
+  const { canUndo, canRedo, undo, redo } = useBlockHistory(study.id, study.blocks, study.groups, (snap) => {
+    // Trust the optimistic restore of a known-good snapshot (no clobbering refetch).
+    skipNextGroupsInvalidate.current = true;
+    setGroupsMut.mutate({ studyId: study.id, blocks: snap.blocks, groups: snap.groups });
+  });
 
   // Convert the read-shaped StudyBlock back to the write (BlockInstance) shape.
   const toInstance = (b: StudyBlock, groupId: string | null) => ({
