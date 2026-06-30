@@ -121,6 +121,40 @@ describe("emotion export columns (ADR-0066 H3a)", () => {
   });
 });
 
+// A social-post block (ADR-0085): r1 picked "love", r2 left no reaction. The
+// chosen reaction rides row.answers under a `reaction:<inst>` key (set in
+// getResults); the compact per-block column keeps the full engagement string.
+const withSocialPost: ResultsSummary = {
+  ...results,
+  questions: [
+    results.questions[0],
+    { ...results.questions[1], moduleKey: "social-post", prompt: "The post" },
+  ],
+  rows: [
+    { ...results.rows[0], answers: { ...results.rows[0].answers, q2: "liked=true; reaction=love", "reaction:q2": "love" } },
+    { ...results.rows[1], answers: { ...results.rows[1].answers, q2: "liked=false", "reaction:q2": "" } },
+  ],
+};
+
+describe("social-post reaction export column (ADR-0085)", () => {
+  it("appends one reaction column per social-post block, after questions; none otherwise", () => {
+    expect(baseColumns(results).some((c) => c.key.startsWith("reaction:"))).toBe(false);
+    const cols = baseColumns(withSocialPost);
+    const rx = cols.filter((c) => c.key.startsWith("reaction:"));
+    expect(rx.map((c) => c.key)).toEqual(["reaction:q2"]);
+    expect(rx[0].label).toBe("the_post_reaction");
+    expect(rx[0].type).toBe("categorical");
+  });
+
+  it("buildMatrix fills the chosen reaction key, blank when none chosen", () => {
+    const cols = baseColumns(withSocialPost).filter((c) => c.key === "reaction:q2");
+    const m = buildMatrix(withSocialPost, cols);
+    expect(m.headers).toEqual(["the_post_reaction"]);
+    expect(m.rows[0]).toEqual(["love"]);
+    expect(m.rows[1]).toEqual([""]);
+  });
+});
+
 // A spatial block where r1 answered but r2 did NOT (rows ⊋ spatial.responses) —
 // exercises the per-respondent deep-link column + the membership guard.
 const withSpatial: ResultsSummary = {

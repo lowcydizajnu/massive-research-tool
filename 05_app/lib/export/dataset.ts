@@ -106,7 +106,21 @@ export function baseColumns(results: ResultsSummary): ExportColumn[] {
       }));
       return [status, ...scores];
     });
-  return [...meta, ...questions, ...viz, ...emotion];
+  // Social-post (ADR-0085): the chosen reaction gets its own analyzable column
+  // (`reaction:<inst>`) so a researcher can tabulate which of the seven Facebook
+  // reactions each respondent picked, instead of digging it out of the compact
+  // engagement string. cell() resolves it via row.answers (no colon clash with
+  // the `viz:`/`emo:` prefixes). The compact per-block column is unchanged.
+  const reaction = results.questions
+    .filter((q) => q.moduleKey === "social-post")
+    .map((q): ExportColumn => ({
+      key: `reaction:${q.instanceId}`,
+      source: `${q.prompt || q.moduleKey} — reaction`,
+      type: "categorical",
+      label: dedupe(`${slugifyLabel(q.prompt || q.moduleKey)}_reaction`),
+      hidden: false,
+    }));
+  return [...meta, ...questions, ...viz, ...emotion, ...reaction];
 }
 
 /** responseIds that actually have a per-respondent response, per block instanceId

@@ -4993,6 +4993,21 @@ export const studiesRouter = router({
         }
       }
 
+      // Social-post (ADR-0085): surface the chosen reaction as its own export
+      // cell (`reaction:<inst>`) so dataset.ts can emit a dedicated, analyzable
+      // reaction column. The compact per-block column still carries liked/shared/
+      // comment via stringifyAnswer; this only splits out the reaction key.
+      for (const b of questionBlocks) {
+        if (b.key !== "social-post") continue;
+        for (const it of items) {
+          if (it.blockInstanceId !== b.instanceId) continue;
+          const a = (it.answer ?? {}) as { reaction?: unknown };
+          const row = answersByResponse.get(it.responseId) ?? {};
+          row[`reaction:${b.instanceId}`] = typeof a.reaction === "string" ? a.reaction : "";
+          answersByResponse.set(it.responseId, row);
+        }
+      }
+
       type QResult = ResultsSummary["questions"][number];
       const questions: QResult[] = questionBlocks.flatMap((b): QResult[] => {
         if (b.key === "field-group") {
