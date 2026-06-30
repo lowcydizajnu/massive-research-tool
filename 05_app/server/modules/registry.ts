@@ -291,11 +291,11 @@ const socialPostV2: CoreModuleDef = {
     if (config.singleReaction === true && ans.liked === true && ans.shared === true) return false;
     return true;
   },
+  // Complete once it has a headline OR body — `source` is optional (a post can be
+  // anonymous / sourceless), so requiring it wrongly flagged set-up posts as "Needs setup".
   isComplete: (c) =>
-    typeof c.headline === "string" &&
-    c.headline.trim().length > 0 &&
-    typeof c.source === "string" &&
-    c.source.trim().length > 0,
+    (typeof c.headline === "string" && c.headline.trim().length > 0) ||
+    (typeof c.body === "string" && c.body.trim().length > 0),
 };
 
 // Single- or multi-select choice question.

@@ -38,6 +38,9 @@ export default async function DesignPage({ params }: { params: Promise<{ id: str
           aiBlocks={study.blocks
             .filter((b) => b.key === "ai-chat")
             .map((b) => ({ instanceId: b.instanceId, title: b.title ?? b.name, config: b.config }))}
+          socialBlocks={study.blocks
+            .filter((b) => b.key === "social-post")
+            .map((b) => ({ instanceId: b.instanceId, title: b.title ?? b.name, config: b.config }))}
         />
       </div>
     </main>

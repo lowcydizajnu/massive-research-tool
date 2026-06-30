@@ -3,13 +3,16 @@
 import { useState, type CSSProperties } from "react";
 
 import { api } from "@/lib/trpc/react";
+import { getBlockOverride } from "@/components/feature/take/block-overrides";
 import { cn } from "@/lib/utils";
-import { BRANDING_TIERS, REACTION_KEYS, type BrandingTier, type ReactionKey, type SocialPostDesign } from "@/lib/themes/themes";
+import { BRANDING_TIERS, REACTION_KEYS, effectiveBrandingTier, type BrandingTier, type ReactionKey, type SocialPostDesign } from "@/lib/themes/themes";
+
+type SocialBlockRef = { instanceId: string; title: string; config: Record<string, unknown> };
 
 const TIER_LABELS: Record<BrandingTier, { label: string; help: string }> = {
-  block: { label: "Block design", help: "Just the post content — no platform chrome or logo." },
-  layout: { label: "Layout (inspired)", help: "Full platform layout, clearly inspired — no logo." },
-  branded: { label: "Fully branded", help: "Adds your own uploaded logo. Requires an IRB attestation to publish." },
+  block: { label: "Just the post", help: "Only the post card — no platform header bar or logo." },
+  layout: { label: "Platform look", help: "Full platform styling (header bar, reactions, comments) — no logo." },
+  branded: { label: "Platform look + logo", help: "Adds your uploaded logo on top of the platform look. Requires an IRB attestation to publish." },
 };
 
 const IRB_STATEMENT =
@@ -54,16 +57,20 @@ function Toggle({ checked, onChange, children }: { checked: boolean; onChange: (
 
 export function SocialPostAppearanceEditor({
   studyId,
+  blocks = [],
   social,
   themeVars,
   onChange,
 }: {
   studyId: string;
+  blocks?: SocialBlockRef[];
   social: SocialPostDesign;
   themeVars: CSSProperties;
   onChange: (next: SocialPostDesign) => void;
 }) {
   const enabled = new Set(social.reactionsEnabled);
+  const [selectedId, setSelectedId] = useState<string | null>(blocks[0]?.instanceId ?? null);
+  const selected = blocks.find((b) => b.instanceId === selectedId) ?? blocks[0] ?? null;
   const [irbOpen, setIrbOpen] = useState(false);
   const [irbChecked, setIrbChecked] = useState(false);
   // Optimistic attestation state (the server stamps who/when via setIrbAttestation).
@@ -86,6 +93,22 @@ export function SocialPostAppearanceEditor({
         <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
           Platform: <span className="font-medium text-[var(--color-text-secondary)]">Facebook</span> — X and TikTok coming soon.
         </p>
+
+        {blocks.length > 1 ? (
+          <label className="flex flex-col gap-1">
+            <span className={LEGEND_CLS}>Previewing post</span>
+            <select value={selected?.instanceId ?? ""} onChange={(e) => setSelectedId(e.target.value)} className={FIELD_CLS}>
+              {blocks.map((b) => (
+                <option key={b.instanceId} value={b.instanceId}>{b.title}</option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+        {blocks.length === 0 ? (
+          <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+            Add a <span className="font-medium">Social post</span> block in Build to preview it here. These settings still save.
+          </p>
+        ) : null}
 
         <fieldset className="flex flex-col gap-2">
           <legend className={LEGEND_CLS}>Branding (study default)</legend>
@@ -356,7 +379,7 @@ export function SocialPostAppearanceEditor({
       <div className="flex min-w-0 flex-1 flex-col gap-2 lg:sticky lg:top-3 lg:self-start">
         <span className={LEGEND_CLS}>Participant preview</span>
         <div aria-hidden style={themeVars} className="rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-page)] p-6">
-          <SocialPostPreview social={social} />
+          <SocialPostPreview social={social} block={selected} />
         </div>
       </div>
 
@@ -395,57 +418,56 @@ export function SocialPostAppearanceEditor({
   );
 }
 
-/** A lightweight, themed Facebook-style preview that mirrors the current settings. */
-function SocialPostPreview({ social }: { social: SocialPostDesign }) {
-  const enabled = REACTION_KEYS.filter((k) => social.reactionsEnabled.includes(k));
+/** Sample post used when the study has no social-post block yet. */
+const SAMPLE_POST: Record<string, unknown> = {
+  source: "Health Buzz",
+  headline: "Scientists confirm coffee reverses aging, study claims",
+  body: "A viral post citing an unnamed “leading institute.”",
+  likesCount: 1243,
+  commentsCount: 214,
+  sharesCount: 348,
+  timeLabel: "2h",
+  allowComments: true,
+};
+
+/**
+ * Live preview — renders the SAME participant component the take page uses
+ * (the facebook override), so every setting (reactions, action bar, comments,
+ * slots, branding) is reflected exactly. The "Just the post" tier shows the
+ * plain card (no platform styling), mirroring the runtime.
+ */
+function SocialPostPreview({ social, block }: { social: SocialPostDesign; block: SocialBlockRef | null }) {
+  const config = block?.config ?? SAMPLE_POST;
+  const tier = effectiveBrandingTier(config as { brandingTier?: unknown }, social);
+  const headline = typeof config.headline === "string" ? config.headline : "";
+  const body = typeof config.body === "string" ? config.body : "";
+
+  if (tier === "block") {
+    return (
+      <div className="mx-auto flex max-w-md flex-col gap-2 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-4 text-[var(--color-text-primary)] shadow-[var(--shadow-md)]">
+        {headline ? <p className="text-[length:var(--text-body-emphasis)] font-medium">{headline}</p> : null}
+        {body ? <p className="text-[length:var(--text-body)]">{body}</p> : null}
+        {!headline && !body ? <p className="text-[length:var(--text-body)] text-[var(--color-text-muted)]">Your post text appears here.</p> : null}
+        <p className="text-[length:var(--text-small)] italic text-[var(--color-text-muted)]">Just the post — no platform styling.</p>
+      </div>
+    );
+  }
+
+  const Override = getBlockOverride("facebook", "social-post");
   return (
-    <div className="mx-auto max-w-md overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] text-[var(--color-text-primary)] shadow-[var(--shadow-md)]">
-      {/* header */}
-      <div className="flex items-center gap-2 p-3">
-        <span className="flex size-9 items-center justify-center rounded-full bg-[var(--color-primary)] text-[length:var(--text-body-emphasis)] font-bold text-white">H</span>
-        <span className="flex flex-col">
-          <span className="text-[length:var(--text-body-emphasis)] font-medium">Health Buzz</span>
-          <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">2h · 🌐</span>
-        </span>
+    <div className="mx-auto max-w-md overflow-hidden rounded-[var(--radius-lg)] border border-[#E4E6EB] bg-white shadow-[var(--shadow-md)]">
+      {/* Decorative platform bar (matches the participant page frame). */}
+      <div className="flex items-center gap-2 border-b border-[#E4E6EB] px-3 py-2">
+        <span className="flex size-7 items-center justify-center rounded-full bg-[#0866FF] text-[13px] font-bold lowercase text-white">f</span>
+        <span className="rounded-full bg-[#F0F2F5] px-3 py-1 text-[12px] text-[#65676B]">Search</span>
       </div>
-      {/* body */}
-      <p className="px-3 pb-3 text-[length:var(--text-body)]">
-        Scientists confirm coffee reverses aging, study claims — a viral post citing an unnamed “leading institute.”
-      </p>
-      <div className="h-px bg-[var(--color-border-subtle)]" />
-      {/* reaction summary */}
-      {social.showReactionSummary && enabled.length > 0 ? (
-        <div className="flex items-center justify-between px-3 py-1.5 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-          <span>{enabled.map((k) => REACTION_META[k].emoji).join("")} 1.2K</span>
-          <span>214 comments · 348 shares</span>
-        </div>
-      ) : null}
-      <div className="h-px bg-[var(--color-border-subtle)]" />
-      {/* action bar */}
-      <div className="flex items-stretch justify-around px-2 py-1 text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
-        {social.actionBar.react ? <span className="px-2 py-1.5">👍 Like</span> : null}
-        {social.actionBar.comment ? <span className="px-2 py-1.5">💬 Comment</span> : null}
-        {social.actionBar.share ? <span className="px-2 py-1.5">↪ Share</span> : null}
-      </div>
-      {/* composer */}
-      {social.comments.enabled && social.composer.enabled ? (
-        <>
-          <div className="h-px bg-[var(--color-border-subtle)]" />
-          <div className="flex items-center gap-2 p-3">
-            <span className="size-7 rounded-full bg-[var(--color-surface-subtle)]" aria-hidden />
-            <span className="flex flex-1 items-center justify-between rounded-full bg-[var(--color-surface-subtle)] px-3 py-1.5 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-              {social.composer.placeholder || "Write a comment…"}
-              <span className="flex gap-1.5" aria-hidden>
-                {COMPOSER_ICONS.filter((ic) => social.composer.slots.includes(ic.key)).map((ic) => (
-                  <span key={ic.key}>{ic.glyph}</span>
-                ))}
-              </span>
-            </span>
-          </div>
-        </>
-      ) : null}
-      {!social.reactionsLive ? (
-        <p className="px-3 pb-2 text-[length:var(--text-small)] italic text-[var(--color-text-muted)]">Reactions shown for context — not measured.</p>
+      <div className="p-3">{Override ? Override({ config, np: "preview_", interactive: false, social }) : null}</div>
+      {tier === "branded" ? (
+        <p className="px-3 pb-2 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+          {typeof config.brandLogoKey === "string" && config.brandLogoKey.trim()
+            ? "Branded — your uploaded logo applies in the participant view."
+            : "Branded — upload a logo on this post (its Configure panel) before publishing."}
+        </p>
       ) : null}
     </div>
   );

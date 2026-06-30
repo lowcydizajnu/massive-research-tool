@@ -75,10 +75,12 @@ export function DesignWorkspace({
   studyId,
   initialTheme,
   aiBlocks = [],
+  socialBlocks = [],
 }: {
   studyId: string;
   initialTheme: StudyTheme;
   aiBlocks?: AiChatBlockRef[];
+  socialBlocks?: AiChatBlockRef[];
 }) {
   const [theme, setTheme] = useState<StudyTheme>(initialTheme);
   const [tab, setTab] = useState<"theme" | "chat" | "social">("theme");
@@ -122,7 +124,11 @@ export function DesignWorkspace({
   return (
     <div className="flex flex-col gap-4">
       <div role="tablist" aria-label="Design sections" className="flex gap-1 border-b border-[var(--color-border-subtle)] pb-2">
-        {(["theme", "chat", "social"] as const).map((t) => (
+        {([
+          "theme",
+          ...(aiBlocks.length ? (["chat"] as const) : []),
+          ...(socialBlocks.length ? (["social"] as const) : []),
+        ] as ("theme" | "chat" | "social")[]).map((t) => (
           <button
             key={t}
             type="button"
@@ -151,6 +157,7 @@ export function DesignWorkspace({
       ) : tab === "social" ? (
         <SocialPostAppearanceEditor
           studyId={studyId}
+          blocks={socialBlocks}
           social={resolveSocialPost(theme)}
           themeVars={vars}
           onChange={(sp) => {

@@ -1213,6 +1213,10 @@
   ],
   "recentActivity": [
     {
+      "text": "Social-post UX feedback pass 1/N (from the owner's punch-list). (a) The Design → Social preview now renders the REAL participant component (the facebook override) for the selected post + live social design, so reactions/action-bar/comments/slots/branding reflect exactly (replaced the hand-built mock); the Just-the-post tier shows the plain card. (b) Block selector added — Design → Social is now block-aware (foundation for moving all editing here). (c) Chat tab hidden when no ai-chat block (Social hidden when no social-post). (d) Dropped the word chrome (tiers reworded: Just the post / Platform look / Platform look + logo). (e) Needs-setup bug fixed — social-post isComplete now needs headline OR body (source optional). tsc/lint/build clean; 138 tests green. No migration. Still open: move ALL per-post editing into Design → Social; selectable reactions in editor; likeable comments; avatar upload; left-rail Design button + summary + scroll arrows; Wording/Variants audit; reaction export column + per-comment editing.",
+      "date": "2026-06-30"
+    },
+    {
       "text": "PR-4b + 4c — social-post comment thread + custom slots (render + editors). 4b: the facebook override renders the seeded comment thread (SeededCommentView: initials avatar, author + verified + Top-fan chip, body bubble, Like/Reply/time, per-comment reaction glyphs + count, one reply level) + View more comments · N of M footer, gated by social.comments.enabled. 4c: custom slots render at their regions (SlotView — text/image/icon) merging study-level theme.socialPost.slots + per-block config.slots (header-badge, sponsored-label, below-body, action-bar, pinned-comment). Editors in Design → Social: seeded-comments (add/remove; author, body, Top-fan, Verified) + custom-slots (region · kind · content), writing theme.socialPost via setSocialPostDesign. Back-compat preserved. tsc/lint/build clean; 138 tests green. No migration. Deferred (small): dedicated reaction export column (value is captured) + per-comment-reaction/reply editing. Next: X + TikTok presets.",
       "date": "2026-06-30"
     },

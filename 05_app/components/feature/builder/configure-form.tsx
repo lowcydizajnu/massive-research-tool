@@ -111,9 +111,9 @@ export function ConfigureForm({
             {(
               [
                 ["", "Inherit study default"],
-                ["block", "Block design — no chrome or logo"],
-                ["layout", "Layout (inspired) — no logo"],
-                ["branded", "Fully branded — your uploaded logo"],
+                ["block", "Just the post — no platform bar or logo"],
+                ["layout", "Platform look — no logo"],
+                ["branded", "Platform look + your uploaded logo"],
               ] as const
             ).map(([val, label]) => (
               <label key={val} className="flex items-center gap-2 text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
