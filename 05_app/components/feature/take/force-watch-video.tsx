@@ -9,10 +9,10 @@ import { useEffect, useRef, useState } from "react";
  * unmount so a participant is never stranded. Native `<video>` only — embeds can't
  * be tracked. Mirrors ForcedWaitInput's button-gating contract.
  */
-export function ForceWatchVideo({ url }: { url: string }) {
+export function ForceWatchVideo({ url, np }: { url: string; np: string }) {
   const [done, setDone] = useState(false);
   const maxWatched = useRef(0);
-  const ref = useRef<HTMLVideoElement>(null);
+  const watchedMs = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const btn = document.querySelector<HTMLButtonElement>("[data-take-continue]");
@@ -25,24 +25,29 @@ export function ForceWatchVideo({ url }: { url: string }) {
   const enable = () => setDone(true);
 
   return (
-    <video
-      ref={ref}
-      src={url}
-      controls
-      controlsList="nodownload noplaybackrate"
-      onContextMenu={(e) => e.preventDefault()}
-      className="h-full w-full"
-      onTimeUpdate={(e) => {
-        const v = e.currentTarget;
-        if (v.currentTime > maxWatched.current) maxWatched.current = v.currentTime;
-      }}
-      onSeeking={(e) => {
-        const v = e.currentTarget;
-        // Block skipping past what's actually been watched (small tolerance).
-        if (!done && v.currentTime > maxWatched.current + 0.5) v.currentTime = maxWatched.current;
-      }}
-      onEnded={enable}
-      onError={enable}
-    />
+    <>
+      {/* Captured by the take action (extractAnswer "video") → answer.watched. */}
+      <input type="hidden" name={`${np}watched`} value={done ? "true" : "false"} />
+      <input ref={watchedMs} type="hidden" name={`${np}watchedMs`} defaultValue="0" />
+      <video
+        src={url}
+        controls
+        controlsList="nodownload noplaybackrate"
+        onContextMenu={(e) => e.preventDefault()}
+        className="h-full w-full"
+        onTimeUpdate={(e) => {
+          const v = e.currentTarget;
+          if (v.currentTime > maxWatched.current) maxWatched.current = v.currentTime;
+          if (watchedMs.current) watchedMs.current.value = String(Math.round(maxWatched.current * 1000));
+        }}
+        onSeeking={(e) => {
+          const v = e.currentTarget;
+          // Block skipping past what's actually been watched (small tolerance).
+          if (!done && v.currentTime > maxWatched.current + 0.5) v.currentTime = maxWatched.current;
+        }}
+        onEnded={enable}
+        onError={enable}
+      />
+    </>
   );
 }

@@ -268,6 +268,13 @@ function extractAnswer(moduleKey: string, prefix: string, fd: FormData): unknown
     pairs.sort((a, b) => a.rank - b.rank);
     return { order: pairs.map((p) => p.item) };
   }
+  if (moduleKey === "video") {
+    // Force-watch (01KWCFEFBQ) writes `${np}watched`/`${np}watchedMs`; record it so
+    // the researcher knows who watched. A plain video records {} (exposure only).
+    const w = g("watched");
+    if (w == null) return {};
+    return { watched: w === "true", watchedMs: Math.max(0, Number(g("watchedMs")) || 0) };
+  }
   return null; // stimulus-only blocks record nothing
 }
 

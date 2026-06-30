@@ -99,7 +99,7 @@ export function BlockView({
   // V1.12 C1 — embedded content (stimulus-only; no inputs → no prefix).
   if (block.key === "text") return <TextView config={c} />;
   if (block.key === "image") return <ImageView config={c} />;
-  if (block.key === "video") return <VideoView config={c} />;
+  if (block.key === "video") return <VideoView config={c} np={np} />;
   if (block.key === "audio-stimulus") return <AudioStimulusView config={c} />;
   if (block.key === "link") return <LinkView config={c} />;
   // V1.12 C2 — standard form blocks.
@@ -445,7 +445,7 @@ function embedUrl(url: string): string | null {
   return null;
 }
 
-function VideoView({ config }: { config: Record<string, unknown> }) {
+function VideoView({ config, np = "" }: { config: Record<string, unknown>; np?: string }) {
   const url = str(config.url);
   const caption = str(config.caption);
   if (!url) return null;
@@ -465,7 +465,7 @@ function VideoView({ config }: { config: Record<string, unknown> }) {
             className="h-full w-full border-0"
           />
         ) : forceWatch ? (
-          <ForceWatchVideo url={url} />
+          <ForceWatchVideo url={url} np={np} />
         ) : (
           // eslint-disable-next-line jsx-a11y/media-has-caption -- researcher stimulus; captions optional
           <video src={url} controls className="h-full w-full" />

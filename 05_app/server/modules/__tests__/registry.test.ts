@@ -9,9 +9,15 @@ describe("customization guards (variants varying-field + condition source)", () 
   });
 
   it("display-only stimulus blocks collect no response — so they're never offered as condition sources", () => {
-    for (const key of ["audio-stimulus", "text", "image", "video", "link", "embedded-data", "end-redirect"]) {
+    for (const key of ["audio-stimulus", "text", "image", "link", "embedded-data", "end-redirect"]) {
       expect(getModuleDef("core", key, "1.0.0")!.collectsResponse).toBe(false);
     }
+  });
+
+  it("video records a watch signal but is NOT a condition source (01KWCFEFBQ)", () => {
+    const m = getModuleDef("core", "video", "1.0.0")!;
+    expect(m.collectsResponse).toBe(true); // records {watched, watchedMs}
+    expect(m.conditionSource).toBe(false); // exposure data, not a branch input
   });
 
   it("answer-collecting blocks remain valid condition sources", () => {

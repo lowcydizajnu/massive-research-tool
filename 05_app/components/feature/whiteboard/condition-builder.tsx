@@ -59,7 +59,12 @@ export function ConditionBuilder({
   // the registry (e.g. social-post v2 collects a comment, v1 doesn't). Stimulus /
   // display-only blocks (audio-stimulus, text, image, video, link…) are excluded so
   // they don't appear as a non-actionable dead-end (ADR-0021 amendment).
-  const sources = earlierBlocks.filter((b) => getModuleDef(b.source, b.key, b.version)?.collectsResponse ?? false);
+  const sources = earlierBlocks.filter((b) => {
+    const def = getModuleDef(b.source, b.key, b.version);
+    // A condition source must record data AND expose a branchable answer — `video`
+    // records watch/exposure but isn't a meaningful branch input (conditionSource:false).
+    return (def?.collectsResponse ?? false) && (def?.conditionSource ?? true);
+  });
   const initial = normalizeCondition(block.showIf, block.branchRules);
   const [op, setOp] = useState<"and" | "or">(initial?.op ?? "and");
   const [clauses, setClauses] = useState<Clause[]>(initial?.clauses ?? []);

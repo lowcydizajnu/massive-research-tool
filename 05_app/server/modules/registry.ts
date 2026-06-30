@@ -45,6 +45,13 @@ export type CoreModuleDef = {
    */
   collectsResponse: boolean;
   /**
+   * Whether this block may be used as a branching/visibility CONDITION SOURCE
+   * (the condition builder lists it). Defaults to `collectsResponse`. Set false
+   * for blocks that record data but whose answer isn't a meaningful branch input
+   * (e.g. `video` watch tracking — exposure data, not a choice to gate on).
+   */
+  conditionSource?: boolean;
+  /**
    * Shape a participant's answer must match — validated server-side at the
    * participant runtime before a `response_item.answer` is written (same
    * registry-is-source-of-truth pattern as configSchema). `null` for pure
@@ -632,8 +639,13 @@ const videoBlock: CoreModuleDef = {
     required: ["url"],
     additionalProperties: false,
   },
-  collectsResponse: false,
-  responseSchema: null,
+  // Records a watch signal (feedback 01KWCFEFBQ): force-watch writes
+  // {watched, watchedMs}; a plain video writes {} (exposure only). Never
+  // "required" — `isAnswerEmpty` is always false so it writes without gating.
+  collectsResponse: true,
+  conditionSource: false, // watch data is exposure tracking, not a branch input
+  responseSchema: z.object({ watched: z.boolean(), watchedMs: z.number().int().min(0) }).partial(),
+  isAnswerEmpty: () => false,
   isComplete: (c) => typeof c.url === "string" && c.url.trim().length > 0,
 };
 
