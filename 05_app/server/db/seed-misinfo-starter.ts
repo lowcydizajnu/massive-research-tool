@@ -269,9 +269,19 @@ type StarterSpec = {
  * misinfo pattern). Assumes ensureSystemAccount() already ran.
  */
 async function seedStarter(spec: StarterSpec): Promise<void> {
+  // Defensive: a screen-group needs ≥2 member blocks (a 1-member group dissolves
+  // at runtime and can't be recreated via undo — feedback 01KW943Q). Drop any
+  // undersized group + clear its lone member's groupId so a starter can never ship
+  // an invalid grouping, even if a spec slips one in.
+  const groupCounts = new Map<string, number>();
+  for (const b of spec.blocks) if (b.groupId) groupCounts.set(b.groupId, (groupCounts.get(b.groupId) ?? 0) + 1);
+  const validGroups = new Set([...groupCounts].filter(([, n]) => n >= 2).map(([id]) => id));
+  const blocks = spec.blocks.map((b) => (b.groupId && !validGroups.has(b.groupId) ? { ...b, groupId: undefined } : b));
+  const groups = spec.groups.filter((g) => validGroups.has(g.id));
+
   const snapshot = {
-    blocks: spec.blocks,
-    groups: spec.groups,
+    blocks,
+    groups,
     overview: spec.overview,
     consent: spec.consent,
     // Theme rides the snapshot (ADR-0024). Omit the key entirely when unset so
@@ -534,7 +544,7 @@ function abBlocks(): BlockInstance[] {
           "### Version A\n\n*(Placeholder stimulus — replace with the wording you want to test.)*\n\n**“Upgrade today and save 20% — offer ends Friday.”**",
       },
       "1.0.0",
-      { groupId: "stimulus-a", visibility: { showIfCondition: [AB_CONDITION_A_SLUG] } },
+      { visibility: { showIfCondition: [AB_CONDITION_A_SLUG] } },
     ),
 
     // --- Stimulus, Version B (shown only to the version-b arm) ---
@@ -545,7 +555,7 @@ function abBlocks(): BlockInstance[] {
           "### Version B\n\n*(Placeholder stimulus — replace with the wording you want to test.)*\n\n**“Don't miss out — 20% off ends this Friday. Upgrade now.”**",
       },
       "1.0.0",
-      { groupId: "stimulus-b", visibility: { showIfCondition: [AB_CONDITION_B_SLUG] } },
+      { visibility: { showIfCondition: [AB_CONDITION_B_SLUG] } },
     ),
 
     // --- Shared outcome measures (both arms answer the same items) ---
@@ -599,12 +609,10 @@ export async function seedAbStarter(): Promise<void> {
     tags: ["a-b-test", "between-subjects", "experiment"],
     versionName: "A/B test starter v1",
     blocks: abBlocks(),
-    // Two screen-groups (one per variant) so the variant text reads as its own
-    // labelled screen in the Builder.
-    groups: [
-      { id: "stimulus-a", title: "Stimulus — Version A" },
-      { id: "stimulus-b", title: "Stimulus — Version B" },
-    ],
+    // No screen-groups: each variant stimulus is a single block, and a group must
+    // have ≥2 members (a 1-member group auto-dissolves and can't be recreated —
+    // feedback 01KW943Q). The condition-gated stimulus block is already its own screen.
+    groups: [],
     overview: AB_OVERVIEW,
     consent: AB_CONSENT,
     conditions: [
