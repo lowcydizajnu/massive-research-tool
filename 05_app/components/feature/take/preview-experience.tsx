@@ -26,11 +26,11 @@ export function PreviewExperience({ studyId, title }: { studyId: string; title: 
   const searchParams = useSearchParams();
   const [device, setDevice] = useState<Device>("Desktop");
   const [responseId, setResponseId] = useState<string | null>(null);
-  // Return to the section the preview was opened from (?from=design|run|…),
-  // defaulting to Builder. So closing a preview launched from Design lands back
-  // on Design, not the Builder.
-  const from = searchParams.get("from");
-  const returnTo = (from === "design" ? `/studies/${studyId}/design` : from === "run" ? `/studies/${studyId}/run` : `/studies/${studyId}/build`) as Route;
+  // Return to the section the preview was opened from (?from=<stage>), set by the
+  // stage nav's Preview tab + the Design preview link; defaults to Builder.
+  const from = searchParams.get("from") ?? "";
+  const FROM_STAGES = new Set(["dashboard", "overview", "build", "design", "share", "preregister", "run", "results", "record"]);
+  const returnTo = (FROM_STAGES.has(from) ? `/studies/${studyId}/${from}` : `/studies/${studyId}/build`) as Route;
   const close = useCallback(() => router.push(returnTo), [router, returnTo]);
 
   const start = api.studies.startPreview.useMutation({

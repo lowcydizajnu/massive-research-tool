@@ -51,6 +51,9 @@ export function StudyStageNav({ studyId }: { studyId: string }) {
   const pathname = usePathname() ?? "";
   const isPreview = (useSearchParams()?.get("preview") ?? "") === "1";
   const active = activeStage(pathname, studyId, isPreview);
+  // The section we're currently on — so the Preview tab can carry ?from=<stage>
+  // and closing the preview returns here (not the Builder by default).
+  const currentSeg = (pathname.replace(`/studies/${studyId}`, "").replace(/^\//, "").split("/")[0] || "dashboard");
 
   return (
     <div className="flex w-full justify-center border-b border-[var(--color-border-subtle)] px-3 pb-2 pt-2">
@@ -60,7 +63,11 @@ export function StudyStageNav({ studyId }: { studyId: string }) {
           return (
             <Link
               key={stage}
-              href={hrefFor(stage, studyId)}
+              href={
+                stage === "Preview" && currentSeg !== "preview"
+                  ? (`${hrefFor(stage, studyId)}?from=${currentSeg}` as Route)
+                  : hrefFor(stage, studyId)
+              }
               role="tab"
               data-tour={`stage-${stage.toLowerCase()}`}
               aria-current={isActive ? "page" : undefined}
