@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import type { ChangelogEntry } from "@/server/trpc/routers/studies";
+import { api } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -20,8 +21,15 @@ const LEVELS: { key: Level; label: string }[] = [
   { key: "detailed", label: "Detailed" },
 ];
 
-export function StudyChangelog({ entries }: { entries: ChangelogEntry[] }) {
+export function StudyChangelog({ studyId, entries }: { studyId: string; entries: ChangelogEntry[] }) {
   const [level, setLevel] = useState<Level>("summary");
+  // The granular edit trail (ADR-0086) is fetched only when the reader opens
+  // Detailed, then interleaved with the version/lifecycle entries by timestamp.
+  const timeline = api.studies.editTimeline.useQuery({ studyId }, { enabled: level === "detailed" });
+  const shown = useMemo(() => {
+    if (level !== "detailed" || !timeline.data?.length) return entries;
+    return [...entries, ...timeline.data].sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
+  }, [level, entries, timeline.data]);
   if (entries.length === 0) return null;
 
   return (
@@ -51,14 +59,14 @@ export function StudyChangelog({ entries }: { entries: ChangelogEntry[] }) {
       </div>
 
       <ul className="flex flex-col">
-        {entries.map((e, i) => {
+        {shown.map((e, i) => {
           const lines = level === "detailed" ? e.detail : [];
           return (
             <li
               key={e.id}
               className={cn(
                 "flex flex-col gap-1 py-2.5",
-                i < entries.length - 1 && "border-b border-[var(--color-border-subtle)]",
+                i < shown.length - 1 && "border-b border-[var(--color-border-subtle)]",
               )}
             >
               <div className="flex items-baseline justify-between gap-3">

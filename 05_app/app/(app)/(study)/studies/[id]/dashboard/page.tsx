@@ -113,7 +113,7 @@ export default async function StudyDashboardPage({ params }: { params: Promise<{
 
       {/* Changelog — its own widget card. When / what / who: version saves +
           lifecycle events, with a reader-chosen detail level (feedback 01KW4R8M). */}
-      <StudyChangelog entries={changelog} />
+      <StudyChangelog studyId={id} entries={changelog} />
     </main>
   );
 }

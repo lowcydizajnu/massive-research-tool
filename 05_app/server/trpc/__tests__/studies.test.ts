@@ -1011,6 +1011,21 @@ describe("studies.conditions (builder-conditions.md)", () => {
     expect(log.some((e) => e.title === "Opened recruitment")).toBe(false);
   });
 
+  it("editTimeline records edit events and coalesces same-kind edits (ADR-0086)", async () => {
+    const { caller, id } = await studyWithBlock(); // addBlock → one "blocks" edit
+    await caller.studies.updateTitle({ id, title: "Renamed study" });
+    await caller.studies.setConsent({ studyId: id, consent: { body: "A", agreeLabel: "Yes", disagreeLabel: "No", declineMessage: "ok" } });
+    // Second consent edit within the coalescing window → updates the same row, not a new one.
+    await caller.studies.setConsent({ studyId: id, consent: { body: "B", agreeLabel: "Yes", disagreeLabel: "No", declineMessage: "ok" } });
+
+    const tl = await caller.studies.editTimeline({ studyId: id });
+    expect(tl.filter((e) => e.title === "Edited the consent screen")).toHaveLength(1); // coalesced
+    expect(tl.some((e) => e.title.startsWith("Renamed the study"))).toBe(true);
+    expect(tl.some((e) => e.kind === "event" && e.title.includes("block"))).toBe(true);
+    // Newest first.
+    expect([...tl].sort((a, b) => (a.at < b.at ? 1 : -1))).toEqual(tl);
+  });
+
   it("preregister copies the working-tip conditions onto the immutable version", async () => {
     const { caller, id } = await studyWithBlock();
     await caller.studies.addCondition({ studyId: id, name: "Control" });

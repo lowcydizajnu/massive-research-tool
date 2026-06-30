@@ -36,6 +36,7 @@ import {
   response as responseTable,
   responseItem,
   savedRecord,
+  studyEditEvent,
   studyPresence,
   studyRecord,
   user,
@@ -71,6 +72,7 @@ import {
 } from "@/server/modules/blocks";
 import { cellLabel, pruneBindings, type VariantBinding, type VariantFactor } from "@/lib/variants/factorial";
 import { changelogBetween, initialVersionSummary, DEFAULT_NEW_STUDY_SNAPSHOT } from "@/server/modules/changelog";
+import { recordStudyEdit } from "@/server/modules/study-edits";
 import { readConsent, type StudyConsent } from "@/server/modules/consent";
 import { runPreflight, type PreflightCheck } from "@/server/modules/preflight";
 import { BRANDING_GATE_MESSAGE, evaluateBrandingGate } from "@/server/modules/branding-gate";
@@ -144,6 +146,9 @@ async function writeBlocks(
   versionId: string,
   studyId: string,
   blocks: ReturnType<typeof readBlocks>,
+  // Optional edit-log entry (ADR-0086) — user-facing block mutations pass this so
+  // the change appears in the changelog Detailed timeline; internal rewrites omit it.
+  edit?: { actorUserId: string | null; summary: string },
 ) {
   // Preserve other snapshot keys (e.g. `overview`, V1.12 B1) — only blocks change.
   const [cur] = await db
@@ -157,6 +162,7 @@ async function writeBlocks(
     .set({ definitionSnapshot: { ...prev, blocks }, moduleVersionLocks: locksFromBlocks(blocks) })
     .where(eq(experimentVersion.id, versionId));
   await db.update(experiment).set({ updatedAt: new Date() }).where(eq(experiment.id, studyId));
+  if (edit) await recordStudyEdit(studyId, edit.actorUserId, "blocks", edit.summary);
 }
 
 /** A condition as the Builder UI consumes it (weight as a number). */
@@ -2402,6 +2408,7 @@ export const studiesRouter = router({
         )
         .returning();
       if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+      await recordStudyEdit(row.id, ctx.dbUser.id, "title", `Renamed the study to "${input.title}"`);
       return { id: row.id, title: row.title };
     }),
 
@@ -2451,7 +2458,10 @@ export const studiesRouter = router({
         version: def.version,
         config: def.defaultConfig,
       });
-      await writeBlocks(tip.version.id, input.studyId, blocks);
+      await writeBlocks(tip.version.id, input.studyId, blocks, {
+        actorUserId: ctx.dbUser.id,
+        summary: `Added a ${def.key} block`,
+      });
       return { instanceId };
     }),
 
@@ -2465,7 +2475,10 @@ export const studiesRouter = router({
       );
       // Drop any condition clauses that referenced the removed block (or are now
       // forward refs) so nothing dangles.
-      await writeBlocks(tip.version.id, input.studyId, pruneForwardConditions(blocks));
+      await writeBlocks(tip.version.id, input.studyId, pruneForwardConditions(blocks), {
+        actorUserId: ctx.dbUser.id,
+        summary: "Removed a block",
+      });
       return { ok: true };
     }),
 
@@ -2531,6 +2544,7 @@ export const studiesRouter = router({
         .set({ definitionSnapshot: { ...snap, factors, variantBindings } })
         .where(eq(experimentVersion.id, tip.version.id));
       await db.update(experiment).set({ updatedAt: new Date() }).where(eq(experiment.id, input.studyId));
+      await recordStudyEdit(input.studyId, ctx.dbUser.id, "variants", factors.length ? "Edited the variants" : "Removed all variants");
       return { ok: true };
     }),
 
@@ -2553,6 +2567,7 @@ export const studiesRouter = router({
         .set({ definitionSnapshot: { ...snap, uiCopy: sanitizeUiCopy(input.uiCopy) } })
         .where(eq(experimentVersion.id, tip.version.id));
       await db.update(experiment).set({ updatedAt: new Date() }).where(eq(experiment.id, input.studyId));
+      await recordStudyEdit(input.studyId, ctx.dbUser.id, "wording", "Edited the participant wording");
       return { ok: true };
     }),
 
@@ -2813,6 +2828,7 @@ export const studiesRouter = router({
         .set({ definitionSnapshot: { ...snap, theme: input.theme, overview } })
         .where(eq(experimentVersion.id, tip.version.id));
       await db.update(experiment).set({ updatedAt: new Date() }).where(eq(experiment.id, input.studyId));
+      await recordStudyEdit(input.studyId, ctx.dbUser.id, "theme", `Adjusted the design (${input.theme.presetKey})`);
       return { ok: true };
     }),
 
@@ -2849,6 +2865,7 @@ export const studiesRouter = router({
         .set({ definitionSnapshot: { ...snap, theme: { ...theme, socialPost: nextSocial } } })
         .where(eq(experimentVersion.id, tip.version.id));
       await db.update(experiment).set({ updatedAt: new Date() }).where(eq(experiment.id, input.studyId));
+      await recordStudyEdit(input.studyId, ctx.dbUser.id, "irb", input.attested ? "Recorded the IRB attestation" : "Withdrew the IRB attestation");
       return { ok: true };
     }),
 
@@ -2873,6 +2890,7 @@ export const studiesRouter = router({
         .set({ definitionSnapshot: { ...snap, theme: { ...theme, socialPost: input.socialPost } } })
         .where(eq(experimentVersion.id, tip.version.id));
       await db.update(experiment).set({ updatedAt: new Date() }).where(eq(experiment.id, input.studyId));
+      await recordStudyEdit(input.studyId, ctx.dbUser.id, "social-post", "Edited the social-post design");
       return { ok: true };
     }),
 
@@ -2901,6 +2919,7 @@ export const studiesRouter = router({
         .set({ definitionSnapshot: { ...snap, consent: input.consent } })
         .where(eq(experimentVersion.id, tip.version.id));
       await db.update(experiment).set({ updatedAt: new Date() }).where(eq(experiment.id, input.studyId));
+      await recordStudyEdit(input.studyId, ctx.dbUser.id, "consent", "Edited the consent screen");
       return { ok: true };
     }),
 
@@ -2941,6 +2960,7 @@ export const studiesRouter = router({
         .set({ definitionSnapshot: { ...snap, overview: input.overview } })
         .where(eq(experimentVersion.id, tip.version.id));
       await db.update(experiment).set({ updatedAt: new Date() }).where(eq(experiment.id, input.studyId));
+      await recordStudyEdit(input.studyId, ctx.dbUser.id, "overview", "Edited the overview");
       return { ok: true };
     }),
 
@@ -2994,7 +3014,7 @@ export const studiesRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid block order." });
       }
       const reordered = pruneForwardConditions(input.order.map((id) => byId.get(id)!));
-      await writeBlocks(tip.version.id, input.studyId, reordered);
+      await writeBlocks(tip.version.id, input.studyId, reordered, { actorUserId: ctx.dbUser.id, summary: "Reordered the blocks" });
       return { ok: true };
     }),
 
@@ -3020,7 +3040,7 @@ export const studiesRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid block config." });
       }
       blocks[idx] = { ...target, config: validated };
-      await writeBlocks(tip.version.id, input.studyId, blocks);
+      await writeBlocks(tip.version.id, input.studyId, blocks, { actorUserId: ctx.dbUser.id, summary: `Edited the ${target.key} block` });
       return { ok: true };
     }),
 
@@ -3203,7 +3223,7 @@ export const studiesRouter = router({
       if (input.title) next.title = input.title;
       else delete next.title;
       blocks[idx] = next;
-      await writeBlocks(tip.version.id, input.studyId, blocks);
+      await writeBlocks(tip.version.id, input.studyId, blocks, { actorUserId: ctx.dbUser.id, summary: "Renamed a block" });
       return { ok: true };
     }),
 
@@ -3241,7 +3261,7 @@ export const studiesRouter = router({
       if (input.branchRules.length) next.branchRules = input.branchRules;
       else delete next.branchRules;
       blocks[idx] = next;
-      await writeBlocks(tip.version.id, input.studyId, blocks);
+      await writeBlocks(tip.version.id, input.studyId, blocks, { actorUserId: ctx.dbUser.id, summary: "Changed a block's branching rule" });
       return { ok: true };
     }),
 
@@ -3278,7 +3298,7 @@ export const studiesRouter = router({
       if (input.showIf && input.showIf.clauses.length) next.showIf = input.showIf;
       else delete next.showIf;
       blocks[idx] = next;
-      await writeBlocks(tip.version.id, input.studyId, blocks);
+      await writeBlocks(tip.version.id, input.studyId, blocks, { actorUserId: ctx.dbUser.id, summary: "Changed a block's visibility condition" });
       return { ok: true };
     }),
 
@@ -3312,7 +3332,7 @@ export const studiesRouter = router({
       if (input.showIfCondition.length) next.visibility = { showIfCondition: input.showIfCondition };
       else delete next.visibility;
       blocks[idx] = next;
-      await writeBlocks(tip.version.id, input.studyId, blocks);
+      await writeBlocks(tip.version.id, input.studyId, blocks, { actorUserId: ctx.dbUser.id, summary: "Changed a block's condition visibility" });
       return { ok: true };
     }),
 
@@ -3345,6 +3365,7 @@ export const studiesRouter = router({
         })
         .returning();
       await db.update(experiment).set({ updatedAt: new Date() }).where(eq(experiment.id, input.studyId));
+      await recordStudyEdit(input.studyId, ctx.dbUser.id, "conditions", `Added the "${input.name}" condition`);
       return toConditionRow(row);
     }),
 
@@ -3431,6 +3452,7 @@ export const studiesRouter = router({
       });
       await writeBlocks(tip.version.id, input.studyId, blocks);
       await db.delete(conditionTable).where(eq(conditionTable.id, target.id));
+      await recordStudyEdit(input.studyId, ctx.dbUser.id, "conditions", `Removed the "${target.name}" condition`);
       return { ok: true };
     }),
 
@@ -4318,6 +4340,43 @@ export const studiesRouter = router({
       return [...draftEntries, ...versionEntries, ...eventEntries, ...recruitmentEntries]
         .sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0))
         .slice(0, input.limit);
+    }),
+
+  /**
+   * The granular, time-ordered edit trail (ADR-0086) — the changelog "Detailed"
+   * view. Each row is one (coalesced) researcher edit to the working draft. This
+   * is the provenance layer that complements the snapshot-diff Summary; fetched
+   * lazily by the client only when the reader opens Detailed.
+   */
+  editTimeline: workspaceProcedure
+    .input(z.object({ studyId: z.string().uuid(), limit: z.number().int().min(1).max(200).default(80) }))
+    .query(async ({ ctx, input }): Promise<ChangelogEntry[]> => {
+      const [exp] = await db
+        .select({ id: experiment.id })
+        .from(experiment)
+        .where(and(eq(experiment.id, input.studyId), eq(experiment.tenantId, ctx.workspace.id)))
+        .limit(1);
+      if (!exp) throw new TRPCError({ code: "NOT_FOUND" });
+      const rows = await db
+        .select({
+          id: studyEditEvent.id,
+          summary: studyEditEvent.summary,
+          createdAt: studyEditEvent.createdAt,
+          actor: user.displayName,
+        })
+        .from(studyEditEvent)
+        .leftJoin(user, eq(studyEditEvent.actorUserId, user.id))
+        .where(eq(studyEditEvent.experimentId, input.studyId))
+        .orderBy(desc(studyEditEvent.createdAt))
+        .limit(input.limit);
+      return rows.map((r) => ({
+        id: `edit:${r.id}`,
+        at: r.createdAt.toISOString(),
+        actor: r.actor ?? null,
+        kind: "event" as const,
+        title: r.summary,
+        detail: [],
+      }));
     }),
 
   /**
