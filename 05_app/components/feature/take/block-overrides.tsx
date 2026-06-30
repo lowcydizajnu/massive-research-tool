@@ -209,11 +209,11 @@ function FacebookSocialPost({ config, np = "", interactive = true, blockCopy: bc
           <SlotView s={s} />
         </div>
       ))}
-      {/* Post copy scales with the study's font-size setting (--text-* vars) — at the
-          default M it matches Facebook (~15-16px); larger when the researcher picks L.
-          The FB chrome (buttons, meta) stays fixed for platform fidelity. */}
-      {headline ? <p className="text-[length:var(--text-body-emphasis)] font-semibold">{headline}</p> : null}
-      {body ? <p className="text-[length:var(--text-body)] leading-snug">{body}</p> : null}
+      {/* Post copy is a STATIC, FB-native size (owner: post content must always
+          render at the same default size, not scale with the study font setting).
+          Headline 15px semibold / body 15px — the platform's own sizing. */}
+      {headline ? <p className="text-[15px] font-semibold">{headline}</p> : null}
+      {body ? <p className="text-[15px] leading-snug">{body}</p> : null}
       <PostImage config={config} className="-mx-3 !w-[calc(100%+1.5rem)] max-w-none" />
       {slotIn("below-body").map((s) => (
         <div key={s.id}>
@@ -248,7 +248,11 @@ function FacebookSocialPost({ config, np = "", interactive = true, blockCopy: bc
           {seeded.map((cm) => (
             <SeededCommentView key={cm.id} c={cm} np={np} />
           ))}
-          {r?.comments.enabled ? (
+          {/* "View more comments" is honest chrome: only show it when the post's
+              comment count actually exceeds the seeded comments on display (a real
+              viral post loads a few of N). If every comment is already shown, no
+              "view more" — it implied hidden comments that don't exist. */}
+          {r?.comments.enabled && (e.comments ?? 0) > seeded.length ? (
             <span className="text-[13px] font-semibold text-[#65676B]">
               {r.comments.viewMoreLabel || "View more comments"}
               {r.comments.countLabel ? ` · ${r.comments.countLabel}` : ""}

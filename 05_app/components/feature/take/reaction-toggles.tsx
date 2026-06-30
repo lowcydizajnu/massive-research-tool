@@ -151,11 +151,15 @@ export function ReactionPicker({
   const [open, setOpen] = useState(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  if (reactions.length === 0) return <span className="text-[13px] text-[#65676B]">{label}</span>;
+  // All paths below inherit the action bar's font size (no hardcoded text-* here)
+  // so the Like affordance is ONE consistent size whether reactions are live,
+  // display-only, or absent — the inert paths used to hardcode 13px while the
+  // live trigger inherited 16px, so the same post rendered the Like at two sizes.
+  if (reactions.length === 0) return <span className="text-[#65676B]">{label}</span>;
   if (!live) {
     // Display-only: show the Like affordance inert (no tray, nothing posts).
     return (
-      <span className="flex items-center gap-1 text-[13px] text-[#65676B]">
+      <span className="flex items-center gap-1 text-[#65676B]">
         <span aria-hidden>👍</span>
         <span>{label}</span>
       </span>
