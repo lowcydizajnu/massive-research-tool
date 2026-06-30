@@ -150,6 +150,7 @@ export function DesignWorkspace({
         />
       ) : tab === "social" ? (
         <SocialPostAppearanceEditor
+          studyId={studyId}
           social={resolveSocialPost(theme)}
           themeVars={vars}
           onChange={(sp) => {

@@ -1,9 +1,19 @@
 "use client";
 
-import { type CSSProperties } from "react";
+import { useState, type CSSProperties } from "react";
 
+import { api } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
-import { REACTION_KEYS, type ReactionKey, type SocialPostDesign } from "@/lib/themes/themes";
+import { BRANDING_TIERS, REACTION_KEYS, type BrandingTier, type ReactionKey, type SocialPostDesign } from "@/lib/themes/themes";
+
+const TIER_LABELS: Record<BrandingTier, { label: string; help: string }> = {
+  block: { label: "Block design", help: "Just the post content — no platform chrome or logo." },
+  layout: { label: "Layout (inspired)", help: "Full platform layout, clearly inspired — no logo." },
+  branded: { label: "Fully branded", help: "Adds your own uploaded logo. Requires an IRB attestation to publish." },
+};
+
+const IRB_STATEMENT =
+  "I confirm my IRB / ethics approval covers presenting a branded imitation of a real platform to participants, that any brand assets I upload are used with authorization, and that I accept responsibility for compliant use.";
 
 /**
  * Design → Social (ADR-0085, Facebook v1). Controls for the post's interactions
@@ -43,15 +53,27 @@ function Toggle({ checked, onChange, children }: { checked: boolean; onChange: (
 }
 
 export function SocialPostAppearanceEditor({
+  studyId,
   social,
   themeVars,
   onChange,
 }: {
+  studyId: string;
   social: SocialPostDesign;
   themeVars: CSSProperties;
   onChange: (next: SocialPostDesign) => void;
 }) {
   const enabled = new Set(social.reactionsEnabled);
+  const [irbOpen, setIrbOpen] = useState(false);
+  const [irbChecked, setIrbChecked] = useState(false);
+  // Optimistic attestation state (the server stamps who/when via setIrbAttestation).
+  const [attested, setAttested] = useState(social.irbAttestation?.attested === true);
+  const attestMut = api.studies.setIrbAttestation.useMutation({
+    onSuccess: () => {
+      setAttested(true);
+      setIrbOpen(false);
+    },
+  });
   const toggleReaction = (k: ReactionKey, on: boolean) => {
     const next = REACTION_KEYS.filter((r) => (r === k ? on : enabled.has(r)));
     onChange({ ...social, reactionsEnabled: next });
@@ -64,6 +86,65 @@ export function SocialPostAppearanceEditor({
         <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
           Platform: <span className="font-medium text-[var(--color-text-secondary)]">Facebook</span> — X and TikTok coming soon.
         </p>
+
+        <fieldset className="flex flex-col gap-2">
+          <legend className={LEGEND_CLS}>Branding (study default)</legend>
+          <div role="radiogroup" aria-label="Branding tier" className="flex flex-col gap-1.5">
+            {BRANDING_TIERS.map((t) => {
+              const active = social.brandingTierDefault === t;
+              return (
+                <label
+                  key={t}
+                  className={cn(
+                    "flex cursor-pointer items-start gap-2 rounded-[var(--radius-md)] border p-2",
+                    active
+                      ? "border-[var(--color-primary)] bg-[var(--color-primary-subtle)]"
+                      : "border-[var(--color-border-subtle)] hover:bg-[var(--color-surface-subtle)]",
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="brandingTier"
+                    checked={active}
+                    onChange={() => onChange({ ...social, brandingTierDefault: t })}
+                    className="mt-0.5 size-4 accent-[var(--color-primary)]"
+                  />
+                  <span className="flex flex-col">
+                    <span className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">{TIER_LABELS[t].label}</span>
+                    <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">{TIER_LABELS[t].help}</span>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+          <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+            A block can override this in its Configure panel; the logo is uploaded per post there.
+          </p>
+          {social.brandingTierDefault === "branded" ? (
+            <div className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] p-3">
+              <span className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">IRB attestation</span>
+              {attested ? (
+                <p className="text-[length:var(--text-small)] text-[var(--color-success-text-on-subtle)]">✓ Attested — recorded and frozen into preregistration.</p>
+              ) : (
+                <>
+                  <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                    Required to preregister, publish, or run a fully-branded study.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIrbChecked(false);
+                      setIrbOpen(true);
+                    }}
+                    className="self-start rounded-[var(--radius-md)] bg-[var(--color-primary)] px-3 py-1.5 text-[length:var(--text-small)] font-medium text-white hover:opacity-90"
+                  >
+                    Review &amp; attest
+                  </button>
+                </>
+              )}
+            </div>
+          ) : null}
+        </fieldset>
 
         <fieldset className="flex flex-col gap-2">
           <legend className={LEGEND_CLS}>Reactions</legend>
@@ -171,6 +252,38 @@ export function SocialPostAppearanceEditor({
           <SocialPostPreview social={social} />
         </div>
       </div>
+
+      {irbOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-label="IRB attestation">
+          <div className="flex w-full max-w-lg flex-col gap-3 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-5 shadow-[var(--shadow-lg)]">
+            <h2 className="font-serif text-[length:var(--text-title)] font-medium text-[var(--color-text-primary)]">IRB attestation — branded stimulus</h2>
+            <p className="text-[length:var(--text-body)] text-[var(--color-text-secondary)]">{IRB_STATEMENT}</p>
+            <label className="flex items-start gap-2 text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
+              <input type="checkbox" checked={irbChecked} onChange={(e) => setIrbChecked(e.target.checked)} className="mt-0.5 size-4 accent-[var(--color-primary)]" />
+              I confirm the above for this study.
+            </label>
+            <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+              Recorded with your name and the current date, and frozen into preregistration.
+            </p>
+            {attestMut.isError ? (
+              <p className="text-[length:var(--text-small)] text-[var(--color-danger-text-on-subtle)]">Couldn’t record the attestation — try again.</p>
+            ) : null}
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <button type="button" onClick={() => setIrbOpen(false)} className="rounded-[var(--radius-md)] px-3 py-1.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]">
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!irbChecked || attestMut.isPending}
+                onClick={() => attestMut.mutate({ studyId, attested: true, statement: IRB_STATEMENT })}
+                className="rounded-[var(--radius-md)] bg-[var(--color-primary)] px-3 py-1.5 text-[length:var(--text-small)] font-medium text-white hover:opacity-90 disabled:opacity-50"
+              >
+                {attestMut.isPending ? "Saving…" : "Confirm attestation"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

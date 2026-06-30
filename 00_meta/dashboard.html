@@ -1213,6 +1213,10 @@
   ],
   "recentActivity": [
     {
+      "text": "PR-3 — branding-tier picker + IRB attestation modal (ADR-0084), the compliance UI that makes the PR-1 hard gate satisfiable from the app. Design → Social gains a Branding (study default) radiogroup — Block design / Layout (inspired) / Fully branded → theme.socialPost.brandingTierDefault (saved via setSocialPostDesign). When Fully branded, an IRB attestation row shows status + Review & attest → a focused modal (fixed statement + required checkbox + Confirm) calling studies.setIrbAttestation (server stamps who/when; recorded on the snapshot = audit); optimistic ✓ Attested on success. tsc/lint/build clean; no migration. Remaining for a fully-satisfiable gate: PR-3b per-block logo upload + tier override in Configure (logo is per-post); then PR-4 participant reactions/comments/slots; then X/TikTok.",
+      "date": "2026-06-30"
+    },
+    {
       "text": "PR-2 — Design → Social tab + live Facebook preview (ADR-0085), the first visible builder surface. New studies.setSocialPostDesign mutation writes theme.socialPost on the working tip (rides the snapshot; preserves the IRB attestation; no mimic guard). New SocialPostAppearanceEditor mirrors the Chat editor: controls (seven reactions multi-toggle, live/measured vs display-only, reaction summary, action-bar react/comment/share, comments enable, composer enable + placeholder + emoji/photo/gif/sticker) + a live themed FB-style preview re-rendering on every change. Wired into DesignWorkspace as a third tab (Theme · Chat · Social), autosaving via the mutation. PR-0 survey starter seeded to EU prod (db:seed:prod, idempotent). Branding-tier picker + IRB modal = PR-3; seeded-comment + slot editors = PR-4. tsc/lint/build clean; 130 router tests green. No migration.",
       "date": "2026-06-30"
     },
