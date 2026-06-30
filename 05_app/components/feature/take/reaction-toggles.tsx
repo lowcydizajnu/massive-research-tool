@@ -282,10 +282,35 @@ export function CommentComposer({
  * inline input; on Enter the reply appears as a nested bubble and is captured via
  * a hidden `${np}reply` input (the take action collects all of them). Scoped client.
  */
-export function CommentReply({ np, label = "Reply", authorName = "You" }: { np: string; label?: string; authorName?: string }) {
+/**
+ * A comment's action row + reply affordance, as ONE unit so the Reply control
+ * sits inline next to Like/time/count (FB layout) instead of dropping to its own
+ * line. The reply input and any posted replies expand BELOW the row. Functional
+ * whenever `np` is provided (including the empty-string namespace of non-grouped
+ * runtime blocks — gate on `np != null`, never truthiness); nested replies pass
+ * `canReply={false}` and show a static Reply label. Scoped client (ADR-0013).
+ */
+export function CommentFooter({
+  np,
+  canReply,
+  timeLabel,
+  reactionGlyphs,
+  reactionCount,
+  label = "Reply",
+  authorName = "You",
+}: {
+  np?: string;
+  canReply: boolean;
+  timeLabel?: string;
+  reactionGlyphs: string;
+  reactionCount?: number;
+  label?: string;
+  authorName?: string;
+}) {
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState("");
   const [added, setAdded] = useState<string[]>([]);
+  const interactive = canReply && np != null;
   const commit = () => {
     const t = value.trim();
     if (!t) return;
@@ -298,9 +323,18 @@ export function CommentReply({ np, label = "Reply", authorName = "You" }: { np: 
       {added.map((c, i) => (
         <input key={`h${i}`} type="hidden" name={`${np}reply`} value={c} />
       ))}
-      <button type="button" onClick={() => setOpen((v) => !v)} className="w-fit cursor-pointer text-[11px] font-semibold text-[#65676B]">
-        {label}
-      </button>
+      <div className="flex items-center gap-3 px-3 pt-0.5 text-[11px] text-[#65676B]">
+        <CommentLikeButton />
+        {interactive ? (
+          <button type="button" onClick={() => setOpen((v) => !v)} className="cursor-pointer font-semibold text-[#65676B]">
+            {label}
+          </button>
+        ) : (
+          <span>{label}</span>
+        )}
+        {timeLabel ? <span>{timeLabel}</span> : null}
+        {reactionCount ? <span>{reactionGlyphs} {fmt(reactionCount)}</span> : null}
+      </div>
       {open ? (
         <input
           autoFocus

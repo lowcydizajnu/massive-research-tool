@@ -582,7 +582,10 @@ export function SocialPostAppearanceEditor({
       {/* Live preview */}
       <div className="flex min-w-0 flex-1 flex-col gap-2 lg:sticky lg:top-3 lg:self-start">
         <span className={LEGEND_CLS}>Participant preview</span>
-        <div aria-hidden style={themeVars} className="rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-page)] p-6">
+        {/* The preview scrolls WITHIN this pane (owner: a tall post forced the
+            whole page to scroll to see its bottom). max-h + overflow lets the
+            post scroll independently of the settings, like the runtime. */}
+        <div aria-hidden style={themeVars} className="overflow-y-auto rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-page)] p-6 lg:max-h-[calc(100vh-5rem)]">
           <SocialPostPreview social={social} config={selectedCfg} />
         </div>
       </div>

@@ -6,7 +6,7 @@
  * the default BlockView renderer under their token overrides.
  */
 
-import { CommentComposer, CommentLikeButton, CommentReply, EngagementSummary, ReactionButton, ReactionGroup, ReactionPicker } from "@/components/feature/take/reaction-toggles";
+import { CommentComposer, CommentFooter, EngagementSummary, ReactionButton, ReactionGroup, ReactionPicker } from "@/components/feature/take/reaction-toggles";
 import type { BlockCopyKey } from "@/lib/take/ui-copy";
 import { effectiveBrandingTier, type CustomSlot, type ReactionKey, type SocialPostDesign } from "@/lib/themes/themes";
 
@@ -95,15 +95,18 @@ function SeededCommentView({ c, np, reply = false }: { c: CommentLike; np?: stri
           </div>
           <p className="text-[13px] text-[#050505]">{c.body}</p>
         </div>
-        <div className="flex items-center gap-3 px-3 pt-0.5 text-[11px] text-[#65676B]">
-          <CommentLikeButton />
-          {/* Top-level comments get a working Reply (below); nested replies keep a
-              static label. Works in preview + take (no `interactive` gate). */}
-          {!reply && np ? null : <span>Reply</span>}
-          {c.timeLabel ? <span>{c.timeLabel}</span> : null}
-          {c.reactionCount ? <span>{reactionGlyphs} {fmt(c.reactionCount)}</span> : null}
-        </div>
-        {!reply && np ? <CommentReply np={np} /> : null}
+        {/* Like + Reply inline in one row (FB layout); the reply input + posted
+            replies expand below. Reply is functional for top-level comments
+            whenever np is provided — including np="" on non-grouped runtime
+            blocks (CommentFooter gates on np != null, not truthiness). Nested
+            replies pass canReply={false} → static Reply label. */}
+        <CommentFooter
+          np={np}
+          canReply={!reply}
+          timeLabel={c.timeLabel}
+          reactionGlyphs={reactionGlyphs}
+          reactionCount={c.reactionCount}
+        />
         {!reply && c.replies && c.replies.length ? (
           <div className="flex flex-col gap-2 pt-1">
             {c.replies.map((rp) => (
@@ -220,7 +223,7 @@ function FacebookSocialPost({ config, np = "", interactive = true, blockCopy: bc
       {showSummary ? (
         <EngagementSummary emojis={summaryEmojis} likes={e.likes ?? 0} comments={e.comments ?? 0} shares={e.shares ?? 0} allowComments={e.allowComments} />
       ) : null}
-      <div className="flex items-center justify-between border-t border-[#E4E6EB] pt-1.5 text-[15px] font-medium text-[#65676B]">
+      <div className="flex items-center justify-between border-t border-[#E4E6EB] pt-1.5 text-[16px] font-medium text-[#65676B]">
         {showReact ? (
           usePicker ? (
             <ReactionPicker np={np} reactions={r!.reactionsEnabled} live={r!.reactionsLive && interactive} label={lab(bc, "postLike", "Like")} />
