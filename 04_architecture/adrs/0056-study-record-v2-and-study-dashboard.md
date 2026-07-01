@@ -2,7 +2,7 @@
 
 - **Status:** accepted
 - **Date:** 2026-06-18
-- **Deciders:** project owner, Claude (agent)
+- **Deciders:** Paweł Rosner (project owner)
 - **Tags:** ux, ia, data-model, study-record, dashboard
 
 ## Context

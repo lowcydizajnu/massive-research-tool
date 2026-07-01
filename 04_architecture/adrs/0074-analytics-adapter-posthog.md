@@ -2,7 +2,7 @@
 
 - **Status:** accepted
 - **Date:** 2026-06-27
-- **Deciders:** Paweł Rosner (owner), Code tab
+- **Deciders:** Paweł Rosner (project owner)
 - **Tags:** runtime, analytics, privacy, lock-in
 
 ## Context

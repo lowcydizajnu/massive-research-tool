@@ -2,7 +2,7 @@
 
 - **Status:** accepted
 - **Date:** 2026-06-03
-- **Deciders:** project owner + Claude
+- **Deciders:** Paweł Rosner (project owner)
 - **Tags:** notifications, comments, activity-feed, fan-out, v1.6
 
 ## Context

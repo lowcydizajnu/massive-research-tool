@@ -2,7 +2,7 @@
 
 - **Status:** accepted
 - **Date:** 2026-05-28
-- **Deciders:** project owner (with Claude as collaborator)
+- **Deciders:** Paweł Rosner (project owner)
 - **Tags:** strategy, go-to-market, open-science, supply-side, partnerships
 
 ## Context

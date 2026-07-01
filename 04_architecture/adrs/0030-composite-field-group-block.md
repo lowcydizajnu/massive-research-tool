@@ -2,7 +2,7 @@
 
 - **Status:** accepted
 - **Date:** 2026-06-09
-- **Deciders:** project owner, Claude (agent)
+- **Deciders:** Paweł Rosner (project owner)
 - **Tags:** blocks, modules, forms, ADR-0012-related, ADR-0029-related
 
 ## Context

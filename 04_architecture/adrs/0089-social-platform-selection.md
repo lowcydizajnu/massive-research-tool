@@ -2,7 +2,7 @@
 
 - **Status:** accepted
 - **Date:** 2026-07-01
-- **Deciders:** Paweł (owner), Claude
+- **Deciders:** Paweł Rosner (project owner)
 - **Tags:** runtime, design, theming, social-post
 
 ## Context

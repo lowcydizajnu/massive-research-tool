@@ -2,7 +2,7 @@
 
 - **Status:** accepted
 - **Date:** 2026-06-02
-- **Deciders:** project owner + Claude
+- **Deciders:** Paweł Rosner (project owner)
 - **Tags:** data-model, conditioning, privacy, v1.5
 
 ## Context

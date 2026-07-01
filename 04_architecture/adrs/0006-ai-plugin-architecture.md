@@ -2,7 +2,7 @@
 
 - **Status:** accepted
 - **Date:** 2026-05-28
-- **Deciders:** project owner (with Claude as collaborator)
+- **Deciders:** Paweł Rosner (project owner)
 - **Tags:** ai, plugin-architecture, schemas-first, privacy, cost-model, data-model
 
 ## Context

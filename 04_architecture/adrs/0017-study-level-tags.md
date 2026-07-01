@@ -2,7 +2,7 @@
 
 - **Status:** accepted
 - **Date:** 2026-06-03
-- **Deciders:** Project owner, Claude
+- **Deciders:** Paweł Rosner (project owner)
 - **Tags:** data-model, follow-targets, v1.7
 
 ## Context

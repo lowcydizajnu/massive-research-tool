@@ -2,7 +2,7 @@
 
 - **Status:** accepted
 - **Date:** 2026-06-26
-- **Deciders:** project owner, Claude
+- **Deciders:** Paweł Rosner (project owner)
 - **Tags:** runtime, recruitment, take-flow
 
 ## Context

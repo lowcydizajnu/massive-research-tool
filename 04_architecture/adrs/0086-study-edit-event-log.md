@@ -2,7 +2,7 @@
 
 - **Status:** accepted
 - **Date:** 2026-06-30
-- **Deciders:** Paweł (owner), Claude
+- **Deciders:** Paweł Rosner (project owner)
 - **Tags:** data-model, changelog, provenance
 
 ## Context

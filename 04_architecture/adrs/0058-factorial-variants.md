@@ -2,7 +2,7 @@
 
 - **Status:** accepted
 - **Date:** 2026-06-20
-- **Deciders:** Project owner, Claude
+- **Deciders:** Paweł Rosner (project owner)
 - **Tags:** study-model, runtime, builder, experimental-design
 
 ## Context

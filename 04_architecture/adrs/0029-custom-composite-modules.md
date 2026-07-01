@@ -2,7 +2,7 @@
 
 - **Status:** accepted
 - **Date:** 2026-06-09
-- **Deciders:** project owner, Claude (agent)
+- **Deciders:** Paweł Rosner (project owner)
 - **Tags:** blocks, grouping, modules, ADR-0012-related, ADR-0028-related
 
 ## Context

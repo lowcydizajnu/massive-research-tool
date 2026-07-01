@@ -2,7 +2,7 @@
 
 - **Status:** accepted
 - **Date:** 2026-06-08
-- **Deciders:** project owner, Claude (agent)
+- **Deciders:** Paweł Rosner (project owner)
 - **Tags:** demo, data-model, discovery
 
 ## Context

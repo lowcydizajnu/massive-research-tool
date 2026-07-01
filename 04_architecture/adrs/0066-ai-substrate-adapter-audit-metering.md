@@ -2,7 +2,7 @@
 
 - **Status:** accepted
 - **Date:** 2026-06-25
-- **Deciders:** Project owner, Claude
+- **Deciders:** Paweł Rosner (project owner)
 - **Tags:** ai, data-model, runtime, vendor-seam, cost-model, privacy
 
 ## Context

@@ -2,7 +2,7 @@
 
 - **Status:** accepted
 - **Date:** 2026-06-29
-- **Deciders:** project owner, Claude
+- **Deciders:** Paweł Rosner (project owner)
 - **Tags:** privacy, auth, security, runtime
 
 ## Context

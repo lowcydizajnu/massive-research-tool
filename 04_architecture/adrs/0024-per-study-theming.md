@@ -2,7 +2,7 @@
 
 - **Status:** accepted
 - **Date:** 2026-06-10
-- **Deciders:** project owner, Claude (agent)
+- **Deciders:** Paweł Rosner (project owner)
 - **Tags:** theming, participant-runtime, ADR-0012-amendment, ADR-0013-related
 
 ## Context

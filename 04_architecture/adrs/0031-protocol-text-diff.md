@@ -2,7 +2,7 @@
 
 - **Status:** accepted
 - **Date:** 2026-06-10
-- **Deciders:** project owner, Claude (agent)
+- **Deciders:** Paweł Rosner (project owner)
 - **Tags:** compare, versioning, replications, ADR-0020-amendment, ADR-0018-related
 
 ## Context

@@ -2,7 +2,7 @@
 
 - **Status:** accepted
 - **Date:** 2026-06-03
-- **Deciders:** Project owner, Claude
+- **Deciders:** Paweł Rosner (project owner)
 - **Tags:** forking, replication, tenancy, permissions, v1.7
 
 ## Context

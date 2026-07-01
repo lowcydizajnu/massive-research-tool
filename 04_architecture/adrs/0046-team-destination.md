@@ -2,7 +2,7 @@
 
 - **Status:** accepted
 - **Date:** 2026-06-15
-- **Deciders:** project owner
+- **Deciders:** Paweł Rosner (project owner)
 - **Tags:** data-model, auth, team, ui
 
 ## Context

@@ -2,7 +2,7 @@
 
 - **Status:** proposed
 - **Date:** 2026-06-30
-- **Deciders:** project owner, Claude (agent)
+- **Deciders:** Paweł Rosner (project owner)
 - **Tags:** participant-runtime, design-tab, theming, ADR-0024-related, ADR-0013-exception
 
 ## Context

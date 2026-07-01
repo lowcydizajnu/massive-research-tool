@@ -2,7 +2,7 @@
 
 - **Status:** accepted
 - **Date:** 2026-06-12
-- **Deciders:** project owner + Claude
+- **Deciders:** Paweł Rosner (project owner)
 - **Tags:** information-architecture, routing, chrome
 
 > The V1.12 handoff numbered this "ADR-0029"; that number was since taken by custom composite modules, so the decision lands here as 0032. Scope: [handoff Section M](../handoffs/code-tab-v1120-functional-polish.md).

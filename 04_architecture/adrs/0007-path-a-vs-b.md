@@ -2,7 +2,7 @@
 
 - **Status:** accepted
 - **Date:** 2026-05-28
-- **Deciders:** project owner (with Claude as collaborator)
+- **Deciders:** Paweł Rosner (project owner)
 - **Tags:** infrastructure, hosting, auth, realtime, background-jobs, cost-model, migration
 
 ## Context

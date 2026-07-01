@@ -2,7 +2,7 @@
 
 - **Status:** accepted
 - **Date:** 2026-06-02
-- **Deciders:** project owner + Claude
+- **Deciders:** Paweł Rosner (project owner)
 - **Tags:** participant-runtime, analytics, privacy, performance, v1.5
 
 ## Context

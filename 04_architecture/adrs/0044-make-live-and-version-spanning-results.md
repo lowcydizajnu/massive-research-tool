@@ -2,7 +2,7 @@
 
 - **Status:** accepted
 - **Date:** 2026-06-15
-- **Deciders:** project owner (with Claude as collaborator)
+- **Deciders:** Paweł Rosner (project owner)
 - **Tags:** runtime, data-model, versioning, recruitment, results
 
 ## Context

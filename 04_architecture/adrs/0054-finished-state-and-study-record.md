@@ -2,7 +2,7 @@
 
 - **Status:** proposed
 - **Date:** 2026-06-18
-- **Deciders:** project owner, Claude
+- **Deciders:** Paweł Rosner (project owner)
 - **Tags:** data-model, runtime, product-surface
 
 ## Context

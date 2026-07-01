@@ -2,7 +2,7 @@
 
 - **Status:** accepted
 - **Date:** 2026-06-04
-- **Deciders:** project owner + Claude
+- **Deciders:** Paweł Rosner (project owner)
 - **Tags:** ui, canvas, whiteboard, v1.8, vendor-choice
 
 ## Context

@@ -2,7 +2,7 @@
 
 - **Status:** accepted
 - **Date:** 2026-05-27
-- **Deciders:** project owner (with Claude as collaborator)
+- **Deciders:** Paweł Rosner (project owner)
 - **Tags:** data-model, modular-composition, theme-overlays, forking, ai-readiness
 
 ## Context

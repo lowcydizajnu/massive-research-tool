@@ -2,7 +2,7 @@
 
 - **Status:** accepted
 - **Date:** 2026-06-07
-- **Deciders:** project owner, Claude
+- **Deciders:** Paweł Rosner (project owner)
 - **Tags:** data-model, runtime, builder, whiteboard, v1.9
 
 ## Context

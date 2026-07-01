@@ -2,7 +2,7 @@
 
 - **Status:** accepted
 - **Date:** 2026-06-28
-- **Deciders:** Paweł (project owner), Claude
+- **Deciders:** Paweł Rosner (project owner)
 - **Tags:** admin, analytics, observability, adapters
 
 ## Context

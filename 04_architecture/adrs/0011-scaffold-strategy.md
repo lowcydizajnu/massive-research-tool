@@ -2,7 +2,7 @@
 
 - **Status:** accepted
 - **Date:** 2026-05-28
-- **Deciders:** project owner + Claude
+- **Deciders:** Paweł Rosner (project owner)
 - **Tags:** scaffold, build, mvp, runtime
 
 ## Context

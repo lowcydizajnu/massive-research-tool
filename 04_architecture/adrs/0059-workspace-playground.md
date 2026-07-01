@@ -2,7 +2,7 @@
 
 - **Status:** accepted
 - **Date:** 2026-06-21
-- **Deciders:** Project owner, Claude
+- **Deciders:** Paweł Rosner (project owner)
 - **Tags:** data-model, workspace-destination, collaboration, reuse
 
 ## Context

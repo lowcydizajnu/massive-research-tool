@@ -1,6 +1,6 @@
 # STATUS — Massive Research Tool
 
-> Plain-markdown mirror of `00_meta/dashboard.html`. Updated by Claude whenever work happens. If this and the dashboard disagree, the dashboard is the visual; this file is the canonical source of truth that travels with the repo.
+> Plain-markdown mirror of `00_meta/dashboard.html`. Updated whenever work happens. If this and the dashboard disagree, the dashboard is the visual; this file is the canonical source of truth that travels with the repo.
 
 **Last updated:** 2026-07-01
 **Design language locked at v0.7 (2026-06-22):** Identity shift from warm-parchment-light-only to dark + light dual mode with intensive emerald (`#0AB667`) accent. Plex Serif retained for headlines + study titles + metric numbers; Plex Sans body. Primary CTA = white text on darker emerald (`#047144`, AAA contrast, Stripe-coded). Input default size locked at 42px / 14px text / 8px radius / hairline border (B-variant). Global search = soft-filled 44px with leading icon + ⌘K chip. Light is default; researcher can toggle to dark per-account. v0.6 design-language brief + tokens archived to `99_archive/v06-design-language-2026-06-22/` with revert path documented. `03_design/design-language-brief.md` + `03_design/design-system/tokens.md` rewritten as v0.7 sources of truth. `05_app/styles/tokens.css` NOT yet updated — visual migration is a coordinated future handoff (would break the live v0.6-coded app if updated piecemeal). Wireframes mostly remain valid (reference layout + content + interaction patterns, not pixel-locked colors); migration pass will surface specific frames needing re-render. Memory updated (v0.6/v0.6.2 marked historical; v0.7 lock added). Figma-sync workflow still gated on owner reconnecting the Figma MCP — when green, push v0.7 tokens + components to a new "MRT Design System v0.7" file.
@@ -326,7 +326,7 @@ Persona work parked (synthetic-pilot evidence only; revisit triggers logged per 
 
 **Standing trigger to revisit personas:** before any high-stakes design decision rests on persona claims, or before V1 ships — whichever comes first.
 
-**Project owner action (still pending):** share the link to the prior Claude-built quick-analysis dashboard, so the V1 stats scope has a concrete calibration target.
+**Project owner action (still pending):** share the link to the prior quick-analysis dashboard, so the V1 stats scope has a concrete calibration target.
 
 ---
 

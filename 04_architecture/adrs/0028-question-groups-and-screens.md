@@ -2,7 +2,7 @@
 
 - **Status:** accepted
 - **Date:** 2026-06-08
-- **Deciders:** project owner, Claude (agent)
+- **Deciders:** Paweł Rosner (project owner)
 - **Tags:** blocks, runtime, grouping, ADR-0012-amendment, ADR-0013-amendment, ADR-0020-amendment
 
 ## Amendment (2026-06-08) — whiteboard groups as React Flow container nodes

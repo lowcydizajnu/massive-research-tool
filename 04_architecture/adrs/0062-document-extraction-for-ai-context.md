@@ -2,7 +2,7 @@
 
 - **Status:** accepted
 - **Date:** 2026-06-22
-- **Deciders:** Project owner, Claude
+- **Deciders:** Paweł Rosner (project owner)
 - **Tags:** ai, blocks, builder, dependencies, security, vendor-seam
 
 ## Context

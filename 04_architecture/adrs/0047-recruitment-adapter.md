@@ -2,7 +2,7 @@
 
 - **Status:** accepted
 - **Date:** 2026-06-16
-- **Deciders:** Project owner, Code tab
+- **Deciders:** Paweł Rosner (project owner)
 - **Tags:** recruitment, adapters, vendor-isolation, pii, integration
 
 > **Numbering note:** the V1.15 handoff drafted this as "ADR-0037"; that number was taken by ADR-0039 (replication) era work before this landed, so the recruitment ADRs are renumbered **0047** (this), **0048** (compensation), **0049** (quality). Content unchanged from the handoff intent.

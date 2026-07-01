@@ -2,7 +2,7 @@
 
 - **Status:** accepted
 - **Date:** 2026-06-12
-- **Deciders:** project owner + Claude
+- **Deciders:** Paweł Rosner (project owner)
 - **Tags:** collaboration, cross-workspace, data-model
 
 ## Context

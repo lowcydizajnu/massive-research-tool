@@ -2,7 +2,7 @@
 
 - **Status:** accepted
 - **Date:** 2026-06-27
-- **Deciders:** project owner, Claude
+- **Deciders:** Paweł Rosner (project owner)
 - **Tags:** data-model, privacy, growth, discovery
 
 ## Context
