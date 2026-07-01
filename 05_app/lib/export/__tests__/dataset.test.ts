@@ -139,12 +139,13 @@ const withSocialPost: ResultsSummary = {
         "reaction:q2": "love",
         "spshared:q2": "true",
         "spcomment:q2": "nice post",
-        "spreplies:q2": "agreed | same",
+        "spreplies:q2": '[re: Jan "hi"] agreed | same',
+        "spcommentlikes:q2": 'Jan "hi"',
       },
     },
     {
       ...results.rows[1],
-      answers: { ...results.rows[1].answers, "reaction:q2": "", "spshared:q2": "false", "spcomment:q2": "", "spreplies:q2": "" },
+      answers: { ...results.rows[1].answers, "reaction:q2": "", "spshared:q2": "false", "spcomment:q2": "", "spreplies:q2": "", "spcommentlikes:q2": "" },
     },
   ],
 };
@@ -176,12 +177,21 @@ describe("social-post split export columns (ADR-0085)", () => {
     expect(baseColumns(noReplies).some((c) => c.key === "spreplies:q2")).toBe(false);
   });
 
+  it("emits a comment-likes column only when someone liked a comment (ADR-0085 am.)", () => {
+    expect(baseColumns(withSocialPost).find((c) => c.key === "spcommentlikes:q2")?.label).toBe("the_post_comment_likes");
+    const none: ResultsSummary = {
+      ...withSocialPost,
+      rows: withSocialPost.rows.map((r) => ({ ...r, answers: { ...r.answers, "spcommentlikes:q2": "" } })),
+    };
+    expect(baseColumns(none).some((c) => c.key === "spcommentlikes:q2")).toBe(false);
+  });
+
   it("buildMatrix fills each engagement column, blank when none", () => {
     const cols = baseColumns(withSocialPost).filter((c) => /:q2$/.test(c.key));
     const m = buildMatrix(withSocialPost, cols);
-    expect(m.headers).toEqual(["the_post_reaction", "the_post_shared", "the_post_comment", "the_post_replies"]);
-    expect(m.rows[0]).toEqual(["love", "true", "nice post", "agreed | same"]);
-    expect(m.rows[1]).toEqual(["", "false", "", ""]);
+    expect(m.headers).toEqual(["the_post_reaction", "the_post_shared", "the_post_comment", "the_post_replies", "the_post_comment_likes"]);
+    expect(m.rows[0]).toEqual(["love", "true", "nice post", '[re: Jan "hi"] agreed | same', 'Jan "hi"']);
+    expect(m.rows[1]).toEqual(["", "false", "", "", ""]);
   });
 });
 

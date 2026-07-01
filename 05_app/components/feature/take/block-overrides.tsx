@@ -76,6 +76,11 @@ type CommentLike = {
 /** A static seeded comment under a Facebook post (display-only). */
 function SeededCommentView({ c, np, reply = false }: { c: CommentLike; np?: string; reply?: boolean }) {
   const reactionGlyphs = c.reactions && c.reactions.length ? c.reactions.map((k) => REACTION_EMOJI[k]).join("") : "👍";
+  // Label posted with any reply/like to THIS comment so the export names which
+  // comment (author + a short body snippet, as the participant saw it) — ADR-0085 am.
+  const body = (c.body ?? "").trim();
+  const snip = body.length > 40 ? `${body.slice(0, 40).trimEnd()}…` : body;
+  const commentLabel = `${(c.authorName ?? "").trim()}${snip ? ` "${snip}"` : ""}`.trim();
   return (
     <div className={`flex gap-2 ${reply ? "ml-8" : ""}`}>
       {c.authorAvatarKey ? (
@@ -106,6 +111,7 @@ function SeededCommentView({ c, np, reply = false }: { c: CommentLike; np?: stri
           timeLabel={c.timeLabel}
           reactionGlyphs={reactionGlyphs}
           reactionCount={c.reactionCount}
+          commentLabel={commentLabel}
         />
         {!reply && c.replies && c.replies.length ? (
           <div className="flex flex-col gap-2 pt-1">

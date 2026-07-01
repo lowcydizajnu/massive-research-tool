@@ -97,6 +97,24 @@ describe("module response schemas (ADR-0014 answer validation)", () => {
       headline: "h", body: "b", source: "s",
       veracityGroundTruth: "kinda-true", topicTags: [], imageUrl: "", shareCountVisible: false,
     }).success).toBe(false);
+    // Engagement answer keeps replies (with their parent-comment label) + comment
+    // likes (ADR-0085 am. 2026-07-01) — previously omitted from the schema, so Zod
+    // stripped them before storage. They must now survive validation, not vanish.
+    const parsed = m.responseSchema!.safeParse({
+      liked: true,
+      shared: false,
+      reaction: "angry",
+      replies: [{ to: 'Jan "hi"', text: "I disagree" }],
+      commentLikes: ['Maria "src?"'],
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      const d = parsed.data as { replies?: unknown[]; commentLikes?: unknown[] };
+      expect(d.replies).toEqual([{ to: 'Jan "hi"', text: "I disagree" }]);
+      expect(d.commentLikes).toEqual(['Maria "src?"']);
+    }
+    // Legacy bare-string replies are still accepted (back-compat).
+    expect(m.responseSchema!.safeParse({ liked: true, shared: false, replies: ["agreed"] }).success).toBe(true);
     // v1.0.0 is still resolvable for studies pinned to it.
     expect(getModuleDef("core", "social-post", "1.0.0")).toBeDefined();
   });

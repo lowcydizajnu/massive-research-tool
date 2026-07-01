@@ -132,9 +132,16 @@ export function baseColumns(results: ResultsSummary): ExportColumn[] {
       if (results.rows.some((r) => (r.answers[`spreported:${q.instanceId}`] ?? "") !== "")) {
         out.push({ key: `spreported:${q.instanceId}`, source: `${src} — reported`, type: "categorical", label: dedupe(`${base}_reported`), hidden: false });
       }
-      // Replies column only when at least one respondent replied (avoid an all-blank column).
+      // Replies column only when at least one respondent replied (avoid an all-blank
+      // column). Each reply is prefixed with the comment it answered — "[re: <author
+      // "snippet">] <reply>" (ADR-0085 am.).
       if (results.rows.some((r) => (r.answers[`spreplies:${q.instanceId}`] ?? "") !== "")) {
         out.push({ key: `spreplies:${q.instanceId}`, source: `${src} — replies`, type: "text", label: dedupe(`${base}_replies`), hidden: false });
+      }
+      // Comment-likes column only when at least one respondent liked a seeded comment
+      // (ADR-0085 am.) — the liked comments' labels (author + snippet), joined.
+      if (results.rows.some((r) => (r.answers[`spcommentlikes:${q.instanceId}`] ?? "") !== "")) {
+        out.push({ key: `spcommentlikes:${q.instanceId}`, source: `${src} — comment likes`, type: "text", label: dedupe(`${base}_comment_likes`), hidden: false });
       }
       return out;
     });

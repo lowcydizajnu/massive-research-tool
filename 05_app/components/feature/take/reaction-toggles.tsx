@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useRef, useState } from "react";
+import { createContext, Fragment, useContext, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 import { type ReactionKey } from "@/lib/themes/themes";
@@ -124,23 +124,29 @@ export function ReactionButton({
 }
 
 /**
- * A like toggle on a seeded comment (ADR-0085) — visual only (not recorded): a
- * participant can "Like" a comment and see it highlight + tick up, mirroring the
- * platform. Scoped client (ADR-0013), like the post reactions.
+ * A like toggle on a seeded comment (ADR-0085). Recorded (ADR-0085 amendment
+ * 2026-07-01): when liked and a namespace is provided (the live runtime — gate on
+ * `np != null`, never truthiness, so the empty-string namespace still records), a
+ * hidden `${np}commentLike` input posts the comment's label so the export can list
+ * which comments the participant liked. `np` absent (preview / display-only) keeps
+ * it visual-only. Scoped client (ADR-0013), like the post reactions.
  */
-export function CommentLikeButton({ baseCount = 0, label = "Like" }: { baseCount?: number; label?: string }) {
+export function CommentLikeButton({ baseCount = 0, label = "Like", np, commentLabel }: { baseCount?: number; label?: string; np?: string; commentLabel?: string }) {
   const [liked, setLiked] = useState(false);
   const shown = baseCount + (liked ? 1 : 0);
   return (
-    <button
-      type="button"
-      aria-pressed={liked}
-      onClick={() => setLiked((v) => !v)}
-      className={cn("cursor-pointer", liked ? "font-semibold text-[#0866FF]" : "")}
-    >
-      {label}
-      {shown > 0 ? ` ${fmt(shown)}` : ""}
-    </button>
+    <>
+      {liked && np != null ? <input type="hidden" name={`${np}commentLike`} value={commentLabel ?? ""} /> : null}
+      <button
+        type="button"
+        aria-pressed={liked}
+        onClick={() => setLiked((v) => !v)}
+        className={cn("cursor-pointer", liked ? "font-semibold text-[#0866FF]" : "")}
+      >
+        {label}
+        {shown > 0 ? ` ${fmt(shown)}` : ""}
+      </button>
+    </>
   );
 }
 
@@ -321,6 +327,7 @@ export function CommentFooter({
   reactionCount,
   label = "Reply",
   authorName = "You",
+  commentLabel,
 }: {
   np?: string;
   canReply: boolean;
@@ -329,6 +336,9 @@ export function CommentFooter({
   reactionCount?: number;
   label?: string;
   authorName?: string;
+  /** The parent comment's label (author + snippet) — posted with each reply + like
+   *  so the export can say which comment was replied to / liked. */
+  commentLabel?: string;
 }) {
   const ctx = useContext(Ctx);
   const [open, setOpen] = useState(false);
@@ -346,10 +356,13 @@ export function CommentFooter({
   return (
     <div className="flex flex-col gap-1">
       {added.map((c, i) => (
-        <input key={`h${i}`} type="hidden" name={`${np}reply`} value={c} />
+        <Fragment key={`h${i}`}>
+          <input type="hidden" name={`${np}reply`} value={c} />
+          <input type="hidden" name={`${np}replyTo`} value={commentLabel ?? ""} />
+        </Fragment>
       ))}
       <div className="flex items-center gap-3 px-3 pt-0.5 text-[11px] text-[#65676B]">
-        <CommentLikeButton />
+        <CommentLikeButton np={np} commentLabel={commentLabel} />
         {interactive ? (
           <button type="button" onClick={() => setOpen((v) => !v)} className="cursor-pointer font-semibold text-[#65676B]">
             {label}

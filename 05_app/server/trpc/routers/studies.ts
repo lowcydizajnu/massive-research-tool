@@ -11,6 +11,7 @@ import { deleteStudyResponses, StudyNotFoundError } from "@/server/db/delete-res
 import { collectStudyParticipantMediaKeys } from "@/server/db/collect-study-media";
 import { deleteStudy, StudyNotFoundError as StudyGoneError, TemplateExistsError } from "@/server/db/delete-study";
 import { emit } from "@/server/events/emit";
+import { formatCommentLikesCell, formatReplyCell } from "@/lib/export/social-post-cells";
 import { createHash } from "node:crypto";
 
 import {
@@ -5149,15 +5150,18 @@ export const studiesRouter = router({
         if (b.key !== "social-post") continue;
         for (const it of items) {
           if (it.blockInstanceId !== b.instanceId) continue;
-          const a = (it.answer ?? {}) as { reaction?: unknown; shared?: unknown; reported?: unknown; comment?: unknown; replies?: unknown };
+          const a = (it.answer ?? {}) as { reaction?: unknown; shared?: unknown; reported?: unknown; comment?: unknown; replies?: unknown; commentLikes?: unknown };
           const row = answersByResponse.get(it.responseId) ?? {};
           row[`reaction:${b.instanceId}`] = typeof a.reaction === "string" ? a.reaction : "";
           row[`spshared:${b.instanceId}`] = typeof a.shared === "boolean" ? String(a.shared) : "";
           row[`spreported:${b.instanceId}`] = a.reported === true ? "true" : a.reported === false ? "false" : "";
           row[`spcomment:${b.instanceId}`] = typeof a.comment === "string" ? a.comment : "";
-          row[`spreplies:${b.instanceId}`] = Array.isArray(a.replies)
-            ? (a.replies as unknown[]).map(String).filter((s) => s.trim() !== "").join(" | ")
-            : "";
+          // Replies carry the parent comment's label (ADR-0085 am.): `{to,text}` →
+          // "[re: <author "snippet">] <reply>"; legacy `string[]` renders bare. Which
+          // seeded comments the respondent Liked → their labels, joined. Both pure +
+          // unit-tested in lib/export/social-post-cells.ts.
+          row[`spreplies:${b.instanceId}`] = formatReplyCell(a.replies);
+          row[`spcommentlikes:${b.instanceId}`] = formatCommentLikesCell(a.commentLikes);
           answersByResponse.set(it.responseId, row);
         }
       }

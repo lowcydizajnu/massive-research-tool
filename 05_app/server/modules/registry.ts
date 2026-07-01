@@ -294,6 +294,19 @@ const socialPostV2: CoreModuleDef = {
     /** The single chosen reaction when the design enables the full picker
      *  (ADR-0085, reactionsLive). `liked` stays for back-compat (= reaction != null). */
     reaction: z.enum(REACTION_KEYS).nullable().optional(),
+    /** Participant replies to seeded comments (ADR-0085 amendment 2026-07-01). Each
+     *  carries the parent comment's label (`to` = author + snippet, as the participant
+     *  saw it) so the export can say WHICH comment was replied to. The bare-string form
+     *  is accepted for back-compat with any legacy client; new writes are objects.
+     *  Previously omitted from this schema, so replies were silently stripped before
+     *  storage (the export column was always blank) — now persisted. */
+    replies: z
+      .array(z.union([z.string().max(2000), z.object({ to: z.string().max(200).optional(), text: z.string().max(2000) })]))
+      .max(50)
+      .optional(),
+    /** Seeded comments the participant Liked (ADR-0085 amendment 2026-07-01) — the
+     *  liked comments' labels (author + snippet). Visual-only before; now recorded. */
+    commentLikes: z.array(z.string().max(200)).max(50).optional(),
   }),
   // Never blocks the participant — interacting with a stimulus is always optional.
   isAnswerEmpty: () => false,

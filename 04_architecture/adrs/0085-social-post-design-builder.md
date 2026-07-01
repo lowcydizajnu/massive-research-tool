@@ -44,6 +44,25 @@ Appearance + interaction config + custom slots live under `theme.socialPost` (st
 - **Committed to:** Configure(content)/Design(appearance) split; reactions/thread/slots as vetted, schema-validated config (not user code); FB-first, extensible-by-preset.
 - **Precluded from:** free-form WYSIWYG and user-authored renderers in v1.
 
+## Amendment — record replies (with parent comment) + comment likes (2026-07-01)
+
+Two engagement signals were incomplete in the export. **(1) Replies were silently
+dropped:** the take flow captured them and the export read them, but the block's
+`responseSchema` never listed `replies`, so Zod stripped the field before storage —
+the reply column was always blank. **(2) Comment likes weren't captured at all** (the
+comment Like was visual-only). Fixed by carrying both through the same
+capture→store→export path the other signals use, keyed to the seeded comment's
+identity. The stored answer's `replies` becomes `{ to, text }[]` — `to` is the parent
+comment's label (author + a short body snippet, captured as the participant saw it) so
+the export can say *which* comment was replied to; the bare-`string[]` form is still
+accepted for back-compat with any pre-amendment data. A new `commentLikes: string[]`
+records the labels of the comments a participant Liked. The take UI posts a
+`${np}replyTo` alongside each `${np}reply` (index-aligned) and a `${np}commentLike`
+when a comment Like is on (gated to the live runtime). Export gains a labeled reply
+column (`[re: <label>] <reply>`) and a conditional `*_comment_likes` column. The
+answer is JSONB, so **no migration**; only the platform-skin render path shows the
+thread, so the neutral renderer is unaffected.
+
 ## Revisit triggers
 
 - X / TikTok builders begin → add presets + renderers on this substrate (no schema rework expected).
