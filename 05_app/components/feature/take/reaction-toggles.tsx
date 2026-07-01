@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useRef, useState } from "react";
+import { createContext, useContext, useState } from "react";
 
 import { cn } from "@/lib/utils";
 import { type ReactionKey } from "@/lib/themes/themes";
@@ -165,18 +165,15 @@ export function ReactionPicker({
   label: string;
 }) {
   const [chosen, setChosen] = useState<ReactionKey | null>(null);
-  const [open, setOpen] = useState(false);
-  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // All paths below inherit the action bar's font size (no hardcoded text-* here)
-  // so the Like affordance is ONE consistent size whether reactions are live,
-  // display-only, or absent — the inert paths used to hardcode 13px while the
-  // live trigger inherited 16px, so the same post rendered the Like at two sizes.
+  // All paths inherit the action bar's font size (no hardcoded text-*), so the
+  // reaction affordance is ONE consistent size whether live, display-only, or absent.
   if (reactions.length === 0) return <span className="text-[#65676B]">{label}</span>;
+
   if (!live) {
     // Display-only / preview: show the ENABLED reactions inline (not just "Like"),
-    // so the researcher's preview reflects exactly which reactions they selected
-    // (owner: "what's selected on the left isn't shown on the right"). Nothing posts.
+    // so the researcher's preview reflects exactly which reactions they selected.
+    // Nothing posts.
     return (
       <span className="flex items-center gap-1.5 text-[#65676B]">
         <span aria-hidden className="flex items-center gap-0.5">
@@ -189,59 +186,30 @@ export function ReactionPicker({
     );
   }
 
-  // The trigger's quick-like uses Like when enabled, else the first enabled reaction.
-  const primary: ReactionKey = reactions.includes("like") ? "like" : reactions[0];
-  const openNow = () => {
-    if (closeTimer.current) clearTimeout(closeTimer.current);
-    setOpen(true);
-  };
-  const closeSoon = () => {
-    closeTimer.current = setTimeout(() => setOpen(false), 180);
-  };
-  const triggerEmoji = chosen ? REACTION_META[chosen].emoji : REACTION_META[primary].emoji;
-  const triggerLabel = chosen ? REACTION_META[chosen].label : label;
-
+  // Live (measured): the enabled reactions are a VISIBLE, tappable row — the
+  // participant picks directly, no FB hover tray (which hid them and broke
+  // discoverability, especially on touch; owner: "why can't I see them?"). Picking
+  // posts the chosen key via the hidden input; tap the same one again to clear.
   return (
-    <span className="relative inline-flex" onMouseEnter={openNow} onMouseLeave={closeSoon}>
+    <span role="radiogroup" aria-label={label} className="inline-flex items-center gap-1.5">
       {chosen ? <input type="hidden" name={`${np}reactionKey`} value={chosen} /> : null}
-      {open && reactions.length > 1 ? (
-        <span
-          role="radiogroup"
-          aria-label={label}
-          className="absolute bottom-full left-0 z-10 mb-1 flex items-center gap-0.5 rounded-full border border-[#E4E6EB] bg-white px-1.5 py-1 shadow-md"
+      {reactions.map((r) => (
+        <button
+          key={r}
+          type="button"
+          role="radio"
+          aria-checked={chosen === r}
+          aria-label={REACTION_META[r].label}
+          title={REACTION_META[r].label}
+          onClick={() => setChosen((c) => (c === r ? null : r))}
+          className={cn(
+            "cursor-pointer rounded-full leading-none transition-transform hover:scale-125 focus:scale-110 focus:outline-none",
+            chosen === r ? "scale-125" : "opacity-60 hover:opacity-100",
+          )}
         >
-          {reactions.map((r) => (
-            <button
-              key={r}
-              type="button"
-              role="radio"
-              aria-checked={chosen === r}
-              aria-label={REACTION_META[r].label}
-              onFocus={openNow}
-              onBlur={closeSoon}
-              onClick={() => {
-                setChosen(r);
-                setOpen(false);
-              }}
-              className="rounded-full px-1.5 py-0.5 text-[28px] leading-none transition-transform hover:scale-125 focus:scale-125 focus:outline-none"
-            >
-              <span aria-hidden>{REACTION_META[r].emoji}</span>
-            </button>
-          ))}
-        </span>
-      ) : null}
-      <button
-        type="button"
-        aria-haspopup="true"
-        aria-expanded={open}
-        aria-pressed={chosen != null}
-        onFocus={openNow}
-        onBlur={closeSoon}
-        onClick={() => setChosen((c) => (c ? null : primary))}
-        className={cn("cursor-pointer", chosen ? "font-bold text-[#0866FF]" : "")}
-      >
-        <span aria-hidden>{triggerEmoji}</span> {triggerLabel}
-      </button>
+          <span aria-hidden>{REACTION_META[r].emoji}</span>
+        </button>
+      ))}
     </span>
   );
 }
