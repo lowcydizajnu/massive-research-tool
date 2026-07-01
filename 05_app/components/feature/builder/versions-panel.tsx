@@ -179,6 +179,9 @@ function VersionPreview({
       await Promise.all([
         utils.studies.get.invalidate({ id: studyId }),
         utils.studies.listVersions.invalidate({ studyId }),
+        // Refresh the drift banner + "draft ahead" pill (both read getRunInfo) —
+        // a full restore clears drift, but only if the query refetches.
+        utils.studies.getRunInfo.invalidate({ studyId }),
       ]);
       setConfirming(false);
       onRestored(`Restored ${label(version)} into your draft (${r.blockCount} block${r.blockCount === 1 ? "" : "s"}).`);

@@ -613,6 +613,23 @@ describe("studies.getRunInfo + openRecruitment", () => {
     expect(info.liveVersionNumber).not.toBeNull();
   });
 
+  it("restoreVersion clears drift — restores the FULL snapshot + conditions, not just blocks", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    await caller.studies.preregister({ studyId: id });
+    // Diverge the draft in BOTH a block and a condition — a blocks-only restore
+    // would leave the condition behind and never clear drift (the reported bug).
+    await caller.studies.addBlock({ studyId: id, source: "core", key: "likert-7", version: "1.0.0" });
+    await caller.studies.addCondition({ studyId: id, name: "Treatment" });
+    expect((await caller.studies.getRunInfo({ studyId: id })).divergedFromLive).toBe(true);
+    // Restore the frozen version → the tip becomes byte-identical → drift clears.
+    const versions = await caller.studies.listVersions({ studyId: id });
+    const frozen = versions.find((v) => !v.isWorkingCopy)!;
+    await caller.studies.restoreVersion({ studyId: id, versionId: frozen.id });
+    expect((await caller.studies.getRunInfo({ studyId: id })).divergedFromLive).toBe(false);
+  });
+
   it("openRecruitment refuses a study that is neither preregistered nor published", async () => {
     await seedUserWithWorkspace("ext_a", "Alpha");
     const caller = createCaller({ authUser: authUser("ext_a") });

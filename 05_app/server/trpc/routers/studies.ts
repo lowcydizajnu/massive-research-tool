@@ -2187,11 +2187,14 @@ export const studiesRouter = router({
     }),
 
   /**
-   * Restore a frozen version into the working copy (ADR-0019): copy its blocks
-   * onto the autosave tip via writeBlocks. The frozen version is never mutated
-   * and current_version_id keeps pointing at the tip — restore is an ordinary
-   * edit. Overwrites the current working copy (the UI confirms first). Does not
-   * emit an activity event (it is a private working-copy edit, not a save).
+   * Restore a frozen version into the working copy (ADR-0019): copy its FULL
+   * snapshot (blocks + theme + consent + overview + groups + variants + …) AND
+   * its conditions onto the autosave tip, so the draft becomes byte-identical to
+   * the restored version. A blocks-only restore left theme/consent/condition
+   * edits behind, so `divergedFromLive` (which fingerprints the whole snapshot +
+   * conditions) never cleared — the drift banner + "draft ahead" pill stuck on
+   * after a restore. The frozen version is never mutated and current_version_id
+   * keeps pointing at the tip — restore is an ordinary working-copy edit.
    */
   restoreVersion: writeProcedure
     .input(z.object({ studyId: z.string().uuid(), versionId: z.string().uuid() }))
@@ -2229,8 +2232,34 @@ export const studiesRouter = router({
           });
         }
 
-        const blocks = readBlocks(src.snapshot);
-        await writeBlocks(exp.currentVersionId, input.studyId, blocks);
+        // FULL restore: copy the whole snapshot verbatim (nothing cherry-picked,
+        // so no field is missed) + replace the draft's conditions with the
+        // restored version's. This makes the tip's fingerprint equal the restored
+        // version's, so drift genuinely clears.
+        const snapshot = src.snapshot;
+        const blocks = readBlocks(snapshot);
+        const srcConditions = await conditionsForVersion(input.versionId);
+        const tipVersionId = exp.currentVersionId;
+        await db.transaction(async (tx) => {
+          await tx
+            .update(experimentVersion)
+            .set({ definitionSnapshot: snapshot, moduleVersionLocks: locksFromBlocks(blocks) })
+            .where(eq(experimentVersion.id, tipVersionId));
+          await tx.delete(conditionTable).where(eq(conditionTable.experimentVersionId, tipVersionId));
+          if (srcConditions.length) {
+            await tx.insert(conditionTable).values(
+              srcConditions.map((c) => ({
+                id: ulid(),
+                experimentVersionId: tipVersionId,
+                slug: c.slug,
+                name: c.name,
+                allocationWeight: String(c.allocationWeight),
+                position: c.position,
+              })),
+            );
+          }
+          await tx.update(experiment).set({ updatedAt: new Date() }).where(eq(experiment.id, input.studyId));
+        });
         return {
           restoredFromNumber: src.versionNumber,
           restoredFromKind: src.kind,

@@ -179,6 +179,9 @@ export function BuilderWorkspace({
     // Replication badges/banner + readiness derive from the tip — keep them live.
     void utils.studies.replicationStatus.invalidate({ studyId: study.id });
     void utils.studies.preflight.invalidate();
+    // Drift banner + "draft ahead" pill (getRunInfo) — any tip edit can change
+    // whether the draft diverges from the live version, so refresh it too.
+    void utils.studies.getRunInfo.invalidate({ studyId: study.id });
   };
   const addBlock = api.studies.addBlock.useMutation({
     onSuccess: ({ instanceId }) => {
