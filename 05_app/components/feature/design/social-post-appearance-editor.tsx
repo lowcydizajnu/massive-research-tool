@@ -121,11 +121,22 @@ export function SocialPostAppearanceEditor({
 
         {blocks.length > 1 ? (
           <label className="flex flex-col gap-1">
-            <span className={LEGEND_CLS}>Previewing post</span>
+            <span className={LEGEND_CLS}>Previewing post ({blocks.length})</span>
             <select value={selected?.instanceId ?? ""} onChange={(e) => setSelectedId(e.target.value)} className={FIELD_CLS}>
-              {blocks.map((b) => (
-                <option key={b.instanceId} value={b.instanceId}>{b.title}</option>
-              ))}
+              {blocks.map((b, i) => {
+                // Distinct labels — two identical "Social post" entries are useless
+                // (owner). Name each by its author/headline, else "Post N".
+                const cfg = (b.config ?? {}) as Record<string, unknown>;
+                const hint =
+                  (typeof cfg.source === "string" && cfg.source.trim()) ||
+                  (typeof cfg.headline === "string" && cfg.headline.trim()) ||
+                  "";
+                return (
+                  <option key={b.instanceId} value={b.instanceId}>
+                    {`Post ${i + 1}${hint ? ` — ${hint}` : ""}`}
+                  </option>
+                );
+              })}
             </select>
           </label>
         ) : null}

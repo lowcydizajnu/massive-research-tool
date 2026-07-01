@@ -1006,19 +1006,17 @@ export function BuilderWorkspace({
                           block={b}
                           selected={b.instanceId === selectedId}
                           onSelect={() => setSelectedId(b.instanceId)}
-                          /* Grouped members are gated at the group level — don't repeat per-block conditions. */
-                          conditionLabel={
-                            grouped
-                              ? ""
-                              : summarizeCondition(
-                                  conditionWithSources(
-                                    b.showIf,
-                                    b.branchRules,
-                                    new Set(study.blocks.slice(0, i).map((x) => x.instanceId)),
-                                  ),
-                                  nameOf,
-                                )
-                          }
+                          /* Show the condition on EVERY block, grouped or not: a grouped
+                             block's condition now reveals it live within the screen
+                             (ADR-0088), so it must be visible in the builder too. */
+                          conditionLabel={summarizeCondition(
+                            conditionWithSources(
+                              b.showIf,
+                              b.branchRules,
+                              new Set(study.blocks.slice(0, i).map((x) => x.instanceId)),
+                            ),
+                            nameOf,
+                          )}
                         />
                       </div>
                       <div className="flex w-[84px] shrink-0 items-center justify-end">

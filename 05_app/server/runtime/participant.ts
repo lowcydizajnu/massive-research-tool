@@ -669,9 +669,26 @@ export async function recordScreenAnswers(input: {
   const screen = screens[input.screenIndex];
   if (!screen) return { ok: false, error: "not_found" };
 
-  // Validate every block first — no partial writes on a screen with one bad field.
+  // In-screen reveal (ADR-0088): a grouped block whose `showIf` targets a
+  // same-screen sibling is only SHOWN once that answer satisfies the condition.
+  // When it isn't shown it's absent — never required — so a conditionally-revealed
+  // block must not block Continue (owner: "it's optional, not mandatory"). We
+  // evaluate each block's condition against this screen's submitted answers (plus
+  // earlier ones) and skip validating/recording any block that isn't revealed.
+  const merged: Record<string, unknown> = { ...answersBefore };
+  for (const b of screen.blocks) {
+    const raw = input.answers[b.instanceId];
+    if (raw !== undefined) merged[b.instanceId] = raw;
+  }
+  const isRevealed = (block: BlockInstance): boolean => {
+    const cond = normalizeCondition(block.showIf, block.branchRules);
+    return !cond || cond.clauses.length === 0 || evaluateCondition(cond, merged);
+  };
+
+  // Validate every SHOWN block first — no partial writes on a screen with one bad field.
   const toWrite: { block: BlockInstance; value: unknown }[] = [];
   for (const block of screen.blocks) {
+    if (!isRevealed(block)) continue; // unrevealed → optional/absent
     const r = validateBlockAnswer(block, input.answers[block.instanceId]);
     if ("error" in r) return { ok: false, error: r.error };
     if ("write" in r) toWrite.push({ block, value: r.write });

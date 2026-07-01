@@ -174,10 +174,16 @@ export function ReactionPicker({
   // live trigger inherited 16px, so the same post rendered the Like at two sizes.
   if (reactions.length === 0) return <span className="text-[#65676B]">{label}</span>;
   if (!live) {
-    // Display-only: show the Like affordance inert (no tray, nothing posts).
+    // Display-only / preview: show the ENABLED reactions inline (not just "Like"),
+    // so the researcher's preview reflects exactly which reactions they selected
+    // (owner: "what's selected on the left isn't shown on the right"). Nothing posts.
     return (
-      <span className="flex items-center gap-1 text-[#65676B]">
-        <span aria-hidden>👍</span>
+      <span className="flex items-center gap-1.5 text-[#65676B]">
+        <span aria-hidden className="flex items-center gap-0.5">
+          {reactions.map((r) => (
+            <span key={r}>{REACTION_META[r].emoji}</span>
+          ))}
+        </span>
         <span>{label}</span>
       </span>
     );
