@@ -1,6 +1,6 @@
 import { ReactionTimeInput } from "@/components/feature/take/reaction-time-input";
 import { getBlockOverride } from "@/components/feature/take/block-overrides";
-import { ReactionButton, ReactionGroup } from "@/components/feature/take/reaction-toggles";
+import { CommentActionLabel, CommentComposer, EngagementSummary, ReactionButton, ReactionGroup, ReactionPicker } from "@/components/feature/take/reaction-toggles";
 import { AudioRecordInput } from "@/components/feature/take/audio-record-input";
 import { AudioStimulusView } from "@/components/feature/take/audio-stimulus-view";
 import { DrillDownInput } from "@/components/feature/take/drill-down-input";
@@ -15,7 +15,7 @@ import { FileUploadInput } from "@/components/feature/take/file-upload-input";
 import { VideoRecordInput } from "@/components/feature/take/video-record-input";
 import { AiChatInput } from "@/components/feature/take/ai-chat-input";
 import { ChatWindowPreview } from "@/components/feature/take/chat-window-preview";
-import { SOCIAL_PLATFORM_PRESETS, type BrandingTier, type ChatAppearance, type SocialPostDesign } from "@/lib/themes/themes";
+import { SOCIAL_PLATFORM_PRESETS, type BrandingTier, type ChatAppearance, type ReactionKey, type SocialPostDesign } from "@/lib/themes/themes";
 import { BLOCK_COPY_DEFAULTS, type BlockCopyKey } from "@/lib/take/ui-copy";
 import type { RuntimeBlock } from "@/server/runtime/participant";
 
@@ -84,7 +84,7 @@ export function BlockView({
     (SOCIAL_PLATFORM_PRESETS as readonly string[]).includes(presetKey ?? "");
   const Override = suppressSocialChrome ? null : getBlockOverride(presetKey, block.key);
   if (Override) return <>{Override({ config: c, np, interactive, blockCopy, social })}</>;
-  if (block.key === "social-post") return <SocialPostView config={c} np={np} interactive={interactive} blockCopy={blockCopy} />;
+  if (block.key === "social-post") return <SocialPostView config={c} np={np} interactive={interactive} blockCopy={blockCopy} social={social} />;
   if (block.key === "likert-7") return <Likert7Input config={c} np={np} />;
   if (block.key === "multiple-choice") return <MultipleChoiceInput config={c} seed={seed} np={np} />;
   if (block.key === "free-text") return <FreeTextInput config={c} np={np} />;
@@ -180,16 +180,32 @@ const FIELD_CLS =
 const PROMPT_CLS =
   "font-serif text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]";
 
-function SocialPostView({
+/** Reaction emoji for the neutral summary line (mirrors block-overrides). */
+const REACTION_EMOJI: Record<ReactionKey, string> = {
+  like: "👍", love: "❤️", care: "🤗", haha: "😆", wow: "😮", sad: "😢", angry: "😡",
+};
+
+/**
+ * The plain, chrome-free social-post renderer — the "Just the post" branding tier
+ * (ADR-0084) and the fallback under non-platform themes. It renders on neutral
+ * design tokens (no platform skin/logo) but HONORS the researcher's social design
+ * (ADR-0085) — reaction set, action-bar toggles, summary, composer — so "Just the
+ * post" shows the SAME selected items as the platform skins, just without the
+ * chrome (owner 2026-07-01: "Just the post — I don't see any of my selected
+ * items"). Undefined `social` = legacy Like/Share (back-compat).
+ */
+export function SocialPostView({
   config,
   np = "",
   interactive = true,
   blockCopy,
+  social: r,
 }: {
   config: Record<string, unknown>;
   np?: string;
   interactive?: boolean;
   blockCopy?: BlockCopy;
+  social?: SocialPostDesign;
 }) {
   const cp = blockCopy ?? {};
   const headline = str(config.headline);
@@ -199,6 +215,19 @@ function SocialPostView({
   const comments = typeof config.commentsCount === "number" && config.commentsCount > 0 ? config.commentsCount : null;
   const shares = typeof config.sharesCount === "number" && config.sharesCount > 0 ? config.sharesCount : null;
   const allowComments = config.allowComments !== false;
+
+  // Honor the social design when configured; undefined = legacy Like/Share.
+  const showSummary = !r || r.showReactionSummary;
+  const showReact = !r || r.actionBar.react;
+  const showComment = (!r || r.actionBar.comment) && allowComments;
+  const showShare = !r || r.actionBar.share;
+  const showReport = !!r && r.actionBar.report;
+  const usePicker = !!r && r.reactionsEnabled.length > 0;
+  const showComposer = showComment && (!r || r.composer.enabled);
+  const composerPlaceholder =
+    (r?.composer.placeholder || "").trim() || cp.postCommentPlaceholder || BLOCK_COPY_DEFAULTS.postCommentPlaceholder;
+  const summaryEmojis = r && r.summaryReactions.length ? r.summaryReactions.map((k) => REACTION_EMOJI[k]).join("") : "👍";
+
   return (
     <article className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] p-4">
       <ReactionGroup np={np} single={config.singleReaction === true} disabled={!interactive}>
@@ -215,27 +244,22 @@ function SocialPostView({
         // eslint-disable-next-line @next/next/no-img-element -- researcher-supplied arbitrary URL
         <img src={str(config.imageUrl)} alt="" className="max-h-[420px] w-full rounded-[var(--radius-md)] object-cover" />
       ) : null}
-      {likes || comments || shares ? (
-        <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-          {likes ? `${likes} likes` : ""}
-          {comments && allowComments ? ` · ${comments} comments` : ""}
-          {shares ? ` · ${shares} shares` : ""}
-        </span>
+      {showSummary ? (
+        <EngagementSummary emojis={summaryEmojis} likes={likes ?? 0} comments={comments ?? 0} shares={shares ?? 0} allowComments={allowComments} />
       ) : null}
-      {interactive ? (
-        <div className="flex items-center gap-4 border-t border-[var(--color-border-subtle)] pt-2 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
-          <ReactionButton kind="liked" label={`👍 ${cp.postLike ?? BLOCK_COPY_DEFAULTS.postLike}`} count={likes} activeCls="text-[var(--color-primary)]" />
-          <ReactionButton kind="shared" label={`↪ ${cp.postShare ?? BLOCK_COPY_DEFAULTS.postShare}`} count={shares} activeCls="text-[var(--color-primary)]" />
-        </div>
-      ) : null}
-      {interactive && allowComments ? (
-        <input
-          type="text"
-          name={`${np}comment`}
-          placeholder={cp.postCommentPlaceholder ?? BLOCK_COPY_DEFAULTS.postCommentPlaceholder}
-          className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-3 py-1.5 text-[length:var(--text-small)] text-[var(--color-text-primary)] outline-none"
-        />
-      ) : null}
+      <div className="flex items-center gap-4 border-t border-[var(--color-border-subtle)] pt-2 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)]">
+        {showReact ? (
+          usePicker ? (
+            <ReactionPicker np={np} reactions={r!.reactionsEnabled} live={r!.reactionsLive && interactive} label={cp.postLike ?? BLOCK_COPY_DEFAULTS.postLike} />
+          ) : (
+            <ReactionButton kind="liked" label={`👍 ${cp.postLike ?? BLOCK_COPY_DEFAULTS.postLike}`} count={likes} activeCls="text-[var(--color-primary)]" />
+          )
+        ) : null}
+        {showComment ? <CommentActionLabel base={comments ?? 0} label={cp.postComment ?? BLOCK_COPY_DEFAULTS.postComment} /> : null}
+        {showShare ? <ReactionButton kind="shared" label={`↪ ${cp.postShare ?? BLOCK_COPY_DEFAULTS.postShare}`} count={shares} activeCls="text-[var(--color-primary)]" /> : null}
+        {showReport ? <ReactionButton kind="reported" label={`⚑ ${cp.postReport ?? BLOCK_COPY_DEFAULTS.postReport}`} activeCls="text-[var(--color-danger-text-on-subtle)]" /> : null}
+      </div>
+      {showComposer ? <CommentComposer np={np} placeholder={composerPlaceholder} /> : null}
       </ReactionGroup>
     </article>
   );

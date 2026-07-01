@@ -4,6 +4,7 @@ import { useState, type CSSProperties } from "react";
 
 import { api } from "@/lib/trpc/react";
 import { getBlockOverride } from "@/components/feature/take/block-overrides";
+import { SocialPostView } from "@/components/feature/take/block-view";
 import { UploadButton } from "@/components/feature/builder/upload-button";
 import { PickFromMaterialsButton } from "@/components/feature/builder/pick-from-materials-button";
 import { EmotionAnalysisToggle } from "@/components/feature/builder/configure-form";
@@ -668,16 +669,15 @@ const SAMPLE_POST: Record<string, unknown> = {
 function SocialPostPreview({ social, config: cfgIn }: { social: SocialPostDesign; config: Record<string, unknown> | null }) {
   const config = cfgIn ?? SAMPLE_POST;
   const tier = effectiveBrandingTier(config as { brandingTier?: unknown }, social);
-  const headline = typeof config.headline === "string" ? config.headline : "";
-  const body = typeof config.body === "string" ? config.body : "";
 
   if (tier === "block") {
+    // Render the SAME neutral component the participant sees for "Just the post"
+    // (block tier) — it honors the social design (reactions, action bar, summary,
+    // composer) minus the platform chrome, so the researcher sees their selected
+    // items instead of a dead placeholder (owner tickets 01KWEFT3H/01KWEFRK6).
     return (
-      <div className="mx-auto flex max-w-[600px] flex-col gap-2 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-4 text-[var(--color-text-primary)] shadow-[var(--shadow-md)]">
-        {headline ? <p className="text-[length:var(--text-body-emphasis)] font-medium">{headline}</p> : null}
-        {body ? <p className="text-[length:var(--text-body)]">{body}</p> : null}
-        {!headline && !body ? <p className="text-[length:var(--text-body)] text-[var(--color-text-muted)]">Your post text appears here.</p> : null}
-        <p className="text-[length:var(--text-small)] italic text-[var(--color-text-muted)]">Just the post — no platform styling.</p>
+      <div className="mx-auto max-w-[600px]">
+        <SocialPostView config={config} social={social} interactive={false} np="preview_" />
       </div>
     );
   }
