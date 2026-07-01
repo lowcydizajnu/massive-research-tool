@@ -374,6 +374,9 @@ export function SocialPostAppearanceEditor({
           <Toggle checked={social.actionBar.share} onChange={(v) => onChange({ ...social, actionBar: { ...social.actionBar, share: v } })}>
             Share button
           </Toggle>
+          <Toggle checked={social.actionBar.report} onChange={(v) => onChange({ ...social, actionBar: { ...social.actionBar, report: v } })}>
+            Report button
+          </Toggle>
         </fieldset>
 
         <fieldset className="flex flex-col gap-2">

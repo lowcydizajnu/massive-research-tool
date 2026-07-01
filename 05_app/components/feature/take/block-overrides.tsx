@@ -233,6 +233,7 @@ function FacebookSocialPost({ config, np = "", interactive = true, blockCopy: bc
         ) : null}
         {showComment ? <CommentActionLabel base={e.comments ?? 0} label={lab(bc, "postComment", "Comment")} /> : null}
         {showShare ? <ReactionButton kind="shared" label={`↪ ${lab(bc, "postShare", "Share")}`} count={e.shares} activeCls={accentText} /> : null}
+        {r?.actionBar.report ? <ReactionButton kind="reported" label={`⚑ ${lab(bc, "postReport", "Report")}`} activeCls="text-[#D92D20]" /> : null}
         {slotIn("action-bar").map((s) => (
           <SlotView key={s.id} s={s} />
         ))}

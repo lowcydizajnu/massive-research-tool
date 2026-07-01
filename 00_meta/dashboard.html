@@ -1214,6 +1214,10 @@
   ],
   "recentActivity": [
     {
+      "text": "Round 5q — Report affordance + recording (committed, unpushed; no migration). The FB post gains an opt-in ⚑ Report action (socialPost.actionBar.report, default OFF so existing posts are unchanged; toggle in Design → Social; wording key postReport). The reaction context tracks reported, writes ${np}reported, extractAnswer records reported, the registry responseSchema gains reported?, and export adds a _reported column (shown only when the affordance was used). This makes the report gating requirement fully producible + recorded. 906 tests; tsc/lint/build/validator clean. Next: #2 (same-screen dynamic reveal).",
+      "date": "2026-07-01"
+    },
+    {
       "text": "Round 5p — interaction gating slices 1–3 (committed, unpushed; no migration). (1 Configure) GroupGatingEditor shows in the group header when the group has a social post: max-time-for-screen + requirements list (type dropdown incl. specific-reaction picker × count, add/remove), autosaving via setGroups. (2 Runtime) Screen/deriveScreens carry maxTimeSec + interactionRequirements; new client InteractionGate at the top of a gated group screen — progress chips + a MutationObserver on the form tallying interactions across all posts (liked/reactionKey/shared/comment/reply), disables the screen's Continue until all requirements met, + a max-time countdown that enables + auto-advances on expiry. Recording unchanged (advisory gate). (3 Tests) deriveScreens gating-passthrough + requirements-logic units. 906 tests; tsc/lint/build/validator clean. Known gap: report/dislike have no control on the FB post yet → a report requirement clears only via the time limit (fast follow: add a Report affordance + recording). Next: deploy; then #2 (same-screen reveal).",
       "date": "2026-07-01"
     },

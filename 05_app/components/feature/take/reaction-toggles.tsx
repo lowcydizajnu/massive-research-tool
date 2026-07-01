@@ -28,7 +28,8 @@ const REACTION_META: Record<ReactionKey, { emoji: string; label: string }> = {
 type ReactionState = {
   liked: boolean;
   shared: boolean;
-  toggle: (kind: "liked" | "shared") => void;
+  reported: boolean;
+  toggle: (kind: "liked" | "shared" | "reported") => void;
   disabled: boolean;
   /** How many comments the participant has posted (composer + replies). The
    *  comment count in the summary + action bar adds this, mirroring how Like
@@ -40,6 +41,7 @@ type ReactionState = {
 const Ctx = createContext<ReactionState>({
   liked: false,
   shared: false,
+  reported: false,
   toggle: () => {},
   disabled: true,
   commentsAdded: 0,
@@ -58,15 +60,15 @@ export function ReactionGroup({
   disabled?: boolean;
   children: React.ReactNode;
 }) {
-  const [state, setState] = useState({ liked: false, shared: false });
+  const [state, setState] = useState({ liked: false, shared: false, reported: false });
   const [commentsAdded, setCommentsAdded] = useState(0);
   const bumpComments = (delta: number) => setCommentsAdded((c) => Math.max(0, c + delta));
-  const toggle = (kind: "liked" | "shared") =>
+  const toggle = (kind: "liked" | "shared" | "reported") =>
     setState((s) => {
       const next = { ...s, [kind]: !s[kind] };
-      if (single && next.liked && next.shared) {
-        // Single mode: the new pick wins, the other clears.
-        return kind === "liked" ? { liked: true, shared: false } : { liked: false, shared: true };
+      // Single-reaction mode only constrains like vs share (report is orthogonal).
+      if (single && (kind === "liked" || kind === "shared") && next.liked && next.shared) {
+        return kind === "liked" ? { ...next, liked: true, shared: false } : { ...next, liked: false, shared: true };
       }
       return next;
     });
@@ -74,6 +76,7 @@ export function ReactionGroup({
     <Ctx.Provider value={{ ...state, toggle, disabled, commentsAdded, bumpComments }}>
       {state.liked ? <input type="hidden" name={`${np}liked`} value="on" /> : null}
       {state.shared ? <input type="hidden" name={`${np}shared`} value="on" /> : null}
+      {state.reported ? <input type="hidden" name={`${np}reported`} value="on" /> : null}
       {children}
     </Ctx.Provider>
   );
@@ -95,7 +98,7 @@ export function ReactionButton({
   activeCls,
   className = "",
 }: {
-  kind: "liked" | "shared";
+  kind: "liked" | "shared" | "reported";
   label: string;
   /** Researcher-set base count; selecting adds +1 to the display. */
   count?: number | null;

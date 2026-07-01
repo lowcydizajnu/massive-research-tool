@@ -5119,10 +5119,11 @@ export const studiesRouter = router({
         if (b.key !== "social-post") continue;
         for (const it of items) {
           if (it.blockInstanceId !== b.instanceId) continue;
-          const a = (it.answer ?? {}) as { reaction?: unknown; shared?: unknown; comment?: unknown; replies?: unknown };
+          const a = (it.answer ?? {}) as { reaction?: unknown; shared?: unknown; reported?: unknown; comment?: unknown; replies?: unknown };
           const row = answersByResponse.get(it.responseId) ?? {};
           row[`reaction:${b.instanceId}`] = typeof a.reaction === "string" ? a.reaction : "";
           row[`spshared:${b.instanceId}`] = typeof a.shared === "boolean" ? String(a.shared) : "";
+          row[`spreported:${b.instanceId}`] = a.reported === true ? "true" : a.reported === false ? "false" : "";
           row[`spcomment:${b.instanceId}`] = typeof a.comment === "string" ? a.comment : "";
           row[`spreplies:${b.instanceId}`] = Array.isArray(a.replies)
             ? (a.replies as unknown[]).map(String).filter((s) => s.trim() !== "").join(" | ")

@@ -139,6 +139,7 @@ function extractAnswer(moduleKey: string, prefix: string, fd: FormData): unknown
     return {
       liked: g("liked") != null || single === "liked" || reaction != null,
       shared: g("shared") != null || single === "shared",
+      reported: g("reported") != null,
       ...(reaction ? { reaction } : {}),
       ...(comment ? { comment } : {}),
       ...(replies.length ? { replies } : {}),

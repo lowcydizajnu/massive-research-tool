@@ -40,6 +40,7 @@ export type BlockCopyKey =
   | "postShare"
   | "postComment"
   | "postCommentPlaceholder"
+  | "postReport"
   // heat-map (ADR-0041)
   | "heatmapAddPoint"
   | "heatmapRemove"
@@ -65,6 +66,7 @@ export const BLOCK_COPY_DEFAULTS: Record<BlockCopyKey, string> = {
   postShare: "Share",
   postComment: "Comment",
   postCommentPlaceholder: "Write a comment…",
+  postReport: "Report",
   heatmapAddPoint: "+ Add point (center)",
   heatmapRemove: "Remove",
   signatureClear: "Clear",
@@ -118,6 +120,7 @@ export const WORDING_GROUPS: WordingGroup[] = [
       { key: "postShare", label: "Share label", native: true },
       { key: "postComment", label: "Comment label", native: true },
       { key: "postCommentPlaceholder", label: "Comment box placeholder", native: true },
+      { key: "postReport", label: "Report label", native: true },
     ],
   },
   {

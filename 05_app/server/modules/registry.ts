@@ -288,6 +288,8 @@ const socialPostV2: CoreModuleDef = {
   responseSchema: z.object({
     liked: z.boolean(),
     shared: z.boolean(),
+    /** Participant flagged the post (ADR-0087) — only when the Report affordance is enabled. */
+    reported: z.boolean().optional(),
     comment: z.string().max(2000).optional(),
     /** The single chosen reaction when the design enables the full picker
      *  (ADR-0085, reactionsLive). `liked` stays for back-compat (= reaction != null). */

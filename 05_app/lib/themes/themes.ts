@@ -151,8 +151,11 @@ export const socialPostSchema = z.object({
   // received reactions, not the full picker (ADR-0085 amendment).
   summaryReactions: z.array(reactionKey).default(["like", "love", "haha"]),
   actionBar: z
-    .object({ react: z.boolean(), comment: z.boolean(), share: z.boolean() })
-    .default({ react: true, comment: true, share: true }),
+    // `report` (ADR-0087) is opt-in — off by default so existing posts are
+    // unchanged; enable it to let participants flag a post (and to gate a screen
+    // on a Report requirement).
+    .object({ react: z.boolean(), comment: z.boolean(), share: z.boolean(), report: z.boolean().default(false) })
+    .default({ react: true, comment: true, share: true, report: false }),
   comments: commentThreadSchema.default({}),
   composer: composerSchema.default({}),
   slots: z.array(customSlotSchema).max(20).default([]),
