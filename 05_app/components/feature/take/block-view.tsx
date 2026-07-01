@@ -78,11 +78,14 @@ export function BlockView({
   // mimic preset. Per-block override wins over the study default; an undefined
   // tier (social design not configured) keeps the preset's renderer (back-compat).
   const socialTier = (c.brandingTier as BrandingTier | undefined) ?? social?.brandingTierDefault;
+  // A social post imitates the Social platform selector (ADR-0089) if set, else the
+  // theme preset. Only social-post is affected; every other block keeps the theme preset.
+  const socialPreset = block.key === "social-post" ? (social?.platform ?? presetKey) : presetKey;
   const suppressSocialChrome =
     block.key === "social-post" &&
     socialTier === "block" &&
-    (SOCIAL_PLATFORM_PRESETS as readonly string[]).includes(presetKey ?? "");
-  const Override = suppressSocialChrome ? null : getBlockOverride(presetKey, block.key);
+    (SOCIAL_PLATFORM_PRESETS as readonly string[]).includes(socialPreset ?? "");
+  const Override = suppressSocialChrome ? null : getBlockOverride(socialPreset, block.key);
   if (Override) return <>{Override({ config: c, np, interactive, blockCopy, social })}</>;
   if (block.key === "social-post") return <SocialPostView config={c} np={np} interactive={interactive} blockCopy={blockCopy} social={social} />;
   if (block.key === "likert-7") return <Likert7Input config={c} np={np} />;

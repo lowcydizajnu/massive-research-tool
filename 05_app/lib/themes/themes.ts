@@ -140,8 +140,18 @@ export const irbAttestationSchema = z.object({
 });
 export type IrbAttestation = z.infer<typeof irbAttestationSchema>;
 
+/** Platforms a social post can imitate — the Social tab's one platform selector
+ *  (ADR-0089). Only presets with a real post skin + page frame are offered. */
+export const SOCIAL_POST_PLATFORMS = ["facebook", "x", "instagram", "reddit", "linkedin", "youtube"] as const;
+
 export const socialPostSchema = z.object({
   brandingTierDefault: brandingTierSchema.default("block"),
+  // Which platform the POST imitates (ADR-0089) — chosen in Design → Social,
+  // independent of the study Theme. Unset = follow the Theme when it's itself a
+  // platform, else the plain renderer (back-compat). Owner: "here we select the
+  // design for the social post; if the Theme is Facebook/X we default to it, but I
+  // can pick a Facebook post for an X theme."
+  platform: z.enum(SOCIAL_POST_PLATFORMS).optional(),
   // Explicit researcher toggle for the decorative page nav/masthead (the fake top
   // bar), independent of branding tier (owner 2026-07-01: "let me turn the top
   // fake nav on/off"). Default true = keep today's behavior.
@@ -201,7 +211,8 @@ export function showsPlatformChrome(theme: StudyTheme): boolean {
   // Explicit off-switch wins (owner toggle, 2026-07-01) — hide the fake nav
   // regardless of preset/branding tier.
   if (theme.socialPost?.platformChrome === false) return false;
-  if (!isSocialPlatform(effectivePresetKey(theme))) return true;
+  // Non-social framed presets (news/blog/business/…) keep their masthead.
+  if (!isSocialPlatform(effectiveSocialPreset(theme) ?? effectivePresetKey(theme))) return true;
   if (theme.socialPost == null) return true;
   return theme.socialPost.brandingTierDefault !== "block";
 }
@@ -215,8 +226,20 @@ export const FEED_PRESETS = [
   "linkedin", "youtube", "whatsapp", "discord", "imessage",
 ] as const;
 
+/** Which platform the social POST imitates (ADR-0089): the explicit Social
+ *  selector (`socialPost.platform`) wins; else the study Theme when it is itself
+ *  a platform; else undefined = the plain, skinless renderer (back-compat for
+ *  non-platform themes). Every social-post surface (block override, page frame,
+ *  feed un-box, chrome) keys off THIS, so the post look is chosen in one place. */
+export function effectiveSocialPreset(theme: StudyTheme): string | undefined {
+  const p = theme.socialPost?.platform;
+  if (p) return p;
+  const preset = effectivePresetKey(theme);
+  return (FEED_PRESETS as readonly string[]).includes(preset) ? preset : undefined;
+}
+
 export function isFeedSkin(theme: StudyTheme): boolean {
-  return (FEED_PRESETS as readonly string[]).includes(effectivePresetKey(theme));
+  return effectiveSocialPreset(theme) !== undefined;
 }
 
 export const studyThemeSchema = z.object({

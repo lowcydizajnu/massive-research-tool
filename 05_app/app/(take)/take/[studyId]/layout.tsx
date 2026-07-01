@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 
 import { db } from "@/server/db/client";
 import { experiment, experimentVersion } from "@/server/db/schema";
-import { WIDTHS, effectivePresetKey, readTheme, resolveSocialPost, showsPlatformChrome, themeToCssVars } from "@/lib/themes/themes";
+import { WIDTHS, effectivePresetKey, effectiveSocialPreset, readTheme, resolveSocialPost, showsPlatformChrome, themeToCssVars } from "@/lib/themes/themes";
 import { getPageFrame } from "@/components/feature/take/page-frames";
 
 /**
@@ -40,7 +40,9 @@ export default async function ThemedTakeLayout({
   // Facebook frame drops its trademarked logo/wordmark unless the study default
   // tier is fully "branded" (so an "inspired"/layout study stays generic).
   const Frame = showsPlatformChrome(theme)
-    ? getPageFrame(effectivePresetKey(theme), { branded: resolveSocialPost(theme).brandingTierDefault === "branded" })
+    ? getPageFrame(effectiveSocialPreset(theme) ?? effectivePresetKey(theme), {
+        branded: resolveSocialPost(theme).brandingTierDefault === "branded",
+      })
     : null;
 
   return (
