@@ -4,23 +4,12 @@ import { useState, type CSSProperties } from "react";
 
 import { api } from "@/lib/trpc/react";
 import { getBlockOverride } from "@/components/feature/take/block-overrides";
-import { getPageFrame } from "@/components/feature/take/page-frames";
 import { SocialPostView } from "@/components/feature/take/block-view";
 import { UploadButton } from "@/components/feature/builder/upload-button";
 import { PickFromMaterialsButton } from "@/components/feature/builder/pick-from-materials-button";
 import { EmotionAnalysisToggle } from "@/components/feature/builder/configure-form";
 import { cn } from "@/lib/utils";
-import { BRANDING_TIERS, REACTION_KEYS, SOCIAL_POST_PLATFORMS, effectiveBrandingTier, type BrandingTier, type ReactionKey, type SocialPostDesign } from "@/lib/themes/themes";
-
-/** Display names for the platform selector (ADR-0089). */
-const PLATFORM_LABELS: Record<(typeof SOCIAL_POST_PLATFORMS)[number], string> = {
-  facebook: "Facebook",
-  x: "X (Twitter)",
-  instagram: "Instagram",
-  reddit: "Reddit",
-  linkedin: "LinkedIn",
-  youtube: "YouTube",
-};
+import { BRANDING_TIERS, REACTION_KEYS, effectiveBrandingTier, type BrandingTier, type ReactionKey, type SocialPostDesign } from "@/lib/themes/themes";
 
 type SocialBlockRef = { instanceId: string; title: string; config: Record<string, unknown> };
 
@@ -68,7 +57,6 @@ export function SocialPostAppearanceEditor({
   studyId,
   blocks = [],
   social,
-  themePreset,
   themeVars,
   onChange,
   initialBlockId,
@@ -76,21 +64,12 @@ export function SocialPostAppearanceEditor({
   studyId: string;
   blocks?: SocialBlockRef[];
   social: SocialPostDesign;
-  /** The study Theme's preset (ADR-0089) — used to default the platform selector
-   *  when the researcher hasn't picked one ("follow the theme"). */
-  themePreset?: string;
   themeVars: CSSProperties;
   onChange: (next: SocialPostDesign) => void;
   /** Deep-link target from the Configure → "Edit in Design" button: preselect
    *  this block so the researcher lands on the post they clicked. */
   initialBlockId?: string;
 }) {
-  // The platform this post imitates: the explicit pick, else the Theme's platform
-  // (when it is one), else Facebook for the preview. Runtime resolves the same way.
-  const themePlatform = (SOCIAL_POST_PLATFORMS as readonly string[]).includes(themePreset ?? "")
-    ? (themePreset as (typeof SOCIAL_POST_PLATFORMS)[number])
-    : undefined;
-  const previewPlatform = social.platform ?? themePlatform ?? "facebook";
   const enabled = new Set(social.reactionsEnabled);
   const [selectedId, setSelectedId] = useState<string | null>(
     (initialBlockId && blocks.some((b) => b.instanceId === initialBlockId) ? initialBlockId : blocks[0]?.instanceId) ?? null,
@@ -136,26 +115,9 @@ export function SocialPostAppearanceEditor({
     <div className="flex flex-col gap-6 lg:flex-row">
       {/* Controls */}
       <div className="flex w-full flex-col gap-5 lg:w-[360px] lg:shrink-0">
-        <label className="flex flex-col gap-1">
-          <span className={LEGEND_CLS}>Platform</span>
-          <select
-            value={social.platform ?? ""}
-            onChange={(e) =>
-              onChange({ ...social, platform: (e.target.value || undefined) as SocialPostDesign["platform"] })
-            }
-            className={FIELD_CLS}
-          >
-            <option value="">Follow the theme{themePlatform ? ` — ${PLATFORM_LABELS[themePlatform]}` : ""}</option>
-            {SOCIAL_POST_PLATFORMS.map((p) => (
-              <option key={p} value={p}>
-                {PLATFORM_LABELS[p]}
-              </option>
-            ))}
-          </select>
-          <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-            Which platform your posts imitate. Defaults to your Theme; pick one to use a different platform’s look.
-          </span>
-        </label>
+        <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+          Platform: <span className="font-medium text-[var(--color-text-secondary)]">Facebook</span> — X and TikTok coming soon.
+        </p>
 
         {blocks.length > 1 ? (
           <label className="flex flex-col gap-1">
@@ -653,7 +615,7 @@ export function SocialPostAppearanceEditor({
             whole page to scroll to see its bottom). max-h + overflow lets the
             post scroll independently of the settings, like the runtime. */}
         <div aria-hidden style={themeVars} className="overflow-y-auto rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-page)] p-6 lg:max-h-[calc(100vh-5rem)]">
-          <SocialPostPreview social={social} config={selectedCfg} platform={previewPlatform} />
+          <SocialPostPreview social={social} config={selectedCfg} />
         </div>
       </div>
 
@@ -715,7 +677,7 @@ const SAMPLE_POST: Record<string, unknown> = {
  * slots, branding) is reflected exactly. The "Just the post" tier shows the
  * plain card (no platform styling), mirroring the runtime.
  */
-function SocialPostPreview({ social, config: cfgIn, platform }: { social: SocialPostDesign; config: Record<string, unknown> | null; platform: string }) {
+function SocialPostPreview({ social, config: cfgIn }: { social: SocialPostDesign; config: Record<string, unknown> | null }) {
   const config = cfgIn ?? SAMPLE_POST;
   const tier = effectiveBrandingTier(config as { brandingTier?: unknown }, social);
 
@@ -731,23 +693,26 @@ function SocialPostPreview({ social, config: cfgIn, platform }: { social: Social
     );
   }
 
-  // Reflect the SELECTED platform (ADR-0089): its post skin + its page frame,
-  // matching the participant runtime exactly. The frame's trademarked logo only
-  // shows on the fully-branded tier.
-  const Override = getBlockOverride(platform, "social-post");
-  const Frame = getPageFrame(platform, { branded: tier === "branded" });
+  const Override = getBlockOverride("facebook", "social-post");
   return (
-    <div className="mx-auto max-w-[600px] overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] shadow-[var(--shadow-md)]">
-      {Frame ? (
-        <div aria-hidden className="pointer-events-none border-b border-[var(--color-border-subtle)]">
-          {Frame()}
-        </div>
-      ) : null}
-      <div className="p-3">
-        {Override
-          ? Override({ config, np: "preview_", interactive: false, social })
-          : <SocialPostView config={config} social={social} interactive={false} np="preview_" />}
+    <div className="mx-auto max-w-[600px] overflow-hidden rounded-[var(--radius-lg)] border border-[#E4E6EB] bg-white shadow-[var(--shadow-md)]">
+      {/* Decorative platform bar (matches the participant page frame). The
+          trademarked "f" logo + "Facebook" wordmark only show on the fully-branded
+          tier; "layout" (inspired) stays generic. */}
+      <div className="flex items-center gap-2 border-b border-[#E4E6EB] px-3 py-2">
+        {tier === "branded" ? (
+          <>
+            <span className="flex size-7 items-center justify-center rounded-full bg-[#0866FF] text-[13px] font-bold lowercase text-white">f</span>
+            <span className="rounded-full bg-[#F0F2F5] px-3 py-1 text-[12px] text-[#65676B]">Search Facebook</span>
+          </>
+        ) : (
+          <>
+            <span className="flex size-7 items-center justify-center rounded-full bg-[#65676B] text-[13px] text-white">◎</span>
+            <span className="rounded-full bg-[#F0F2F5] px-3 py-1 text-[12px] text-[#65676B]">Search</span>
+          </>
+        )}
       </div>
+      <div className="p-3">{Override ? Override({ config, np: "preview_", interactive: false, social }) : null}</div>
       {tier === "branded" ? (
         <p className="px-3 pb-2 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
           {typeof config.brandLogoKey === "string" && config.brandLogoKey.trim()

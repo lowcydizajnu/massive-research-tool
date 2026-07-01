@@ -168,7 +168,6 @@ export function DesignWorkspace({
           blocks={socialBlocks}
           initialBlockId={deepBlockId}
           social={resolveSocialPost(theme)}
-          themePreset={effectivePresetKey(theme)}
           themeVars={vars}
           onChange={(sp) => {
             setTheme({ ...theme, socialPost: sp });
