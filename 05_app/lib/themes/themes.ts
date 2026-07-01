@@ -141,7 +141,12 @@ export const irbAttestationSchema = z.object({
 export type IrbAttestation = z.infer<typeof irbAttestationSchema>;
 
 export const socialPostSchema = z.object({
-  brandingTierDefault: brandingTierSchema.default("block"),
+  // Design → Social exposes this as a single "Show your brand logo" toggle
+  // (off = layout, on = branded); `block` stays a valid legacy value in the schema
+  // + runtime but is no longer offered in the UI (ADR-0084 amendment 2026-07-01).
+  // Default `layout` so a fresh study reads as the platform look — matching the
+  // toggle's off state; existing studies keep whatever tier they already stored.
+  brandingTierDefault: brandingTierSchema.default("layout"),
   // Explicit researcher toggle for the decorative page nav/masthead (the fake top
   // bar), independent of branding tier (owner 2026-07-01: "let me turn the top
   // fake nav on/off"). Default true = keep today's behavior.

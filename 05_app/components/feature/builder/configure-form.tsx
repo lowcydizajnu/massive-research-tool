@@ -41,11 +41,13 @@ function humanize(key: string): string {
     .trim();
 }
 
-/** Branding-tier labels (ADR-0084) — researcher-facing, no "chrome". */
+/** Per-post branding summary labels (ADR-0084 amendment 2026-07-01) — branding is
+ *  now a single study-wide "Show your brand logo" toggle, so these read as logo
+ *  state; `block` stays only for legacy posts that still carry the old override. */
 const TIER_LABELS: Record<string, string> = {
-  block: "Just the post",
-  layout: "Platform look",
-  branded: "Platform look + logo",
+  block: "Plain post",
+  layout: "No logo",
+  branded: "Brand logo",
 };
 
 /**

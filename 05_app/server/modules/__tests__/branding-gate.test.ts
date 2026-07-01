@@ -29,7 +29,10 @@ const attestation = { attested: true, byUserId: UUID, at: "2026-06-30T00:00:00Z"
 describe("socialPostSchema + effectiveBrandingTier", () => {
   it("fills sensible defaults from an empty object", () => {
     const s = resolveSocialPost({ socialPost: {} });
-    expect(s.brandingTierDefault).toBe("block");
+    // Default is "layout" (platform look, no logo) — the Design → Social logo
+    // toggle's off state (ADR-0084 amendment 2026-07-01). `block` remains valid
+    // as a legacy value but is no longer the default nor offered in the UI.
+    expect(s.brandingTierDefault).toBe("layout");
     expect(s.reactionsEnabled).toEqual(["like"]);
     expect(s.reactionsLive).toBe(true);
     expect(s.comments.enabled).toBe(false);

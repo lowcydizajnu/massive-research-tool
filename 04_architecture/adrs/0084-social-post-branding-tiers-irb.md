@@ -46,6 +46,22 @@ Prior decisions in play: ADR-0024 (theme rides the version snapshot; presets are
 - **Committed to:** never shipping trademarked logos; attestation as a study-level, snapshot-frozen, audit-logged fact; the tier vocabulary (`block`/`layout`/`branded`) across data model, UI, and export.
 - **Precluded from:** a logo marketplace/library; soft "warn-only" branded publishing.
 
+## Amendment — collapse the tier choice to a logo toggle (2026-07-01)
+
+Design → Social no longer exposes the three tiers as a picker. The owner found
+"Just the post" redundant (the fake page nav is now its own explicit toggle) and the
+"study default / all posts" framing misleading (visual style is the theme's job, not
+this panel). The tier picker is replaced by a single **"Show your brand logo on
+posts"** toggle: off = `layout`, on = `branded`. The IRB hard gate is unchanged and
+still fires on any effectively-`branded` block. `block` stays a valid value in the
+schema and the runtime renderer for back-compat with studies already built, but is no
+longer offered in the UI, and the schema default moves `block → layout` so a fresh
+study reads as the platform look (matching the toggle's off state). Existing studies
+keep whatever tier they already stored — no migration. The per-block tier *override*
+is dropped from the editor too; only the per-post **logo upload** remains, shown when
+the toggle is on. `effectiveBrandingTier` still honors any legacy per-block value, so
+older overrides keep rendering as before.
+
 ## Revisit triggers
 
 - Legal guidance changes such that we could license/ship platform marks → reconsider Option B.

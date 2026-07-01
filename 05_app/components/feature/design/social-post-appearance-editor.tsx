@@ -9,15 +9,9 @@ import { UploadButton } from "@/components/feature/builder/upload-button";
 import { PickFromMaterialsButton } from "@/components/feature/builder/pick-from-materials-button";
 import { EmotionAnalysisToggle } from "@/components/feature/builder/configure-form";
 import { cn } from "@/lib/utils";
-import { BRANDING_TIERS, REACTION_KEYS, effectiveBrandingTier, type BrandingTier, type ReactionKey, type SocialPostDesign } from "@/lib/themes/themes";
+import { REACTION_KEYS, effectiveBrandingTier, type ReactionKey, type SocialPostDesign } from "@/lib/themes/themes";
 
 type SocialBlockRef = { instanceId: string; title: string; config: Record<string, unknown> };
-
-const TIER_LABELS: Record<BrandingTier, { label: string; help: string }> = {
-  block: { label: "Just the post", help: "Only the post card — no platform header bar or logo." },
-  layout: { label: "Platform look", help: "Full platform styling (header bar, reactions, comments) — no logo." },
-  branded: { label: "Platform look + logo", help: "Adds your uploaded logo on top of the platform look. Requires an IRB attestation to publish." },
-};
 
 const IRB_STATEMENT =
   "I confirm my IRB / ethics approval covers presenting a branded imitation of a real platform to participants, that any brand assets I upload are used with authorization, and that I accept responsibility for compliant use.";
@@ -90,15 +84,6 @@ export function SocialPostAppearanceEditor({
   };
   const cfgStr = (k: string) => (typeof selectedCfg?.[k] === "string" ? (selectedCfg![k] as string) : "");
   const cfgNum = (k: string) => (typeof selectedCfg?.[k] === "number" ? (selectedCfg![k] as number) : 0);
-  /** Set the per-post branding tier override; "" deletes the key (= inherit). */
-  const setBlockTier = (val: string) => {
-    if (!selected) return;
-    const next = { ...(selectedCfg ?? {}) };
-    if (val) next.brandingTier = val;
-    else delete next.brandingTier;
-    setBlockCfgs((m) => ({ ...m, [selected.instanceId]: next }));
-    updateBlockMut.mutate({ studyId, instanceId: selected.instanceId, config: next });
-  };
   const [irbOpen, setIrbOpen] = useState(false);
   const [irbChecked, setIrbChecked] = useState(false);
   // Optimistic attestation state (the server stamps who/when via setIrbAttestation).
@@ -214,37 +199,6 @@ export function SocialPostAppearanceEditor({
           </fieldset>
         ) : null}
 
-        {selected ? (
-          <fieldset className="flex flex-col gap-2">
-            <legend className={LEGEND_CLS}>Branding · this post</legend>
-            <label className="flex flex-col gap-1">
-              <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-                Most posts use the study default (set below). Override only this post if you need to.
-              </span>
-              <select value={cfgStr("brandingTier")} onChange={(e) => setBlockTier(e.target.value)} className={FIELD_CLS}>
-                <option value="">Inherit study default — {TIER_LABELS[social.brandingTierDefault].label}</option>
-                <option value="block">{TIER_LABELS.block.label}</option>
-                <option value="layout">{TIER_LABELS.layout.label}</option>
-                <option value="branded">{TIER_LABELS.branded.label}</option>
-              </select>
-            </label>
-            {effectiveBrandingTier({ brandingTier: cfgStr("brandingTier") }, social) === "branded" ? (
-              <div className="flex flex-col gap-1">
-                <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">Brand logo (this post)</span>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {cfgStr("brandLogoKey") ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={cfgStr("brandLogoKey")} alt="" className="h-7 w-auto rounded" />
-                  ) : null}
-                  <UploadButton kind="image" label="Upload…" onUploaded={(url) => patchBlock({ brandLogoKey: url })} />
-                  <PickFromMaterialsButton kind="image" onPick={(url) => patchBlock({ brandLogoKey: url })} />
-                </div>
-                <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">Upload only marks you’re authorized to use — requires the study’s IRB attestation to publish.</span>
-              </div>
-            ) : null}
-          </fieldset>
-        ) : null}
-
         <fieldset className="flex flex-col gap-2">
           <legend className={LEGEND_CLS}>Page</legend>
           <Toggle
@@ -260,38 +214,31 @@ export function SocialPostAppearanceEditor({
         </fieldset>
 
         <fieldset className="flex flex-col gap-2">
-          <legend className={LEGEND_CLS}>Branding · study default (all posts)</legend>
-          <div role="radiogroup" aria-label="Branding tier" className="flex flex-col gap-1.5">
-            {BRANDING_TIERS.map((t) => {
-              const active = social.brandingTierDefault === t;
-              return (
-                <label
-                  key={t}
-                  className={cn(
-                    "flex cursor-pointer items-start gap-2 rounded-[var(--radius-md)] border p-2",
-                    active
-                      ? "border-[var(--color-primary)] bg-[var(--color-primary-subtle)]"
-                      : "border-[var(--color-border-subtle)] hover:bg-[var(--color-surface-subtle)]",
-                  )}
-                >
-                  <input
-                    type="radio"
-                    name="brandingTier"
-                    checked={active}
-                    onChange={() => onChange({ ...social, brandingTierDefault: t })}
-                    className="mt-0.5 size-4 accent-[var(--color-primary)]"
-                  />
-                  <span className="flex flex-col">
-                    <span className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">{TIER_LABELS[t].label}</span>
-                    <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">{TIER_LABELS[t].help}</span>
-                  </span>
-                </label>
-              );
-            })}
-          </div>
+          <legend className={LEGEND_CLS}>Brand logo</legend>
+          <Toggle
+            checked={social.brandingTierDefault === "branded"}
+            onChange={(v) => onChange({ ...social, brandingTierDefault: v ? "branded" : "layout" })}
+          >
+            Show your brand logo on posts
+          </Toggle>
           <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-            Applies to every post unless a post overrides it above (Branding · this post).
+            Off — posts use the plain platform look. On — your uploaded logo shows on
+            each post and the study needs an IRB attestation to publish.
           </p>
+          {social.brandingTierDefault === "branded" && selected ? (
+            <div className="flex flex-col gap-1">
+              <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">Logo for this post</span>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {cfgStr("brandLogoKey") ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={cfgStr("brandLogoKey")} alt="" className="h-7 w-auto rounded" />
+                ) : null}
+                <UploadButton kind="image" label="Upload…" onUploaded={(url) => patchBlock({ brandLogoKey: url })} />
+                <PickFromMaterialsButton kind="image" onPick={(url) => patchBlock({ brandLogoKey: url })} />
+              </div>
+              <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">Uploading only marks you’re authorized to use it — the study’s IRB attestation is still required to publish.</span>
+            </div>
+          ) : null}
           {social.brandingTierDefault === "branded" ? (
             <div className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] p-3">
               <span className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">IRB attestation</span>
