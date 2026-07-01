@@ -19,6 +19,19 @@ import type { StudyBlock } from "@/server/trpc/routers/studies";
 /** Operators whose value is a list (comma-separated); others are single text/number. */
 const LIST_VALUE: Operator[] = ["isAnyOf", "includesAny"];
 
+/** The seven Facebook reactions, by stored key → label — the only branchable
+ *  signal for a social-post source (owner: reaction only). Kept local so this
+ *  client component doesn't import the server module registry. */
+const REACTION_OPTIONS: { value: string; label: string }[] = [
+  { value: "like", label: "Like 👍" },
+  { value: "love", label: "Love ❤️" },
+  { value: "care", label: "Care 🤗" },
+  { value: "haha", label: "Haha 😆" },
+  { value: "wow", label: "Wow 😮" },
+  { value: "sad", label: "Sad 😢" },
+  { value: "angry", label: "Angry 😡" },
+];
+
 /**
  * Enumerable answer choices for a source block, shown by LABEL but stored by the
  * value the runtime records (so researchers never type a raw key like `r2`).
@@ -35,6 +48,10 @@ function valueOptionsForSource(b: StudyBlock | undefined): { value: string; labe
   if ((b.key === "multiple-choice" || b.key === "attention-check") && Array.isArray(cfg.options)) {
     return (cfg.options as unknown[]).filter((o) => o != null && o !== "").map((o) => ({ value: String(o), label: String(o) }));
   }
+  // Social-post: branch on the chosen reaction (owner decision) — a dropdown of
+  // the 7 reactions, never a free-text box. "is answered" (= reacted at all)
+  // still needs no value.
+  if (b.key === "social-post") return REACTION_OPTIONS;
   return null; // free-text / numeric — keep the text/number input
 }
 

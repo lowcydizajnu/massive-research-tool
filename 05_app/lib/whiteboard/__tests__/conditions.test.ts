@@ -22,6 +22,25 @@ describe("answerValues", () => {
     expect(answerValues(["x", "y"])).toEqual(["x", "y"]);
     expect(answerValues(null)).toEqual([]);
   });
+  it("social-post branches on the chosen reaction only (owner decision)", () => {
+    // liked+shared boolean pair identifies a social-post answer; value = reaction.
+    expect(answerValues({ liked: true, shared: false, reaction: "wow", comment: "hi" })).toEqual(["wow"]);
+    // No reaction → no value, so "is answered" (reacted at all) is false.
+    expect(answerValues({ liked: false, shared: true })).toEqual([]);
+  });
+});
+
+describe("social-post reaction conditions", () => {
+  it("operatorsForKey exposes single-select operators; evaluateClause matches the reaction", () => {
+    expect(operatorsForKey("social-post")).toEqual(["answered", "eq", "neq", "isAnyOf"]);
+    const reacted = { liked: true, shared: false, reaction: "wow" };
+    const noReaction = { liked: false, shared: false };
+    expect(evaluateClause(reacted, "eq", ["wow"])).toBe(true);
+    expect(evaluateClause(reacted, "eq", ["love"])).toBe(false);
+    expect(evaluateClause(reacted, "isAnyOf", ["love", "wow"])).toBe(true);
+    expect(evaluateClause(reacted, "answered", [])).toBe(true); // reacted at all
+    expect(evaluateClause(noReaction, "answered", [])).toBe(false); // no reaction
+  });
 });
 
 describe("evaluateClause", () => {
@@ -85,8 +104,11 @@ describe("type-aware menus", () => {
     expect(operatorsForKey("likert-7")).toContain("between");
     expect(operatorsForKey("multiple-choice")).toContain("isAnyOf");
     expect(operatorsForKey("free-text")).toContain("contains");
-    expect(isConditionSource("social-post")).toBe(false);
+    // social-post is now a valid source (branch on reaction); pure stimuli are not.
+    expect(isConditionSource("social-post")).toBe(true);
     expect(isConditionSource("likert-7")).toBe(true);
+    expect(isConditionSource("video")).toBe(false);
+    expect(isConditionSource("image")).toBe(false);
   });
 });
 

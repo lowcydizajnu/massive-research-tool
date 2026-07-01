@@ -43,9 +43,10 @@ const SINGLE: Operator[] = ["answered", "eq", "neq", "isAnyOf"];
 const MULTI: Operator[] = ["answered", "includesAny"];
 const TEXT: Operator[] = ["answered", "eq", "neq", "contains"];
 
-/** Can a block's answer be used as a condition source? Stimuli have no answer. */
+/** Can a block's answer be used as a condition source? Pure stimuli have no
+ *  branchable answer. A social-post DOES (branch on the chosen reaction). */
 export function isConditionSource(key: string): boolean {
-  return key !== "social-post";
+  return key !== "text" && key !== "image" && key !== "video" && key !== "audio-stimulus" && key !== "link";
 }
 
 /** Type-aware operator menu for a source block's module key. */
@@ -56,6 +57,9 @@ export function operatorsForKey(key: string): Operator[] {
       return NUMERIC;
     case "multiple-choice":
     case "attention-check":
+    // Social-post branches on the chosen reaction (owner: reaction only). "is
+    // answered" = reacted at all; "is" / "is any of" match specific reactions.
+    case "social-post":
       return SINGLE;
     case "ranking":
     case "demographics":
@@ -77,6 +81,12 @@ export function answerValues(answer: unknown): string[] {
   if (Array.isArray(answer)) return answer.map((a) => String(a));
   if (typeof answer === "object") {
     const o = answer as Record<string, unknown>;
+    // Social-post: its only branchable signal is the chosen reaction (owner
+    // decision). Recognized by the liked+shared boolean pair. No reaction → no
+    // value, so an "is answered" clause reads as "reacted at all".
+    if (typeof o.liked === "boolean" && typeof o.shared === "boolean") {
+      return typeof o.reaction === "string" && o.reaction ? [o.reaction] : [];
+    }
     const out: string[] = [];
     for (const k of ["value", "text", "selected", "choice", "rank", "options"]) {
       const v = o[k];
