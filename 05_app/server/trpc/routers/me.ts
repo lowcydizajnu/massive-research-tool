@@ -1,4 +1,4 @@
-import { and, count, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/server/db/client";
@@ -45,6 +45,27 @@ export type MeStats = {
   replicationsReceived: number;
   followers: number;
   totalParticipants: number;
+};
+
+/** A study the caller created BY replicating someone else's (ADR-0018). */
+export type MyReplication = {
+  studyId: string;
+  title: string;
+  workspaceId: string;
+  workspaceName: string;
+  originalStudyId: string | null;
+  originalTitle: string | null;
+  createdAt: string;
+};
+
+/** Someone ELSE replicating one of the caller's studies (the fork lives in the
+ *  replicator's workspace, so we surface only non-private signal: which of your
+ *  studies, who, when — never the fork's private content). */
+export type ReplicationOfMine = {
+  originalStudyId: string;
+  originalTitle: string;
+  replicatedByName: string | null;
+  createdAt: string;
 };
 
 export const meRouter = router({
@@ -212,4 +233,92 @@ export const meRouter = router({
       totalParticipants,
     };
   }),
+
+  /** Studies the caller created by replicating others' work (ADR-0018) — their
+   *  forks, across workspaces, each with a link back to the original. */
+  myReplications: protectedProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(50).default(10) }))
+    .query(async ({ ctx, input }): Promise<MyReplication[]> => {
+      const rows = await db
+        .select({
+          studyId: experiment.id,
+          title: experiment.title,
+          workspaceId: experiment.tenantId,
+          workspaceName: workspace.name,
+          originalStudyId: experiment.forkOfExperimentId,
+          createdAt: experiment.createdAt,
+        })
+        .from(experiment)
+        .innerJoin(workspace, eq(experiment.tenantId, workspace.id))
+        .where(
+          and(
+            eq(experiment.ownerId, ctx.dbUser.id),
+            isNotNull(experiment.forkOfExperimentId),
+            isNull(experiment.archivedAt),
+            crossWorkspaceDemoStudyCondition(),
+            ctx.isImpersonating ? eq(workspace.supportAccessEnabled, true) : undefined,
+          ),
+        )
+        .orderBy(desc(experiment.createdAt))
+        .limit(input.limit);
+      // Original titles in one lookup (avoids a self-join).
+      const originIds = rows.map((r) => r.originalStudyId).filter((id): id is string => id != null);
+      const titles = originIds.length
+        ? await db.select({ id: experiment.id, title: experiment.title }).from(experiment).where(inArray(experiment.id, originIds))
+        : [];
+      const titleById = new Map(titles.map((t) => [t.id, t.title]));
+      return rows.map((r) => ({
+        studyId: r.studyId,
+        title: r.title,
+        workspaceId: r.workspaceId,
+        workspaceName: r.workspaceName,
+        originalStudyId: r.originalStudyId,
+        originalTitle: r.originalStudyId ? (titleById.get(r.originalStudyId) ?? null) : null,
+        createdAt: r.createdAt.toISOString(),
+      }));
+    }),
+
+  /** Replications OTHERS made of the caller's studies (ADR-0018) — the uptake of
+   *  your work. Only non-private signal (your study, who, when); the fork's own
+   *  content stays private to its workspace. */
+  replicationsOfMine: protectedProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(50).default(10) }))
+    .query(async ({ ctx, input }): Promise<ReplicationOfMine[]> => {
+      const mine = await db
+        .select({ id: experiment.id, title: experiment.title })
+        .from(experiment)
+        .innerJoin(workspace, eq(experiment.tenantId, workspace.id))
+        .where(
+          and(
+            eq(experiment.ownerId, ctx.dbUser.id),
+            isNull(experiment.archivedAt),
+            crossWorkspaceDemoStudyCondition(),
+            ctx.isImpersonating ? eq(workspace.supportAccessEnabled, true) : undefined,
+          ),
+        );
+      const ids = mine.map((m) => m.id);
+      if (ids.length === 0) return [];
+      const titleById = new Map(mine.map((m) => [m.id, m.title]));
+      const rows = await db
+        .select({
+          originalStudyId: experiment.forkOfExperimentId,
+          replicatedByName: user.displayName,
+          createdAt: experiment.createdAt,
+        })
+        .from(experiment)
+        .leftJoin(user, eq(experiment.ownerId, user.id))
+        .where(and(inArray(experiment.forkOfExperimentId, ids), isNull(experiment.archivedAt)))
+        .orderBy(desc(experiment.createdAt))
+        .limit(input.limit);
+      return rows.flatMap((r) =>
+        r.originalStudyId
+          ? [{
+              originalStudyId: r.originalStudyId,
+              originalTitle: titleById.get(r.originalStudyId) ?? "your study",
+              replicatedByName: r.replicatedByName,
+              createdAt: r.createdAt.toISOString(),
+            }]
+          : [],
+      );
+    }),
 });

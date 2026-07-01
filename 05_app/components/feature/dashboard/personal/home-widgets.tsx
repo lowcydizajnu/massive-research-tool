@@ -1,5 +1,5 @@
 import type { Route } from "next";
-import { ArrowRight, BookmarkCheck, FlaskConical } from "lucide-react";
+import { ArrowRight, BookmarkCheck, FlaskConical, GitFork, Repeat2 } from "lucide-react";
 import Link from "next/link";
 
 import { openStudyAction, switchWorkspaceAction } from "@/app/actions/switch-workspace";
@@ -9,7 +9,7 @@ import { PaginatedList } from "@/components/feature/dashboard/paginated-list";
 import { NewStudyButton } from "@/components/feature/new-study/new-study-button";
 import type { FollowsFeedItem } from "@/server/trpc/routers/follows";
 import type { SavedStudy } from "@/server/trpc/routers/saved";
-import type { MeStats, RecentStudy, RecruitingStudy } from "@/server/trpc/routers/me";
+import type { MeStats, MyReplication, RecentStudy, RecruitingStudy, ReplicationOfMine } from "@/server/trpc/routers/me";
 import type { NotificationDTO } from "@/server/trpc/routers/notifications";
 import type { WorkspaceListItem } from "@/server/trpc/routers/workspace";
 
@@ -37,6 +37,11 @@ export function WidgetError({ title }: { title: string }) {
       </p>
     </section>
   );
+}
+
+/** Short absolute date for list rows (no Date.now in module scope). */
+function dateLabel(iso: string): string {
+  return new Date(iso).toLocaleDateString();
 }
 
 function Empty({ children }: { children: React.ReactNode }) {
@@ -365,6 +370,68 @@ export function SavedStudiesWidget({ studies }: { studies: SavedStudy[] }) {
                   <span className="shrink-0 rounded-full bg-[var(--color-success-subtle)] px-1.5 py-0.5 text-[length:var(--text-small)] text-[var(--color-success-text-on-subtle)]">Finished</span>
                 ) : null}
               </Link>
+            </li>
+          ))}
+        </PaginatedList>
+      )}
+    </Card>
+  );
+}
+
+/** Studies the caller created by replicating others' work (ADR-0018). */
+export function YourReplicationsWidget({ items }: { items: MyReplication[] }) {
+  return (
+    <Card title="Studies you replicated">
+      {items.length === 0 ? (
+        <Empty>You haven’t replicated a study yet — find one on Browse and select Replicate.</Empty>
+      ) : (
+        <PaginatedList>
+          {items.map((r) => (
+            <li key={r.studyId}>
+              <form action={openStudyAction.bind(null, r.workspaceId, r.studyId, "build")}>
+                <button
+                  type="submit"
+                  className="flex w-full items-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-2 text-left hover:bg-[var(--color-surface-subtle)]"
+                >
+                  <GitFork className="size-3.5 shrink-0 text-[var(--color-text-muted)]" aria-hidden />
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate text-[length:var(--text-body)] text-[var(--color-text-primary)]">{r.title}</span>
+                    {r.originalTitle ? (
+                      <span className="truncate text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                        Replica of “{r.originalTitle}”
+                      </span>
+                    ) : null}
+                  </span>
+                  <span className="shrink-0 text-[length:var(--text-small)] text-[var(--color-text-muted)]">{r.workspaceName}</span>
+                </button>
+              </form>
+            </li>
+          ))}
+        </PaginatedList>
+      )}
+    </Card>
+  );
+}
+
+/** Others replicating the caller's studies — the uptake of your work (ADR-0018).
+ *  Informational (no link): the replica lives in the replicator's workspace. */
+export function ReplicationsOfMineWidget({ items }: { items: ReplicationOfMine[] }) {
+  return (
+    <Card title="Replications of your studies">
+      {items.length === 0 ? (
+        <Empty>No one has replicated your studies yet. Make a study public on Browse to invite replication.</Empty>
+      ) : (
+        <PaginatedList>
+          {items.map((r, i) => (
+            <li
+              key={`${r.originalStudyId}-${i}`}
+              className="flex items-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-2"
+            >
+              <Repeat2 className="size-3.5 shrink-0 text-[var(--color-primary)]" aria-hidden />
+              <span className="min-w-0 flex-1 truncate text-[length:var(--text-body)] text-[var(--color-text-primary)]">
+                <span className="font-medium">{r.replicatedByName ?? "Someone"}</span> replicated “{r.originalTitle}”
+              </span>
+              <span className="shrink-0 text-[length:var(--text-small)] text-[var(--color-text-muted)]">{dateLabel(r.createdAt)}</span>
             </li>
           ))}
         </PaginatedList>

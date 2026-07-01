@@ -10,11 +10,13 @@ import {
   QuickActionsWidget,
   RecentStudiesWidget,
   RecruitingWidget,
+  ReplicationsOfMineWidget,
   SavedStudiesWidget,
   StatsStrip,
   WelcomeWidget,
   WidgetError,
   WorkspacesWidget,
+  YourReplicationsWidget,
 } from "@/components/feature/dashboard/personal/home-widgets";
 import { auth } from "@/server/adapters/auth";
 import { getServerApi } from "@/server/trpc/server";
@@ -49,9 +51,12 @@ export default async function HomePage() {
       api.follows.feed(),
       api.notifications.list(),
       api.saved.list(),
+      api.me.myReplications({ limit: 10 }),
+      api.me.replicationsOfMine({ limit: 10 }),
     ]),
   ]);
-  const [active, workspaces, recent, recruiting, stats, follows, notifications, saved] = settled;
+  const [active, workspaces, recent, recruiting, stats, follows, notifications, saved, myReplications, replicationsOfMine] =
+    settled;
   const notifs = notifications.status === "fulfilled" ? notifications.value : [];
 
   const activeId = active.status === "fulfilled" ? active.value.id : null;
@@ -86,6 +91,18 @@ export default async function HomePage() {
         <RecentStudiesWidget studies={cap(recent.value, limitFor("recent-studies"))} />
       ) : (
         <WidgetError title="Your recent studies" />
+      ),
+    "your-replications":
+      myReplications.status === "fulfilled" ? (
+        <YourReplicationsWidget items={cap(myReplications.value, limitFor("your-replications") ?? 6)} />
+      ) : (
+        <WidgetError title="Studies you replicated" />
+      ),
+    "replications-of-mine":
+      replicationsOfMine.status === "fulfilled" ? (
+        <ReplicationsOfMineWidget items={cap(replicationsOfMine.value, limitFor("replications-of-mine") ?? 6)} />
+      ) : (
+        <WidgetError title="Replications of your studies" />
       ),
     "quick-actions": <QuickActionsWidget />,
     "saved-studies":

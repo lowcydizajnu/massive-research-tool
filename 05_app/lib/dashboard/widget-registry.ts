@@ -26,6 +26,8 @@ export type WidgetKey =
   | "notifications"
   | "mentions-inbox"
   | "saved-studies"
+  | "your-replications"
+  | "replications-of-mine"
   // workspace dashboard (/dashboard)
   | "workspace-header"
   | "active-recruitment"
@@ -161,6 +163,26 @@ export const WIDGET_REGISTRY: Record<WidgetKey, WidgetMeta> = {
     defaultInLayout: true,
     settings: [ITEM_COUNT(6, [3, 6, 10])],
   },
+  "your-replications": {
+    key: "your-replications",
+    name: "Studies you replicated",
+    description: "Studies you created by replicating others’ work, with a link back to the original.",
+    category: "studies",
+    size: "medium",
+    dashboard: "user",
+    defaultInLayout: true,
+    settings: [ITEM_COUNT(6, [3, 6, 10])],
+  },
+  "replications-of-mine": {
+    key: "replications-of-mine",
+    name: "Replications of your studies",
+    description: "When others replicate your studies — the uptake of your work.",
+    category: "studies",
+    size: "medium",
+    dashboard: "user",
+    defaultInLayout: true,
+    settings: [ITEM_COUNT(6, [3, 6, 10])],
+  },
   // ---- workspace dashboard (/dashboard) ----
   "workspace-header": {
     key: "workspace-header",
@@ -241,6 +263,8 @@ export const USER_DASHBOARD_DEFAULT_LAYOUT: WidgetKey[] = [
   "recruiting-studies",
   "workspaces-card",
   "recent-studies",
+  "your-replications",
+  "replications-of-mine",
   "saved-studies",
   "quick-actions",
 ];
