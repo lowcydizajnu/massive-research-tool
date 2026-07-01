@@ -1214,6 +1214,10 @@
   ],
   "recentActivity": [
     {
+      "text": "Round 5k — Activity 'Yours' feed frozen since ~June 22 (committed, unpushed; no migration). Owner-authorized read-only prod query confirmed: activity_event had 44 rows (latest Jun 30) but notification only 8 (latest Jun 22 06:20) — activity WAS being logged, but the notification.fanout job stopped. Root cause: fan-out was an Inngest-queued job; Inngest Cloud stopped invoking the /api/inngest callback (app-sync/keys lapsed after a deploy), and emit()'s inline fallback only fires in dev — so in prod events kept logging while notifications silently stopped. Fix: emit() now runs runNotificationFanout INLINE (idempotent via UNIQUE(recipient, source_event)), removing the fragile queue dependency; best-effort so a fan-out error never fails the triggering action. Updated 4 fan-out tests to assert inline delivery. 900 tests; tsc/lint/build/validator clean. Post-deploy: one-off backfill of the Jun 22–30 gap. Owner-side: re-sync the Inngest app for the other jobs.",
+      "date": "2026-07-01"
+    },
+    {
       "text": "Round 5j — restore didn't clear the drift banner (committed, unpushed; no migration). Owner restored Published v1 but the 'draft has changes that aren't live' banner + 'draft ahead' pill stayed on. TWO root causes. (1) restoreVersion was a PARTIAL restore — writeBlocks does {...prev, blocks}, so it only overwrote the draft's blocks and left theme/consent/overview/groups/variants AND conditions untouched; but divergedFromLive fingerprints the FULL snapshot + conditions, so any non-block divergence kept drift on forever. Now restore copies the whole snapshot verbatim + replaces the draft's conditions with the restored version's (transaction), so the tip becomes byte-identical → drift clears. (2) The banner/pill read getRunInfo, which was NEVER invalidated on restore (or on any builder edit) — added getRunInfo invalidation to the restore success handler AND the builder's shared invalidate(), so it refreshes immediately. +1 integration test (restore clears drift after a block AND a condition edit). 899 tests; tsc/lint/build/validator clean.",
       "date": "2026-07-01"
     },

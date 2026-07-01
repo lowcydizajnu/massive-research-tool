@@ -1,8 +1,8 @@
 import { ulid } from "ulid";
 
-import { jobs } from "@/server/adapters/jobs";
 import { db } from "@/server/db/client";
 import { activityEvent } from "@/server/db/schema";
+import { runNotificationFanout } from "@/server/jobs/notification-fanout";
 
 import type { EmitInput } from "./types";
 
@@ -11,9 +11,14 @@ import type { EmitInput } from "./types";
  *
  * 1. Write the `activity_event` row synchronously — it's the canonical record
  *    and the Follows-feed source (query-time read against follow).
- * 2. Enqueue the `notification.fanout` job — write-time fan-out of `notification`
- *    rows to the resolved recipients (the Yours feed), idempotent via the
- *    UNIQUE(recipient_user_id, source_event_id) constraint.
+ * 2. Fan out `notification` rows to the resolved recipients (the Yours feed)
+ *    INLINE — idempotent via the UNIQUE(recipient_user_id, source_event_id)
+ *    constraint. This used to be an Inngest-queued job, but that queue silently
+ *    stopped running in production (the app sync lapsed after a deploy), which
+ *    froze the Yours feed while activity kept being logged. Fan-out is a couple
+ *    of small inserts, so running it inline removes the fragile queue dependency
+ *    for this critical path. Best-effort: a fan-out failure must NEVER fail the
+ *    action that triggered the event (the activity_event is already committed).
  *
  * Returns the source event id (the activity_event ULID) — also the idempotency
  * anchor every notification row references.
@@ -35,7 +40,13 @@ export async function emit(input: EmitInput): Promise<{ sourceEventId: string }>
     payload: input.data ?? {},
   });
 
-  await jobs.enqueue("notification.fanout", { sourceEventId, input });
+  try {
+    await runNotificationFanout({ sourceEventId, input });
+  } catch (err) {
+    // Never break the triggering action; the event is logged and the feed can
+    // be backfilled from activity_event if a fan-out ever fails.
+    console.error("[emit] inline notification fan-out failed", sourceEventId, err);
+  }
 
   return { sourceEventId };
 }

@@ -130,10 +130,12 @@ describe("runRegistryPush", () => {
     expect(events).toHaveLength(1);
     expect(events[0].actorUserId).toBeNull();
     expect((events[0].payload as Record<string, unknown>).userId).toBe(userId);
-    expect(vi.mocked(jobs.enqueue)).toHaveBeenCalledWith(
-      "notification.fanout",
-      expect.objectContaining({ input: expect.objectContaining({ type: "osf_push_complete" }) }),
-    );
+    // emit() fans out INLINE now — the initiator has their notification directly
+    // (no notification.fanout queue that could stall).
+    const notes = await db.select().from(notification).where(eq(notification.recipientUserId, userId));
+    expect(notes).toHaveLength(1);
+    expect(notes[0].type).toBe("osf_push_complete");
+    expect(vi.mocked(jobs.enqueue)).not.toHaveBeenCalledWith("notification.fanout", expect.anything());
   });
 
   it("marks no_credentials (terminal, no throw) when the adapter reports no connection", async () => {

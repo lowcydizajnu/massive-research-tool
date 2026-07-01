@@ -48,7 +48,7 @@ beforeEach(async () => {
 });
 
 describe("emit()", () => {
-  it("writes an activity_event and enqueues notification.fanout", async () => {
+  it("writes an activity_event and records related fields", async () => {
     const actor = await seedUser("actor");
     const { sourceEventId } = await emit({
       type: "fork",
@@ -61,10 +61,25 @@ describe("emit()", () => {
     const [ev] = await db.select().from(activityEvent).where(eq(activityEvent.id, sourceEventId));
     expect(ev.type).toBe("fork");
     expect(ev.relatedTagSlugs).toEqual(["misinformation"]);
-    expect(enqueue).toHaveBeenCalledWith("notification.fanout", {
-      sourceEventId,
-      input: expect.objectContaining({ type: "fork" }),
+  });
+
+  it("fans out notifications INLINE (not via the Inngest queue), so the Yours feed can't freeze on a stalled job", async () => {
+    const actor = await seedUser("actor");
+    const m1 = await seedUser("m1");
+    const { sourceEventId } = await emit({
+      type: "mention",
+      actorUserId: actor,
+      targetType: "comment",
+      targetId: "c1",
+      data: { mentionedUserIds: [m1] },
     });
+
+    // The recipient's notification exists immediately — no queued fan-out needed.
+    const notes = await db.select().from(notification).where(eq(notification.recipientUserId, m1));
+    expect(notes).toHaveLength(1);
+    expect(notes[0]).toMatchObject({ type: "mention", sourceEventId });
+    // notification.fanout is no longer enqueued — emit runs it inline.
+    expect(enqueue).not.toHaveBeenCalledWith("notification.fanout", expect.anything());
   });
 });
 

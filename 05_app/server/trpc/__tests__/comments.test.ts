@@ -88,11 +88,17 @@ describe("comments.create", () => {
     const mentions = await db.select().from(mention).where(eq(mention.commentId, id));
     expect(mentions.map((m) => m.mentionedUserId)).toEqual([maya.id]);
 
-    // Two activity_events written (comment_on_your_study + mention); both fanned out.
+    // Two activity_events written (comment_on_your_study + mention).
     const events = await db.select().from(activityEvent);
     expect(events.map((e) => e.type).sort()).toEqual(["comment_on_your_study", "mention"]);
-    expect(enqueue).toHaveBeenCalledWith("notification.fanout", expect.any(Object));
-    expect(enqueue.mock.calls.filter((c) => c[0] === "notification.fanout")).toHaveLength(2);
+    // Fan-out ran INLINE (no notification.fanout queue) — maya has her mention
+    // notification immediately. (comment_on_your_study's only recipient is the
+    // author, who is the actor here, so it produces no notification.)
+    const notes = await db.select().from(notification);
+    expect(notes.map((n) => ({ to: n.recipientUserId, type: n.type }))).toEqual([
+      { to: maya.id, type: "mention" },
+    ]);
+    expect(enqueue).not.toHaveBeenCalledWith("notification.fanout", expect.anything());
   });
 
   it("ignores @mentions of non-members", async () => {
