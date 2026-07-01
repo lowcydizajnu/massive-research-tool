@@ -1,11 +1,16 @@
 # ADR 0089 — Social platform selection decoupled from theme preset
 
-- **Status:** accepted
+- **Status:** deprecated
 - **Date:** 2026-07-01
 - **Deciders:** Paweł Rosner (project owner)
 - **Tags:** runtime, design, theming, social-post
 
 ## Context
+
+> **Reverted 2026-07-01.** The implementation was removed at the project owner's
+> request — only Facebook is finalized, so a multi-platform selector is premature,
+> and the "Follow the theme — Facebook" / "Facebook" options were redundant. This
+> ADR is kept as a record for when a second platform is actually ready to ship.
 
 Today the social-post *skin* (which platform a post imitates — Facebook, X, …)
 and its page chrome (the fake nav) are derived entirely from the **theme preset**
