@@ -288,6 +288,57 @@ describe("studies block editing", () => {
     expect(detail.blocks).toHaveLength(0);
   });
 
+  it("duplicates a block: faithful copy right after, fresh id, '(copy)' title, independent config", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+
+    const { instanceId } = await caller.studies.addBlock({
+      studyId: id,
+      source: "core",
+      key: "social-post",
+      version: "1.0.0",
+    });
+    await caller.studies.setBlockTitle({ studyId: id, instanceId, title: "Post A" });
+    await caller.studies.updateBlockConfig({
+      studyId: id,
+      instanceId,
+      config: { headline: "Original", body: "", source: "", imageUrl: "", shareCountVisible: false },
+    });
+
+    const dup = await caller.studies.duplicateBlock({ studyId: id, instanceId });
+    expect(dup.instanceId).not.toBe(instanceId);
+
+    let detail = await caller.studies.get({ id });
+    expect(detail.blocks).toHaveLength(2);
+    // The copy lands directly AFTER the source, with a fresh id.
+    expect(detail.blocks[0].instanceId).toBe(instanceId);
+    expect(detail.blocks[1].instanceId).toBe(dup.instanceId);
+    // Faithful config; a set title gains a " (copy)" suffix.
+    expect(detail.blocks[1].config.headline).toBe("Original");
+    expect(detail.blocks[0].title).toBe("Post A");
+    expect(detail.blocks[1].title).toBe("Post A (copy)");
+
+    // Deep clone: editing the copy leaves the original untouched.
+    await caller.studies.updateBlockConfig({
+      studyId: id,
+      instanceId: dup.instanceId,
+      config: { headline: "Changed", body: "", source: "", imageUrl: "", shareCountVisible: false },
+    });
+    detail = await caller.studies.get({ id });
+    expect(detail.blocks[0].config.headline).toBe("Original");
+    expect(detail.blocks[1].config.headline).toBe("Changed");
+  });
+
+  it("rejects duplicating an unknown block", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank" });
+    await expect(
+      caller.studies.duplicateBlock({ studyId: id, instanceId: "nope" }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
   it("rejects an unknown module", async () => {
     await seedUserWithWorkspace("ext_a", "Alpha");
     const caller = createCaller({ authUser: authUser("ext_a") });

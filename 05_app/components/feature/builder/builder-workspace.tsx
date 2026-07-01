@@ -1,6 +1,6 @@
 "use client";
 
-import { GripVertical, Plus, Redo2, Trash2, Undo2 } from "lucide-react";
+import { Copy, GripVertical, Plus, Redo2, Trash2, Undo2 } from "lucide-react";
 import Link from "next/link";
 import type { Route } from "next";
 import { useEffect, useRef, useState } from "react";
@@ -189,6 +189,14 @@ export function BuilderWorkspace({
     onSuccess: ({ instanceId }) => {
       setSelectedId(instanceId);
       setPickerOpen(false);
+      void invalidate();
+    },
+  });
+  // Duplicate the selected block (faithful copy, inserted right after) and land on
+  // the copy so the researcher's next edit lands on it, not the original.
+  const duplicateBlock = api.studies.duplicateBlock.useMutation({
+    onSuccess: ({ instanceId }) => {
+      setSelectedId(instanceId);
       void invalidate();
     },
   });
@@ -1261,18 +1269,29 @@ export function BuilderWorkspace({
                 setCondition.mutate({ studyId: study.id, instanceId: selected.instanceId, showIf })
               }
             />
-            <button
-              type="button"
-              onClick={() => {
-                removeBlock.mutate({ studyId: study.id, instanceId: selected.instanceId });
-                setSelectedId(null);
-                setPanelTab("details");
-              }}
-              className="flex items-center gap-1.5 self-start rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-2.5 py-1 text-[length:var(--text-small)] font-medium text-[var(--color-danger-text-on-subtle)] hover:bg-[var(--color-danger-subtle)]"
-            >
-              <Trash2 className="size-3.5" aria-hidden />
-              Delete block
-            </button>
+            <div className="flex flex-wrap items-center gap-2 self-start">
+              <button
+                type="button"
+                disabled={duplicateBlock.isPending}
+                onClick={() => duplicateBlock.mutate({ studyId: study.id, instanceId: selected.instanceId })}
+                className="flex items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-2.5 py-1 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)] disabled:opacity-50"
+              >
+                <Copy className="size-3.5" aria-hidden />
+                {duplicateBlock.isPending ? "Duplicating…" : "Duplicate block"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  removeBlock.mutate({ studyId: study.id, instanceId: selected.instanceId });
+                  setSelectedId(null);
+                  setPanelTab("details");
+                }}
+                className="flex items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-2.5 py-1 text-[length:var(--text-small)] font-medium text-[var(--color-danger-text-on-subtle)] hover:bg-[var(--color-danger-subtle)]"
+              >
+                <Trash2 className="size-3.5" aria-hidden />
+                Delete block
+              </button>
+            </div>
           </fieldset>
         ) : panelTab === "versions" ? (
           <fieldset disabled={!canEdit} className="contents">

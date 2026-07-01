@@ -2512,6 +2512,36 @@ export const studiesRouter = router({
     }),
 
   /**
+   * Duplicate a block by instance id — a faithful copy inserted directly AFTER the
+   * source with a fresh instanceId. Deep-clones config + visibility (`visibility` /
+   * `showIf` / legacy `branchRules`) + `groupId` (staying contiguous keeps the copy
+   * in the same question group). Two deliberate deviations from a raw clone:
+   * `divergenceNote` is dropped (it describes a replication divergence, ADR-0039, not
+   * an in-study copy), and a researcher-set `title` gains a " (copy)" suffix so the
+   * two are distinguishable in the overview. Inserting after the source can't create
+   * a forward condition ref, so no pruning is needed. Mirrors addBlock's write path.
+   */
+  duplicateBlock: writeProcedure
+    .input(z.object({ studyId: z.string().uuid(), instanceId: z.string() }))
+    .mutation(async ({ ctx, input }): Promise<{ instanceId: string }> => {
+      const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+      const blocks = readBlocks(tip.version.definitionSnapshot);
+      const idx = blocks.findIndex((b) => b.instanceId === input.instanceId);
+      if (idx === -1) throw new TRPCError({ code: "BAD_REQUEST", message: "Block not found." });
+      const src = blocks[idx];
+      const instanceId = ulid();
+      const copy: BlockInstance = { ...structuredClone(src), instanceId };
+      if (src.title) copy.title = `${src.title} (copy)`;
+      delete copy.divergenceNote;
+      blocks.splice(idx + 1, 0, copy);
+      await writeBlocks(tip.version.id, input.studyId, blocks, {
+        actorUserId: ctx.dbUser.id,
+        summary: `Duplicated a ${src.key} block`,
+      });
+      return { instanceId };
+    }),
+
+  /**
    * Restore the working tip's blocks to an exact prior snapshot — the server
    * side of Builder/Whiteboard undo. The client holds the edit history; this
    * just writes the given (structurally validated, previously-valid) blocks.
