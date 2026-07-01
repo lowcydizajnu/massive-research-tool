@@ -1184,7 +1184,14 @@ export function BuilderWorkspace({
         </ScrollableTabs>
 
         {selected && blockTab === "history" ? (
-          <BlockHistoryPanel studyId={study.id} instanceId={selected.instanceId} />
+          <BlockHistoryPanel
+            studyId={study.id}
+            instanceId={selected.instanceId}
+            onOpenVersions={() => {
+              setSelectedId(null);
+              setPanelTab("versions");
+            }}
+          />
         ) : selected ? (
           <fieldset disabled={!canEdit} className="contents">
             <BlockLockBanner users={presenceByBlock.get(selected.instanceId) ?? []} />

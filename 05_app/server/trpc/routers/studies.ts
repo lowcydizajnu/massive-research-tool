@@ -5066,17 +5066,25 @@ export const studiesRouter = router({
         }
       }
 
-      // Social-post (ADR-0085): surface the chosen reaction as its own export
-      // cell (`reaction:<inst>`) so dataset.ts can emit a dedicated, analyzable
-      // reaction column. The compact per-block column still carries liked/shared/
-      // comment via stringifyAnswer; this only splits out the reaction key.
+      // Social-post (ADR-0085): each engagement signal gets its OWN export cell
+      // instead of one packed "liked=…; shared=…; comment=…" string (owner: split
+      // into dedicated columns). `reaction:<inst>` (which of the 7 reactions),
+      // `spshared:<inst>` (true/false), `spcomment:<inst>` (the comment text),
+      // `spreplies:<inst>` (any replies, joined). `liked` is dropped — the reaction
+      // column already captures whether/how they reacted. dataset.ts reads these
+      // keys directly and omits the packed per-block column for social-post.
       for (const b of questionBlocks) {
         if (b.key !== "social-post") continue;
         for (const it of items) {
           if (it.blockInstanceId !== b.instanceId) continue;
-          const a = (it.answer ?? {}) as { reaction?: unknown };
+          const a = (it.answer ?? {}) as { reaction?: unknown; shared?: unknown; comment?: unknown; replies?: unknown };
           const row = answersByResponse.get(it.responseId) ?? {};
           row[`reaction:${b.instanceId}`] = typeof a.reaction === "string" ? a.reaction : "";
+          row[`spshared:${b.instanceId}`] = typeof a.shared === "boolean" ? String(a.shared) : "";
+          row[`spcomment:${b.instanceId}`] = typeof a.comment === "string" ? a.comment : "";
+          row[`spreplies:${b.instanceId}`] = Array.isArray(a.replies)
+            ? (a.replies as unknown[]).map(String).filter((s) => s.trim() !== "").join(" | ")
+            : "";
           answersByResponse.set(it.responseId, row);
         }
       }

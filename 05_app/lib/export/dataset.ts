@@ -64,13 +64,18 @@ export function baseColumns(results: ResultsSummary): ExportColumn[] {
     seen.set(base, n + 1);
     return n > 0 ? `${base}_${n + 1}` : base;
   };
-  const questions = results.questions.map((q) => ({
-    key: q.instanceId,
-    source: q.prompt || q.moduleKey,
-    type: q.kind,
-    label: dedupe(slugifyLabel(q.prompt || q.moduleKey)),
-    hidden: false,
-  }));
+  // Social-post blocks get dedicated sub-columns below (reaction / shared /
+  // comment / replies) instead of one packed "liked=…; shared=…" cell, so they
+  // are excluded from the generic per-block column here (owner request).
+  const questions = results.questions
+    .filter((q) => q.moduleKey !== "social-post")
+    .map((q) => ({
+      key: q.instanceId,
+      source: q.prompt || q.moduleKey,
+      type: q.kind,
+      label: dedupe(slugifyLabel(q.prompt || q.moduleKey)),
+      hidden: false,
+    }));
   // One column per spatial block: each row links to THAT respondent's view.
   const viz = results.questions
     .filter((q) => q.spatial != null)
@@ -106,21 +111,29 @@ export function baseColumns(results: ResultsSummary): ExportColumn[] {
       }));
       return [status, ...scores];
     });
-  // Social-post (ADR-0085): the chosen reaction gets its own analyzable column
-  // (`reaction:<inst>`) so a researcher can tabulate which of the seven Facebook
-  // reactions each respondent picked, instead of digging it out of the compact
-  // engagement string. cell() resolves it via row.answers (no colon clash with
-  // the `viz:`/`emo:` prefixes). The compact per-block column is unchanged.
-  const reaction = results.questions
+  // Social-post (ADR-0085): each engagement signal is its OWN analyzable column
+  // (owner: split, don't pack) — reaction (which of the 7), shared (true/false),
+  // comment (text), and replies (only if anyone replied). `liked` is intentionally
+  // dropped: the reaction column already captures whether/how they reacted. Keys
+  // (`reaction:`/`spshared:`/`spcomment:`/`spreplies:`) resolve via row.answers in
+  // cell() — no colon clash with the `viz:`/`emo:` prefixes.
+  const socialPost = results.questions
     .filter((q) => q.moduleKey === "social-post")
-    .map((q): ExportColumn => ({
-      key: `reaction:${q.instanceId}`,
-      source: `${q.prompt || q.moduleKey} — reaction`,
-      type: "categorical",
-      label: dedupe(`${slugifyLabel(q.prompt || q.moduleKey)}_reaction`),
-      hidden: false,
-    }));
-  return [...meta, ...questions, ...viz, ...emotion, ...reaction];
+    .flatMap((q): ExportColumn[] => {
+      const base = slugifyLabel(q.prompt || q.moduleKey);
+      const src = q.prompt || q.moduleKey;
+      const out: ExportColumn[] = [
+        { key: `reaction:${q.instanceId}`, source: `${src} — reaction`, type: "categorical", label: dedupe(`${base}_reaction`), hidden: false },
+        { key: `spshared:${q.instanceId}`, source: `${src} — shared`, type: "categorical", label: dedupe(`${base}_shared`), hidden: false },
+        { key: `spcomment:${q.instanceId}`, source: `${src} — comment`, type: "text", label: dedupe(`${base}_comment`), hidden: false },
+      ];
+      // Replies column only when at least one respondent replied (avoid an all-blank column).
+      if (results.rows.some((r) => (r.answers[`spreplies:${q.instanceId}`] ?? "") !== "")) {
+        out.push({ key: `spreplies:${q.instanceId}`, source: `${src} — replies`, type: "text", label: dedupe(`${base}_replies`), hidden: false });
+      }
+      return out;
+    });
+  return [...meta, ...questions, ...viz, ...emotion, ...socialPost];
 }
 
 /** responseIds that actually have a per-respondent response, per block instanceId

@@ -88,14 +88,18 @@ export function ExportBuilder({ studyId, title }: { studyId: string; title: stri
       </p>
     );
   }
-  if (!results.data || results.data.rows.length === 0) {
+  if (!results.data) {
     return (
       <p className="rounded-[var(--radius-md)] bg-[var(--color-surface-subtle)] p-6 text-center text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
-        No responses yet to export.
+        No dataset available yet.
       </p>
     );
   }
   const data = results.data;
+  // Zero responses no longer hides the builder (owner: the Export/columns must be
+  // visible always so you can see the table shape + that every variable is there).
+  // The download is headers-only until data arrives.
+  const noRows = data.rows.length === 0;
   const visible = cols.filter((c) => !c.hidden);
   // Absolute origin for the per-respondent Explore-link columns (ADR-0041 am.) —
   // read here (client) so dataset.ts stays pure; drives preview + every export.
@@ -158,6 +162,13 @@ export function ExportBuilder({ studyId, title }: { studyId: string; title: stri
     "rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-1 text-[length:var(--text-small)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]";
 
   return (
+    <div className="flex flex-col gap-3">
+    {noRows ? (
+      <p className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] px-3 py-2 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+        No responses yet — this shows the column structure so you can check every variable is there.
+        The download will contain the header row only until data comes in.
+      </p>
+    ) : null}
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-[320px_1fr]">
       {/* Left: variables — sticky so they stay in view while scrolling the table. */}
       <div className="flex flex-col gap-2 lg:sticky lg:top-3 lg:max-h-[calc(100vh-170px)] lg:self-start lg:overflow-auto lg:pr-1">
@@ -332,6 +343,7 @@ export function ExportBuilder({ studyId, title }: { studyId: string; title: stri
           </p>
         ) : null}
       </div>
+    </div>
     </div>
   );
 }

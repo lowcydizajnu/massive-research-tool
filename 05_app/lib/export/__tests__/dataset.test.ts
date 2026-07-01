@@ -121,9 +121,10 @@ describe("emotion export columns (ADR-0066 H3a)", () => {
   });
 });
 
-// A social-post block (ADR-0085): r1 picked "love", r2 left no reaction. The
-// chosen reaction rides row.answers under a `reaction:<inst>` key (set in
-// getResults); the compact per-block column keeps the full engagement string.
+// A social-post block (ADR-0085): r1 reacted "love", shared, commented, and
+// replied; r2 did none. Each engagement signal rides row.answers under its own
+// key (reaction / spshared / spcomment / spreplies), set in getResults. The
+// packed per-block column is dropped for social-post (owner: split into columns).
 const withSocialPost: ResultsSummary = {
   ...results,
   questions: [
@@ -131,27 +132,56 @@ const withSocialPost: ResultsSummary = {
     { ...results.questions[1], moduleKey: "social-post", prompt: "The post" },
   ],
   rows: [
-    { ...results.rows[0], answers: { ...results.rows[0].answers, q2: "liked=true; reaction=love", "reaction:q2": "love" } },
-    { ...results.rows[1], answers: { ...results.rows[1].answers, q2: "liked=false", "reaction:q2": "" } },
+    {
+      ...results.rows[0],
+      answers: {
+        ...results.rows[0].answers,
+        "reaction:q2": "love",
+        "spshared:q2": "true",
+        "spcomment:q2": "nice post",
+        "spreplies:q2": "agreed | same",
+      },
+    },
+    {
+      ...results.rows[1],
+      answers: { ...results.rows[1].answers, "reaction:q2": "", "spshared:q2": "false", "spcomment:q2": "", "spreplies:q2": "" },
+    },
   ],
 };
 
-describe("social-post reaction export column (ADR-0085)", () => {
-  it("appends one reaction column per social-post block, after questions; none otherwise", () => {
+describe("social-post split export columns (ADR-0085)", () => {
+  it("emits dedicated reaction/shared/comment/replies columns; no packed column; none for non-social studies", () => {
     expect(baseColumns(results).some((c) => c.key.startsWith("reaction:"))).toBe(false);
     const cols = baseColumns(withSocialPost);
-    const rx = cols.filter((c) => c.key.startsWith("reaction:"));
-    expect(rx.map((c) => c.key)).toEqual(["reaction:q2"]);
-    expect(rx[0].label).toBe("the_post_reaction");
-    expect(rx[0].type).toBe("categorical");
+    // The packed per-block column (keyed by the raw instanceId) is gone for social-post.
+    expect(cols.some((c) => c.key === "q2")).toBe(false);
+    expect(cols.filter((c) => /^(reaction|spshared|spcomment|spreplies):q2$/.test(c.key)).map((c) => c.key)).toEqual([
+      "reaction:q2",
+      "spshared:q2",
+      "spcomment:q2",
+      "spreplies:q2",
+    ]);
+    expect(cols.find((c) => c.key === "reaction:q2")?.label).toBe("the_post_reaction");
+    expect(cols.find((c) => c.key === "spshared:q2")?.label).toBe("the_post_shared");
+    expect(cols.find((c) => c.key === "spcomment:q2")?.label).toBe("the_post_comment");
+    // `liked` is intentionally not a column.
+    expect(cols.some((c) => c.label.endsWith("_liked"))).toBe(false);
   });
 
-  it("buildMatrix fills the chosen reaction key, blank when none chosen", () => {
-    const cols = baseColumns(withSocialPost).filter((c) => c.key === "reaction:q2");
+  it("omits the replies column when nobody replied", () => {
+    const noReplies: ResultsSummary = {
+      ...withSocialPost,
+      rows: withSocialPost.rows.map((r) => ({ ...r, answers: { ...r.answers, "spreplies:q2": "" } })),
+    };
+    expect(baseColumns(noReplies).some((c) => c.key === "spreplies:q2")).toBe(false);
+  });
+
+  it("buildMatrix fills each engagement column, blank when none", () => {
+    const cols = baseColumns(withSocialPost).filter((c) => /:q2$/.test(c.key));
     const m = buildMatrix(withSocialPost, cols);
-    expect(m.headers).toEqual(["the_post_reaction"]);
-    expect(m.rows[0]).toEqual(["love"]);
-    expect(m.rows[1]).toEqual([""]);
+    expect(m.headers).toEqual(["the_post_reaction", "the_post_shared", "the_post_comment", "the_post_replies"]);
+    expect(m.rows[0]).toEqual(["love", "true", "nice post", "agreed | same"]);
+    expect(m.rows[1]).toEqual(["", "false", "", ""]);
   });
 });
 
