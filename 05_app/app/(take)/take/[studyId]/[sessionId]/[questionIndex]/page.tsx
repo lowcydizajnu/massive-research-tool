@@ -8,7 +8,7 @@ import { RevealGate } from "@/components/feature/take/reveal-gate";
 import { Card, ScreenHeader } from "@/components/feature/take/parts";
 import { getRuntimeScreen } from "@/server/runtime/participant";
 import { normalizeCondition } from "@/lib/whiteboard/conditions";
-import { effectivePresetKey, resolveChat } from "@/lib/themes/themes";
+import { effectivePresetKey, isFeedSkin, resolveChat } from "@/lib/themes/themes";
 import { formatProgress } from "@/lib/take/ui-copy";
 
 import { answerAction } from "../../actions";
@@ -46,9 +46,12 @@ export default async function ScreenPage({
   const isGroup = s.screen.blocks.length > 1;
   // Same-screen sources for in-screen reveal (ADR-0088).
   const screenBlockIds = new Set(s.screen.blocks.map((b) => b.instanceId));
+  // Feed mode: a social-feed skin + a screen that actually shows social posts →
+  // drop the outer card so each post is its own unit on the page (owner 2026-07-01).
+  const feed = isFeedSkin(s.theme) && s.screen.blocks.some((b) => b.key === "social-post");
 
   return (
-    <Card>
+    <Card flush={feed}>
       <ScreenHeader
         position={s.position}
         total={s.total}
@@ -57,7 +60,7 @@ export default async function ScreenPage({
         stepLabel={formatProgress(s.uiCopy.progressLabel, s.position + 1, s.total)}
       />
 
-      <form action={answerAction} className="flex flex-col gap-[var(--take-block-gap,1.5rem)]">
+      <form action={answerAction} data-take-form className="flex flex-col gap-[var(--take-block-gap,1.5rem)]">
         <input type="hidden" name="studyId" value={studyId} />
         <input type="hidden" name="responseId" value={sessionId} />
         <input type="hidden" name="questionIndex" value={index} />

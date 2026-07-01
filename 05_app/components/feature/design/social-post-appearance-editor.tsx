@@ -234,6 +234,20 @@ export function SocialPostAppearanceEditor({
         ) : null}
 
         <fieldset className="flex flex-col gap-2">
+          <legend className={LEGEND_CLS}>Page</legend>
+          <Toggle
+            checked={social.platformChrome !== false}
+            onChange={(v) => onChange({ ...social, platformChrome: v })}
+          >
+            Show the platform nav bar (the imitation top navigation)
+          </Toggle>
+          <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+            The decorative bar above the feed (search box, home/menu icons). Turn it
+            off for a cleaner, chrome-free page.
+          </p>
+        </fieldset>
+
+        <fieldset className="flex flex-col gap-2">
           <legend className={LEGEND_CLS}>Branding · study default (all posts)</legend>
           <div role="radiogroup" aria-label="Branding tier" className="flex flex-col gap-1.5">
             {BRANDING_TIERS.map((t) => {

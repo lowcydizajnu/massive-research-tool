@@ -142,6 +142,10 @@ export type IrbAttestation = z.infer<typeof irbAttestationSchema>;
 
 export const socialPostSchema = z.object({
   brandingTierDefault: brandingTierSchema.default("block"),
+  // Explicit researcher toggle for the decorative page nav/masthead (the fake top
+  // bar), independent of branding tier (owner 2026-07-01: "let me turn the top
+  // fake nav on/off"). Default true = keep today's behavior.
+  platformChrome: z.boolean().default(true),
   reactionsEnabled: z.array(reactionKey).default(["like"]),
   reactionsLive: z.boolean().default(true),
   showReactionSummary: z.boolean().default(true),
@@ -194,9 +198,25 @@ function isSocialPlatform(preset: string): boolean {
  * the chrome (ADR-0084/0085 — "block design" = no platform chrome or logo).
  */
 export function showsPlatformChrome(theme: StudyTheme): boolean {
+  // Explicit off-switch wins (owner toggle, 2026-07-01) — hide the fake nav
+  // regardless of preset/branding tier.
+  if (theme.socialPost?.platformChrome === false) return false;
   if (!isSocialPlatform(effectivePresetKey(theme))) return true;
   if (theme.socialPost == null) return true;
   return theme.socialPost.brandingTierDefault !== "block";
+}
+
+/** Presets that render blocks as a social FEED — each post is its own card, so
+ *  the participant page drops its outer card and the posts float on the page
+ *  background like a real feed (owner 2026-07-01: "each post is a separate unit,
+ *  stop the box-in-a-box"). */
+export const FEED_PRESETS = [
+  "facebook", "x", "instagram", "tiktok", "forum", "reddit",
+  "linkedin", "youtube", "whatsapp", "discord", "imessage",
+] as const;
+
+export function isFeedSkin(theme: StudyTheme): boolean {
+  return (FEED_PRESETS as readonly string[]).includes(effectivePresetKey(theme));
 }
 
 export const studyThemeSchema = z.object({

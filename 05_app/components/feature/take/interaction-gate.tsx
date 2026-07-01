@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import type { ReactionKey } from "@/lib/themes/themes";
 import { cn } from "@/lib/utils";
@@ -60,12 +61,26 @@ export function InteractionGate({
   const [tally, setTally] = useState<InteractionTally>(EMPTY_TALLY);
   const [remaining, setRemaining] = useState<number>(maxTimeSec > 0 ? maxTimeSec : 0);
   const [timedOut, setTimedOut] = useState(false);
+  // Page-level top-bar slot (rendered by the take layout under the fake nav). Null
+  // until mounted → the bar renders in place as a graceful fallback.
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
 
   const met = timedOut || allRequirementsMet(requirements, tally);
 
+  // The screen form — located globally (the bar portals OUT of the form to the
+  // page top-bar, so `closest` no longer reaches it) with an in-form anchor fallback.
+  const getForm = () =>
+    (typeof document !== "undefined" && document.querySelector<HTMLFormElement>("form[data-take-form]")) ||
+    anchor.current?.closest("form") ||
+    null;
+
+  useEffect(() => {
+    setSlot(document.getElementById("take-topbar"));
+  }, []);
+
   // Watch the screen form + re-tally on any interaction.
   useEffect(() => {
-    const form = anchor.current?.closest("form");
+    const form = getForm();
     if (!form) return;
     const recompute = () => setTally(tallyFromForm(form));
     recompute();
@@ -76,11 +91,12 @@ export function InteractionGate({
       obs.disconnect();
       form.removeEventListener("input", recompute);
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slot]);
 
   // Drive the screen's Continue button disabled state.
   useEffect(() => {
-    const btn = anchor.current?.closest("form")?.querySelector<HTMLButtonElement>("[data-take-continue]");
+    const btn = getForm()?.querySelector<HTMLButtonElement>("[data-take-continue]");
     if (btn) btn.disabled = !met;
   }, [met]);
 
@@ -92,7 +108,7 @@ export function InteractionGate({
         if (r <= 1) {
           clearInterval(id);
           setTimedOut(true);
-          const btn = anchor.current?.closest("form")?.querySelector<HTMLButtonElement>("[data-take-continue]");
+          const btn = getForm()?.querySelector<HTMLButtonElement>("[data-take-continue]");
           if (btn) {
             btn.disabled = false;
             btn.click();
@@ -103,6 +119,7 @@ export function InteractionGate({
       });
     }, 1000);
     return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [maxTimeSec]);
 
   const mm = Math.floor(remaining / 60);
@@ -111,8 +128,9 @@ export function InteractionGate({
 
   if (chips.length === 0 && maxTimeSec <= 0) return <div ref={anchor} className="hidden" />;
 
-  return (
-    <div ref={anchor} className="flex flex-col gap-2">
+  const bar = (
+    <div className="w-full border-b border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] shadow-[var(--shadow-sm)]">
+      <div className="mx-auto flex w-full max-w-[600px] flex-col gap-2 px-4 py-2.5">
       {chips.length ? (
         <ul role="list" className="flex flex-wrap items-center gap-2">
           {chips.map((r) => {
@@ -141,6 +159,17 @@ export function InteractionGate({
           Time remaining {mm}:{ss}
         </span>
       ) : null}
+      </div>
     </div>
+  );
+
+  // Keep a 0-size anchor INSIDE the screen form (for form location fallback), and
+  // render the visible bar into the page-level top-bar slot (portal) so it spans
+  // the page like the nav instead of sitting inside a post card.
+  return (
+    <>
+      <div ref={anchor} className="hidden" />
+      {slot ? createPortal(bar, slot) : bar}
+    </>
   );
 }

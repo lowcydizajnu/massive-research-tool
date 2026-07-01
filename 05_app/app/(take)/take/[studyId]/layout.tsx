@@ -53,6 +53,12 @@ export default async function ThemedTakeLayout({
           {Frame()}
         </div>
       ) : null}
+      {/* Page-level slot for the interaction gate (timer + requirement chips) — a
+          full-width sticky bar directly under the fake nav, so the gate belongs to
+          the PAGE like the nav, not boxed inside a post (owner 2026-07-01). The
+          InteractionGate portals its bar here; empty:hidden means zero footprint
+          on screens without a gate. */}
+      <div id="take-topbar" className="sticky top-0 z-30 w-full empty:hidden" />
       <main className="w-full px-0 py-6 sm:px-4 sm:py-10" style={{ maxWidth: WIDTHS[theme.layout.width] }}>
         {children}
       </main>

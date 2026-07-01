@@ -1,6 +1,14 @@
 /** Shared participant-runtime presentational parts (participant-runtime.md). */
 
-export function Card({ children }: { children: React.ReactNode }) {
+export function Card({ children, flush = false }: { children: React.ReactNode; flush?: boolean }) {
+  // Feed mode (social presets): DROP the outer card entirely so each post renders
+  // as its OWN card floating on the page background — a real feed, not a card
+  // stack boxed inside another card (owner 2026-07-01: "each post is a separate
+  // unit, stop the box-in-a-box"). `--take-card-pad:0` keeps ScreenHeader's
+  // negative-margin full-bleed exact with no padding to cancel.
+  if (flush) {
+    return <div className="flex flex-col gap-4 [--take-card-pad:0px]">{children}</div>;
+  }
   // Edge-to-edge on mobile (full-bleed: no side border / rounding, tighter pad) so
   // the stimulus + the flush progress bar use the whole width and aren't "boxed in
   // a box" (feedback 01KWCJ30X9); a centered, rounded, bordered card from `sm` up.
