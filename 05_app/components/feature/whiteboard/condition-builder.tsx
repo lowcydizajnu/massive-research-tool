@@ -96,13 +96,18 @@ export function ConditionBuilder({
     const src = sources[0];
     if (!src) return;
     const operator = operatorsForKey(src.key)[0];
-    setClauses((cs) => [...cs, { fromInstanceId: src.instanceId, operator, value: [""] }]);
+    // Start with an EMPTY value list — a seeded [""] pollutes list operators
+    // (checkbox appends produce ["", "angry"]); the single-value inputs read
+    // `c.value[0] ?? ""` so an empty list renders a blank field fine.
+    setClauses((cs) => [...cs, { fromInstanceId: src.instanceId, operator, value: [] }]);
   };
 
   const save = () => {
-    const clean = clauses.filter(
-      (c) => c.fromInstanceId && (c.operator === "answered" || c.value.some((v) => v.trim() !== "")),
-    );
+    const clean = clauses
+      // Drop empty-string entries (a stray seed or a cleared field) so a
+      // saved value is never `["", "angry"]` — only the real selections persist.
+      .map((c) => ({ ...c, value: c.value.map((v) => v.trim()).filter((v) => v !== "") }))
+      .filter((c) => c.fromInstanceId && (c.operator === "answered" || c.value.length > 0));
     onSave(clean.length ? { op, clauses: clean } : null);
   };
 

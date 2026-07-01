@@ -119,10 +119,12 @@ export function evaluateClause(answer: unknown, operator: Operator, value: strin
       return av.includes(value[0]);
     case "neq":
       return !av.includes(value[0]);
+    // Ignore empty-string targets defensively: older saved conditions can carry a
+    // stray "" (a builder seed bug fixed 2026-07-01), which must never match.
     case "isAnyOf":
-      return av.some((a) => value.includes(a));
+      return av.some((a) => a !== "" && value.includes(a));
     case "includesAny":
-      return av.some((a) => value.includes(a));
+      return av.some((a) => a !== "" && value.includes(a));
     case "contains":
       return av.some((a) => a.toLowerCase().includes((value[0] ?? "").toLowerCase()));
     case "gt":

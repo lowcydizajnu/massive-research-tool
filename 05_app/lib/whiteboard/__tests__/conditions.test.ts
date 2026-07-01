@@ -41,6 +41,17 @@ describe("social-post reaction conditions", () => {
     expect(evaluateClause(reacted, "answered", [])).toBe(true); // reacted at all
     expect(evaluateClause(noReaction, "answered", [])).toBe(false); // no reaction
   });
+
+  it("a stray empty-string target never matches (older polluted data + no-reaction)", () => {
+    // The builder used to seed value:[""] so a saved reaction condition could be
+    // ["", "angry"]. That must still mean "only angry" — and an unreacted post
+    // (the in-screen reveal's initial state) must stay hidden, not match "".
+    const angry = { liked: true, shared: false, reported: false, reaction: "angry" };
+    const noReaction = { liked: false, shared: false, reported: false };
+    expect(evaluateClause(angry, "isAnyOf", ["", "angry"])).toBe(true);
+    expect(evaluateClause(noReaction, "isAnyOf", ["", "angry"])).toBe(false);
+    expect(evaluateClause({ liked: true, shared: false, reported: false, reaction: "like" }, "isAnyOf", ["", "angry"])).toBe(false);
+  });
 });
 
 describe("evaluateClause", () => {
