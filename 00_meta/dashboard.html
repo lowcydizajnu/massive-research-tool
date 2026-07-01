@@ -1214,6 +1214,10 @@
   ],
   "recentActivity": [
     {
+      "text": "Round 5n — richer Activity bell + Inngest auto-resync (committed, unpushed; no migration). Owner confirmed Inngest's last sync was 25.06 (≈ when notifications stopped) and resynced manually. BELL: the ActivityBell now groups by Today/Yesterday/Earlier, shows a numeric unread badge, tracks PER-ITEM read state (unread tinted + dotted; clicking marks just it read via notifications.markRead + navigates; header 'Mark all read' clears the rest — no more mark-all-on-open), and shows each item's workspace. INNGEST: it only re-registers on manual Resync, a PUT /api/inngest, or the Vercel↔Inngest integration on deploy — none were wired, so every deploy since 25.06 left it on the old serve snapshot. Added a PUT /api/inngest resync step to deploy-verify (reported, non-fatal); recommend the owner connect the Vercel Inngest integration for zero-touch auto-sync. 901 tests; tsc/lint/build/validator clean.",
+      "date": "2026-07-01"
+    },
+    {
       "text": "Round 5m — global notification center in the top nav (committed, unpushed; no migration). Owner asked for a cross-workspace 'What's New' + Activity in the top nav. Both unread states are already user-level / cross-workspace (notifications.* filter by recipientUserId only; announcements use user.lastSeenAnnouncementAt), so no data-model change — pure chrome placement + one new component. New ActivityBell (mirrors the ✨ announcements bell): bell + unread dot from notifications.unreadCount, a slide-out of the caller's recent notifications across every workspace (labelled + linked), opening marks-all-read (seen everywhere), and a 'See all activity →' footer to /activity. Placed both bells in the personal (Home) top bar (previously had neither) and added the ActivityBell to the workspace top bar next to the existing ✨. 901 tests; tsc/lint/build/validator clean.",
       "date": "2026-07-01"
     },

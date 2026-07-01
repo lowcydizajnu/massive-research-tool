@@ -6,16 +6,18 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { api } from "@/lib/trpc/react";
+import { cn } from "@/lib/utils";
 import { LIVE_POLL_MS, useVisibleInterval } from "@/lib/use-visible-interval";
 import type { NotificationDTO } from "@/server/trpc/routers/notifications";
 
 /**
  * Global Activity bell in the top nav (owner request) — a bell with an unread
- * dot that opens a slide-out of the caller's recent notifications ACROSS every
- * workspace (`notifications.*` filters by recipient only, so it's already
- * cross-workspace). Opening marks everything read, so the "seen" state is
- * consistent everywhere — mirrors the ✨ What's-new bell. "See all activity"
- * links to the full destination.
+ * count that opens a slide-out of the caller's notifications ACROSS every
+ * workspace (`notifications.*` filter by recipient only, so already
+ * cross-workspace). Items are grouped by day and carry PER-ITEM read state:
+ * clicking one marks just it read (and navigates); an explicit "Mark all read"
+ * clears the rest. Unread items are visually distinct. Complements the ✨
+ * What's-new bell (product announcements).
  */
 function label(n: NotificationDTO): string {
   const who = n.actorName ?? "Someone";
@@ -64,6 +66,19 @@ function relativeTime(iso: string): string {
   return `${Math.round(hrs / 24)}d ago`;
 }
 
+/** "Today" / "Yesterday" / "Earlier" bucket for a timestamp (local time). */
+function dayBucket(iso: string): "Today" | "Yesterday" | "Earlier" {
+  const d = new Date(iso);
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const t = d.getTime();
+  if (t >= startOfToday) return "Today";
+  if (t >= startOfToday - 86_400_000) return "Yesterday";
+  return "Earlier";
+}
+
+const BUCKET_ORDER = ["Today", "Yesterday", "Earlier"] as const;
+
 export function ActivityBell() {
   const [open, setOpen] = useState(false);
   const unread = api.notifications.unreadCount.useQuery(undefined, {
@@ -72,15 +87,12 @@ export function ActivityBell() {
   });
   const list = api.notifications.list.useQuery(undefined, { enabled: open });
   const utils = api.useUtils();
-  const markAllRead = api.notifications.markAllRead.useMutation({
-    onSuccess: () => utils.notifications.unreadCount.invalidate(),
-  });
-
-  // Opening the panel marks everything read (seen-state is cross-workspace).
-  useEffect(() => {
-    if (open && (unread.data ?? 0) > 0) markAllRead.mutate();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  const refresh = () => {
+    void utils.notifications.unreadCount.invalidate();
+    void utils.notifications.list.invalidate();
+  };
+  const markRead = api.notifications.markRead.useMutation({ onSuccess: refresh });
+  const markAllRead = api.notifications.markAllRead.useMutation({ onSuccess: refresh });
 
   // Esc closes.
   useEffect(() => {
@@ -93,6 +105,15 @@ export function ActivityBell() {
   }, [open]);
 
   const count = unread.data ?? 0;
+  const items = list.data ?? [];
+  const grouped = BUCKET_ORDER.map((b) => ({ bucket: b, rows: items.filter((n) => dayBucket(n.createdAt) === b) })).filter(
+    (g) => g.rows.length > 0,
+  );
+
+  const onItemClick = (n: NotificationDTO) => {
+    if (!n.readAt) markRead.mutate({ id: n.id });
+    setOpen(false);
+  };
 
   return (
     <>
@@ -105,10 +126,9 @@ export function ActivityBell() {
       >
         <Activity className="size-4" aria-hidden />
         {count > 0 ? (
-          <span
-            aria-hidden
-            className="absolute right-1 top-1 size-2 rounded-full bg-[var(--color-primary)] ring-2 ring-[var(--color-surface-panel)]"
-          />
+          <span className="absolute -right-0.5 -top-0.5 flex min-w-4 items-center justify-center rounded-full bg-[var(--color-primary)] px-1 text-[10px] font-semibold leading-4 text-[var(--color-primary-contrast,#fff)] ring-2 ring-[var(--color-surface-panel)]">
+            {count > 9 ? "9+" : count}
+          </span>
         ) : null}
       </button>
 
@@ -123,52 +143,94 @@ export function ActivityBell() {
             if (e.target === e.currentTarget) setOpen(false);
           }}
         >
-          <aside className="flex h-full w-full max-w-sm flex-col gap-4 overflow-y-auto bg-[var(--color-surface-canvas)] p-5 shadow-[var(--shadow-md)]">
+          <aside className="flex h-full w-full max-w-sm flex-col gap-3 overflow-y-auto bg-[var(--color-surface-canvas)] p-5 shadow-[var(--shadow-md)]">
             <div className="flex items-center justify-between">
               <h2 className="font-serif text-[length:var(--text-heading-2)] font-medium text-[var(--color-ink-deep)]">Activity</h2>
-              <button
-                type="button"
-                aria-label="Close"
-                onClick={() => setOpen(false)}
-                className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
-              >
-                <X className="size-4" aria-hidden />
-              </button>
+              <div className="flex items-center gap-2">
+                {count > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => markAllRead.mutate()}
+                    disabled={markAllRead.isPending}
+                    className="text-[length:var(--text-small)] font-medium text-[var(--color-primary)] hover:underline disabled:opacity-60"
+                  >
+                    Mark all read
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  aria-label="Close"
+                  onClick={() => setOpen(false)}
+                  className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+                >
+                  <X className="size-4" aria-hidden />
+                </button>
+              </div>
             </div>
 
             {list.isLoading ? (
               <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">Loading…</p>
-            ) : (list.data?.length ?? 0) === 0 ? (
+            ) : items.length === 0 ? (
               <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
                 Nothing yet — comments, mentions, reviews, and replications of your studies show up here.
               </p>
             ) : (
-              <ul className="flex flex-col gap-1">
-                {list.data!.slice(0, 20).map((n) => {
-                  const href = hrefFor(n);
-                  const body = (
-                    <span className="flex min-w-0 flex-1 flex-col">
-                      <span className="truncate text-[length:var(--text-body)] text-[var(--color-text-primary)]">{label(n)}</span>
-                      <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">{relativeTime(n.createdAt)}</span>
-                    </span>
-                  );
-                  return (
-                    <li key={n.id}>
-                      {href ? (
-                        <Link
-                          href={href}
-                          onClick={() => setOpen(false)}
-                          className="flex items-start gap-2 rounded-[var(--radius-md)] px-2 py-2 hover:bg-[var(--color-surface-subtle)]"
-                        >
-                          {body}
-                        </Link>
-                      ) : (
-                        <div className="flex items-start gap-2 rounded-[var(--radius-md)] px-2 py-2">{body}</div>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
+              <div className="flex flex-col gap-4">
+                {grouped.map((g) => (
+                  <section key={g.bucket} className="flex flex-col gap-1">
+                    <h3 className="px-2 text-[length:var(--text-label)] uppercase tracking-wide text-[var(--color-text-muted)]">
+                      {g.bucket}
+                    </h3>
+                    <ul className="flex flex-col">
+                      {g.rows.map((n) => {
+                        const href = hrefFor(n);
+                        const body = (
+                          <>
+                            <span
+                              aria-hidden
+                              className={cn(
+                                "mt-1.5 size-2 shrink-0 rounded-full",
+                                n.readAt ? "bg-transparent" : "bg-[var(--color-primary)]",
+                              )}
+                            />
+                            <span className="flex min-w-0 flex-1 flex-col">
+                              <span
+                                className={cn(
+                                  "truncate text-[length:var(--text-body)]",
+                                  n.readAt ? "text-[var(--color-text-secondary)]" : "font-medium text-[var(--color-text-primary)]",
+                                )}
+                              >
+                                {label(n)}
+                              </span>
+                              <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                                {relativeTime(n.createdAt)}
+                                {n.workspaceName ? ` · ${n.workspaceName}` : ""}
+                              </span>
+                            </span>
+                          </>
+                        );
+                        const rowCls = cn(
+                          "flex items-start gap-2 rounded-[var(--radius-md)] px-2 py-2",
+                          !n.readAt && "bg-[var(--color-primary-subtle)]/40",
+                        );
+                        return (
+                          <li key={n.id}>
+                            {href ? (
+                              <Link href={href} onClick={() => onItemClick(n)} className={cn(rowCls, "hover:bg-[var(--color-surface-subtle)]")}>
+                                {body}
+                              </Link>
+                            ) : (
+                              <button type="button" onClick={() => onItemClick(n)} className={cn(rowCls, "w-full text-left hover:bg-[var(--color-surface-subtle)]")}>
+                                {body}
+                              </button>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </section>
+                ))}
+              </div>
             )}
 
             <Link

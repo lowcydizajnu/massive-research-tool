@@ -34,6 +34,22 @@ async function probe(base: string, path: string, expectVersion?: string): Promis
   }
 }
 
+/**
+ * Re-register the app's Inngest functions with Inngest Cloud. A PUT to the serve
+ * endpoint is exactly what the "Resync" button and the Vercel integration do —
+ * without it, Inngest keeps calling the OLD deployment's functions, so a deploy
+ * that changed/added a function (or the deployment URL) silently goes stale
+ * (this is what froze notification.fanout in June). Best-effort + reported.
+ */
+async function syncInngest(base: string): Promise<Probe> {
+  try {
+    const res = await fetch(`${base}/api/inngest`, { method: "PUT" });
+    return { path: "/api/inngest (resync)", status: res.status, ok: res.status >= 200 && res.status < 300, note: `${res.status}` };
+  } catch (e) {
+    return { path: "/api/inngest (resync)", status: 0, ok: false, note: String(e).slice(0, 60) };
+  }
+}
+
 function runPlaywright(base: string, specs: string[], env: Record<string, string>): boolean {
   const r = spawnSync("npx", ["playwright", "test", "--project=auth", ...specs], {
     cwd: process.cwd(),
@@ -65,6 +81,11 @@ async function main() {
   ];
   for (const p of smoke) console.log(`  ${p.ok ? "✓" : "✗"} GET ${p.path} — ${p.note}`);
 
+  // 1b. Re-register Inngest functions (keeps background jobs pointed at THIS
+  // deployment — see syncInngest). Non-fatal: reported, doesn't block the gate.
+  const inngest = await syncInngest(base);
+  console.log(`  ${inngest.ok ? "✓" : "✗"} PUT ${inngest.path} — ${inngest.note}`);
+
   // 2 + 3. axe + e2e against the live site.
   const axeOk = runPlaywright(base, ["e2e/a11y-researcher-surfaces.spec.ts"], creds);
   const e2eOk = runPlaywright(
@@ -77,6 +98,7 @@ async function main() {
   const smokeOk = smoke.every((p) => p.ok);
   console.log("\n=== Verify summary ===");
   console.log(`  smoke:    ${smokeOk ? "✓ all 200" : "✗ see above"}`);
+  console.log(`  inngest:  ${inngest.ok ? "✓ resynced" : "✗ resync failed (check manually)"}`);
   console.log(`  axe:      ${axeOk ? "✓ 0 violations" : "✗ violations or run error"}`);
   console.log(`  e2e:      ${e2eOk ? "✓ network + publish-and-run" : "✗ see above"}`);
 
