@@ -1214,6 +1214,10 @@
   ],
   "recentActivity": [
     {
+      "text": "Round 5m — global notification center in the top nav (committed, unpushed; no migration). Owner asked for a cross-workspace 'What's New' + Activity in the top nav. Both unread states are already user-level / cross-workspace (notifications.* filter by recipientUserId only; announcements use user.lastSeenAnnouncementAt), so no data-model change — pure chrome placement + one new component. New ActivityBell (mirrors the ✨ announcements bell): bell + unread dot from notifications.unreadCount, a slide-out of the caller's recent notifications across every workspace (labelled + linked), opening marks-all-read (seen everywhere), and a 'See all activity →' footer to /activity. Placed both bells in the personal (Home) top bar (previously had neither) and added the ActivityBell to the workspace top bar next to the existing ✨. 901 tests; tsc/lint/build/validator clean.",
+      "date": "2026-07-01"
+    },
+    {
       "text": "Round 5l — personal dashboard replication widgets (committed, unpushed; no migration). Two new /home widgets (owner asked for both directions): 'Studies you replicated' (your-replications — your forks across workspaces, each linking back to the original) and 'Replications of your studies' (replications-of-mine — others replicating your work: who + which study + when; informational, no link since the fork is private to its workspace). Two meRouter procedures (myReplications, replicationsOfMine) over the existing fork graph — no schema change — added to WIDGET_REGISTRY + the user default layout and wired into the home widgets. +1 me integration test. 901 tests; tsc/lint/build/validator clean. Still queued (bigger, needs a gate): the cross-workspace notification center — global What's New (existing announcements bell) + a global Activity entry across workspaces.",
       "date": "2026-07-01"
     },

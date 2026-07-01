@@ -1,3 +1,5 @@
+import { ActivityBell } from "@/components/chrome/activity-bell";
+import { AnnouncementsBell } from "@/components/chrome/announcements-bell";
 import { CommandPalette } from "@/components/chrome/command-palette";
 import { UserMenu } from "@/components/chrome/user-menu";
 import { WorkspaceSwitcher } from "@/components/chrome/workspace-switcher";
@@ -26,6 +28,8 @@ export function PersonalTopBar({
       </span>
       <div className="flex-1" />
       <CommandPalette />
+      <ActivityBell />
+      <AnnouncementsBell />
       <UserMenu initials={userInitials} displayName={displayName} email={email} />
     </header>
   );

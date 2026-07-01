@@ -1,3 +1,4 @@
+import { ActivityBell } from "@/components/chrome/activity-bell";
 import { AnnouncementsBell } from "@/components/chrome/announcements-bell";
 import { AutosaveIndicator } from "@/components/chrome/autosave-indicator";
 import { CommandPalette } from "@/components/chrome/command-palette";
@@ -38,6 +39,8 @@ export function TopBar({
       <NewStudyButton variant="topbar" />
 
       <WorkspaceRoleBadge />
+
+      <ActivityBell />
 
       <AnnouncementsBell />
 
