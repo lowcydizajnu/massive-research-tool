@@ -83,7 +83,7 @@ import { protocolText } from "@/server/modules/protocol-text";
 import { decryptSecret } from "@/server/crypto/tokens";
 import { storage } from "@/server/adapters/storage";
 import { runTts, AiBudgetExceededError } from "@/server/runtime/ai-gateway";
-import { applyVisualContext, readTheme, requiresAcknowledgment, resolveSocialPost, socialPostSchema, studyThemeSchema } from "@/lib/themes/themes";
+import { applyVisualContext, readTheme, REACTION_KEYS, requiresAcknowledgment, resolveSocialPost, socialPostSchema, studyThemeSchema } from "@/lib/themes/themes";
 import { sanitizeUiCopy } from "@/lib/take/ui-copy";
 import { resolvePanelIntegration, sanitizePanelIntegration } from "@/lib/take/panel-integration";
 import { diffLines } from "@/lib/diff-lines";
@@ -2634,6 +2634,19 @@ export const studiesRouter = router({
               title: z.string().max(200).optional(),
               showIf: conditionGroupSchema.optional(),
               moduleId: z.string().optional(),
+              // Screen-level interaction gating (ADR-0087).
+              maxTimeSec: z.number().int().min(0).max(3600).optional(),
+              interactionRequirements: z
+                .array(
+                  z.object({
+                    id: z.string(),
+                    type: z.enum(["like", "comment", "report", "share", "any", "likeOrDislike", "reaction"]),
+                    count: z.number().int().min(1).max(50),
+                    reactionKey: z.enum(REACTION_KEYS).optional(),
+                  }),
+                )
+                .max(20)
+                .optional(),
             }),
           )
           .max(50),

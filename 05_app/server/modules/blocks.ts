@@ -58,6 +58,11 @@ export type StudyGroup = {
   /** The custom module this group was inserted from (ADR-0029) — enables
    *  "Update module" vs "Save as new" once the group is edited. */
   moduleId?: string;
+  /** Screen-level interaction gating for social-post groups (ADR-0087). Continue
+   *  stays disabled until every requirement is met — or `maxTimeSec` elapses.
+   *  Absent/empty ⇒ no gate (back-compat). */
+  maxTimeSec?: number;
+  interactionRequirements?: import("@/lib/whiteboard/interaction-requirements").InteractionRequirement[];
 };
 
 /** Read the question-group metadata out of a definition_snapshot. */

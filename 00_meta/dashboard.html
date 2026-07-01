@@ -1214,6 +1214,10 @@
   ],
   "recentActivity": [
     {
+      "text": "Round 5o — social-post group interaction gating: GATE + data layer (committed, unpushed; no migration). Owner wants (from a prior tool) screen-level engagement gating for social-post groups: require N likes/comments/reports/shares/any/like-or-dislike/specific-reaction before Continue unlocks + a per-screen max-time auto-advance, with participant progress chips. Locked: B (requirements) first then #2 (in-screen reveal); all interaction types; whole-group scope. GATE: ADR-0087 (gating on StudyGroup, no new table — rides the snapshot) + wireframe social-post-group-gating.md (validator 254 clean). DATA LAYER: pure client-safe lib/whiteboard/interaction-requirements.ts (types + progress/met/allMet AND-semantics + researcher-native labels; +4 tests); StudyGroup gains maxTimeSec? + interactionRequirements?[]; setGroups Zod accepts them. Inert until UI/runtime slices land. 905 tests; tsc/lint/build/validator clean. Next slices: Configure controls → runtime chips + gated Continue + max-time → e2e; then deploy; then #2.",
+      "date": "2026-07-01"
+    },
+    {
       "text": "Round 5n — richer Activity bell + Inngest auto-resync (committed, unpushed; no migration). Owner confirmed Inngest's last sync was 25.06 (≈ when notifications stopped) and resynced manually. BELL: the ActivityBell now groups by Today/Yesterday/Earlier, shows a numeric unread badge, tracks PER-ITEM read state (unread tinted + dotted; clicking marks just it read via notifications.markRead + navigates; header 'Mark all read' clears the rest — no more mark-all-on-open), and shows each item's workspace. INNGEST: it only re-registers on manual Resync, a PUT /api/inngest, or the Vercel↔Inngest integration on deploy — none were wired, so every deploy since 25.06 left it on the old serve snapshot. Added a PUT /api/inngest resync step to deploy-verify (reported, non-fatal); recommend the owner connect the Vercel Inngest integration for zero-touch auto-sync. 901 tests; tsc/lint/build/validator clean.",
       "date": "2026-07-01"
     },
