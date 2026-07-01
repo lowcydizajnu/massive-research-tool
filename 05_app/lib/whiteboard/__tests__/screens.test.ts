@@ -40,6 +40,15 @@ describe("deriveScreens (ADR-0028)", () => {
     expect(s[0].showIf).toEqual(showIf);
   });
 
+  it("group interaction gating (ADR-0087) is carried onto the screen", () => {
+    const groups: StudyGroup[] = [
+      { id: "g1", maxTimeSec: 30, interactionRequirements: [{ id: "r1", type: "like", count: 2 }] },
+    ];
+    const s = deriveScreens([blk("a", "g1"), blk("b", "g1")], groups);
+    expect(s[0].maxTimeSec).toBe(30);
+    expect(s[0].interactionRequirements).toEqual([{ id: "r1", type: "like", count: 2 }]);
+  });
+
   it("groupId pointing at an unknown group degrades to a single screen", () => {
     const s = deriveScreens([blk("a", "ghost")], []);
     expect(s).toEqual([{ id: "a", kind: "single", title: null, showIf: undefined, blocks: [expect.any(Object)] }]);

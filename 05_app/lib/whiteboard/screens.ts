@@ -1,4 +1,5 @@
 import type { ConditionGroup } from "@/lib/whiteboard/conditions";
+import type { InteractionRequirement } from "@/lib/whiteboard/interaction-requirements";
 import type { BlockInstance, StudyGroup } from "@/server/modules/blocks";
 
 /**
@@ -14,6 +15,9 @@ export type Screen = {
   title: string | null;
   /** Screen-level condition (group's showIf, or the lone block's showIf). */
   showIf?: ConditionGroup;
+  /** Screen-level interaction gating (ADR-0087) — group screens only. */
+  maxTimeSec?: number;
+  interactionRequirements?: InteractionRequirement[];
   blocks: BlockInstance[];
 };
 
@@ -93,7 +97,15 @@ export function deriveScreens(blocks: BlockInstance[], groups: StudyGroup[]): Sc
         i += 1;
       }
       const g = groupById.get(gid)!;
-      screens.push({ id: gid, kind: "group", title: g.title ?? null, showIf: g.showIf, blocks: members });
+      screens.push({
+        id: gid,
+        kind: "group",
+        title: g.title ?? null,
+        showIf: g.showIf,
+        maxTimeSec: g.maxTimeSec,
+        interactionRequirements: g.interactionRequirements,
+        blocks: members,
+      });
     } else {
       screens.push({ id: b.instanceId, kind: "single", title: null, showIf: b.showIf, blocks: [b] });
       i += 1;

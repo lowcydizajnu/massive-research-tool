@@ -3,6 +3,7 @@ import type { Route } from "next";
 import { notFound, redirect } from "next/navigation";
 
 import { BlockView } from "@/components/feature/take/block-view";
+import { InteractionGate } from "@/components/feature/take/interaction-gate";
 import { Card, ScreenHeader } from "@/components/feature/take/parts";
 import { getRuntimeScreen } from "@/server/runtime/participant";
 import { effectivePresetKey, resolveChat } from "@/lib/themes/themes";
@@ -56,6 +57,13 @@ export default async function ScreenPage({
         <input type="hidden" name="studyId" value={studyId} />
         <input type="hidden" name="responseId" value={sessionId} />
         <input type="hidden" name="questionIndex" value={index} />
+        {s.screen.kind === "group" &&
+        ((s.screen.interactionRequirements?.length ?? 0) > 0 || (s.screen.maxTimeSec ?? 0) > 0) ? (
+          <InteractionGate
+            requirements={s.screen.interactionRequirements ?? []}
+            maxTimeSec={s.screen.maxTimeSec ?? 0}
+          />
+        ) : null}
         {s.screen.blocks.map((b) => {
           const prefix = isGroup ? `${b.instanceId}__` : "";
           return (

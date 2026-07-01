@@ -32,6 +32,8 @@ import type { StudyBlock, StudyDetail } from "@/server/trpc/routers/studies";
 
 import { BlockVisibilityField } from "./block-visibility-field";
 import { ConditionsSection } from "./conditions-section";
+import { GroupGatingEditor } from "./group-gating-editor";
+import type { InteractionRequirement } from "@/lib/whiteboard/interaction-requirements";
 import { ConfigureForm } from "./configure-form";
 import { BlockLibraryModal } from "./block-library-modal";
 import { ForkableControl, ReplicateButton, ReplicationsPanel } from "./replications-panel";
@@ -337,6 +339,15 @@ export function BuilderWorkspace({
   const renameGroup = (groupId: string, title: string) => {
     const blocks = study.blocks.map((b) => toInstance(b, b.groupId));
     const groups = study.groups.map((g) => (g.id === groupId ? { ...g, title } : g));
+    setGroupsMut.mutate({ studyId: study.id, blocks, groups });
+  };
+  // Screen-level interaction gating for a social-post group (ADR-0087).
+  const updateGroupGating = (
+    groupId: string,
+    patch: { maxTimeSec?: number; interactionRequirements?: InteractionRequirement[] },
+  ) => {
+    const blocks = study.blocks.map((b) => toInstance(b, b.groupId));
+    const groups = study.groups.map((g) => (g.id === groupId ? { ...g, ...patch } : g));
     setGroupsMut.mutate({ studyId: study.id, blocks, groups });
   };
   // Remove a whole group (the inserted module) from the study — deletes all its
@@ -780,7 +791,9 @@ export function BuilderWorkspace({
                     const gid = id.slice(GH.length);
                     const group = study.groups.find((g) => g.id === gid);
                     const collapsed = collapsedGroups.has(gid);
+                    const groupHasSocialPost = study.blocks.some((b) => b.groupId === gid && b.key === "social-post");
                     return (
+                      <div key={`gh-${gid}`} className="flex flex-col">
                       <div className="mt-2 flex flex-wrap items-center gap-2 rounded-t-[var(--radius-md)] border-l-2 border-[var(--color-primary)] bg-[var(--color-primary-subtle)]/40 px-2 py-1.5">
                         <span
                           ref={handle.ref}
@@ -921,6 +934,15 @@ export function BuilderWorkspace({
                         >
                           <Trash2 className="size-4" aria-hidden />
                         </button>
+                      </div>
+                      {groupHasSocialPost && !collapsed ? (
+                        <GroupGatingEditor
+                          maxTimeSec={group?.maxTimeSec ?? 0}
+                          requirements={group?.interactionRequirements ?? []}
+                          disabled={!canEdit}
+                          onChange={(patch) => updateGroupGating(gid, patch)}
+                        />
+                      ) : null}
                       </div>
                     );
                   }
