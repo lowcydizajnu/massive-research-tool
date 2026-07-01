@@ -4,8 +4,10 @@ import { notFound, redirect } from "next/navigation";
 
 import { BlockView } from "@/components/feature/take/block-view";
 import { InteractionGate } from "@/components/feature/take/interaction-gate";
+import { RevealGate } from "@/components/feature/take/reveal-gate";
 import { Card, ScreenHeader } from "@/components/feature/take/parts";
 import { getRuntimeScreen } from "@/server/runtime/participant";
+import { normalizeCondition } from "@/lib/whiteboard/conditions";
 import { effectivePresetKey, resolveChat } from "@/lib/themes/themes";
 import { formatProgress } from "@/lib/take/ui-copy";
 
@@ -42,6 +44,8 @@ export default async function ScreenPage({
   const errCode = (await searchParams).e;
   const errorMsg = errCode === "answer_required" ? s.uiCopy.requiredError : errCode ? ERROR_COPY[errCode] : null;
   const isGroup = s.screen.blocks.length > 1;
+  // Same-screen sources for in-screen reveal (ADR-0088).
+  const screenBlockIds = new Set(s.screen.blocks.map((b) => b.instanceId));
 
   return (
     <Card>
@@ -66,10 +70,22 @@ export default async function ScreenPage({
         ) : null}
         {s.screen.blocks.map((b) => {
           const prefix = isGroup ? `${b.instanceId}__` : "";
-          return (
-            <div key={b.instanceId}>
+          // In-screen reveal (ADR-0088): if this grouped block's condition targets
+          // a SAME-SCREEN sibling, reveal it live via RevealGate instead of letting
+          // the (ignored) screen gate hide nothing. Cross-screen clauses are handled
+          // by the screen gate as before, so only same-screen clauses go client-side.
+          const cond = isGroup ? normalizeCondition(b.showIf, b.branchRules) : null;
+          const revealClauses = cond ? cond.clauses.filter((c) => screenBlockIds.has(c.fromInstanceId)) : [];
+          const reveal = revealClauses.length ? { op: cond!.op, clauses: revealClauses } : null;
+          const body = (
+            <>
               <input type="hidden" name="blocks" value={`${b.instanceId}|${b.key}|${prefix}`} />
               <BlockView block={b} seed={sessionId} namePrefix={prefix} presetKey={effectivePresetKey(s.theme)} responseId={sessionId} chat={resolveChat(s.theme)} blockCopy={s.blockCopy} social={s.theme.socialPost} />
+            </>
+          );
+          return (
+            <div key={b.instanceId}>
+              {reveal ? <RevealGate condition={reveal}>{body}</RevealGate> : body}
             </div>
           );
         })}

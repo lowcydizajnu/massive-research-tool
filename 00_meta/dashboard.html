@@ -1214,6 +1214,10 @@
   ],
   "recentActivity": [
     {
+      "text": "Round 5r — #2 in-screen conditional reveal (committed, unpushed; no migration). ADR-0088: a grouped block whose showIf targets a same-screen sibling now reveals LIVE, in place (progressive disclosure) instead of the condition being silently ignored — fixes the owner's 'can't condition a block in a group' report and delivers the video-appears-when-you-react flow. New client RevealGate wraps the block: hidden (children unmounted, so a never-revealed required block can't trip validation or record) until the sibling's live state meets the condition, evaluated via the shared evaluateCondition over state reconstructed from the screen form (v1: social-post triggers). Reuses showIf (no new field/migration); cross-screen clauses stay the server screen gate. 906 tests; tsc/lint/build/validator (255) clean. Polish deferred: Builder condition chip/hint on grouped blocks. Next: deploy.",
+      "date": "2026-07-01"
+    },
+    {
       "text": "Round 5q — Report affordance + recording (committed, unpushed; no migration). The FB post gains an opt-in ⚑ Report action (socialPost.actionBar.report, default OFF so existing posts are unchanged; toggle in Design → Social; wording key postReport). The reaction context tracks reported, writes ${np}reported, extractAnswer records reported, the registry responseSchema gains reported?, and export adds a _reported column (shown only when the affordance was used). This makes the report gating requirement fully producible + recorded. 906 tests; tsc/lint/build/validator clean. Next: #2 (same-screen dynamic reveal).",
       "date": "2026-07-01"
     },
