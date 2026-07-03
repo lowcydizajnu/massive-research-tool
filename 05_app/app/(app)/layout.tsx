@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
 import { PostHogProvider } from "@/components/analytics/posthog-provider";
+import { AppFooter } from "@/components/chrome/app-footer";
 import { ViewAsBanner } from "@/components/feature/admin/view-as-banner";
 import { FeedbackWidget } from "@/components/feature/feedback/feedback-widget";
 import { LegalUpdateModal } from "@/components/feature/legal/legal-update-modal";
@@ -39,6 +40,7 @@ export default async function AppLayout({
           <div className="flex min-h-screen flex-col bg-[var(--color-surface-page)]">
             <ViewAsBanner />
             {children}
+            <AppFooter />
           </div>
           <LegalUpdateModal />
           <FeedbackWidget />

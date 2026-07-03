@@ -34,7 +34,7 @@ export function AcceptancesPdfDocument({ data }: { data: AcceptancesPdfData }) {
     <Document title={`Legal acceptances — ${data.email}`}>
       <Page size="A4" style={s.page}>
         <Text style={s.h1}>Record of legal acceptances</Text>
-        <Text style={s.sub}>Massive Research Lab</Text>
+        <Text style={s.sub}>My Research Lab</Text>
         <Text style={s.sub}>
           {data.displayName} ({data.email})
         </Text>

@@ -17,8 +17,8 @@ type Search = { v?: string };
 
 export async function generateMetadata({ params }: { params: Promise<Params> }): Promise<Metadata> {
   const { doc } = await params;
-  if (!isLegalKind(doc)) return { title: "Legal — Massive Research Lab" };
-  return { title: `${LEGAL_TITLES[doc]} — Massive Research Lab` };
+  if (!isLegalKind(doc)) return { title: "Legal — My Research Lab" };
+  return { title: `${LEGAL_TITLES[doc]} — My Research Lab` };
 }
 
 export default async function LegalPage({

@@ -32,9 +32,9 @@ export const LEGAL_TITLES: Record<LegalKind, string> = {
 
 /** In-force version per kind. Bump only after adding the new version entry below. */
 export const CURRENT_LEGAL_VERSION: Record<LegalKind, number> = {
-  terms: 1,
-  privacy: 1,
-  cookies: 1,
+  terms: 2,
+  privacy: 2,
+  cookies: 2,
 };
 
 const TERMS_V1 = `
@@ -223,15 +223,28 @@ Material changes update the version and effective date, and we re-ask for your c
 **privacy@myresearchlab.app**.
 `.trim();
 
+// v2 (2026-07-02): the service was renamed "Massive Research Lab" → "My Research
+// Lab". Derived from the IMMUTABLE v1 bodies via a pure string swap, so v1 stays
+// byte-for-byte as users accepted it (audit-safe, LG1) and only the in-force name
+// changes. This is a material change → CURRENT_LEGAL_VERSION bumps + users re-accept.
+const rebrandLegal = (body: string): string => body.replaceAll("Massive Research Lab", "My Research Lab");
+const TERMS_V2 = rebrandLegal(TERMS_V1);
+const PRIVACY_V2 = rebrandLegal(PRIVACY_V1);
+const COOKIES_V2 = rebrandLegal(COOKIES_V1);
+const RENAME_SUMMARY = "Renamed the service from “Massive Research Lab” to “My Research Lab”. No change to your rights or how we handle data.";
+
 export const LEGAL_CONTENT: Record<LegalKind, Record<number, LegalDoc>> = {
   terms: {
     1: { version: 1, effectiveDate: "2026-06-26", summaryOfChanges: "Initial version", body: TERMS_V1 },
+    2: { version: 2, effectiveDate: "2026-07-02", summaryOfChanges: RENAME_SUMMARY, body: TERMS_V2 },
   },
   privacy: {
     1: { version: 1, effectiveDate: "2026-06-26", summaryOfChanges: "Initial version", body: PRIVACY_V1 },
+    2: { version: 2, effectiveDate: "2026-07-02", summaryOfChanges: RENAME_SUMMARY, body: PRIVACY_V2 },
   },
   cookies: {
     1: { version: 1, effectiveDate: "2026-06-26", summaryOfChanges: "Initial version", body: COOKIES_V1 },
+    2: { version: 2, effectiveDate: "2026-07-02", summaryOfChanges: RENAME_SUMMARY, body: COOKIES_V2 },
   },
 };
 

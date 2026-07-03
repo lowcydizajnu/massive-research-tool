@@ -23,7 +23,7 @@ import { CookieBanner } from "@/components/feature/legal/cookie-banner";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Massive Research Tool",
+  title: "My Research Lab",
   description: "Build studies. Document everything.",
 };
 

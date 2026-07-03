@@ -9,7 +9,7 @@ import { legalAcceptance } from "@/server/db/schema";
 import { getCurrentDbUser } from "@/server/auth/current-db-user";
 import { CURRENT_LEGAL_VERSION, LEGAL_TITLES, isLegalKind } from "@/lib/legal/content";
 
-export const metadata: Metadata = { title: "Your acceptances — Massive Research Lab" };
+export const metadata: Metadata = { title: "Your acceptances — My Research Lab" };
 
 /**
  * Legal-baseline LG4 — /legal/my-acceptances. An authenticated audit trail of

@@ -55,7 +55,7 @@ export function renderEmail(opts: {
       ${cta}
     </div>
     <p style="font-size:12px;color:#8a857a;margin:16px 4px 0">
-      You're receiving this from Massive Research Tool.
+      You're receiving this from My Research Lab.
       <a href="${base}/settings" style="color:#8a857a">Manage email preferences</a>.
     </p>
   </div>

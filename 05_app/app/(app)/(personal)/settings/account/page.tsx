@@ -69,15 +69,8 @@ export default async function AccountSettingsPage({
           <Link href="/settings/workspace" className="text-[var(--color-primary)] hover:opacity-90">
             Workspace settings
           </Link>
-          . See your{" "}
-          <Link href={"/legal/my-acceptances" as Route} className="text-[var(--color-primary)] hover:opacity-90">
-            legal acceptances
-          </Link>{" "}
-          or{" "}
-          <Link href={"/studies?tour=replay" as Route} className="text-[var(--color-primary)] hover:opacity-90">
-            replay the product tour
-          </Link>
-          .
+          . Your legal acceptances and the product-tour replay are in the footer at the
+          bottom of any page.
         </p>
       </div>
 
@@ -126,7 +119,7 @@ export default async function AccountSettingsPage({
             Appearance
           </h2>
           <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-            Choose how Massive Research Lab looks. “System” follows your device setting.
+            Choose how My Research Lab looks. “System” follows your device setting.
           </p>
           <ThemeToggle />
           <div className="mt-2 border-t border-[var(--color-border-subtle)] pt-4">

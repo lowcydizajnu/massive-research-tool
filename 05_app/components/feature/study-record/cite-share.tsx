@@ -27,7 +27,7 @@ export function CiteShare({
   const url = typeof window !== "undefined" ? window.location.href : "";
 
   const citation =
-    `${authorName || "Unknown author"} (${year}). ${title}. Massive Research Lab.` +
+    `${authorName || "Unknown author"} (${year}). ${title}. My Research Lab.` +
     (articleDoi ? ` https://doi.org/${articleDoi}` : url ? ` ${url}` : "");
 
   const copy = async (kind: "cite" | "share", text: string) => {

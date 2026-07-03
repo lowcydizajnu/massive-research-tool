@@ -6,8 +6,8 @@ import type { Metadata } from "next";
  * researcher + participant data is protected. No auth (public route).
  */
 export const metadata: Metadata = {
-  title: "Security — Massive Research Lab",
-  description: "How Massive Research Lab protects researcher and participant data, and how to report a vulnerability.",
+  title: "Security — My Research Lab",
+  description: "How My Research Lab protects researcher and participant data, and how to report a vulnerability.",
 };
 
 const SECTIONS: { heading: string; body: string }[] = [

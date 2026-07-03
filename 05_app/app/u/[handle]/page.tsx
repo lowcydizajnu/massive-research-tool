@@ -22,7 +22,7 @@ export async function generateMetadata({
   const { handle } = await params;
   const api = await getServerApi();
   const p = await api.profile.publicByHandle({ handle }).catch(() => null);
-  return p ? { title: `${p.displayName} — Massive Research Lab` } : { title: "Not found" };
+  return p ? { title: `${p.displayName} — My Research Lab` } : { title: "Not found" };
 }
 
 function initials(name: string): string {

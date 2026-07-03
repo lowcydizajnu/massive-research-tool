@@ -116,7 +116,7 @@ const STEPS: Step[] = [
   {
     target: "body",
     placement: "center",
-    title: "Welcome to Massive Research Lab",
+    title: "Welcome to My Research Lab",
     content: "A quick 30-second tour of where things live. You can skip anytime.",
   },
   {

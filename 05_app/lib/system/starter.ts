@@ -19,7 +19,7 @@ export const SYSTEM_WORKSPACE_ID = "00000000-0000-4000-8000-000000000002";
 /** Stable identity shown as the system account's author name + handle-free email. */
 export const SYSTEM_USER_EXTERNAL_ID = "system-app";
 export const SYSTEM_USER_EMAIL = "system@myresearchlab.app";
-export const SYSTEM_USER_DISPLAY_NAME = "Massive Research Tool";
+export const SYSTEM_USER_DISPLAY_NAME = "My Research Lab";
 export const SYSTEM_WORKSPACE_NAME = "Starter templates";
 export const SYSTEM_WORKSPACE_SLUG = "starter-templates";
 

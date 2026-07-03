@@ -176,7 +176,7 @@ function buildSummary(payload: RegistrationPayload): string {
   return (
     `${payload.summaryPrefix ? `${payload.summaryPrefix}\n\n` : ""}` +
     `${payload.title}\n\n` +
-    `Preregistered from Massive Research Tool (experiment version ${payload.experimentVersionId}).` +
+    `Preregistered from My Research Lab (experiment version ${payload.experimentVersionId}).` +
     link +
     body +
     `\n\n--- Machine-readable design snapshot ---\n${json}`

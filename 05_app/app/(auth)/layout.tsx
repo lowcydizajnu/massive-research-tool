@@ -16,12 +16,12 @@ export default function AuthLayout({
       <header>
         <Link
           href="/"
-          aria-label="Massive Research Tool home"
+          aria-label="My Research Lab home"
           className="inline-flex items-center gap-2"
         >
           <span className="size-2 rounded-full bg-[var(--color-primary)]" />
           <span className="font-serif text-[length:var(--text-heading-2)] font-medium text-[var(--color-ink-deep)]">
-            Massive Research Tool
+            My Research Lab
           </span>
         </Link>
       </header>
