@@ -278,9 +278,15 @@ export const meRouter = router({
 
     const exists = async (q: Promise<unknown[]>): Promise<boolean> => (await q).length > 0;
 
-    const [addedBlock, preregisteredOrPublished, openedRecruitment, firstResults] = ids.length
+    // Steps 2–5 track the researcher's NEWEST study (`latestStudy`), not "any study
+    // ever" (getting-started-checklist.md Slice 2, owner 2026-07-02). This makes the
+    // checklist reflect the study they're actually building — right after the guided
+    // tutorial that's the tutorial study — so e.g. "Open recruitment" no longer reads
+    // done from an old study while they build a new one. Step 1 (createdStudy) stays
+    // lifetime; the account steps (save/invite/OSF) below are lifetime too.
+    const [addedBlock, preregisteredOrPublished, openedRecruitment, firstResults] = latestStudy
       ? await Promise.all([
-          // Any version whose snapshot holds ≥1 block — "they built something",
+          // A version whose snapshot holds ≥1 block — "they built something",
           // even if the draft was later emptied.
           exists(
             db
@@ -288,7 +294,7 @@ export const meRouter = router({
               .from(experimentVersion)
               .where(
                 and(
-                  inArray(experimentVersion.experimentId, ids),
+                  eq(experimentVersion.experimentId, latestStudy.studyId),
                   sql`coalesce(jsonb_array_length(${experimentVersion.definitionSnapshot} -> 'blocks'), 0) > 0`,
                 ),
               )
@@ -300,7 +306,7 @@ export const meRouter = router({
               .from(experimentVersion)
               .where(
                 and(
-                  inArray(experimentVersion.experimentId, ids),
+                  eq(experimentVersion.experimentId, latestStudy.studyId),
                   inArray(experimentVersion.kind, ["preregistered", "published"]),
                 ),
               )
@@ -313,7 +319,7 @@ export const meRouter = router({
               .innerJoin(experimentVersion, eq(recruitmentSession.experimentVersionId, experimentVersion.id))
               .where(
                 and(
-                  inArray(experimentVersion.experimentId, ids),
+                  eq(experimentVersion.experimentId, latestStudy.studyId),
                   // REAL recruitment only — on a runnable (preregistered/published)
                   // version. Preview opens a session on the DRAFT (autosave) version
                   // (studies.ts startPreview → openRecruitment), which must NOT mark
@@ -330,7 +336,7 @@ export const meRouter = router({
               .innerJoin(experimentVersion, eq(response.experimentVersionId, experimentVersion.id))
               .where(
                 and(
-                  inArray(experimentVersion.experimentId, ids),
+                  eq(experimentVersion.experimentId, latestStudy.studyId),
                   eq(response.status, "completed"),
                   eq(response.mode, "run"),
                 ),

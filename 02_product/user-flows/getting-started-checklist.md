@@ -59,11 +59,11 @@ The 8 steps, in order, with their derivation:
 
 | # | Step (researcher-facing copy) | Done when |
 | - | ----------------------------- | --------- |
-| 1 | Create your first study | they author ≥1 study (any path: blank, template, replicate) |
-| 2 | Add your first block | any version of an authored study has ever carried ≥1 block (a later-emptied draft still counts — they built once) |
-| 3 | Preregister or publish | any authored study has a preregistered or published version |
-| 4 | Open recruitment | any authored study has ever had a recruitment session |
-| 5 | See your first results | any authored study has ≥1 completed participant response (real runs only, not previews) |
+| 1 | Create your first study | they author ≥1 study, ever (any path: blank, template, replicate) — lifetime |
+| 2 | Add your first block | **their newest study** has a version carrying ≥1 block (Slice 2: study-steps track the study you're building, not lifetime) |
+| 3 | Preregister or publish | their newest study has a preregistered or published version |
+| 4 | Open recruitment | their newest study has a recruitment session **on a runnable (preregistered/published) version** — a Preview session on the draft doesn't count |
+| 5 | See your first results | their newest study has ≥1 completed participant response (real runs only, not previews) |
 | 6 | Save a study from Browse | they have ≥1 saved study |
 | 7 | Invite a teammate | any workspace they own has ≥2 members (active or invited) |
 | 8 | Connect your OSF account | an OSF connection exists for their account |

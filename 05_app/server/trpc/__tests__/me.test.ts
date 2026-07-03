@@ -182,6 +182,31 @@ describe("me.gettingStarted (Start-here checklist)", () => {
     const s = await caller.me.gettingStarted();
     expect(s.openedRecruitment).toBe(false); // a preview artifact, not real recruitment
   });
+
+  it("study steps track the NEWEST study, not lifetime history (Slice 2)", async () => {
+    const [hanna] = await db.select({ id: user.id }).from(user).where(eq(user.externalId, "hanna"));
+    const [ws] = await db.insert(workspace).values({ name: "Hanna Lab", slug: "hanna-lab", ownerId: hanna.id }).returning();
+    // OLD study: fully built + recruited.
+    const [oldExp] = await db.insert(experiment).values({ tenantId: ws.id, ownerId: hanna.id, title: "Old", updatedAt: new Date("2026-01-01T00:00:00Z") }).returning();
+    const [oldVer] = await db
+      .insert(experimentVersion)
+      .values({ experimentId: oldExp.id, versionNumber: 1, kind: "published", name: "v1", definitionSnapshot: { blocks: [{ instanceId: "b", source: "core", key: "likert-7", version: "1.0.0", config: {} }] }, moduleVersionLocks: {}, createdBy: hanna.id })
+      .returning();
+    await db.insert(recruitmentSession).values({ id: "rs-old", experimentVersionId: oldVer.id, status: "open" });
+    // NEW study: a fresh empty draft (newer updatedAt) — nothing done yet.
+    const [newExp] = await db.insert(experiment).values({ tenantId: ws.id, ownerId: hanna.id, title: "New", updatedAt: new Date("2026-02-01T00:00:00Z") }).returning();
+    await db.insert(experimentVersion).values({ experimentId: newExp.id, versionNumber: 1, kind: "autosave", definitionSnapshot: { blocks: [] }, moduleVersionLocks: {}, createdBy: hanna.id });
+
+    const caller = createCaller({ authUser: authUser("hanna") });
+    const s = await caller.me.gettingStarted();
+    expect(s.createdStudy).toBe(true); // lifetime — they do have studies
+    expect(s.latestStudy?.studyId).toBe(newExp.id); // the newest
+    // Steps 2–5 reflect the NEW empty draft, NOT the old fully-built/recruited study:
+    expect(s.addedBlock).toBe(false);
+    expect(s.preregisteredOrPublished).toBe(false);
+    expect(s.openedRecruitment).toBe(false);
+    expect(s.firstResults).toBe(false);
+  });
 });
 
 describe("me replication widgets (ADR-0018)", () => {
