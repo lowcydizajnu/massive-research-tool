@@ -1027,7 +1027,33 @@ export function BuilderWorkspace({
                           )}
                         />
                       </div>
-                      <div className="flex w-[84px] shrink-0 items-center justify-end">
+                      <div className="flex shrink-0 items-center justify-end gap-0.5">
+                        {/* Per-tile Duplicate + Delete (owner 2026-07-03) — the same
+                            actions as the Configure panel, on the tile itself so they
+                            don't depend on which side the settings panel is on. */}
+                        <button
+                          type="button"
+                          disabled={!canEdit || duplicateBlock.isPending}
+                          onClick={() => duplicateBlock.mutate({ studyId: study.id, instanceId: b.instanceId })}
+                          title={canEdit ? "Duplicate block" : READ_ONLY_TITLE}
+                          aria-label="Duplicate block"
+                          className="rounded-[var(--radius-sm)] p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)] disabled:opacity-40"
+                        >
+                          <Copy className="size-3.5" aria-hidden />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!canEdit}
+                          onClick={() => {
+                            if (selectedId === b.instanceId) setSelectedId(null);
+                            removeBlock.mutate({ studyId: study.id, instanceId: b.instanceId });
+                          }}
+                          title={canEdit ? "Delete block" : READ_ONLY_TITLE}
+                          aria-label="Delete block"
+                          className="rounded-[var(--radius-sm)] p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-danger-subtle)] hover:text-[var(--color-danger-text-on-subtle)] disabled:opacity-40"
+                        >
+                          <Trash2 className="size-3.5" aria-hidden />
+                        </button>
                         {grouped ? (
                           <button
                             type="button"

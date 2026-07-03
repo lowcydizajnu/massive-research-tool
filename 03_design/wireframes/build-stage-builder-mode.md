@@ -63,6 +63,7 @@ Builder/Whiteboard toggle lives in the top-right of the work surface card, pinne
 
 - **Click study title** — title becomes editable input; Esc cancels, blur or Enter commits, autosave fires.
 - **Click block card** — selects it; right panel switches to `Configure` tab for that block; block card gets a `border.medium` outline to indicate selection.
+- **Per-tile Duplicate + Delete** (2026-07-03) — each block row carries inline `Copy` (Duplicate) and `Trash2` (Delete) icon buttons in its right-hand controls, next to the Group/Ungroup control. They call the same mutations as the Configure panel (`duplicateBlock` → copy inserted directly after, selected; `removeBlock` → optimistic, undo-able). On the tile so they don't depend on which side the Configure/settings panel sits (that side is a per-account setting). Hidden/disabled in read-only mode.
 - **Click block status badge (when failing)** — opens a tooltip with the specific schema error; clicking it deep-links to the offending field in the right panel.
 - **Drag a block** — reorder; autosave fires; other blocks animate to new positions.
 - **`+ Add block`** — opens a module picker (popover or modal — TBD by wireframe pass).

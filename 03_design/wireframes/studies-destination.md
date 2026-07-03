@@ -51,7 +51,7 @@ Sub-nav for Studies (All / Mine / Drafts / Preregistered / Published / Replicati
 - **Workspace chip** — opens workspace switcher popover (Linear-style per IA v0.3).
 - **Sub-nav tab** — filters the list; updates URL query; preserves sort.
 - **Study card click** — navigates to the study at its current stage (usually Build for drafts; Run or Results for live studies).
-- **Study card hover** — shows action affordances on the card (right-side chevron menu: Open, Star, Duplicate, Archive).
+- **Study card ⋯ actions menu** (2026-07-03) — a `MoreHorizontal` button in the card's top-right (always visible; above the card's full-surface overlay link so its clicks don't navigate) opens the shared `StudyActionsMenu` — the same menu as the focused study top bar: Export summary (PDF), Export data, **Duplicate study** (a clean same-workspace copy, "(copy)" title, lands on the copy's builder), **Archive / Unarchive**, and **Delete study…** (typed-title confirm). Owner-safety is server-enforced (delete needs the study author or a workspace owner/admin).
 - **Tag filter** — multi-select; chips appear above the list when active.
 
 ## Edge cases

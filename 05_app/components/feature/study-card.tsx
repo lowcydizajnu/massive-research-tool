@@ -1,10 +1,14 @@
 import Link from "next/link";
 
+import { StudyActionsMenu } from "@/components/chrome/study-actions-menu";
 import type { StudyListItem, StudyStage } from "@/server/trpc/routers/studies";
 
 /**
  * Study card for the Studies destination list. Links to the study's Build
- * stage (the three-zone Builder, ADR-0011).
+ * stage (the three-zone Builder, ADR-0011), with a ⋯ actions menu (Duplicate /
+ * Archive / Delete + exports) in the top-right — the same menu as the focused
+ * top bar (study-actions-menu.tsx). The card is a full-surface overlay link; the
+ * menu sits above it (relative z-10) so its clicks don't navigate.
  *
  * Stage badge encoding per studies-destination.md (token .subtle washes with
  * dark-on-subtle text; the full token only on the status dot).
@@ -45,10 +49,14 @@ function formatEdited(iso: string): string {
 export function StudyCard({ study }: { study: StudyListItem }) {
   const stage = STAGE_STYLES[study.stage];
   return (
-    <Link
-      href={`/studies/${study.id}/build`}
-      className="flex items-start justify-between gap-3 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-4 transition-colors hover:border-[var(--color-border-medium)] hover:bg-[var(--color-surface-subtle)]"
-    >
+    <div className="relative flex items-start justify-between gap-3 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-4 transition-colors hover:border-[var(--color-border-medium)] hover:bg-[var(--color-surface-subtle)]">
+      {/* Full-surface overlay link — clicking anywhere but the badges/menu opens
+          the builder. The menu (relative z-10) paints above it. */}
+      <Link
+        href={`/studies/${study.id}/build`}
+        aria-label={`Open ${study.title}`}
+        className="absolute inset-0 rounded-[var(--radius-md)]"
+      />
       <div className="min-w-0">
         <h3 className="truncate font-serif text-[17px] font-medium text-[var(--color-text-primary)]">
           {study.title}
@@ -82,7 +90,11 @@ export function StudyCard({ study }: { study: StudyListItem }) {
           <span className="size-1.5 rounded-full" style={{ backgroundColor: stage.dot }} />
           {stage.label}
         </span>
+        {/* Above the overlay link so its own clicks/menu don't navigate. */}
+        <span className="relative z-10">
+          <StudyActionsMenu studyId={study.id} />
+        </span>
       </span>
-    </Link>
+    </div>
   );
 }

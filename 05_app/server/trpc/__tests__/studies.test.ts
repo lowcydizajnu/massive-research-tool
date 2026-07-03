@@ -2859,3 +2859,43 @@ describe("studies finished lifecycle (ADR-0054)", () => {
     expect(exp.tenantId).toBe(sofiaSeed.workspace.id);
   });
 });
+
+describe("studies.duplicate (same-workspace clean copy, ADR-0018)", () => {
+  it("copies the design into the same workspace with a fresh id, a '(copy)' title, and no replication lineage", async () => {
+    const seed = await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "Original" });
+    const { instanceId } = await caller.studies.addBlock({
+      studyId: id,
+      source: "core",
+      key: "social-post",
+      version: "1.0.0",
+    });
+    await caller.studies.setBlockTitle({ studyId: id, instanceId, title: "Post A" });
+
+    const { id: copyId } = await caller.studies.duplicate({ studyId: id });
+    expect(copyId).not.toBe(id);
+
+    const copy = await caller.studies.get({ id: copyId });
+    expect(copy.title).toBe("Original (copy)");
+    expect(copy.blocks).toHaveLength(1);
+    expect(copy.blocks[0].instanceId).not.toBe(instanceId); // fresh, independent id
+    expect(copy.blocks[0].title).toBe("Post A");
+
+    // Lands in the SAME workspace, shows in the list, and is NOT a replication.
+    const [copyExp] = await db.select().from(experiment).where(eq(experiment.id, copyId));
+    expect(copyExp.tenantId).toBe(seed.workspace.id);
+    expect(copyExp.forkOfExperimentId).toBeNull();
+    const list = await caller.studies.list({ filter: "all", sort: "recent" });
+    expect(list.some((s) => s.id === copyId)).toBe(true);
+  });
+
+  it("a non-member cannot duplicate a private study", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const a = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await a.studies.create({ kind: "blank", title: "Private" });
+    await seedUserWithWorkspace("ext_b", "Beta");
+    const b = createCaller({ authUser: authUser("ext_b") });
+    await expect(b.studies.duplicate({ studyId: id })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+});

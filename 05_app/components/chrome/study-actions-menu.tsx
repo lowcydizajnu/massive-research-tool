@@ -1,6 +1,6 @@
 "use client";
 
-import { MoreHorizontal, Archive, ArchiveRestore, FileDown, Table, Trash2 } from "lucide-react";
+import { MoreHorizontal, Archive, ArchiveRestore, Copy, FileDown, Table, Trash2 } from "lucide-react";
 import Link from "next/link";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
@@ -27,19 +27,39 @@ export function StudyActionsMenu({ studyId }: { studyId: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const utils = api.useUtils();
-  const study = api.studies.get.useQuery({ id: studyId });
+  // Title/archived are only needed once the menu (or delete dialog) is open — gating
+  // the query keeps a whole LIST of these menus from each firing a studies.get.
+  const study = api.studies.get.useQuery({ id: studyId }, { enabled: open || confirmingDelete });
   const archived = !!study.data?.archivedAt;
   const title = study.data?.title ?? "";
 
   // Counts for the confirm dialog (only while it's open).
   const preflight = api.studies.deleteStudyPreflight.useQuery({ studyId }, { enabled: confirmingDelete });
 
-  const archive = api.studies.archive.useMutation({ onSuccess: () => router.push("/studies") });
+  const archive = api.studies.archive.useMutation({
+    onSuccess: () => {
+      // Works from the builder top bar (navigates to the list) AND from the list
+      // itself (a same-route push is a no-op, so refresh revalidates the RSC list
+      // so the just-archived study drops out).
+      router.push("/studies");
+      router.refresh();
+    },
+  });
   const unarchive = api.studies.unarchive.useMutation({
-    onSuccess: () => void utils.studies.get.invalidate({ id: studyId }),
+    onSuccess: () => {
+      void utils.studies.get.invalidate({ id: studyId });
+      router.refresh();
+    },
+  });
+  // Duplicate → a clean same-workspace copy; land on the copy's builder to iterate.
+  const duplicate = api.studies.duplicate.useMutation({
+    onSuccess: ({ id }) => router.push(`/studies/${id}/build` as Route),
   });
   const del = api.studies.deleteStudy.useMutation({
-    onSuccess: () => router.push("/studies"),
+    onSuccess: () => {
+      router.push("/studies");
+      router.refresh();
+    },
     onError: (e) => setDelErr(e.message),
   });
 
@@ -107,6 +127,19 @@ export function StudyActionsMenu({ studyId }: { studyId: string }) {
             Export data
           </Link>
           <div className="my-1 border-t border-[var(--color-border-subtle)]" aria-hidden />
+          <button
+            type="button"
+            role="menuitem"
+            className={itemCls}
+            disabled={duplicate.isPending}
+            onClick={() => {
+              setOpen(false);
+              duplicate.mutate({ studyId });
+            }}
+          >
+            <Copy className="size-4 text-[var(--color-text-muted)]" aria-hidden />
+            {duplicate.isPending ? "Duplicating…" : "Duplicate study"}
+          </button>
           {archived ? (
             <button type="button" role="menuitem" className={itemCls} onClick={() => { setOpen(false); unarchive.mutate({ studyId }); }}>
               <ArchiveRestore className="size-4 text-[var(--color-text-muted)]" aria-hidden />

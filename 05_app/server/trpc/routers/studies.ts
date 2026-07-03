@@ -6018,6 +6018,85 @@ export const studiesRouter = router({
       return { id: newId };
     }),
 
+  /**
+   * Duplicate a study within the CURRENT workspace (⋯ menu on the Studies list +
+   * the focused top bar). A clean, independent copy — fresh block/group ids with
+   * remapped showIf references, NO replication lineage (unlike `fork`), title
+   * suffixed "(copy)". Same-workspace duplication is iteration, not a scientific
+   * replication (ADR-0018); `loadForkSource` gates on workspace membership and
+   * pins the study's runnable-or-draft version.
+   */
+  duplicate: writeProcedure
+    .input(z.object({ studyId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }): Promise<{ id: string }> => {
+      const source = await loadForkSource(input.studyId, ctx.dbUser.id);
+      const blocks = readBlocks(source.version.definitionSnapshot);
+      const groups = readGroups(source.version.definitionSnapshot).map(({ moduleId: _m, ...g }) => g);
+      const overview = readOverview(source.version.definitionSnapshot);
+      const theme = readTheme(source.version.definitionSnapshot);
+      const consent = readConsent(source.version.definitionSnapshot);
+      // Fresh identities (mirrors useAsTemplate): new instanceIds + group ids, with
+      // groupId and showIf.fromInstanceId references remapped to match.
+      const idMap = new Map(blocks.map((b) => [b.instanceId, ulid()]));
+      const groupMap = new Map(groups.map((g) => [g.id, ulid()]));
+      const freshBlocks = blocks.map((b) => ({
+        ...b,
+        instanceId: idMap.get(b.instanceId)!,
+        ...(b.groupId ? { groupId: groupMap.get(b.groupId) ?? b.groupId } : {}),
+        ...(b.showIf
+          ? {
+              showIf: {
+                ...b.showIf,
+                clauses: b.showIf.clauses.map((c) => ({
+                  ...c,
+                  fromInstanceId: idMap.get(c.fromInstanceId) ?? c.fromInstanceId,
+                })),
+              },
+            }
+          : {}),
+      }));
+      const freshGroups = groups.map((g) => ({ ...g, id: groupMap.get(g.id)! }));
+      const sourceConditions = await conditionsForVersion(source.version.id);
+
+      const newId = await db.transaction(async (tx) => {
+        const [exp] = await tx
+          .insert(experiment)
+          .values({
+            tenantId: ctx.workspace.id, // the copy stays in the current workspace
+            ownerId: ctx.dbUser.id,
+            title: `${source.experiment.title} (copy)`,
+            tags: source.experiment.tags ?? null,
+          })
+          .returning();
+        const [ver] = await tx
+          .insert(experimentVersion)
+          .values({
+            experimentId: exp.id,
+            versionNumber: 0,
+            kind: "autosave",
+            definitionSnapshot: { blocks: freshBlocks, groups: freshGroups, overview, theme, consent },
+            moduleVersionLocks: locksFromBlocks(freshBlocks),
+            createdBy: ctx.dbUser.id,
+          })
+          .returning();
+        await tx.update(experiment).set({ currentVersionId: ver.id }).where(eq(experiment.id, exp.id));
+        if (sourceConditions.length) {
+          await tx.insert(conditionTable).values(
+            sourceConditions.map((c) => ({
+              id: ulid(),
+              experimentVersionId: ver.id,
+              slug: c.slug,
+              name: c.name,
+              allocationWeight: String(c.allocationWeight),
+              position: c.position,
+            })),
+          );
+        }
+        return exp.id;
+      });
+      return { id: newId };
+    }),
+
   /** Reverse of archive (ADR-0037 companion — the reversible path). */
   unarchive: writeProcedure
     .input(z.object({ studyId: z.string().uuid() }))
