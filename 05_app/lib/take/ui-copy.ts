@@ -20,7 +20,16 @@ export type UiCopyKey =
   | "requiredError"
   | "progressLabel"
   | "thankYouTitle"
-  | "thankYouBody";
+  | "thankYouBody"
+  // Interaction-requirement chip labels (ADR-0087 am.) — the summary a participant
+  // sees on a gated social-post screen. Chrome-style (real defaults; blank → default).
+  | "reqLike"
+  | "reqComment"
+  | "reqReport"
+  | "reqShare"
+  | "reqAny"
+  | "reqLikeDislike"
+  | "reqReact";
 
 export const UI_COPY_DEFAULTS: Record<UiCopyKey, string> = {
   continueButton: "Continue",
@@ -30,6 +39,13 @@ export const UI_COPY_DEFAULTS: Record<UiCopyKey, string> = {
   progressLabel: "Page {n} of {total}",
   thankYouTitle: "Thank you",
   thankYouBody: "Your responses have been recorded.",
+  reqLike: "Like",
+  reqComment: "Comment",
+  reqReport: "Report",
+  reqShare: "Share",
+  reqAny: "Any interaction",
+  reqLikeDislike: "Like or Dislike",
+  reqReact: "React",
 };
 
 /** Block-internal strings (no fixed default — blank = the block's native text).
@@ -121,6 +137,20 @@ export const WORDING_GROUPS: WordingGroup[] = [
       { key: "postComment", label: "Comment label", native: true },
       { key: "postCommentPlaceholder", label: "Comment box placeholder", native: true },
       { key: "postReport", label: "Report label", native: true },
+    ],
+  },
+  {
+    title: "Interaction requirements",
+    requiresBlockKey: "social-post",
+    note: "The chips a participant sees on a gated social-post screen (e.g. rename “Like” → “Polub”). Blank = the default.",
+    fields: [
+      { key: "reqLike", label: "“Like” requirement" },
+      { key: "reqComment", label: "“Comment” requirement" },
+      { key: "reqReport", label: "“Report” requirement" },
+      { key: "reqShare", label: "“Share” requirement" },
+      { key: "reqAny", label: "“Any interaction” requirement" },
+      { key: "reqLikeDislike", label: "“Like or Dislike” requirement" },
+      { key: "reqReact", label: "“React” requirement", help: "The verb; the reaction name (Love, Wow…) is appended." },
     ],
   },
   {

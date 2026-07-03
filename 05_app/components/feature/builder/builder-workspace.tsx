@@ -352,7 +352,7 @@ export function BuilderWorkspace({
   // Screen-level interaction gating for a social-post group (ADR-0087).
   const updateGroupGating = (
     groupId: string,
-    patch: { maxTimeSec?: number; interactionRequirements?: InteractionRequirement[] },
+    patch: { maxTimeSec?: number; interactionRequirements?: InteractionRequirement[]; showRequirementSummary?: boolean },
   ) => {
     const blocks = study.blocks.map((b) => toInstance(b, b.groupId));
     const groups = study.groups.map((g) => (g.id === groupId ? { ...g, ...patch } : g));
@@ -947,6 +947,7 @@ export function BuilderWorkspace({
                         <GroupGatingEditor
                           maxTimeSec={group?.maxTimeSec ?? 0}
                           requirements={group?.interactionRequirements ?? []}
+                          showRequirementSummary={group?.showRequirementSummary ?? true}
                           disabled={!canEdit}
                           onChange={(patch) => updateGroupGating(gid, patch)}
                         />

@@ -2678,6 +2678,8 @@ export const studiesRouter = router({
                 )
                 .max(20)
                 .optional(),
+              // Show the requirement chips to participants (ADR-0087 am.).
+              showRequirementSummary: z.boolean().optional(),
             }),
           )
           .max(50),

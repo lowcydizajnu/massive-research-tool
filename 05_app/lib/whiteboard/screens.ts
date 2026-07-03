@@ -18,6 +18,9 @@ export type Screen = {
   /** Screen-level interaction gating (ADR-0087) — group screens only. */
   maxTimeSec?: number;
   interactionRequirements?: InteractionRequirement[];
+  /** Show the requirement chips to the participant (ADR-0087 am.). Undefined ⇒
+   *  true (the gate still enforces either way; this is just the visible summary). */
+  showRequirementSummary?: boolean;
   blocks: BlockInstance[];
 };
 
@@ -104,6 +107,7 @@ export function deriveScreens(blocks: BlockInstance[], groups: StudyGroup[]): Sc
         showIf: g.showIf,
         maxTimeSec: g.maxTimeSec,
         interactionRequirements: g.interactionRequirements,
+        showRequirementSummary: g.showRequirementSummary,
         blocks: members,
       });
     } else {

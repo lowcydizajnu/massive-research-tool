@@ -104,3 +104,28 @@ Continue unlocks. Empty list + `maxTimeSec=0` ⇒ no gate (full back-compat).
   (`ReactionGroup` interaction state), the `[data-take-continue]` contract
   (`force-watch-video.tsx`, `forced-wait-input.tsx`).
 - Wireframe: `03_design/wireframes/social-post-group-gating.md`.
+
+## Amendment (2026-07-03) — participant summary: toggle, restyle, wording
+
+Three owner-requested refinements to the participant-facing requirement summary
+(the chip bar), all riding the snapshot (no migration):
+
+1. **Show/hide toggle.** `StudyGroup` gains `showRequirementSummary?: boolean`
+   (absent ⇒ true). A "Show these requirements to participants" checkbox in the
+   `GroupGatingEditor` sets it; `deriveScreens` carries it onto the `Screen`; the
+   take page passes it to `InteractionGate`. When off, the chip bar doesn't render
+   but the gate **still enforces** Continue (the effects are unchanged) — a
+   researcher can hide the "why is Continue disabled" hint if they want a covert
+   gate.
+2. **Compact restyle.** The chips became one tight row (chips + a `⏱ mm:ss`
+   countdown on the right), emoji-led per requirement type (`REQUIREMENT_EMOJI`),
+   with a subtle fill and an emerald ✓ fill when met — instead of the old
+   full-width `○ Label n/N` stack.
+3. **Translatable labels.** The chip labels are now editable in the **Wording**
+   section. Seven chrome-style `UiCopyKey`s (`reqLike`, `reqComment`, `reqReport`,
+   `reqShare`, `reqAny`, `reqLikeDislike`, `reqReact`) with English defaults + a
+   "Interaction requirements" `WORDING_GROUP` (shown when the study has a
+   social-post block). `requirementLabel(req, copy?)` takes the resolved `uiCopy`
+   and a set override wins (e.g. "Like" → "Polub"); the take page passes `s.uiCopy`.
+   This keeps the labels design-system-native AND localizable (owner ran a Polish
+   study). No new per-group copy store — reuses the existing `uiCopy` chrome layer.

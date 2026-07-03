@@ -69,6 +69,8 @@ export default async function ScreenPage({
           <InteractionGate
             requirements={s.screen.interactionRequirements ?? []}
             maxTimeSec={s.screen.maxTimeSec ?? 0}
+            showSummary={s.screen.showRequirementSummary !== false}
+            labels={s.uiCopy}
           />
         ) : null}
         {s.screen.blocks.map((b) => {

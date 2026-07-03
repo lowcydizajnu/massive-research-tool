@@ -84,6 +84,18 @@ expiry, Continue enables + the screen auto-advances.
 - Countdown uses `aria-live="polite"` sparingly (announce at coarse intervals, not every second).
 - Requirement rows: labelled selects/inputs; the trash button has an aria-label.
 
+## Amendment (2026-07-03) — participant summary polish (ADR-0087 am.)
+
+- **Builder:** a "Show these requirements to participants" checkbox in the group's
+  Interaction-requirements editor (default on). Off = the chip bar is hidden but
+  Continue is still gated.
+- **Participant chip bar:** one tight row — emoji-led chips (`👍 Like 1/1`, subtle
+  fill; emerald + ✓ when met) with a compact `⏱ mm:ss` countdown on the right —
+  instead of the old stacked `○ Label n/N` list.
+- **Wording:** the chip labels (Like / Comment / Report / Share / Any interaction /
+  Like-or-Dislike / React) are editable in Design → Wording under "Interaction
+  requirements", so they translate (e.g. → Polub / Skomentuj). Blank = the default.
+
 ## Open questions
 
 - Should a "specific reaction" requirement auto-imply that reaction is enabled on

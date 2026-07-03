@@ -4,6 +4,7 @@ import {
   allRequirementsMet,
   anyInteractionTotal,
   EMPTY_TALLY,
+  requirementEmoji,
   requirementLabel,
   requirementMet,
   requirementProgress,
@@ -47,5 +48,20 @@ describe("interaction requirements (ADR-0087)", () => {
     expect(requirementLabel({ id: "1", type: "likeOrDislike", count: 1 })).toBe("Like or Dislike");
     expect(requirementLabel({ id: "2", type: "any", count: 1 })).toBe("Any interaction");
     expect(requirementLabel({ id: "3", type: "reaction", count: 1, reactionKey: "wow" })).toBe("React Wow");
+  });
+
+  it("labels are translatable via uiCopy overrides; blank falls back (ADR-0087 am.)", () => {
+    const copy = { reqLike: "Polub", reqComment: "  ", reqReact: "Zareaguj" };
+    expect(requirementLabel({ id: "1", type: "like", count: 1 }, copy)).toBe("Polub");
+    // Blank/whitespace override → default.
+    expect(requirementLabel({ id: "2", type: "comment", count: 1 }, copy)).toBe("Comment");
+    // Reaction verb is overridden; the reaction name is appended.
+    expect(requirementLabel({ id: "3", type: "reaction", count: 1, reactionKey: "wow" }, copy)).toBe("Zareaguj Wow");
+  });
+
+  it("each requirement type has a chip emoji", () => {
+    for (const type of ["like", "comment", "report", "share", "any", "likeOrDislike", "reaction"] as const) {
+      expect(requirementEmoji({ id: type, type, count: 1 })).toBeTruthy();
+    }
   });
 });

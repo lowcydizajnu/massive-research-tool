@@ -36,13 +36,19 @@ const fieldCls =
 export function GroupGatingEditor({
   maxTimeSec,
   requirements,
+  showRequirementSummary,
   disabled,
   onChange,
 }: {
   maxTimeSec: number;
   requirements: InteractionRequirement[];
+  showRequirementSummary: boolean;
   disabled: boolean;
-  onChange: (patch: { maxTimeSec?: number; interactionRequirements?: InteractionRequirement[] }) => void;
+  onChange: (patch: {
+    maxTimeSec?: number;
+    interactionRequirements?: InteractionRequirement[];
+    showRequirementSummary?: boolean;
+  }) => void;
 }) {
   const setReqs = (next: InteractionRequirement[]) => onChange({ interactionRequirements: next });
   const patchReq = (id: string, p: Partial<InteractionRequirement>) =>
@@ -77,6 +83,18 @@ export function GroupGatingEditor({
           className={`w-20 ${fieldCls}`}
         />
         <span className="text-[var(--color-text-muted)]">seconds (0 = no limit; on expiry the participant auto-advances)</span>
+      </label>
+
+      {/* Show the requirement chips to participants (ADR-0087 am.). Off hides the
+          top summary; the gate still enforces Continue. */}
+      <label className="flex items-center gap-2 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+        <input
+          type="checkbox"
+          checked={showRequirementSummary}
+          onChange={(e) => onChange({ showRequirementSummary: e.target.checked })}
+          className="size-4 accent-[var(--color-primary)]"
+        />
+        Show these requirements to participants
       </label>
 
       {/* Requirement rows. */}

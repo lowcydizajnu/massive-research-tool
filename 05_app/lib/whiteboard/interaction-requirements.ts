@@ -104,23 +104,45 @@ const REACTION_LABEL: Record<ReactionKey, string> = {
   angry: "Angry",
 };
 
-/** Researcher-native chip/label text (design-rules vocabulary — never dev keys). */
-export function requirementLabel(req: InteractionRequirement): string {
+/** Emoji shown on the participant chip per requirement type (ADR-0087 am.). */
+export const REQUIREMENT_EMOJI: Record<InteractionRequirementType, string> = {
+  like: "👍",
+  comment: "💬",
+  report: "🚩",
+  share: "🔁",
+  any: "✨",
+  likeOrDislike: "👍👎",
+  reaction: "😀",
+};
+
+/** The type emoji for a requirement's chip. */
+export function requirementEmoji(req: InteractionRequirement): string {
+  return REQUIREMENT_EMOJI[req.type] ?? "•";
+}
+
+/** Researcher-native chip/label text (design-rules vocabulary — never dev keys).
+ *  `copy` is a study's resolved UI copy (uiCopy); a set override wins over the
+ *  default so labels are translatable (e.g. "Like" → "Polub", ADR-0087 am.). */
+export function requirementLabel(req: InteractionRequirement, copy?: Partial<Record<string, string>>): string {
+  const c = (key: string, dflt: string) => {
+    const v = copy?.[key];
+    return typeof v === "string" && v.trim() ? v.trim() : dflt;
+  };
   switch (req.type) {
     case "like":
-      return "Like";
+      return c("reqLike", "Like");
     case "comment":
-      return "Comment";
+      return c("reqComment", "Comment");
     case "report":
-      return "Report";
+      return c("reqReport", "Report");
     case "share":
-      return "Share";
+      return c("reqShare", "Share");
     case "likeOrDislike":
-      return "Like or Dislike";
+      return c("reqLikeDislike", "Like or Dislike");
     case "any":
-      return "Any interaction";
+      return c("reqAny", "Any interaction");
     case "reaction":
-      return req.reactionKey ? `React ${REACTION_LABEL[req.reactionKey]}` : "React";
+      return req.reactionKey ? `${c("reqReact", "React")} ${REACTION_LABEL[req.reactionKey]}` : c("reqReact", "React");
     default:
       return "Interaction";
   }

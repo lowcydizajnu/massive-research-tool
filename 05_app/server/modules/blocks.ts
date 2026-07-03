@@ -63,6 +63,8 @@ export type StudyGroup = {
    *  Absent/empty ⇒ no gate (back-compat). */
   maxTimeSec?: number;
   interactionRequirements?: import("@/lib/whiteboard/interaction-requirements").InteractionRequirement[];
+  /** Show the requirement chips to participants (ADR-0087 am.). Absent ⇒ true. */
+  showRequirementSummary?: boolean;
 };
 
 /** Read the question-group metadata out of a definition_snapshot. */
