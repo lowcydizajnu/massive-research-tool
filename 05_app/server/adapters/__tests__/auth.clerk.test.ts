@@ -54,6 +54,7 @@ describe("getCurrentUser", () => {
       displayName: "Hanna Kowalczyk",
       avatarUrl: "https://img.example/x.png",
       hasCompletedOnboarding: true,
+      dismissedGettingStarted: false,
     });
   });
 

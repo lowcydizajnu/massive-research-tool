@@ -30,6 +30,11 @@ export interface AuthUser {
   avatarUrl: string | null;
   /** Whether the user has finished the `signup-and-onboard` flow (theme + workspace). */
   hasCompletedOnboarding: boolean;
+  /** Whether the user dismissed the "Start here" onboarding card (ADR-0045 am.).
+   *  Surfaced on the identity so the dashboards can decide server-side whether to
+   *  render the card — no flash, no client Clerk read. Read from the same
+   *  publicMetadata `getCurrentUser` already fetches (no extra call). */
+  dismissedGettingStarted?: boolean;
 }
 
 export interface AuthSession {
@@ -74,6 +79,13 @@ export interface AuthUserMetadata {
    * ids (see `lib/feature-tips.ts`).
    */
   dismissedFeatureTips?: string[];
+  /**
+   * Whether the user dismissed the "Start here" getting-started card (the pinned
+   * onboarding checklist, ADR-0045 am. 2026-07-02). Stored in publicMetadata —
+   * same cross-device rationale as `hasSeenTour` — so the card also stops showing
+   * once every step is complete (derived), whichever comes first.
+   */
+  dismissedGettingStarted?: boolean;
 }
 
 export interface AuthAdapter {

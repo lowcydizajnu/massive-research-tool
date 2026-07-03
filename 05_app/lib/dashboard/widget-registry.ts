@@ -17,7 +17,6 @@ export type DashboardKind = "user" | "workspace";
 export type WidgetKey =
   // user dashboard (/home)
   | "welcome"
-  | "getting-started"
   | "your-stats"
   | "recruiting-studies"
   | "workspaces-card"
@@ -80,15 +79,6 @@ export const WIDGET_REGISTRY: Record<WidgetKey, WidgetMeta> = {
     description: "Greeting + a one-line summary of your studies.",
     category: "personal",
     size: "full",
-    dashboard: "user",
-    defaultInLayout: true,
-  },
-  "getting-started": {
-    key: "getting-started",
-    name: "Start here",
-    description: "Your first steps — each ticks itself off as you go.",
-    category: "personal",
-    size: "medium",
     dashboard: "user",
     defaultInLayout: true,
   },
@@ -266,12 +256,11 @@ export const WIDGET_REGISTRY: Record<WidgetKey, WidgetMeta> = {
   },
 };
 
-/** Default order for a brand-new user's personal dashboard. "Start here" sits
- *  right under the greeting (owner 2026-07-01) — the first card a new account
- *  sees; users with a saved layout add it from Customize. */
+/** Default order for a brand-new user's personal dashboard. (The getting-started
+ *  checklist is NOT a widget — it's a pinned card above the grid on both
+ *  dashboards, ADR-0045 am. 2026-07-02, so a saved layout can't hide it.) */
 export const USER_DASHBOARD_DEFAULT_LAYOUT: WidgetKey[] = [
   "welcome",
-  "getting-started",
   "your-stats",
   "recruiting-studies",
   "workspaces-card",

@@ -85,3 +85,36 @@ The owner asked for a "fully flexible grid — drag & drop on the actual layout 
 - **Why a span control, not corner-drag resize:** a click target is reliable + accessible; RGL's corner-drag is exactly what misbehaved. Order is the array order (drag-reorder), so there's no separate x/y to store — the data stays tiny and there are no fixed heights to clip content.
 - **What's retired:** the masonry CSS (`columns-*`) and the flat `SortableList` edit mode. The Add-widget palette, settings gear, custom widgets, workspace-default, and the resolver/precedence all carry over — a custom widget is just another grid item.
 - **Lock-in:** none new — the grid uses `@dnd-kit` (already inventoried) + plain CSS. **Why not keep the flat-list edit:** the owner explicitly rejected it ("not a flat list") — editing is on the actual grid.
+
+## Amendment (2026-07-02) — the getting-started checklist is a pinned card, NOT a widget
+
+The "Start here" onboarding checklist was first built (2026-07-01) as an optional
+`getting-started` **widget** in the user default layout. That was wrong for its job:
+because "the user's saved layout wins" (the core precedence rule above), any account
+that had ever customized its dashboard — including the owner's — silently dropped the
+newly-added default widget and never saw it. Onboarding must reach exactly the users
+who've configured the least and the most.
+
+**Decision:** the checklist is a **pinned card rendered above the grid on BOTH
+dashboards** (personal `/home` and workspace `/dashboard`), outside the widget/layout
+system entirely. It shows whenever the checklist is incomplete (state derived
+server-side by `me.gettingStarted`) **and** the user hasn't dismissed it. Dismissal is
+the card's own **×** → `dismissedGettingStarted` in Clerk `publicMetadata` (cross-device,
+same mechanism as the tour's `hasSeenTour`), resolved SERVER-side onto the identity
+(`AuthUser.dismissedGettingStarted`, from the publicMetadata `getCurrentUser` already
+fetches — no extra Clerk call) so a dismissed card never renders (no flash). The `getting-started` **widget key was removed** from the registry +
+default layout (the resolver already drops unknown keys, so any layout that had added it
+is forward-compatibly cleaned).
+
+Step routing never navigates to `/studies` (which auto-runs the first-run tour): "Create
+your first study" and — while the user still has no study — the study-dependent steps all
+open the **New-study modal** (`useNewStudy`); once a study exists those steps deep-link
+into it via `openStudyAction` (which switches the active workspace, so it is correct
+across multiple workspaces). Community steps link to Browse / Team / Settings.
+
+**Why not force it into the grid at index 0:** injecting a non-removable, non-draggable
+item into the dnd-kit sortable while special-casing its dismiss-vs-remove semantics is
+more surface than an onboarding aid warrants; a pinned card above the grid is the same
+pattern the tour + feature-tips already use (shown-until-done/dismissed, layout-independent).
+**Lock-in:** none — the dismiss flag is read server-side via the `AuthAdapter`; the card
+uses no Clerk client hook. No migration.

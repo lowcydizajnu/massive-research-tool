@@ -16,9 +16,10 @@ basics (save, invite, connect OSF), and can jump straight to the next undone ste
 
 - Signed in, signup wizard finished (`hasCompletedOnboarding`), at least one
   workspace resolves.
-- The **Start here** widget is present on the personal Home dashboard — first in
-  the default layout for accounts without a saved layout; users with a saved
-  layout add it from Customize.
+- The **Start here** card is a **pinned card above the widget grid on both the
+  personal Home (`/home`) and workspace (`/dashboard`) dashboards** (ADR-0045 am.
+  2026-07-02) — NOT a customizable widget, so a saved layout can't hide it. It
+  shows whenever the checklist is incomplete and the user hasn't dismissed it.
 
 ## Postconditions
 
@@ -33,16 +34,19 @@ basics (save, invite, connect OSF), and can jump straight to the next undone ste
    tabs navigation after landing on Studies post-signup.)
 2. The **Start here** card lists 8 steps with live done/undone states and a
    "N of 8 done" progress line. System derives each state server-side on page load.
-3. Researcher clicks the first undone step (e.g. **Create your first study**);
-   the link routes to the surface where the action happens (Studies, the study's
-   Build / Run / Results tabs, Browse, Team, or Settings → Connections).
+3. Researcher clicks the first undone step. **Create your first study** — and,
+   while no study exists yet, every study-dependent step — opens the **New-study
+   modal** (creating a study is the real prerequisite; nothing routes to /studies,
+   so the first-run tour never re-fires). Once a study exists, the study steps
+   deep-link into it (switching the active workspace if it lives elsewhere).
+   Community steps link to Browse / Team / Settings.
 4. Researcher performs the action there (covered by that surface's own flow —
    see Out of scope).
-5. Next visit to Home, the step reads done; the progress line advances. No
+5. Next dashboard visit, the step reads done; the progress line advances. No
    storage is written — the state is recomputed from the database each time.
-6. When all 8 read done, the card header switches to a short "You're all set"
-   line; the researcher removes the widget via **Customize** whenever they wish
-   (it stays available in the add-widget bar).
+6. When all 8 read done, the card **stops showing**. The researcher can also
+   dismiss it anytime with the card's **×** (persisted cross-device); dismissed or
+   complete, it's gone from both dashboards.
 
 The 8 steps, in order, with their derivation:
 
@@ -67,8 +71,9 @@ The 8 steps, in order, with their derivation:
     they create a workspace and invite someone. Acceptable: the copy says
     "Invite a teammate", which is still a real next step for them.
 - **Decision:** researcher finds the card noisy.
-  - **Path A:** remove via Customize (persisted in their saved layout);
-    re-addable from the add-widget bar; reset-to-default restores it.
+  - **Path A:** click the card's **×** — hides it on both dashboards and persists
+    `dismissedGettingStarted` (cross-device). There is no re-add affordance by
+    design; dismissal is intentional and final for that account.
 
 ## Failure modes
 
@@ -76,9 +81,10 @@ The 8 steps, in order, with their derivation:
   **System response:** the widget shows the standard per-widget error card
   (widget errors are isolated; the rest of Home renders).
   **Recovery:** reload; no state is lost because none is stored.
-- **Trigger:** a user with a saved dashboard layout never sees the widget.
-  **System response:** none (by design — user overrides win).
-  **Recovery:** Customize → add **Start here**.
+- **Trigger:** a user with a saved dashboard layout.
+  **System response:** the card still shows — it's pinned above the grid,
+  independent of the saved layout (the whole point of ADR-0045 am. 2026-07-02).
+  **Recovery:** n/a.
 
 ## Out of scope
 
@@ -87,7 +93,8 @@ The 8 steps, in order, with their derivation:
 - The first-run coachmark tour, empty-state CTAs, and one-time feature tips —
   deliberately separate aids per [first-run-orientation](first-run-orientation.md);
   this checklist is the fourth aid and must not add overlays: it is a passive
-  card on Home only, never a popup, never on /studies.
+  pinned card on the two dashboards, never a popup, never on /studies (whose
+  create actions it triggers via the New-study modal instead).
 - Any AI/chat assistant — explicitly deferred; would require its own ADR.
 
 ## Open questions

@@ -57,6 +57,7 @@ function readMetadata(publicMetadata: unknown): AuthUserMetadata {
     out.hasCompletedOnboarding = m.hasCompletedOnboarding;
   }
   if (typeof m.hasSeenTour === "boolean") out.hasSeenTour = m.hasSeenTour;
+  if (typeof m.dismissedGettingStarted === "boolean") out.dismissedGettingStarted = m.dismissedGettingStarted;
   if (Array.isArray(m.dismissedFeatureTips)) {
     out.dismissedFeatureTips = m.dismissedFeatureTips.filter((t): t is string => typeof t === "string");
   }
@@ -72,6 +73,9 @@ function toAuthUser(u: ClerkUser): AuthUser {
     hasCompletedOnboarding:
       (u.publicMetadata as Record<string, unknown> | undefined)
         ?.hasCompletedOnboarding === true,
+    dismissedGettingStarted:
+      (u.publicMetadata as Record<string, unknown> | undefined)
+        ?.dismissedGettingStarted === true,
   };
 }
 

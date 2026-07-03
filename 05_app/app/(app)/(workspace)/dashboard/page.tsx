@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { DashboardGrid } from "@/components/feature/dashboard/dashboard-grid";
+import { GettingStartedCard } from "@/components/feature/onboarding/getting-started-card";
 import { LiveRefresh } from "@/components/feature/live-refresh";
 import {
   ActiveRecruitmentWidget,
@@ -11,6 +12,7 @@ import {
   WidgetError,
   WorkspaceHeader,
 } from "@/components/feature/dashboard/workspace/dashboard-widgets";
+import { auth } from "@/server/adapters/auth";
 import { getServerApi } from "@/server/trpc/server";
 
 /**
@@ -39,6 +41,13 @@ export default async function WorkspaceDashboardPage() {
     ]),
   ]);
   const [stats, recruiting, recent, activity, topTags, recentForks] = settled;
+  // The getting-started card is cross-workspace (personal progress) and pinned
+  // above the grid on both dashboards (ADR-0045 am.); a failure just hides it.
+  // `dismissed` is resolved server-side (no client flash) from the same identity.
+  const [gettingStarted, currentUser] = await Promise.all([
+    api.me.gettingStarted().catch(() => null),
+    auth.getCurrentUser(),
+  ]);
 
   // Per-widget settings (ADR-0045): cap a list to the widget's resolved itemCount.
   const limitFor = (key: string): number | undefined => {
@@ -95,6 +104,9 @@ export default async function WorkspaceDashboardPage() {
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-4">
       <LiveRefresh />
+      {gettingStarted ? (
+        <GettingStartedCard state={gettingStarted} dismissed={currentUser?.dismissedGettingStarted ?? false} />
+      ) : null}
       <DashboardGrid
         kind="workspace"
         workspaceId={active.id}

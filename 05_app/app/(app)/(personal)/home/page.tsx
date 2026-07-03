@@ -2,10 +2,10 @@ import type { ReactNode } from "react";
 
 import { PersonalTabs } from "@/components/chrome/personal-tabs";
 import { DashboardGrid } from "@/components/feature/dashboard/dashboard-grid";
+import { GettingStartedCard } from "@/components/feature/onboarding/getting-started-card";
 import { LiveRefresh } from "@/components/feature/live-refresh";
 import {
   FollowsFeedWidget,
-  GettingStartedWidget,
   MentionsWidget,
   NotificationsWidget,
   QuickActionsWidget,
@@ -75,12 +75,6 @@ export default async function HomePage() {
 
   const nodes: Record<string, ReactNode> = {
     welcome: <WelcomeWidget greeting={greeting(new Date().getHours(), user?.displayName ?? "")} summary={summary} />,
-    "getting-started":
-      gettingStarted.status === "fulfilled" ? (
-        <GettingStartedWidget state={gettingStarted.value} />
-      ) : (
-        <WidgetError title="Start here" />
-      ),
     "your-stats": stats.status === "fulfilled" ? <StatsStrip stats={stats.value} /> : <WidgetError title="Your stats" />,
     "recruiting-studies":
       recruiting.status === "fulfilled" ? (
@@ -142,6 +136,9 @@ export default async function HomePage() {
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-4">
       <LiveRefresh />
+      {gettingStarted.status === "fulfilled" ? (
+        <GettingStartedCard state={gettingStarted.value} dismissed={user?.dismissedGettingStarted ?? false} />
+      ) : null}
       <DashboardGrid kind="user" layout={layout} nodes={nodes} headerLeft={<PersonalTabs />} />
     </main>
   );
