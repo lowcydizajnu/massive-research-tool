@@ -207,6 +207,69 @@ describe("me.gettingStarted (Start-here checklist)", () => {
     expect(s.openedRecruitment).toBe(false);
     expect(s.firstResults).toBe(false);
   });
+
+  it("workspace-scoped: a fresh workspace resets study/team steps but account setup carries over", async () => {
+    const [hanna] = await db.select({ id: user.id }).from(user).where(eq(user.externalId, "hanna"));
+    // Workspace A — fully built + recruited + results, plus a pending teammate invite.
+    const [wsA] = await db.insert(workspace).values({ name: "Lab A", slug: "lab-a", ownerId: hanna.id }).returning();
+    const [expA] = await db.insert(experiment).values({ tenantId: wsA.id, ownerId: hanna.id, title: "A study" }).returning();
+    const [verA] = await db
+      .insert(experimentVersion)
+      .values({ experimentId: expA.id, versionNumber: 1, kind: "published", name: "v1", definitionSnapshot: { blocks: [{ instanceId: "b1", source: "core", key: "likert-7", version: "1.0.0", config: {} }] }, moduleVersionLocks: {}, createdBy: hanna.id })
+      .returning();
+    await db.insert(recruitmentSession).values({ id: "rsA", experimentVersionId: verA.id, status: "open" });
+    await db.insert(condition).values({ id: "cA", experimentVersionId: verA.id, slug: "control", name: "Control", position: 0 });
+    await db.insert(response).values({ id: "respA", recruitmentSessionId: "rsA", experimentVersionId: verA.id, conditionId: "cA", mode: "run", status: "completed" });
+    await db.insert(member).values({ workspaceId: wsA.id, userId: null, role: "editor", status: "invited", invitedEmail: "ada@e.com" });
+    // Account-level setup: a saved study + an OSF connection (no workspace column).
+    await db.insert(savedRecord).values({ id: "svA", userId: hanna.id, experimentId: expA.id });
+    await db.insert(registry).values({ id: "reg-osf", key: "osf", name: "OSF" });
+    await db.insert(registryConnection).values({ id: "rcA", userId: hanna.id, registryId: "reg-osf", accessToken: "enc" });
+    // Workspace B — brand-new and empty.
+    const [wsB] = await db.insert(workspace).values({ name: "Lab B", slug: "lab-b", ownerId: hanna.id }).returning();
+
+    const caller = createCaller({ authUser: authUser("hanna") });
+
+    // Scoped to the EMPTY workspace B: study + team steps read undone; the two
+    // account-setup steps still read done ("account setup carries over", owner 2026-07-03).
+    const b = await caller.me.gettingStarted({ workspaceId: wsB.id });
+    expect(b).toEqual({
+      createdStudy: false,
+      addedBlock: false,
+      preregisteredOrPublished: false,
+      openedRecruitment: false,
+      firstResults: false,
+      savedStudy: true,
+      invitedTeammate: false,
+      connectedOsf: true,
+      latestStudy: null,
+    });
+
+    // Scoped to the BUSY workspace A: its own study + team steps are done.
+    const a = await caller.me.gettingStarted({ workspaceId: wsA.id });
+    expect(a.createdStudy).toBe(true);
+    expect(a.addedBlock).toBe(true);
+    expect(a.preregisteredOrPublished).toBe(true);
+    expect(a.openedRecruitment).toBe(true);
+    expect(a.firstResults).toBe(true);
+    expect(a.invitedTeammate).toBe(true);
+    expect(a.latestStudy?.studyId).toBe(expA.id);
+
+    // Account-wide (/home, no workspaceId): sees the newest study across workspaces.
+    const home = await caller.me.gettingStarted();
+    expect(home.createdStudy).toBe(true);
+    expect(home.invitedTeammate).toBe(true);
+    expect(home.latestStudy?.studyId).toBe(expA.id);
+  });
+
+  it("rejects probing a workspace the caller doesn't belong to", async () => {
+    await db.insert(user).values({ externalId: "mallory", email: "mallory@e.com", displayName: "Mallory" });
+    const [mallory] = await db.select({ id: user.id }).from(user).where(eq(user.externalId, "mallory"));
+    const [malloryWs] = await db.insert(workspace).values({ name: "Mallory Lab", slug: "mallory-lab", ownerId: mallory.id }).returning();
+
+    const caller = createCaller({ authUser: authUser("hanna") });
+    await expect(caller.me.gettingStarted({ workspaceId: malloryWs.id })).rejects.toThrow(/not a member/i);
+  });
 });
 
 describe("me replication widgets (ADR-0018)", () => {

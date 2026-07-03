@@ -1,6 +1,7 @@
 "use client";
 
 import { Plus } from "lucide-react";
+import { unstable_rethrow } from "next/navigation";
 import { useState } from "react";
 
 import { switchWorkspaceAction } from "@/app/actions/switch-workspace";
@@ -26,6 +27,9 @@ export function NewWorkspaceButton() {
       // Server action sets the active-workspace cookie and redirects to /dashboard.
       await switchWorkspaceAction(id);
     } catch (e) {
+      // The redirect() throws a NEXT_REDIRECT control-flow signal — let it propagate
+      // so the navigation happens rather than surfacing as a fake error message.
+      unstable_rethrow(e);
       setError(e instanceof Error ? e.message : "Couldn’t create the workspace.");
     }
   }

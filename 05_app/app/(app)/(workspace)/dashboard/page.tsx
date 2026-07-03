@@ -41,11 +41,12 @@ export default async function WorkspaceDashboardPage() {
     ]),
   ]);
   const [stats, recruiting, recent, activity, topTags, recentForks] = settled;
-  // The getting-started card is cross-workspace (personal progress) and pinned
-  // above the grid on both dashboards (ADR-0045 am.); a failure just hides it.
-  // `dismissed` is resolved server-side (no client flash) from the same identity.
+  // The getting-started card is pinned above the grid on both dashboards (ADR-0045
+  // am.); a failure just hides it. `dismissed` is resolved server-side (no client
+  // flash) from the same identity. On the workspace dashboard the study/team steps
+  // are scoped to THIS workspace (owner 2026-07-03) — pass its id.
   const [gettingStarted, currentUser] = await Promise.all([
-    api.me.gettingStarted().catch(() => null),
+    api.me.gettingStarted({ workspaceId: active.id }).catch(() => null),
     auth.getCurrentUser(),
   ]);
 

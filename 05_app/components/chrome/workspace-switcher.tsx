@@ -2,6 +2,7 @@
 
 import { Check, ChevronDown, Home, Plus } from "lucide-react";
 import Link from "next/link";
+import { unstable_rethrow } from "next/navigation";
 import { useState } from "react";
 
 import { switchWorkspaceAction } from "@/app/actions/switch-workspace";
@@ -39,6 +40,10 @@ export function WorkspaceSwitcher({
       const { id } = await create.mutateAsync({ name: name.trim() });
       await switchWorkspaceAction(id); // sets the active cookie + redirects
     } catch (e) {
+      // switchWorkspaceAction's redirect() throws a NEXT_REDIRECT control-flow signal
+      // (not a real error) — let it propagate so the navigation happens, instead of
+      // rendering "NEXT_REDIRECT" as a failure message in the dialog.
+      unstable_rethrow(e);
       setCreateErr(e instanceof Error ? e.message : "Couldn’t create the workspace.");
     }
   }

@@ -1,3 +1,4 @@
+import { TRPCError } from "@trpc/server";
 import { and, count, desc, eq, inArray, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 import { z } from "zod";
 
@@ -256,146 +257,187 @@ export const meRouter = router({
     };
   }),
 
-  /** "Start here" checklist for the Home widget (getting-started-checklist.md).
+  /** "Start here" checklist for the onboarding card (getting-started-checklist.md).
    *  Existence probes only (limit 1), same authored-studies basis + demo filter
-   *  as stats so the checklist never disagrees with the KPIs beside it. */
-  gettingStarted: protectedProcedure.query(async ({ ctx }): Promise<GettingStartedState> => {
-    const authored = await db
-      .select({ id: experiment.id, workspaceId: experiment.tenantId })
-      .from(experiment)
-      .innerJoin(workspace, eq(experiment.tenantId, workspace.id))
-      .where(
-        and(
-          eq(experiment.ownerId, ctx.dbUser.id),
-          isNull(experiment.archivedAt),
-          crossWorkspaceDemoStudyCondition(),
-          ctx.isImpersonating ? eq(workspace.supportAccessEnabled, true) : undefined,
-        ),
-      )
-      .orderBy(desc(experiment.updatedAt));
-    const ids = authored.map((a) => a.id);
-    const latestStudy = authored[0] ? { studyId: authored[0].id, workspaceId: authored[0].workspaceId } : null;
-
-    const exists = async (q: Promise<unknown[]>): Promise<boolean> => (await q).length > 0;
-
-    // Steps 2–5 track the researcher's NEWEST study (`latestStudy`), not "any study
-    // ever" (getting-started-checklist.md Slice 2, owner 2026-07-02). This makes the
-    // checklist reflect the study they're actually building — right after the guided
-    // tutorial that's the tutorial study — so e.g. "Open recruitment" no longer reads
-    // done from an old study while they build a new one. Step 1 (createdStudy) stays
-    // lifetime; the account steps (save/invite/OSF) below are lifetime too.
-    const [addedBlock, preregisteredOrPublished, openedRecruitment, firstResults] = latestStudy
-      ? await Promise.all([
-          // A version whose snapshot holds ≥1 block — "they built something",
-          // even if the draft was later emptied.
-          exists(
-            db
-              .select({ id: experimentVersion.id })
-              .from(experimentVersion)
-              .where(
-                and(
-                  eq(experimentVersion.experimentId, latestStudy.studyId),
-                  sql`coalesce(jsonb_array_length(${experimentVersion.definitionSnapshot} -> 'blocks'), 0) > 0`,
-                ),
-              )
-              .limit(1),
-          ),
-          exists(
-            db
-              .select({ id: experimentVersion.id })
-              .from(experimentVersion)
-              .where(
-                and(
-                  eq(experimentVersion.experimentId, latestStudy.studyId),
-                  inArray(experimentVersion.kind, ["preregistered", "published"]),
-                ),
-              )
-              .limit(1),
-          ),
-          exists(
-            db
-              .select({ id: recruitmentSession.id })
-              .from(recruitmentSession)
-              .innerJoin(experimentVersion, eq(recruitmentSession.experimentVersionId, experimentVersion.id))
-              .where(
-                and(
-                  eq(experimentVersion.experimentId, latestStudy.studyId),
-                  // REAL recruitment only — on a runnable (preregistered/published)
-                  // version. Preview opens a session on the DRAFT (autosave) version
-                  // (studies.ts startPreview → openRecruitment), which must NOT mark
-                  // this step done. Mirrors the study dashboard's RUNNABLE_KINDS filter.
-                  inArray(experimentVersion.kind, ["preregistered", "published"]),
-                ),
-              )
-              .limit(1),
-          ),
-          exists(
-            db
-              .select({ id: response.id })
-              .from(response)
-              .innerJoin(experimentVersion, eq(response.experimentVersionId, experimentVersion.id))
-              .where(
-                and(
-                  eq(experimentVersion.experimentId, latestStudy.studyId),
-                  eq(response.status, "completed"),
-                  eq(response.mode, "run"),
-                ),
-              )
-              .limit(1),
-          ),
-        ])
-      : [false, false, false, false];
-
-    const [savedStudy, invitedTeammate, connectedOsf] = await Promise.all([
-      exists(db.select({ id: savedRecord.id }).from(savedRecord).where(eq(savedRecord.userId, ctx.dbUser.id)).limit(1)),
-      // "Invited a teammate" = a workspace the caller OWNS has another member row
-      // (active or still-pending invite), demo teammates excluded (ADR-0023).
-      exists(
-        db
-          .select({ id: member.id })
-          .from(member)
-          .innerJoin(workspace, eq(member.workspaceId, workspace.id))
+   *  as stats so the checklist never disagrees with the KPIs beside it.
+   *
+   *  Scope depends on the surface:
+   *   • workspace /dashboard passes `workspaceId` → the study + team steps are scoped
+   *     to THAT workspace, so a brand-new empty workspace reads mostly-undone (owner
+   *     2026-07-03: "a fresh space shouldn't show half the boxes already ticked").
+   *   • personal /home passes nothing → account-wide (cross-workspace), as before.
+   *  The two account-setup steps (savedStudy, connectedOsf) are ALWAYS account-level —
+   *  saves have no workspace column and OSF is a per-researcher-global connection — so
+   *  they legitimately stay ticked in a fresh workspace ("account setup carries over"). */
+  gettingStarted: protectedProcedure
+    .input(z.object({ workspaceId: z.string().uuid().optional() }).optional())
+    .query(async ({ ctx, input }): Promise<GettingStartedState> => {
+      const workspaceId = input?.workspaceId;
+      if (workspaceId) {
+        // Only the owner or an active member may probe a workspace's progress. During
+        // View-as also require support access (ADR-0082). The owner is allowed even if
+        // an owner member row is somehow absent, so the card never wrongly vanishes.
+        const [allowed] = await db
+          .select({ id: workspace.id })
+          .from(workspace)
+          .leftJoin(
+            member,
+            and(
+              eq(member.workspaceId, workspace.id),
+              eq(member.userId, ctx.dbUser.id),
+              eq(member.status, "active"),
+              isNull(member.removedAt),
+            ),
+          )
           .where(
             and(
-              eq(workspace.ownerId, ctx.dbUser.id),
-              eq(member.isDemo, false),
-              isNull(member.removedAt),
-              or(isNull(member.userId), ne(member.userId, ctx.dbUser.id)),
-              // ADR-0082: during View-as, don't derive even a boolean from a
-              // workspace that disabled support access (parity with stats).
+              eq(workspace.id, workspaceId),
+              or(eq(workspace.ownerId, ctx.dbUser.id), isNotNull(member.id)),
               ctx.isImpersonating ? eq(workspace.supportAccessEnabled, true) : undefined,
             ),
           )
-          .limit(1),
-      ),
-      exists(
-        db
-          .select({ id: registryConnection.id })
-          .from(registryConnection)
-          .innerJoin(registry, eq(registryConnection.registryId, registry.id))
-          .where(
-            and(
-              eq(registryConnection.userId, ctx.dbUser.id),
-              eq(registry.key, "osf"),
-              isNull(registryConnection.revokedAt),
-            ),
-          )
-          .limit(1),
-      ),
-    ]);
+          .limit(1);
+        if (!allowed) throw new TRPCError({ code: "FORBIDDEN", message: "You're not a member of this workspace." });
+      }
 
-    return {
-      createdStudy: ids.length > 0,
-      addedBlock,
-      preregisteredOrPublished,
-      openedRecruitment,
-      firstResults,
-      savedStudy,
-      invitedTeammate,
-      connectedOsf,
-      latestStudy,
-    };
-  }),
+      const authored = await db
+        .select({ id: experiment.id, workspaceId: experiment.tenantId })
+        .from(experiment)
+        .innerJoin(workspace, eq(experiment.tenantId, workspace.id))
+        .where(
+          and(
+            eq(experiment.ownerId, ctx.dbUser.id),
+            isNull(experiment.archivedAt),
+            crossWorkspaceDemoStudyCondition(),
+            // Scope to one workspace on /dashboard; account-wide on /home.
+            workspaceId ? eq(experiment.tenantId, workspaceId) : undefined,
+            ctx.isImpersonating ? eq(workspace.supportAccessEnabled, true) : undefined,
+          ),
+        )
+        .orderBy(desc(experiment.updatedAt));
+      const ids = authored.map((a) => a.id);
+      const latestStudy = authored[0] ? { studyId: authored[0].id, workspaceId: authored[0].workspaceId } : null;
+
+      const exists = async (q: Promise<unknown[]>): Promise<boolean> => (await q).length > 0;
+
+      // Steps 2–5 track the researcher's NEWEST study (`latestStudy`) — the study
+      // they're actually building. When scoped (workspaceId set), `latestStudy` is the
+      // newest study IN THIS WORKSPACE, so a fresh workspace's study steps read undone;
+      // right after the guided tutorial that's the tutorial study. Step 1 (createdStudy)
+      // is "any study in scope"; the account steps (save/OSF) below stay lifetime.
+      const [addedBlock, preregisteredOrPublished, openedRecruitment, firstResults] = latestStudy
+        ? await Promise.all([
+            // A version whose snapshot holds ≥1 block — "they built something",
+            // even if the draft was later emptied.
+            exists(
+              db
+                .select({ id: experimentVersion.id })
+                .from(experimentVersion)
+                .where(
+                  and(
+                    eq(experimentVersion.experimentId, latestStudy.studyId),
+                    sql`coalesce(jsonb_array_length(${experimentVersion.definitionSnapshot} -> 'blocks'), 0) > 0`,
+                  ),
+                )
+                .limit(1),
+            ),
+            exists(
+              db
+                .select({ id: experimentVersion.id })
+                .from(experimentVersion)
+                .where(
+                  and(
+                    eq(experimentVersion.experimentId, latestStudy.studyId),
+                    inArray(experimentVersion.kind, ["preregistered", "published"]),
+                  ),
+                )
+                .limit(1),
+            ),
+            exists(
+              db
+                .select({ id: recruitmentSession.id })
+                .from(recruitmentSession)
+                .innerJoin(experimentVersion, eq(recruitmentSession.experimentVersionId, experimentVersion.id))
+                .where(
+                  and(
+                    eq(experimentVersion.experimentId, latestStudy.studyId),
+                    // REAL recruitment only — on a runnable (preregistered/published)
+                    // version. Preview opens a session on the DRAFT (autosave) version
+                    // (studies.ts startPreview → openRecruitment), which must NOT mark
+                    // this step done. Mirrors the study dashboard's RUNNABLE_KINDS filter.
+                    inArray(experimentVersion.kind, ["preregistered", "published"]),
+                  ),
+                )
+                .limit(1),
+            ),
+            exists(
+              db
+                .select({ id: response.id })
+                .from(response)
+                .innerJoin(experimentVersion, eq(response.experimentVersionId, experimentVersion.id))
+                .where(
+                  and(
+                    eq(experimentVersion.experimentId, latestStudy.studyId),
+                    eq(response.status, "completed"),
+                    eq(response.mode, "run"),
+                  ),
+                )
+                .limit(1),
+            ),
+          ])
+        : [false, false, false, false];
+
+      const [savedStudy, invitedTeammate, connectedOsf] = await Promise.all([
+        exists(db.select({ id: savedRecord.id }).from(savedRecord).where(eq(savedRecord.userId, ctx.dbUser.id)).limit(1)),
+        // "Invited a teammate": scoped (/dashboard) → THIS workspace has another member
+        // row; account (/home) → any workspace the caller OWNS does. Active or pending
+        // invite; demo teammates excluded (ADR-0023).
+        exists(
+          db
+            .select({ id: member.id })
+            .from(member)
+            .innerJoin(workspace, eq(member.workspaceId, workspace.id))
+            .where(
+              and(
+                workspaceId ? eq(member.workspaceId, workspaceId) : eq(workspace.ownerId, ctx.dbUser.id),
+                eq(member.isDemo, false),
+                isNull(member.removedAt),
+                or(isNull(member.userId), ne(member.userId, ctx.dbUser.id)),
+                // ADR-0082: during View-as, don't derive even a boolean from a
+                // workspace that disabled support access (parity with stats).
+                ctx.isImpersonating ? eq(workspace.supportAccessEnabled, true) : undefined,
+              ),
+            )
+            .limit(1),
+        ),
+        exists(
+          db
+            .select({ id: registryConnection.id })
+            .from(registryConnection)
+            .innerJoin(registry, eq(registryConnection.registryId, registry.id))
+            .where(
+              and(
+                eq(registryConnection.userId, ctx.dbUser.id),
+                eq(registry.key, "osf"),
+                isNull(registryConnection.revokedAt),
+              ),
+            )
+            .limit(1),
+        ),
+      ]);
+
+      return {
+        createdStudy: ids.length > 0,
+        addedBlock,
+        preregisteredOrPublished,
+        openedRecruitment,
+        firstResults,
+        savedStudy,
+        invitedTeammate,
+        connectedOsf,
+        latestStudy,
+      };
+    }),
 
   /** Studies the caller created by replicating others' work (ADR-0018) — their
    *  forks, across workspaces, each with a link back to the original. */

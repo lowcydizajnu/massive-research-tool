@@ -55,18 +55,28 @@ checklist below is the self-serve complement for those who'd rather explore.
    dismiss it anytime with the card's **×** (persisted cross-device); dismissed or
    complete, it's gone from both dashboards.
 
-The 8 steps, in order, with their derivation:
+The 8 steps, in order, with their derivation. **Scope depends on the surface** (owner
+2026-07-03): the workspace `/dashboard` passes the active `workspaceId`, so the study
+and team steps are scoped to *that* workspace — a brand-new empty workspace reads
+mostly-undone instead of inheriting lifetime progress from the researcher's other
+workspaces. The personal `/home` view passes no id and stays account-wide, as before.
+The two account-setup steps (6 & 8) are **always account-level** — a saved-from-Browse
+record has no workspace column and an OSF connection is per-researcher-global — so they
+legitimately stay ticked in a fresh workspace ("account setup carries over").
 
-| # | Step (researcher-facing copy) | Done when |
-| - | ----------------------------- | --------- |
-| 1 | Create your first study | they author ≥1 study, ever (any path: blank, template, replicate) — lifetime |
-| 2 | Add your first block | **their newest study** has a version carrying ≥1 block (Slice 2: study-steps track the study you're building, not lifetime) |
-| 3 | Preregister or publish | their newest study has a preregistered or published version |
-| 4 | Open recruitment | their newest study has a recruitment session **on a runnable (preregistered/published) version** — a Preview session on the draft doesn't count |
-| 5 | See your first results | their newest study has ≥1 completed participant response (real runs only, not previews) |
-| 6 | Save a study from Browse | they have ≥1 saved study |
-| 7 | Invite a teammate | any workspace they own has ≥2 members (active or invited) |
-| 8 | Connect your OSF account | an OSF connection exists for their account |
+| # | Step (researcher-facing copy) | Done when — `/dashboard` (scoped to the workspace) | Done when — `/home` (account-wide) |
+| - | ----------------------------- | --------- | --------- |
+| 1 | Create your first study | ≥1 study authored **in this workspace** | ≥1 study authored anywhere, ever |
+| 2 | Add your first block | **their newest study in this workspace** has a version carrying ≥1 block | their newest study anywhere has a version carrying ≥1 block |
+| 3 | Preregister or publish | their newest study in this workspace has a preregistered or published version | their newest study anywhere does |
+| 4 | Open recruitment | their newest study in this workspace has a recruitment session **on a runnable (preregistered/published) version** — a Preview session on the draft doesn't count | their newest study anywhere does |
+| 5 | See your first results | their newest study in this workspace has ≥1 completed participant response (real runs only, not previews) | their newest study anywhere does |
+| 6 | Save a study from Browse | ≥1 saved study (**account-level — same on both surfaces**) | ≥1 saved study |
+| 7 | Invite a teammate | **this workspace** has ≥2 members (active or invited) | any workspace they own has ≥2 members |
+| 8 | Connect your OSF account | an OSF connection exists for their account (**account-level — same on both surfaces**) | an OSF connection exists for their account |
+
+Access: on `/dashboard` the query rejects (`FORBIDDEN`) if the caller is neither the
+owner nor an active member of the passed workspace; the card's `.catch` then hides it.
 
 ## Branches and decision points
 

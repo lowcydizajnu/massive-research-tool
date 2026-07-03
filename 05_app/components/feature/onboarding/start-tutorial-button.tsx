@@ -33,7 +33,11 @@ export function StartTutorialButton({
     try {
       const { id } = await forkTemplateAction({ templateId: STARTER_MISINFO_TEMPLATE_ID });
       const tour = scenarioTourFor("misinformation-study");
-      router.push(`/studies/${id}/build${tour ? `?tour=${tour}` : ""}` as Route);
+      // `replay=1` forces the coachmark tour to run even for someone who has seen (or
+      // dismissed) it before — they clicked "Take the guided tutorial" deliberately, so
+      // the once-per-scenario localStorage suppression must not silently no-op it
+      // (owner 2026-07-03: "when I open this guided study, there is no guide at all").
+      router.push(`/studies/${id}/build${tour ? `?tour=${tour}&replay=1` : ""}` as Route);
     } catch {
       setPending(false); // global toast surfaces the error; the button re-enables
     }
