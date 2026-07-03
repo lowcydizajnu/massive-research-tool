@@ -1,5 +1,6 @@
 import { ActivityFilterSettings } from "@/components/feature/settings/activity-filter-settings";
 import { AiProviderSettings } from "@/components/feature/settings/ai-provider-settings";
+import { ArchiveWorkspaceSection } from "@/components/feature/settings/archive-workspace-section";
 import { DemoContentToggle } from "@/components/feature/settings/demo-content-toggle";
 import { SupportAccessToggle } from "@/components/feature/settings/support-access-toggle";
 import { getCurrentDbUser } from "@/server/auth/current-db-user";
@@ -54,6 +55,8 @@ export default async function WorkspaceSettingsPage() {
           </h3>
           <AiProviderSettings />
         </div>
+        {/* Owner-only, self-gating; hidden for non-owners (ADR-0090). */}
+        <ArchiveWorkspaceSection />
       </section>
     </main>
   );

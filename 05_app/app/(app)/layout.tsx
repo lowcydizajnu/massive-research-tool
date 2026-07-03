@@ -9,7 +9,7 @@ import { LegalUpdateModal } from "@/components/feature/legal/legal-update-modal"
 import { NewStudyProvider } from "@/components/feature/new-study/provider";
 import { OnboardingTour } from "@/components/feature/onboarding/onboarding-tour";
 import { TRPCReactProvider } from "@/lib/trpc/react";
-import { getServerApi } from "@/server/trpc/server";
+import { auth } from "@/server/adapters/auth";
 
 /**
  * Authenticated shell — providers + onboarding guard only. The chrome lives in
@@ -17,21 +17,17 @@ import { getServerApi } from "@/server/trpc/server";
  * destination chrome (TopBar + LeftRail), `(study)` renders the slim focused
  * top bar. The mode switch IS the URL — no client branching here.
  *
- * Routes under (app) are protected by middleware.ts. A signed-in user who
- * hasn't finished onboarding has no workspace yet → send them back to /signup.
+ * Routes under (app) are protected by middleware.ts. The gate here is ONBOARDING,
+ * not workspace-presence: an onboarded researcher may legitimately have zero
+ * *active* workspaces (they archived them all, ADR-0090) and still belongs on Home
+ * (personal mode needs no workspace). Only a not-yet-onboarded user is sent to
+ * /signup. Workspace-mode routes that do need one redirect to /home themselves.
  */
 export default async function AppLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const api = await getServerApi();
-
-  let workspace: Awaited<ReturnType<typeof api.workspace.active>> | null = null;
-  try {
-    workspace = await api.workspace.active();
-  } catch {
-    workspace = null;
-  }
-  if (!workspace) redirect("/signup");
+  const user = await auth.getCurrentUser();
+  if (!user?.hasCompletedOnboarding) redirect("/signup");
 
   return (
     <TRPCReactProvider>

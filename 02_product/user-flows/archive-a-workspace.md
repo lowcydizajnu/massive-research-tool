@@ -14,8 +14,8 @@ without destroying anything — and bring it back later if they change their min
 ## Preconditions
 
 Signed in; onboarding complete. The user **owns** the workspace they want to archive
-(archive is owner-only; non-owners don't see the control). The user belongs to at least
-one *other* non-archived workspace, OR is willing to keep this one (see rule 1 below).
+(archive is owner-only; non-owners don't see the control). No requirement to have
+another workspace — archiving your last one lands you on Home (ADR-0090).
 
 ## Postconditions
 
@@ -49,11 +49,12 @@ restorable; the user has landed on their next workspace (or Home). Or: the works
 
 ## Branches and decision points
 
-- **Decision — this is the owner's last active workspace.**
-  - **Path A (blocked):** the Archive button is disabled with a hint ("This is your only
-    workspace — create another first"); the mutation also refuses server-side
-    (`PRECONDITION_FAILED`). No archive occurs.
-  - **Path B (has others):** archive proceeds as the happy path.
+- **Decision — this is the owner's last active workspace.** Archiving is **allowed**
+  (owner call 2026-07-03). After archiving, the owner lands on **Home** (personal mode
+  needs no workspace); the Home Workspaces widget + switcher show "No workspaces" with a
+  New-workspace affordance, and the archived one is one click to restore in Account
+  settings. The `(app)` shell gates on onboarding, not workspace-presence, so a
+  workspace-less onboarded user is never bounced to signup.
 - **Decision — a study in the workspace is still recruiting.**
   - **Path A (blocked):** confirm dialog / mutation refuses with "Stop recruitment on
     {study} before archiving." The owner stops recruitment (Studies · Running), then
@@ -64,9 +65,9 @@ restorable; the user has landed on their next workspace (or Home). Or: the works
 
 ## Failure modes
 
-- **Trigger:** archive mutation rejects (last-workspace or recruiting guard).
-  **System response:** inline error in the dialog with the specific reason; the workspace
-  is unchanged. **Recovery:** create another workspace / stop recruitment, then retry.
+- **Trigger:** archive mutation rejects (recruiting guard).
+  **System response:** inline error in the dialog naming the recruiting study; the
+  workspace is unchanged. **Recovery:** stop recruitment (Studies · Running), then retry.
 - **Trigger:** restore fails (transient).
   **System response:** toast error; the row stays in the archived list. **Recovery:**
   retry — restore is idempotent (clearing an already-clear `archived_at` is a no-op).
@@ -97,10 +98,10 @@ restorable; the user has landed on their next workspace (or Home). Or: the works
 
 ```mermaid
 flowchart TD
-  S[Settings → Workspace] --> G{Owner? & not last? & none recruiting?}
+  S[Settings → Workspace] --> G{Owner? & none recruiting?}
   G -- no --> B[Archive blocked — inline reason]
   G -- yes --> C[Confirm dialog]
-  C -->|confirm| A[archived_at set → switch away → land on next ws / Home]
+  C -->|confirm| A[archived_at set → land on next ws / Home]
   A --> R[Account settings → Archived workspaces]
   R -->|Restore| U[archived_at cleared → back in switcher]
 ```

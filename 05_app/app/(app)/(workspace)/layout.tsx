@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+
 import { LeftRail } from "@/components/chrome/left-rail";
 import { ResizableRail } from "@/components/chrome/resizable-rail";
 import { TopBar } from "@/components/chrome/top-bar";
@@ -24,7 +26,11 @@ export default async function WorkspaceLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   const api = await getServerApi();
-  const workspace = await api.workspace.active();
+  // Workspace mode needs an active workspace. If the caller has none (e.g. they
+  // archived them all, ADR-0090), send them to personal-mode Home rather than
+  // erroring — the (app) shell now gates on onboarding, not workspace presence.
+  const workspace = await api.workspace.active().catch(() => null);
+  if (!workspace) redirect("/home");
   const user = await auth.getCurrentUser();
   const initials = user ? initialsFrom(user.displayName, user.email) : "··";
 

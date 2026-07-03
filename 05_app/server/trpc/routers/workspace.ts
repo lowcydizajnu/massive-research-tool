@@ -74,6 +74,9 @@ export type WorkspaceActivityItem = {
 /** A tag + how many of the workspace's studies carry it (top-tags widget). */
 export type WorkspaceTopTag = { tag: string; count: number };
 
+/** A workspace the caller owns that is currently archived (ADR-0090). */
+export type ArchivedWorkspace = { id: string; name: string; archivedAt: string; studyCount: number };
+
 export const workspaceRouter = router({
   /** The current user's active workspace (chrome: workspace chip + breadcrumb). */
   active: workspaceProcedure.query(({ ctx }): ActiveWorkspace => ({
@@ -199,6 +202,117 @@ export const workspaceRouter = router({
       });
       return { id };
     }),
+
+  /**
+   * Archive the active workspace — a reversible soft-hide (ADR-0090). Owner-only.
+   * Blocked while any study is actively recruiting (an open session on a runnable
+   * version) so a hidden workspace never keeps silently collecting responses; the
+   * error names the offending studies. Sets `archived_at`; every switcher /
+   * active-workspace query already filters archived out, so it vanishes and the
+   * caller falls back to their next workspace (or Home). Restore via `unarchive`.
+   * Archiving your LAST workspace is allowed — Home catches you (the (app) shell is
+   * onboarding-gated, not workspace-gated).
+   */
+  archive: workspaceProcedure.mutation(async ({ ctx }): Promise<{ ok: true }> => {
+    if (ctx.role !== "owner") {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Only the workspace owner can archive it." });
+    }
+    const recruiting = await db
+      .selectDistinct({ title: experiment.title })
+      .from(recruitmentSession)
+      .innerJoin(experimentVersion, eq(recruitmentSession.experimentVersionId, experimentVersion.id))
+      .innerJoin(experiment, eq(experimentVersion.experimentId, experiment.id))
+      .where(
+        and(
+          eq(experiment.tenantId, ctx.workspace.id),
+          eq(recruitmentSession.status, "open"),
+          inArray(experimentVersion.kind, [...RUNNABLE_KINDS]),
+          isNull(experiment.archivedAt),
+        ),
+      );
+    if (recruiting.length > 0) {
+      const names = recruiting.map((r) => `"${r.title}"`).join(", ");
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: `Stop recruitment on ${names} before archiving — a hidden workspace can't keep collecting responses.`,
+      });
+    }
+    await db.update(workspace).set({ archivedAt: new Date() }).where(eq(workspace.id, ctx.workspace.id));
+    // Product analytics (ADR-0074) — mirrors workspace_created; fire-safe.
+    await trackEvent({
+      userId: ctx.dbUser.id,
+      workspaceId: ctx.workspace.id,
+      event: "workspace_archived",
+      sensitivity: "researcher_behavior",
+    });
+    return { ok: true };
+  }),
+
+  /** Whether the active workspace can be archived right now — feeds the Settings
+   *  archive card (ADR-0090). `recruitingStudies` are the open-recruitment studies
+   *  that block it; empty = archivable. `isOwner` gates the card's visibility. */
+  archiveBlockers: workspaceProcedure.query(
+    async ({ ctx }): Promise<{ isOwner: boolean; recruitingStudies: { id: string; title: string }[] }> => {
+      const recruiting = await db
+        .selectDistinct({ id: experiment.id, title: experiment.title })
+        .from(recruitmentSession)
+        .innerJoin(experimentVersion, eq(recruitmentSession.experimentVersionId, experimentVersion.id))
+        .innerJoin(experiment, eq(experimentVersion.experimentId, experiment.id))
+        .where(
+          and(
+            eq(experiment.tenantId, ctx.workspace.id),
+            eq(recruitmentSession.status, "open"),
+            inArray(experimentVersion.kind, [...RUNNABLE_KINDS]),
+            isNull(experiment.archivedAt),
+          ),
+        );
+      return { isOwner: ctx.role === "owner", recruitingStudies: recruiting };
+    },
+  ),
+
+  /** Restore an archived workspace the caller owns (ADR-0090). Clears `archived_at`
+   *  so it re-appears in the switcher, intact. Idempotent (clearing a clear value
+   *  is a no-op). Not a `workspaceProcedure` — an archived workspace can't be the
+   *  active one, so we resolve + owner-check the target explicitly. */
+  unarchive: protectedProcedure
+    .input(z.object({ workspaceId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      const [ws] = await db
+        .select({ ownerId: workspace.ownerId })
+        .from(workspace)
+        .where(eq(workspace.id, input.workspaceId))
+        .limit(1);
+      if (!ws) throw new TRPCError({ code: "NOT_FOUND", message: "Workspace not found." });
+      if (ws.ownerId !== ctx.dbUser.id) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Only the workspace owner can restore it." });
+      }
+      await db.update(workspace).set({ archivedAt: null }).where(eq(workspace.id, input.workspaceId));
+      return { ok: true };
+    }),
+
+  /** Archived workspaces the caller owns — the Account-settings restore list
+   *  (ADR-0090). Newest-archived first, each with its (non-archived) study count. */
+  listArchived: protectedProcedure.query(async ({ ctx }): Promise<ArchivedWorkspace[]> => {
+    const rows = await db
+      .select({ id: workspace.id, name: workspace.name, archivedAt: workspace.archivedAt })
+      .from(workspace)
+      .where(and(eq(workspace.ownerId, ctx.dbUser.id), isNotNull(workspace.archivedAt)))
+      .orderBy(desc(workspace.archivedAt));
+    if (rows.length === 0) return [];
+    const ids = rows.map((r) => r.id);
+    const counts = await db
+      .select({ wsId: experiment.tenantId, c: count() })
+      .from(experiment)
+      .where(and(inArray(experiment.tenantId, ids), isNull(experiment.archivedAt)))
+      .groupBy(experiment.tenantId);
+    const byWs = new Map(counts.map((c) => [c.wsId, c.c]));
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      archivedAt: (r.archivedAt as Date).toISOString(),
+      studyCount: byWs.get(r.id) ?? 0,
+    }));
+  }),
 
   /** Active members of the workspace — feeds the @-mention autocomplete (ADR-0015). */
   members: workspaceProcedure.query(async ({ ctx }): Promise<WorkspaceMember[]> => {

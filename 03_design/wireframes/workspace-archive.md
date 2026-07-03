@@ -37,9 +37,10 @@ The **confirm dialog** (triggered from surface 1) is a standard modal: title "Ar
 - **Explanation line** — static: "Hides this workspace and everything in it from
   everyone. Nothing is deleted — you can restore it anytime from Account settings."
 - **Archive workspace button** — static label; disabled + hinted when a guard fails.
-- **Guard hint** — computed, from server preconditions: "This is your only workspace —
-  create another first." or "Stop recruitment on '{study}' before archiving." (shown in
-  place of / beneath the button when disabled).
+- **Guard hint** — computed, from server preconditions: "Stop recruitment before
+  archiving — still recruiting: {study names}." with a link to Studies · Running (shown
+  above the disabled button). (Archiving your last workspace is allowed — no
+  last-workspace hint; you land on Home.)
 - **Confirm dialog title/body** — computed: workspace name + study count ("{N} studies
   will be hidden — you can restore them anytime").
 - **Archived-workspaces list rows** — from server (`workspace.listArchived`): name,
@@ -52,8 +53,9 @@ The **confirm dialog** (triggered from surface 1) is a standard modal: title "Ar
 
 - **Default (archive card):** enabled button, owner has other workspaces, nothing
   recruiting.
-- **Disabled (archive card):** last-workspace or recruiting guard → button disabled +
-  the matching hint. (Server still re-checks; the disable is UX, not the gate.)
+- **Disabled (archive card):** recruiting guard → button disabled + the naming hint.
+  (Server still re-checks; the disable is UX, not the gate.) Archiving the last workspace
+  is NOT disabled — it's allowed.
 - **Hidden (archive card):** viewer is not the owner → card not rendered.
 - **Loading:** archive/restore in flight → button shows pending spinner (PendingButton);
   the rest stays interactive.
@@ -82,8 +84,8 @@ The **confirm dialog** (triggered from surface 1) is a standard modal: title "Ar
   dialog title, and list rows; never wrap the button off-screen.
 - **Many archived workspaces** — the list scrolls within the section (its own
   `overflow-y: auto`), the account page body never grows unbounded.
-- **Zero / one workspace** — one workspace → archive disabled (last-workspace guard);
-  zero archived → restore section omitted.
+- **Last / only workspace** — archiving is allowed; the researcher lands on Home
+  afterwards. Zero archived → restore section omitted.
 - **Slow network** — PendingButton spinner + disabled during the mutation; no double-submit.
 - **Concurrent** — a second tab that already restored the workspace → the other tab's
   restore is a no-op (idempotent clear); archiving an already-archived workspace is a

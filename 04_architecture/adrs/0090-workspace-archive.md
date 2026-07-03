@@ -76,23 +76,32 @@ A workspace **owner** (only) may archive a workspace from its Settings. Archivin
 `archived_at = now()`; because every membership/active-workspace query already filters
 archived workspaces out, the workspace immediately disappears from the switcher and
 stops being resolvable as the active workspace — the app falls back to the owner's next
-workspace (or the personal Home if they have none left). Restore clears `archived_at`
-and the workspace re-appears intact, with all its studies, versions, responses,
-members, and saves.
+workspace, or to the personal **Home** if they have none left. Restore clears
+`archived_at` and the workspace re-appears intact, with all its studies, versions,
+responses, members, and saves.
 
-Two safety rules, both enforced server-side:
+**Archiving your *last* workspace is allowed** (owner call, 2026-07-03: "I can, since
+there's still Home"). Home (personal mode, `/home`) is workspace-independent, so a
+researcher with zero active workspaces still has a place to stand — and their archived
+list in Account settings to restore or create from. This required one supporting change
+to the shell: the `(app)` layout previously used *workspace-presence* as a lazy proxy
+for "onboarded" and bounced any workspace-less user to `/signup`. It now gates on
+`hasCompletedOnboarding` directly, so an onboarded researcher with zero active
+workspaces reaches Home instead of the signup screen; workspace-mode routes
+(`/dashboard`, `/studies`, …) that genuinely need a workspace redirect to `/home`
+themselves when there is none. (Personal mode was already designed to need no
+workspace — only that one guard coupled it.)
 
-1. **You cannot archive your last active workspace.** If archiving would leave the
-   owner with zero non-archived workspaces they belong to, the mutation refuses
-   (`PRECONDITION_FAILED`) — otherwise the researcher would be stranded with no
-   workspace to land in. They must create or keep at least one.
-2. **You cannot archive a workspace with a study still recruiting.** If any study in
-   the workspace has an open recruitment session on a runnable (preregistered/published)
-   version, the mutation refuses and tells the researcher to stop recruitment first.
-   This prevents the confusing state of a *hidden* workspace that is still quietly
-   collecting participant data via live `/take` links, and keeps archive a clean "this
-   is dormant" signal. (Because it's reversible, this is the only lifecycle guard we
-   need — no data is ever at risk.)
+One safety rule remains, enforced server-side:
+
+- **You cannot archive a workspace with a study still recruiting.** If any study in the
+  workspace has an open recruitment session on a runnable (preregistered/published)
+  version, the mutation refuses (`PRECONDITION_FAILED`) and **names the offending
+  studies**, telling the researcher to stop recruitment first (the Settings card shows
+  the same hint with a link to Studies · Running). This prevents the confusing state of
+  a *hidden* workspace that is still quietly collecting participant data via live
+  `/take` links, and keeps archive a clean "this is dormant" signal. (Because it's
+  reversible, this is the only lifecycle guard we need — no data is ever at risk.)
 
 Restore has no such guards (bringing a workspace back is always safe). Archive is
 **owner-only** (not admin/editor) because it removes the workspace from every member's
@@ -113,8 +122,11 @@ this is a private housekeeping action, per ADR-0014's boundary).
   a first-class, always-available path (we are committed to never orphaning archived
   data behind a missing UI).
 - **What we are now committed to.** Keeping archived workspace data intact and
-  restorable indefinitely; keeping archive owner-only and guarded by the two rules
-  above.
+  restorable indefinitely; keeping archive owner-only and guarded by the recruiting
+  rule above. Also: the `(app)` shell is now onboarding-gated, so **zero active
+  workspaces is a supported state** — every future workspace-enumerating surface must
+  tolerate it (Home + Account settings already do; workspace-mode routes redirect to
+  Home).
 - **What we are now precluded from.** This deliberately does **not** free storage; if a
   "permanently delete + purge" capability is ever needed (GDPR erasure, cost), that is a
   separate future ADR building on this state, not a change to it. Archive is owner-
@@ -138,6 +150,8 @@ this is a private housekeeping action, per ADR-0014's boundary).
   `archive`/`unarchive`/`listArchived` will live.
 - `05_app/server/workspace/active.ts` — `resolveActiveWorkspace` (filters archived,
   falls back owned-then-earliest).
+- `05_app/app/(app)/layout.tsx` — onboarding gate (was workspace-presence).
+- `05_app/app/(app)/(workspace)/layout.tsx` — redirects to `/home` when no active workspace.
 - `05_app/app/(app)/(workspace)/settings/workspace/page.tsx` — archive control home.
 - `05_app/app/(app)/(personal)/settings/account/page.tsx` — restore-list home.
 - Prior ADRs: [ADR-0033](0033-ia-v05-personal-mode-workspace-switcher.md) (workspaces +

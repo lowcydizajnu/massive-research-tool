@@ -34,6 +34,7 @@ export type AnalyticsProperties = Record<string, string | number | boolean>;
 export type AnalyticsEvent =
   | "signup_completed"
   | "workspace_created"
+  | "workspace_archived"
   | "study_created"
   | "study_first_block_added"
   | "study_preview_opened"

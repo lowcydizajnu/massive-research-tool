@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { FeatureTip } from "@/components/feature/onboarding/feature-tip";
 import { HelpLink } from "@/components/feature/help/help-link";
+import { ArchivedWorkspacesSection } from "@/components/feature/settings/archived-workspaces-section";
 import { EngagementEmailSection } from "@/components/feature/settings/engagement-email-section";
 import { ProfileForm } from "@/components/feature/settings/profile-form";
 import { PublicProfileSection } from "@/components/feature/settings/public-profile-section";
@@ -234,6 +235,10 @@ export default async function AccountSettingsPage({
       </section>
         </>
       ) : null}
+
+      {/* Personal-scope restore list — reachable even with zero active workspaces
+          (ADR-0090). Self-hides when nothing is archived; shown regardless of tab. */}
+      <ArchivedWorkspacesSection />
     </main>
   );
 }
