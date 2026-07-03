@@ -14,7 +14,19 @@ vi.mock("@/server/db/client", async () => {
 
 import type { AuthUser } from "@/server/adapters/auth";
 import { db } from "@/server/db/client";
-import { experiment, experimentVersion, member, user, workspace } from "@/server/db/schema";
+import {
+  condition,
+  experiment,
+  experimentVersion,
+  member,
+  recruitmentSession,
+  registry,
+  registryConnection,
+  response,
+  savedRecord,
+  user,
+  workspace,
+} from "@/server/db/schema";
 import { appRouter } from "@/server/trpc/root";
 import { createCallerFactory } from "@/server/trpc/trpc";
 
@@ -29,6 +41,13 @@ const authUser = (ext: string): AuthUser => ({
 
 beforeEach(async () => {
   await db.update(experiment).set({ currentVersionId: null });
+  // FK order: response → recruitment/condition → versions → experiments.
+  await db.delete(response);
+  await db.delete(recruitmentSession);
+  await db.delete(condition);
+  await db.delete(savedRecord);
+  await db.delete(registryConnection);
+  await db.delete(registry);
   await db.delete(experimentVersion);
   await db.delete(experiment);
   await db.delete(member);
@@ -62,6 +81,90 @@ describe("me.emailPrefs / setMarketingOptIn (feedback #9)", () => {
     const prefs = await caller.me.emailPrefs();
     expect(prefs.engagementEmailsOptedOut).toBe(false);
     expect(prefs.marketingOptIn).toBe(true);
+  });
+});
+
+describe("me.gettingStarted (Start-here checklist)", () => {
+  it("fresh account: every step false, no latest study", async () => {
+    const caller = createCaller({ authUser: authUser("hanna") });
+    const s = await caller.me.gettingStarted();
+    expect(s).toEqual({
+      createdStudy: false,
+      addedBlock: false,
+      preregisteredOrPublished: false,
+      openedRecruitment: false,
+      firstResults: false,
+      savedStudy: false,
+      invitedTeammate: false,
+      connectedOsf: false,
+      latestStudy: null,
+    });
+  });
+
+  it("each step derives from real rows — no stored progress", async () => {
+    const [hanna] = await db.select({ id: user.id }).from(user).where(eq(user.externalId, "hanna"));
+    const [ws] = await db.insert(workspace).values({ name: "Hanna Lab", slug: "hanna-lab", ownerId: hanna.id }).returning();
+    const [exp] = await db.insert(experiment).values({ tenantId: ws.id, ownerId: hanna.id, title: "First study" }).returning();
+    // A block-less draft: created yes, built no.
+    await db
+      .insert(experimentVersion)
+      .values({ experimentId: exp.id, versionNumber: 1, kind: "autosave", definitionSnapshot: { blocks: [] }, moduleVersionLocks: {}, createdBy: hanna.id });
+
+    const caller = createCaller({ authUser: authUser("hanna") });
+    let s = await caller.me.gettingStarted();
+    expect(s.createdStudy).toBe(true);
+    expect(s.addedBlock).toBe(false);
+    expect(s.preregisteredOrPublished).toBe(false);
+    expect(s.latestStudy).toEqual({ studyId: exp.id, workspaceId: ws.id });
+
+    // Published version WITH a block → built + preregistered/published flip.
+    const [v2] = await db
+      .insert(experimentVersion)
+      .values({
+        experimentId: exp.id,
+        versionNumber: 2,
+        kind: "published",
+        name: "v1",
+        definitionSnapshot: { blocks: [{ instanceId: "b1", source: "core", key: "likert-7", version: "1.0.0", config: {} }] },
+        moduleVersionLocks: {},
+        createdBy: hanna.id,
+      })
+      .returning();
+    // Recruitment + one completed run response → recruit + results flip.
+    await db.insert(recruitmentSession).values({ id: "rs1", experimentVersionId: v2.id });
+    await db.insert(condition).values({ id: "c1", experimentVersionId: v2.id, slug: "control", name: "Control", position: 0 });
+    await db.insert(response).values({ id: "r1", recruitmentSessionId: "rs1", experimentVersionId: v2.id, conditionId: "c1", mode: "run", status: "completed" });
+    // Saved study, pending teammate invite, OSF connection.
+    await db.insert(savedRecord).values({ id: "sv1", userId: hanna.id, experimentId: exp.id });
+    await db.insert(member).values({ workspaceId: ws.id, userId: null, role: "editor", status: "invited", invitedEmail: "ada@e.com" });
+    await db.insert(registry).values({ id: "reg-osf", key: "osf", name: "OSF" });
+    await db.insert(registryConnection).values({ id: "rc1", userId: hanna.id, registryId: "reg-osf", accessToken: "enc" });
+
+    s = await caller.me.gettingStarted();
+    expect(s).toEqual({
+      createdStudy: true,
+      addedBlock: true,
+      preregisteredOrPublished: true,
+      openedRecruitment: true,
+      firstResults: true,
+      savedStudy: true,
+      invitedTeammate: true,
+      connectedOsf: true,
+      latestStudy: { studyId: exp.id, workspaceId: ws.id },
+    });
+  });
+
+  it("a demo teammate or a revoked OSF connection doesn't count", async () => {
+    const [hanna] = await db.select({ id: user.id }).from(user).where(eq(user.externalId, "hanna"));
+    const [ws] = await db.insert(workspace).values({ name: "Hanna Lab", slug: "hanna-lab", ownerId: hanna.id }).returning();
+    await db.insert(member).values({ workspaceId: ws.id, userId: null, role: "editor", status: "invited", invitedEmail: "maya@demo", isDemo: true });
+    await db.insert(registry).values({ id: "reg-osf", key: "osf", name: "OSF" });
+    await db.insert(registryConnection).values({ id: "rc1", userId: hanna.id, registryId: "reg-osf", accessToken: "enc", revokedAt: new Date() });
+
+    const caller = createCaller({ authUser: authUser("hanna") });
+    const s = await caller.me.gettingStarted();
+    expect(s.invitedTeammate).toBe(false);
+    expect(s.connectedOsf).toBe(false);
   });
 });
 

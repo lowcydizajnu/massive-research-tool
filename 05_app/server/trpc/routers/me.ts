@@ -1,4 +1,4 @@
-import { and, count, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/server/db/client";
@@ -6,8 +6,12 @@ import {
   experiment,
   experimentVersion,
   follow,
+  member,
   recruitmentSession,
+  registry,
+  registryConnection,
   response,
+  savedRecord,
   user,
   workspace,
 } from "@/server/db/schema";
@@ -66,6 +70,24 @@ export type ReplicationOfMine = {
   originalTitle: string;
   replicatedByName: string | null;
   createdAt: string;
+};
+
+/**
+ * "Start here" checklist state (getting-started-checklist.md). Every step is
+ * DERIVED from existing rows on each read — no per-step progress is stored, so
+ * it can never drift from reality. Step semantics live in the user flow doc.
+ */
+export type GettingStartedState = {
+  createdStudy: boolean;
+  addedBlock: boolean;
+  preregisteredOrPublished: boolean;
+  openedRecruitment: boolean;
+  firstResults: boolean;
+  savedStudy: boolean;
+  invitedTeammate: boolean;
+  connectedOsf: boolean;
+  /** Newest authored study, for the step deep-links (Build/Run/Results). */
+  latestStudy: { studyId: string; workspaceId: string } | null;
 };
 
 export const meRouter = router({
@@ -231,6 +253,132 @@ export const meRouter = router({
       replicationsReceived,
       followers: followersRow?.c ?? 0,
       totalParticipants,
+    };
+  }),
+
+  /** "Start here" checklist for the Home widget (getting-started-checklist.md).
+   *  Existence probes only (limit 1), same authored-studies basis + demo filter
+   *  as stats so the checklist never disagrees with the KPIs beside it. */
+  gettingStarted: protectedProcedure.query(async ({ ctx }): Promise<GettingStartedState> => {
+    const authored = await db
+      .select({ id: experiment.id, workspaceId: experiment.tenantId })
+      .from(experiment)
+      .innerJoin(workspace, eq(experiment.tenantId, workspace.id))
+      .where(
+        and(
+          eq(experiment.ownerId, ctx.dbUser.id),
+          isNull(experiment.archivedAt),
+          crossWorkspaceDemoStudyCondition(),
+          ctx.isImpersonating ? eq(workspace.supportAccessEnabled, true) : undefined,
+        ),
+      )
+      .orderBy(desc(experiment.updatedAt));
+    const ids = authored.map((a) => a.id);
+    const latestStudy = authored[0] ? { studyId: authored[0].id, workspaceId: authored[0].workspaceId } : null;
+
+    const exists = async (q: Promise<unknown[]>): Promise<boolean> => (await q).length > 0;
+
+    const [addedBlock, preregisteredOrPublished, openedRecruitment, firstResults] = ids.length
+      ? await Promise.all([
+          // Any version whose snapshot holds ≥1 block — "they built something",
+          // even if the draft was later emptied.
+          exists(
+            db
+              .select({ id: experimentVersion.id })
+              .from(experimentVersion)
+              .where(
+                and(
+                  inArray(experimentVersion.experimentId, ids),
+                  sql`coalesce(jsonb_array_length(${experimentVersion.definitionSnapshot} -> 'blocks'), 0) > 0`,
+                ),
+              )
+              .limit(1),
+          ),
+          exists(
+            db
+              .select({ id: experimentVersion.id })
+              .from(experimentVersion)
+              .where(
+                and(
+                  inArray(experimentVersion.experimentId, ids),
+                  inArray(experimentVersion.kind, ["preregistered", "published"]),
+                ),
+              )
+              .limit(1),
+          ),
+          exists(
+            db
+              .select({ id: recruitmentSession.id })
+              .from(recruitmentSession)
+              .innerJoin(experimentVersion, eq(recruitmentSession.experimentVersionId, experimentVersion.id))
+              .where(inArray(experimentVersion.experimentId, ids))
+              .limit(1),
+          ),
+          exists(
+            db
+              .select({ id: response.id })
+              .from(response)
+              .innerJoin(experimentVersion, eq(response.experimentVersionId, experimentVersion.id))
+              .where(
+                and(
+                  inArray(experimentVersion.experimentId, ids),
+                  eq(response.status, "completed"),
+                  eq(response.mode, "run"),
+                ),
+              )
+              .limit(1),
+          ),
+        ])
+      : [false, false, false, false];
+
+    const [savedStudy, invitedTeammate, connectedOsf] = await Promise.all([
+      exists(db.select({ id: savedRecord.id }).from(savedRecord).where(eq(savedRecord.userId, ctx.dbUser.id)).limit(1)),
+      // "Invited a teammate" = a workspace the caller OWNS has another member row
+      // (active or still-pending invite), demo teammates excluded (ADR-0023).
+      exists(
+        db
+          .select({ id: member.id })
+          .from(member)
+          .innerJoin(workspace, eq(member.workspaceId, workspace.id))
+          .where(
+            and(
+              eq(workspace.ownerId, ctx.dbUser.id),
+              eq(member.isDemo, false),
+              isNull(member.removedAt),
+              or(isNull(member.userId), ne(member.userId, ctx.dbUser.id)),
+              // ADR-0082: during View-as, don't derive even a boolean from a
+              // workspace that disabled support access (parity with stats).
+              ctx.isImpersonating ? eq(workspace.supportAccessEnabled, true) : undefined,
+            ),
+          )
+          .limit(1),
+      ),
+      exists(
+        db
+          .select({ id: registryConnection.id })
+          .from(registryConnection)
+          .innerJoin(registry, eq(registryConnection.registryId, registry.id))
+          .where(
+            and(
+              eq(registryConnection.userId, ctx.dbUser.id),
+              eq(registry.key, "osf"),
+              isNull(registryConnection.revokedAt),
+            ),
+          )
+          .limit(1),
+      ),
+    ]);
+
+    return {
+      createdStudy: ids.length > 0,
+      addedBlock,
+      preregisteredOrPublished,
+      openedRecruitment,
+      firstResults,
+      savedStudy,
+      invitedTeammate,
+      connectedOsf,
+      latestStudy,
     };
   }),
 

@@ -45,7 +45,7 @@ export async function switchWorkspaceAction(workspaceId: string): Promise<void> 
 export async function openStudyAction(
   workspaceId: string,
   studyId: string,
-  stage: "build" | "run",
+  stage: "build" | "run" | "results",
 ): Promise<void> {
   const dbUser = await getCurrentDbUser();
   if (!dbUser) redirect("/signin");

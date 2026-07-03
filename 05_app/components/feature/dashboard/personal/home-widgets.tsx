@@ -1,5 +1,5 @@
 import type { Route } from "next";
-import { ArrowRight, BookmarkCheck, FlaskConical, GitFork, Repeat2 } from "lucide-react";
+import { ArrowRight, BookmarkCheck, CheckCircle2, Circle, FlaskConical, GitFork, Repeat2 } from "lucide-react";
 import Link from "next/link";
 
 import { openStudyAction, switchWorkspaceAction } from "@/app/actions/switch-workspace";
@@ -9,7 +9,7 @@ import { PaginatedList } from "@/components/feature/dashboard/paginated-list";
 import { NewStudyButton } from "@/components/feature/new-study/new-study-button";
 import type { FollowsFeedItem } from "@/server/trpc/routers/follows";
 import type { SavedStudy } from "@/server/trpc/routers/saved";
-import type { MeStats, MyReplication, RecentStudy, RecruitingStudy, ReplicationOfMine } from "@/server/trpc/routers/me";
+import type { GettingStartedState, MeStats, MyReplication, RecentStudy, RecruitingStudy, ReplicationOfMine } from "@/server/trpc/routers/me";
 import type { NotificationDTO } from "@/server/trpc/routers/notifications";
 import type { WorkspaceListItem } from "@/server/trpc/routers/workspace";
 
@@ -56,6 +56,76 @@ export function WelcomeWidget({ greeting, summary }: { greeting: string; summary
       </h1>
       <p className="text-[length:var(--text-body)] text-[var(--color-text-secondary)]">{summary}</p>
     </section>
+  );
+}
+
+/**
+ * "Start here" checklist (getting-started-checklist.md + getting-started-widget.md).
+ * Every state is server-derived — nothing is manually ticked and nothing is stored;
+ * dismissal is simply removing the widget via Customize. Steps 2–5 deep-link into
+ * the newest authored study via openStudyAction (cross-workspace safe); with no
+ * study yet they fall back to /studies.
+ */
+export function GettingStartedWidget({ state }: { state: GettingStartedState }) {
+  type Step = { label: string; done: boolean; href?: Route; stage?: "build" | "run" | "results" };
+  const study = state.latestStudy;
+  const steps: Step[] = [
+    { label: "Create your first study", done: state.createdStudy, href: "/studies" },
+    { label: "Add your first block", done: state.addedBlock, stage: "build" },
+    { label: "Preregister or publish", done: state.preregisteredOrPublished, stage: "run" },
+    { label: "Open recruitment", done: state.openedRecruitment, stage: "run" },
+    { label: "See your first results", done: state.firstResults, stage: "results" },
+    { label: "Save a study from Browse", done: state.savedStudy, href: "/browse" },
+    { label: "Invite a teammate", done: state.invitedTeammate, href: "/team" },
+    { label: "Connect your OSF account", done: state.connectedOsf, href: "/settings/account" },
+  ];
+  const doneCount = steps.filter((s) => s.done).length;
+  return (
+    <Card title="Start here">
+      <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+        {doneCount === steps.length
+          ? "You’re all set — remove this card anytime from Customize."
+          : `${doneCount} of ${steps.length} done`}
+      </p>
+      <ul className="flex flex-col gap-1.5">
+        {steps.map((step) => (
+          <li key={step.label} className="flex items-center gap-2">
+            {step.done ? (
+              <>
+                <CheckCircle2 className="size-4 shrink-0 text-[var(--color-success-text-on-subtle)]" aria-hidden />
+                <span className="text-[length:var(--text-body)] text-[var(--color-text-muted)]">
+                  {step.label}
+                  <span className="sr-only"> — done</span>
+                </span>
+              </>
+            ) : (
+              <>
+                <Circle className="size-4 shrink-0 text-[var(--color-text-muted)]" aria-hidden />
+                {step.stage && study ? (
+                  <form action={openStudyAction.bind(null, study.workspaceId, study.studyId, step.stage)}>
+                    <button
+                      type="submit"
+                      className="text-left text-[length:var(--text-body)] text-[var(--color-primary)] hover:underline"
+                    >
+                      {step.label}
+                      <span className="sr-only"> — not done yet</span>
+                    </button>
+                  </form>
+                ) : (
+                  <Link
+                    href={step.href ?? "/studies"}
+                    className="text-[length:var(--text-body)] text-[var(--color-primary)] hover:underline"
+                  >
+                    {step.label}
+                    <span className="sr-only"> — not done yet</span>
+                  </Link>
+                )}
+              </>
+            )}
+          </li>
+        ))}
+      </ul>
+    </Card>
   );
 }
 

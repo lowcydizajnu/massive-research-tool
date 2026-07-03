@@ -5,6 +5,7 @@ import { DashboardGrid } from "@/components/feature/dashboard/dashboard-grid";
 import { LiveRefresh } from "@/components/feature/live-refresh";
 import {
   FollowsFeedWidget,
+  GettingStartedWidget,
   MentionsWidget,
   NotificationsWidget,
   QuickActionsWidget,
@@ -53,9 +54,10 @@ export default async function HomePage() {
       api.saved.list(),
       api.me.myReplications({ limit: 10 }),
       api.me.replicationsOfMine({ limit: 10 }),
+      api.me.gettingStarted(),
     ]),
   ]);
-  const [active, workspaces, recent, recruiting, stats, follows, notifications, saved, myReplications, replicationsOfMine] =
+  const [active, workspaces, recent, recruiting, stats, follows, notifications, saved, myReplications, replicationsOfMine, gettingStarted] =
     settled;
   const notifs = notifications.status === "fulfilled" ? notifications.value : [];
 
@@ -73,6 +75,12 @@ export default async function HomePage() {
 
   const nodes: Record<string, ReactNode> = {
     welcome: <WelcomeWidget greeting={greeting(new Date().getHours(), user?.displayName ?? "")} summary={summary} />,
+    "getting-started":
+      gettingStarted.status === "fulfilled" ? (
+        <GettingStartedWidget state={gettingStarted.value} />
+      ) : (
+        <WidgetError title="Start here" />
+      ),
     "your-stats": stats.status === "fulfilled" ? <StatsStrip stats={stats.value} /> : <WidgetError title="Your stats" />,
     "recruiting-studies":
       recruiting.status === "fulfilled" ? (
