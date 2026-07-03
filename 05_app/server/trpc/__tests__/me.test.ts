@@ -166,6 +166,22 @@ describe("me.gettingStarted (Start-here checklist)", () => {
     expect(s.invitedTeammate).toBe(false);
     expect(s.connectedOsf).toBe(false);
   });
+
+  it("a Preview recruitment session (on the draft version) does NOT mark recruitment done", async () => {
+    const [hanna] = await db.select({ id: user.id }).from(user).where(eq(user.externalId, "hanna"));
+    const [ws] = await db.insert(workspace).values({ name: "Hanna Lab", slug: "hanna-lab", ownerId: hanna.id }).returning();
+    const [exp] = await db.insert(experiment).values({ tenantId: ws.id, ownerId: hanna.id, title: "Draft" }).returning();
+    // Preview opens a recruitment session on the AUTOSAVE (draft) version.
+    const [draft] = await db
+      .insert(experimentVersion)
+      .values({ experimentId: exp.id, versionNumber: 1, kind: "autosave", definitionSnapshot: { blocks: [] }, moduleVersionLocks: {}, createdBy: hanna.id })
+      .returning();
+    await db.insert(recruitmentSession).values({ id: "rs-preview", experimentVersionId: draft.id, status: "open" });
+
+    const caller = createCaller({ authUser: authUser("hanna") });
+    const s = await caller.me.gettingStarted();
+    expect(s.openedRecruitment).toBe(false); // a preview artifact, not real recruitment
+  });
 });
 
 describe("me replication widgets (ADR-0018)", () => {

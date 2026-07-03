@@ -311,7 +311,16 @@ export const meRouter = router({
               .select({ id: recruitmentSession.id })
               .from(recruitmentSession)
               .innerJoin(experimentVersion, eq(recruitmentSession.experimentVersionId, experimentVersion.id))
-              .where(inArray(experimentVersion.experimentId, ids))
+              .where(
+                and(
+                  inArray(experimentVersion.experimentId, ids),
+                  // REAL recruitment only — on a runnable (preregistered/published)
+                  // version. Preview opens a session on the DRAFT (autosave) version
+                  // (studies.ts startPreview → openRecruitment), which must NOT mark
+                  // this step done. Mirrors the study dashboard's RUNNABLE_KINDS filter.
+                  inArray(experimentVersion.kind, ["preregistered", "published"]),
+                ),
+              )
               .limit(1),
           ),
           exists(
