@@ -3,6 +3,7 @@ import type { Route } from "next";
 import { FlaskConical } from "lucide-react";
 
 import { NewStudyButton } from "@/components/feature/new-study/new-study-button";
+import { StartTutorialButton } from "@/components/feature/onboarding/start-tutorial-button";
 import { RunningBoard } from "@/components/feature/studies/running-board";
 import { StudyCard } from "@/components/feature/study-card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -154,8 +155,15 @@ function EmptyWorkspace() {
     <EmptyState
       icon={FlaskConical}
       title="No studies yet."
-      body="Start your first study from scratch or from a framework — it only takes a click."
-      action={<NewStudyButton autoFocus />}
+      body="New to this? Take the guided tutorial — it builds a real study and walks you through every step. Or start your own from scratch or a template."
+      action={
+        <div className="flex flex-wrap items-center gap-2">
+          <StartTutorialButton className="inline-flex items-center rounded-[var(--radius-md)] bg-[var(--color-primary)] px-3 py-1.5 text-[length:var(--text-small)] font-medium text-white hover:opacity-90 disabled:opacity-50">
+            Take the guided tutorial
+          </StartTutorialButton>
+          <NewStudyButton autoFocus />
+        </div>
+      }
     />
   );
 }

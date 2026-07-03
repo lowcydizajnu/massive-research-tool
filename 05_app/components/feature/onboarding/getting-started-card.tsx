@@ -9,6 +9,7 @@ import { CheckCircle2, Circle, X } from "lucide-react";
 import { dismissGettingStarted } from "@/app/actions/dismiss-getting-started";
 import { openStudyAction } from "@/app/actions/switch-workspace";
 import { useNewStudy } from "@/components/feature/new-study/context";
+import { StartTutorialButton } from "@/components/feature/onboarding/start-tutorial-button";
 import type { GettingStartedState } from "@/server/trpc/routers/me";
 
 /**
@@ -92,6 +93,11 @@ export function GettingStartedCard({ state, dismissed }: { state: GettingStarted
           {doneCount} of {steps.length} done — your first steps, ticked off automatically as you go.
         </p>
       </div>
+      {/* Prefer the hands-on path: a guided tutorial that builds a real study and
+          walks each step, vs. ticking the list alone (owner 2026-07-02). */}
+      <StartTutorialButton className="inline-flex w-fit items-center rounded-[var(--radius-md)] bg-[var(--color-primary)] px-3 py-1.5 text-[length:var(--text-small)] font-medium text-white hover:opacity-90 disabled:opacity-50">
+        New here? Take the guided tutorial →
+      </StartTutorialButton>
       <ul className="grid grid-cols-1 gap-x-8 gap-y-2.5 sm:grid-cols-2">
         {steps.map((step) => (
           <li key={step.label} className="flex items-start gap-2">

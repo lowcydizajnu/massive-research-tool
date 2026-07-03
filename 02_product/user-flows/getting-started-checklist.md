@@ -12,6 +12,13 @@ A new researcher sees, at a glance, how far they've gotten through the product's
 core loop (create → build → preregister → recruit → results) plus the community
 basics (save, invite, connect OSF), and can jump straight to the next undone step.
 
+**Primary hands-on path (2026-07-02):** the card and the Studies empty state lead
+with **"Take the guided tutorial"** — it forks the misinformation starter into the
+workspace and drops the researcher into the Builder with the `misinformation-study`
+scenario coachmark tour (`SCENARIO_TOUR_STEPS`, ADR-0076 / feedback #7D), which walks
+every stage with an explanation instead of redirecting and leaving them alone. The
+checklist below is the self-serve complement for those who'd rather explore.
+
 ## Preconditions
 
 - Signed in, signup wizard finished (`hasCompletedOnboarding`), at least one
