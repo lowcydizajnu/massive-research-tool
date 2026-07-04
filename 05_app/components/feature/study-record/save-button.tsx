@@ -70,7 +70,7 @@ export function SaveButton({ studyId, className }: { studyId: string; className?
             </div>
             <p className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
               You&rsquo;ll find everything you save under the <strong className="font-medium text-[var(--color-text-primary)]">Saved</strong> tab, next to
-              &ldquo;Browse Entire App&rdquo;. Your reading list is private to you and works across every workspace — saving is separate from following an
+              &ldquo;All Public Studies&rdquo;. Your reading list is private to you and works across every workspace — saving is separate from following an
               author or tag (which feeds your activity stream).
             </p>
             <div className="flex items-center justify-end gap-2">

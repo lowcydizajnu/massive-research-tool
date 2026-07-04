@@ -12,11 +12,13 @@ import { cn } from "@/lib/utils";
  * studies). Browse lives here, not in the workspace rail, because it's global.
  */
 // Labels name the SCOPE, not just the surface: "Your Dashboard" is your own
-// cross-workspace home; "Browse Entire App" is the global public catalogue. An
-// app-level section may join them later (owner note 2026-06-18).
+// cross-workspace home; "All Public Studies" is the global public catalogue
+// (/browse); "Meet Researchers" is the opt-in public-researcher directory
+// (owner 2026-07-04, discoverability); "Saved" is your reading list.
 const TABS: { label: string; href: Route }[] = [
   { label: "Your Dashboard", href: "/home" as Route },
-  { label: "Browse Entire App", href: "/browse" as Route },
+  { label: "All Public Studies", href: "/browse" as Route },
+  { label: "Meet Researchers", href: "/researchers" as Route },
   { label: "Saved", href: "/saved" as Route },
 ];
 

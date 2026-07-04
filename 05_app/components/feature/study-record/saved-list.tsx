@@ -39,7 +39,7 @@ export function SavedList() {
               href={"/browse" as Route}
               className="mt-1 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-1.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-canvas)]"
             >
-              Browse Entire App
+              All Public Studies
             </Link>
           </div>
         ) : (

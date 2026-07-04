@@ -2,6 +2,7 @@ import { LayoutTemplate } from "lucide-react";
 import Link from "next/link";
 import type { Route } from "next";
 
+import { ResearcherCard, type ShowcaseProfile } from "@/components/feature/explore/researcher-card";
 import { templateCoverSrc } from "@/components/feature/explore/template-cover";
 import { UseTemplateButton } from "@/components/feature/library/use-template-button";
 import {
@@ -38,16 +39,7 @@ export type CommunityStudy = {
   authorName: string | null;
   replicationCount: number;
 };
-export type ShowcaseProfile = {
-  handle: string;
-  displayName: string;
-  affiliation: string | null;
-  researchAreas: string[];
-  avatarKey: string | null;
-  avatarUrl: string | null;
-  studyCount: number;
-  followerCount: number;
-};
+export type { ShowcaseProfile };
 
 const BAND =
   "flex flex-col gap-4 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6";
@@ -213,54 +205,11 @@ export function ExploreContent({
             Researchers to follow
           </h2>
           <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {showcaseProfiles.map((p) => {
-              const avatarSrc = p.avatarKey ? `/api/media/${p.avatarKey}` : p.avatarUrl;
-              return (
-                <li key={p.handle}>
-                  <Link
-                    href={`/u/${p.handle}` as Route}
-                    className={`${CARD} p-4 transition-opacity hover:opacity-90`}
-                  >
-                    <div className="flex items-center gap-3">
-                      {avatarSrc ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={avatarSrc} alt="" className="size-11 shrink-0 rounded-full object-cover" />
-                      ) : (
-                        <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary-subtle)] text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-primary-text-on-subtle)]">
-                          {(p.displayName.trim()[0] ?? "·").toUpperCase()}
-                        </span>
-                      )}
-                      <div className="flex min-w-0 flex-col">
-                        <span className="truncate font-serif text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">
-                          {p.displayName}
-                        </span>
-                        {p.affiliation ? (
-                          <span className="truncate text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
-                            {p.affiliation}
-                          </span>
-                        ) : null}
-                      </div>
-                    </div>
-                    {p.researchAreas.length > 0 ? (
-                      <div className="mt-3 flex flex-wrap gap-1">
-                        {p.researchAreas.slice(0, 3).map((area) => (
-                          <span
-                            key={area}
-                            className="rounded-[var(--radius-sm)] bg-[var(--color-surface-subtle)] px-2 py-0.5 text-[length:var(--text-small)] text-[var(--color-text-secondary)]"
-                          >
-                            {area}
-                          </span>
-                        ))}
-                      </div>
-                    ) : null}
-                    <span className="mt-3 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-                      {p.studyCount} {p.studyCount === 1 ? "study" : "studies"} · {p.followerCount}{" "}
-                      {p.followerCount === 1 ? "follower" : "followers"}
-                    </span>
-                  </Link>
-                </li>
-              );
-            })}
+            {showcaseProfiles.map((p) => (
+              <li key={p.handle}>
+                <ResearcherCard profile={p} />
+              </li>
+            ))}
           </ul>
         </section>
       ) : null}
