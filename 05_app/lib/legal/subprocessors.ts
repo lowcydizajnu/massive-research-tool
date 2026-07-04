@@ -20,7 +20,7 @@ export type Subprocessor = {
 export const SUBPROCESSORS: Subprocessor[] = [
   { name: "Clerk", purpose: "Authentication", location: "USA", dataAccessed: "Email, display name, auth tokens" },
   { name: "Neon (PostgreSQL)", purpose: "Database hosting", location: "EU (Frankfurt)", dataAccessed: "Researcher and participant data" },
-  { name: "Vercel", purpose: "Application hosting", location: "USA", dataAccessed: "Request/response data; no direct DB access" },
+  { name: "Vercel", purpose: "Application hosting", location: "EU (Frankfurt) compute; US company", dataAccessed: "Request/response data; no direct DB access" },
   { name: "Cloudflare R2", purpose: "Asset storage", location: "EU (Eastern Europe)", dataAccessed: "Uploaded images/audio/video, generated audio" },
   { name: "Cloudflare CDN", purpose: "Delivery + DDoS protection", location: "Global", dataAccessed: "HTTP request metadata (coarse country)" },
   { name: "Upstash Redis", purpose: "Rate limiting", location: "USA", dataAccessed: "One-way-hashed coarse buckets; never raw IPs" },
