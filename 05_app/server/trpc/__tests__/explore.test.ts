@@ -127,7 +127,9 @@ describe("explore router (EE1.3, ADR-0076)", () => {
       { id: ulid(), userId: f1.id, targetType: "author", targetId: alice.id },
     ]);
 
-    const rows = await createCaller(anon()).explore.publicProfiles({ limit: 12 });
+    // limit 48 (> the old max of 24) exercises the /researchers directory page size —
+    // an over-max input throws BAD_REQUEST, which crashed /researchers on prod.
+    const rows = await createCaller(anon()).explore.publicProfiles({ limit: 48 });
     expect(rows.map((r) => r.handle)).toEqual(["bob", "alice"]); // ordered by followerCount desc
     const b = rows.find((r) => r.handle === "bob")!;
     expect(b.followerCount).toBe(2);

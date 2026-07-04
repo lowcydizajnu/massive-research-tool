@@ -72,7 +72,10 @@ export const exploreRouter = router({
    * (followers, then studies) so the most-followed researchers surface first.
    */
   publicProfiles: publicProcedure
-    .input(z.object({ limit: z.number().int().min(1).max(24).default(8) }).default({ limit: 8 }))
+    // max 100 so the personal /researchers directory can request a full page
+    // (the Explore showcase band asks for 12); over-max input else throws (crashed
+    // /researchers when it passed 48, owner 2026-07-04).
+    .input(z.object({ limit: z.number().int().min(1).max(100).default(8) }).default({ limit: 8 }))
     .query(async ({ input }): Promise<ShowcaseRow[]> => {
       // Counts are computed in separate grouped queries and merged in JS rather
       // than as subqueries correlated to `user`: pglite (the hermetic test DB)

@@ -7,6 +7,7 @@ import { templateCoverSrc } from "@/components/feature/explore/template-cover";
 import { UseTemplateButton } from "@/components/feature/library/use-template-button";
 import {
   STARTER_AB_TEMPLATE_ID,
+  STARTER_AIPERSUASION_TEMPLATE_ID,
   STARTER_MISINFO_TEMPLATE_ID,
   STARTER_PILOT_TEMPLATE_ID,
 } from "@/lib/system/starter";
@@ -64,6 +65,16 @@ const STARTER_TOUR_SLUG: Record<string, string> = {
   [STARTER_PILOT_TEMPLATE_ID]: "pilot-with-friends",
 };
 
+/**
+ * Curated Featured-band order (owner 2026-07-04): misinfo 1st, AI persuasion 2nd
+ * (they pair thematically). Everything else keeps the query's useCount-desc order
+ * — the sort below is stable, so unpinned templates stay in their fetched order.
+ */
+const FEATURED_PIN: Record<string, number> = {
+  [STARTER_MISINFO_TEMPLATE_ID]: 0,
+  [STARTER_AIPERSUASION_TEMPLATE_ID]: 1,
+};
+
 export function ExploreContent({
   isPublic = false,
   featuredTemplates = [],
@@ -101,7 +112,9 @@ export function ExploreContent({
             Featured starter templates
           </h2>
           <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-2">
-            {featuredTemplates.map((t) => {
+            {[...featuredTemplates]
+              .sort((a, b) => (FEATURED_PIN[a.id] ?? 99) - (FEATURED_PIN[b.id] ?? 99))
+              .map((t) => {
               const coverSrc = templateCoverSrc(t);
               return (
               <li key={t.id}>
