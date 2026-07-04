@@ -5,6 +5,8 @@
 - **Deciders:** Paweł Rosner (project owner)
 - **Tags:** infra, data-model, privacy, compliance
 
+> **Amended 2026-07-04 by [ADR-0093](./0093-colocate-compute-eu.md):** Vercel compute moved US → EU (`fra1`, Frankfurt) for performance — the transatlantic RTT between US functions and this EU DB, multiplied by sequential per-request round-trips, made `/take` "Continue" and workspace-switch slow. The "compute (Vercel) stays US" stance below is superseded on that one point; everything else here stands.
+
 > **Outcome (2026-06-29):** Owner confirmed Vercel `DATABASE_URL` was the US project (`...us-east-2...`). Migrated live data US → empty EU `MRT Production` (`aws-eu-central-1`) via `pg_dump`/`pg_restore` with **exact row-count parity across all 51 public tables** + the `drizzle` migrations schema. Owner repointed Vercel `DATABASE_URL` to the EU pooled string and rebuilt HEAD (`460d21e`, live). Trust tables corrected to EU. **Follow-ups:** owner to rename Neon projects so `mrt-production` = the EU project (then all `*-prod.ts` tooling targets EU automatically) + update local `.env.production` `DATABASE_URL`/`UPSTASH_REGION`; decommission the US project + the stale `myresearchtool` EU project after a backup window; Upstash still us-east-1 (hashed buckets only) — move later if desired.
 
 ## Context
