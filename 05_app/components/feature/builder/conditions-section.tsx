@@ -89,7 +89,7 @@ export function ConditionsSection({ studyId }: { studyId: string }) {
                     <X className="size-3.5" aria-hidden />
                   </button>
                 </div>
-                <div className="flex items-center gap-2 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
                   <input
                     aria-label="Condition slug"
                     key={`${c.id}-slug-${c.slug}`}
