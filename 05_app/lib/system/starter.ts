@@ -70,3 +70,16 @@ export const STARTER_SURVEY_EXPERIMENT_ID = "00000000-0000-4000-8000-00000000004
 export const STARTER_SURVEY_VERSION_ID = "00000000-0000-4000-8000-000000000041";
 /** The public `starter` workspace_template — a clean general-purpose survey in the v0.7 look. */
 export const STARTER_SURVEY_TEMPLATE_ID = "starter-survey-v1";
+
+/* ---- AI persuasion starter (owner 2026-07-04, pairs with misinfo) ---- */
+
+/** The system-owned source study the AI-persuasion starter freezes from. */
+export const STARTER_AIPERSUASION_EXPERIMENT_ID = "00000000-0000-4000-8000-000000000050";
+/** The frozen published version the template clones. */
+export const STARTER_AIPERSUASION_VERSION_ID = "00000000-0000-4000-8000-000000000051";
+/**
+ * The public `starter` workspace_template: pre/post agreement around an `ai-chat`
+ * conversation (attitude change). NB the ai-chat block needs the workspace's own
+ * Anthropic key (ADR-0066/BYO) — the template description says so.
+ */
+export const STARTER_AIPERSUASION_TEMPLATE_ID = "starter-aipersuasion-v1";

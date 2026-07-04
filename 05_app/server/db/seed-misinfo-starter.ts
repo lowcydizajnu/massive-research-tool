@@ -19,6 +19,9 @@ import {
   STARTER_AB_EXPERIMENT_ID,
   STARTER_AB_TEMPLATE_ID,
   STARTER_AB_VERSION_ID,
+  STARTER_AIPERSUASION_EXPERIMENT_ID,
+  STARTER_AIPERSUASION_TEMPLATE_ID,
+  STARTER_AIPERSUASION_VERSION_ID,
   STARTER_MISINFO_EXPERIMENT_ID,
   STARTER_MISINFO_TEMPLATE_ID,
   STARTER_MISINFO_VERSION_ID,
@@ -426,6 +429,7 @@ export async function seedStarters(): Promise<void> {
   await seedAbStarter();
   await seedPilotStarter();
   await seedSurveyStarter();
+  await seedAiPersuasionStarter();
 }
 
 /* ======================================================================== *
@@ -780,5 +784,111 @@ export async function seedPilotStarter(): Promise<void> {
     groups: [{ id: "draft-scale", title: "Draft scale" }],
     overview: PILOT_OVERVIEW,
     consent: PILOT_CONSENT,
+  });
+}
+
+/* ======================================================================== *
+ * AI persuasion starter (owner 2026-07-04, pairs with the misinfo starter)
+ *
+ * A real attitude-change paradigm: the participant rates their agreement with a
+ * health claim, has a short text conversation with an AI that discusses it with
+ * evidence, then RE-rates the same claim, plus an open-text reflection. Pre/post
+ * on the SAME likert-7 item makes the shift analysable.
+ *
+ * IMPORTANT: the `ai-chat` block (ADR-0061) runs on the WORKSPACE's own Anthropic
+ * key (ADR-0066 / BYO) — a fork won't run the chat until the researcher connects a
+ * key in Settings → AI provider, and it bills their Anthropic account. The template
+ * description + consent say so, and the block shows an AI disclosure at /take.
+ * ======================================================================== */
+
+const AIPERSUASION_CLAIM = "Taking high-dose vitamin C prevents or shortens the common cold.";
+
+let nAip = 0;
+const aipBlk = (
+  key: string,
+  config: Record<string, unknown>,
+  version = "1.0.0",
+  extra: Partial<BlockInstance> = {},
+): BlockInstance => ({
+  instanceId: `STARTERAIPERSUASION${String(++nAip).padStart(6, "0")}`,
+  source: "core",
+  key,
+  version,
+  config,
+  ...extra,
+});
+
+function aiPersuasionBlocks(): BlockInstance[] {
+  const agreementConfig = {
+    prompt: `How much do you agree with this statement?\n\n"${AIPERSUASION_CLAIM}"`,
+    leftAnchor: "Strongly disagree",
+    rightAnchor: "Strongly agree",
+    required: true,
+  };
+  return [
+    aipBlk("text", {
+      contentMd:
+        "## Before you begin\n\nIn this short study you'll rate a health claim, have a brief text chat with an AI about it, then rate the claim again — about **4 minutes**. There are no right or wrong answers.\n\n*(This is a starter template — the claim, the AI's instructions, and every question are editable in the Builder.)*",
+    }),
+    aipBlk("likert-7", agreementConfig, "1.0.0", { title: "Agreement — before" }),
+    aipBlk(
+      "ai-chat",
+      {
+        role: "You are a warm, evidence-based health communicator. Your goal is to have a short, respectful conversation with the participant about a health claim and help them reach an accurate, well-calibrated view using current scientific evidence. Ask what they think and why, acknowledge their reasoning, and gently address misconceptions with clear evidence. Never be preachy, dismissive, or alarmist.",
+        context: `The claim under discussion is: "${AIPERSUASION_CLAIM}" The scientific consensus is that routine vitamin C supplementation does not prevent colds in the general population and, at most, slightly shortens their duration. Discuss this accurately and even-handedly.`,
+        openingMessage:
+          "Hi! Quick question before we dig in — how much do you think taking extra vitamin C helps with colds? I'm just curious what you've come across.",
+        model: "claude-sonnet-4-6",
+        maxTurns: 6,
+        timeLimitSec: 0,
+      },
+      "1.0.0",
+      { title: "AI conversation" },
+    ),
+    aipBlk("likert-7", agreementConfig, "1.0.0", { title: "Agreement — after" }),
+    aipBlk(
+      "free-text",
+      {
+        prompt: "Did the conversation change your view at all? If so, what was most convincing?",
+        longForm: true,
+        required: false,
+        maxLength: 2000,
+      },
+      "1.0.0",
+      { title: "Change of mind" },
+    ),
+    aipBlk("text", {
+      contentMd: "## Thank you\n\nThat's everything — thanks for taking part. You can close this tab now.",
+    }),
+  ];
+}
+
+const AIPERSUASION_CONSENT = {
+  body: "You're about to take part in a short study on opinions. You'll rate a health claim, have a brief text conversation with an AI (not a person), then rate the claim again. Participation is voluntary, your responses — including the conversation — are recorded anonymously, and you may stop at any time by closing the tab.",
+  agreeLabel: DEFAULT_CONSENT.agreeLabel,
+  disagreeLabel: DEFAULT_CONSENT.disagreeLabel,
+  declineMessage: DEFAULT_CONSENT.declineMessage,
+};
+
+const AIPERSUASION_OVERVIEW =
+  "An attitude-change study built around an AI conversation: the participant rates a health claim, discusses it with an AI for a few turns, then re-rates it, with an open-text reflection. Pre/post on the same item measures whether the chat shifted their view. NOTE: the AI conversation runs on your workspace's own Anthropic API key (connect it in Settings → AI provider) and uses your AI credits.";
+
+export async function seedAiPersuasionStarter(): Promise<void> {
+  await ensureSystemAccount();
+  await seedStarter({
+    experimentId: STARTER_AIPERSUASION_EXPERIMENT_ID,
+    versionId: STARTER_AIPERSUASION_VERSION_ID,
+    templateId: STARTER_AIPERSUASION_TEMPLATE_ID,
+    studyTitle: "AI persuasion: attitude change",
+    templateName: "AI persuasion chat",
+    templateDescription:
+      "Does a short AI conversation change minds? Participants rate a health claim, discuss it with an AI, then re-rate — with an open-text follow-up. Requires your own Anthropic API key (Settings → AI provider); the chat runs on your AI credits.",
+    tags: ["persuasion", "ai-chat", "attitude-change"],
+    versionName: "AI persuasion starter v1",
+    blocks: aiPersuasionBlocks(),
+    groups: [],
+    overview: AIPERSUASION_OVERVIEW,
+    consent: AIPERSUASION_CONSENT,
+    theme: SURVEY_THEME_V07,
   });
 }

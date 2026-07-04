@@ -21,6 +21,9 @@ describe("templateCoverSrc — featured-template cover precedence (ADR-0091)", (
     expect(templateCoverSrc({ id: "starter-survey-v1", coverImageR2Key: null })).toBe(
       "/explore-covers/survey.png",
     );
+    expect(templateCoverSrc({ id: "starter-aipersuasion-v1", coverImageR2Key: null })).toBe(
+      "/explore-covers/aipersuasion.png",
+    );
   });
 
   it("the committed starter asset wins even if a coverImageR2Key is also set", () => {
