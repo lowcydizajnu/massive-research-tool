@@ -189,3 +189,44 @@ describe("workspace archive & restore (ADR-0090)", () => {
     await expect(caller.workspace.unarchive({ workspaceId: ws.id })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });
+
+describe("workspace.rename (ADR-0092)", () => {
+  it("owner renames — name changes (trimmed), slug stays stable", async () => {
+    const ws = await seedWs("owner");
+    await createCaller({ authUser: authUser("u") }).workspace.rename({
+      workspaceId: ws.id,
+      name: "  Misinfo Lab  ",
+    });
+    const [row] = await db.select().from(workspace).where(eq(workspace.id, ws.id));
+    expect(row.name).toBe("Misinfo Lab");
+    expect(row.slug).toBe("lab"); // slug is immutable (ADR-0092)
+  });
+
+  it("admin can rename; editor cannot; a non-member is NOT_FOUND", async () => {
+    const ws = await seedWs("owner"); // owner is user "u"
+    const [adm] = await db
+      .insert(user)
+      .values({ externalId: "adm", email: "adm@e.com", displayName: "adm" })
+      .returning();
+    await db.insert(member).values({ workspaceId: ws.id, userId: adm.id, role: "admin", status: "active" });
+    const [ed] = await db
+      .insert(user)
+      .values({ externalId: "ed", email: "ed@e.com", displayName: "ed" })
+      .returning();
+    await db.insert(member).values({ workspaceId: ws.id, userId: ed.id, role: "editor", status: "active" });
+    await db.insert(user).values({ externalId: "out", email: "out@e.com", displayName: "out" });
+
+    await createCaller({ authUser: authUser("adm") }).workspace.rename({ workspaceId: ws.id, name: "By Admin" });
+    expect((await db.select().from(workspace).where(eq(workspace.id, ws.id)))[0].name).toBe("By Admin");
+
+    await expect(
+      createCaller({ authUser: authUser("ed") }).workspace.rename({ workspaceId: ws.id, name: "By Editor" }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(
+      createCaller({ authUser: authUser("out") }).workspace.rename({ workspaceId: ws.id, name: "By Outsider" }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    // The rejected attempts didn't mutate the name.
+    expect((await db.select().from(workspace).where(eq(workspace.id, ws.id)))[0].name).toBe("By Admin");
+  });
+});

@@ -290,6 +290,35 @@ export const workspaceRouter = router({
       return { ok: true };
     }),
 
+  /**
+   * Rename a workspace (owner or admin) — ADR-0092. Cross-workspace like
+   * `unarchive` (the target may not be the active one), so it resolves the
+   * caller's membership role in the target explicitly. Changes `name` only;
+   * `slug` is a stable create-time identifier and is left untouched, so links +
+   * bookmarks keep working. No lifecycle event (a slug-stable relabel).
+   */
+  rename: protectedProcedure
+    .input(z.object({ workspaceId: z.string().uuid(), name: z.string().trim().min(1).max(120) }))
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      const [m] = await db
+        .select({ role: member.role })
+        .from(member)
+        .where(
+          and(
+            eq(member.workspaceId, input.workspaceId),
+            eq(member.userId, ctx.dbUser.id),
+            eq(member.status, "active"),
+          ),
+        )
+        .limit(1);
+      if (!m) throw new TRPCError({ code: "NOT_FOUND", message: "Workspace not found." });
+      if (m.role !== "owner" && m.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Only owners and admins can rename a workspace." });
+      }
+      await db.update(workspace).set({ name: input.name.trim() }).where(eq(workspace.id, input.workspaceId));
+      return { ok: true };
+    }),
+
   /** Archived workspaces the caller owns — the Account-settings restore list
    *  (ADR-0090). Newest-archived first, each with its (non-archived) study count. */
   listArchived: protectedProcedure.query(async ({ ctx }): Promise<ArchivedWorkspace[]> => {

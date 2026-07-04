@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { FeatureTip } from "@/components/feature/onboarding/feature-tip";
 import { HelpLink } from "@/components/feature/help/help-link";
 import { ArchivedWorkspacesSection } from "@/components/feature/settings/archived-workspaces-section";
+import { WorkspacesSection } from "@/components/feature/settings/workspaces-section";
 import { EngagementEmailSection } from "@/components/feature/settings/engagement-email-section";
 import { ProfileForm } from "@/components/feature/settings/profile-form";
 import { PublicProfileSection } from "@/components/feature/settings/public-profile-section";
@@ -20,14 +21,15 @@ import { disconnectOsfAction } from "@/server/registry/disconnect";
 
 /**
  * Account Settings (account-settings.md) — PERSONAL scope (IA v0.7): renders in
- * personal-mode chrome, holding only per-user concerns — Profile, Connections
- * (per-user OSF OAuth, ADR-0005), and Appearance (theme + panel side). Anything
- * that mutates a workspace (demo content, the workspace Activity-feed filter)
- * lives on `/settings/workspace` instead, so Account never "leads to a
- * workspace". Notifications stays shown-but-inert (a later surface).
+ * personal-mode chrome, holding per-user concerns — Profile, Connections
+ * (per-user OSF OAuth, ADR-0005), Appearance (theme + panel side), and
+ * Workspaces (a cross-workspace management list: open / rename / create /
+ * restore-archived — personal scope, not the active workspace's settings).
+ * Workspace-SCOPED settings (demo content, the workspace Activity-feed filter)
+ * live on `/settings/workspace` instead. Notifications stays shown-but-inert.
  */
-const TABS = ["Profile", "Connections", "Appearance", "Notifications"] as const;
-const ACTIVE_TABS = new Set(["Profile", "Connections", "Appearance", "Notifications"]);
+const TABS = ["Profile", "Connections", "Appearance", "Notifications", "Workspaces"] as const;
+const ACTIVE_TABS = new Set(["Profile", "Connections", "Appearance", "Notifications", "Workspaces"]);
 const tabKey = (t: string) => t.toLowerCase();
 
 function formatDate(iso: string): string {
@@ -57,7 +59,9 @@ export default async function AccountSettingsPage({
         ? "appearance"
         : sp.tab === "notifications"
           ? "notifications"
-          : "profile";
+          : sp.tab === "workspaces"
+            ? "workspaces"
+            : "profile";
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-5 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6">
@@ -236,9 +240,14 @@ export default async function AccountSettingsPage({
         </>
       ) : null}
 
-      {/* Personal-scope restore list — reachable even with zero active workspaces
-          (ADR-0090). Self-hides when nothing is archived; shown regardless of tab. */}
-      <ArchivedWorkspacesSection />
+      {tab === "workspaces" ? (
+        <>
+          <WorkspacesSection />
+          {/* Personal-scope restore list — reachable even with zero active
+              workspaces (ADR-0090). Self-hides when nothing is archived. */}
+          <ArchivedWorkspacesSection />
+        </>
+      ) : null}
     </main>
   );
 }
