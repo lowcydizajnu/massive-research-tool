@@ -593,6 +593,20 @@ export const WIDTHS: Record<StudyTheme["layout"]["width"], string> = {
  * consumes (tokens.css names). Derived tints use color-mix so a single accent
  * recolors chips/focus states coherently. Pure + deterministic.
  */
+/** Which native `color-scheme` the study's page implies (owner 2026-07-04). Native
+ *  form controls (radios, checkboxes, range sliders) otherwise follow the participant's
+ *  OS/browser scheme — so a light-themed study shows DARK controls in a dark-mode
+ *  browser. Declaring color-scheme from the page luminance keeps them matched. */
+export function themeColorScheme(t: StudyTheme): "light" | "dark" {
+  const hex = (t.colors?.page ?? "#ffffff").replace("#", "");
+  const n = hex.length === 3 ? hex.split("").map((c) => c + c).join("") : hex;
+  const r = parseInt(n.slice(0, 2), 16) || 0;
+  const g = parseInt(n.slice(2, 4), 16) || 0;
+  const b = parseInt(n.slice(4, 6), 16) || 0;
+  // Perceived luminance (0–255); a dark ground → dark controls.
+  return 0.299 * r + 0.587 * g + 0.114 * b < 128 ? "dark" : "light";
+}
+
 export function themeToCssVars(t: StudyTheme): Record<string, string> {
   return {
     "--color-surface-page": t.colors.page,

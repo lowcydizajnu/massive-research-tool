@@ -5,6 +5,7 @@ import {
   THEME_PRESETS,
   readTheme,
   studyThemeSchema,
+  themeColorScheme,
   themeToCssVars,
 } from "@/lib/themes/themes";
 
@@ -13,6 +14,14 @@ describe("study themes (ADR-0024)", () => {
     for (const p of Object.values(THEME_PRESETS)) {
       expect(studyThemeSchema.safeParse(p).success).toBe(true);
     }
+  });
+
+  it("themeColorScheme follows the page luminance (owner 2026-07-04)", () => {
+    // Light grounds → light native controls (radios/checkboxes/sliders) — the fix
+    // for dark dots on a light study in a dark-mode browser.
+    expect(themeColorScheme(THEME_PRESETS.facebook)).toBe("light"); // page #F0F2F5
+    expect(themeColorScheme(ACADEMIC)).toBe("light");
+    expect(themeColorScheme(THEME_PRESETS.x)).toBe("dark"); // page #000000
   });
 
   it("readTheme falls back to Academic for missing/invalid themes", () => {

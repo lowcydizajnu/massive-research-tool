@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 
 import { db } from "@/server/db/client";
 import { experiment, experimentVersion } from "@/server/db/schema";
-import { WIDTHS, effectivePresetKey, readTheme, resolveSocialPost, showsPlatformChrome, themeToCssVars } from "@/lib/themes/themes";
+import { WIDTHS, effectivePresetKey, readTheme, resolveSocialPost, showsPlatformChrome, themeColorScheme, themeToCssVars } from "@/lib/themes/themes";
 import { getPageFrame } from "@/components/feature/take/page-frames";
 
 /**
@@ -45,7 +45,7 @@ export default async function ThemedTakeLayout({
 
   return (
     <div
-      style={vars}
+      style={{ ...vars, colorScheme: themeColorScheme(theme) }}
       className="flex min-h-screen flex-col items-center bg-[var(--color-surface-page)] font-sans text-[var(--color-text-primary)]"
     >
       {Frame ? (

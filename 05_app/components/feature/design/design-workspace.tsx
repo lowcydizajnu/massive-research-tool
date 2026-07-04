@@ -21,6 +21,7 @@ import {
   resolveSocialPost,
   THEME_PRESETS,
   WIDTHS,
+  themeColorScheme,
   themeToCssVars,
   type FontKey,
   type StudyTheme,
@@ -126,7 +127,9 @@ export function DesignWorkspace({
       basePresetKey: theme.presetKey !== "custom" ? theme.presetKey : theme.basePresetKey,
     });
 
-  const vars = themeToCssVars(theme) as CSSProperties;
+  // Bake color-scheme in so native controls in the preview match a light theme
+  // even when the builder is in dark mode (owner 2026-07-04).
+  const vars = { ...themeToCssVars(theme), colorScheme: themeColorScheme(theme) } as CSSProperties;
   const lowContrast = contrast(theme.colors.text, theme.colors.card) < 4.5;
 
   return (
