@@ -22,7 +22,7 @@ Single scrolling column on `surface.page` parchment, max-width ~1100px centred, 
 1. **Header band** — Plex Serif headline ("Explore") + one-line subhead on the left; a persistent **"Browse published studies →"** link on the right (→ `/browse`, or `/signup` in the public variant). In the authed variant this sits under the standard workspace TopBar; in the public variant it sits under the marketing header (see [explore-public-route-header](./explore-public-route-header.md)).
 2. **Featured starter templates band** (lead band) — section heading + card grid, **2-up on desktop** / 1-up on mobile (up to 6), each a template card (cover image, name, description, use-count, "Use template"). Tour-enabled starters (misinfo / A/B / pilot) launch the guided Builder tour on use.
 3. **Community studies band** — section heading + card grid (6–9) of public studies (title, author, tags, use-count, "Replicate"). Header "Browse all →" → `/browse`.
-4. **Researcher showcase band** — opt-in researchers; entire band omitted when none exist.
+4. **Researcher showcase band** ("Researchers to follow") — a card grid of opt-in researchers, each card: avatar, name, affiliation, up to 3 research-area chips, and a "N studies · M followers" line; whole card links to `/u/<handle>`. Ordered by popularity (followers, then studies). Entire band omitted when none exist.
 
 All three bands are dynamic and collapse when empty. The app-shipped starter templates (seeded) keep the Featured band populated on a cold catalogue, so it reliably carries the page.
 
@@ -34,7 +34,7 @@ All three bands are dynamic and collapse when empty. The app-shipped starter tem
 - **Browse link** — static "Browse published studies →" in the header (→ `/browse`, or `/signup` when public).
 - **Featured template cards** — server: `explore.featuredTemplates` (starter + public, by use-count). Cover image (committed starter art keyed by starter id, ADR-0091, else `coverImageR2Key`, else gradient), name, description (~140 chars), use-count, "Use template" CTA (`UseTemplateButton`, with an optional `tourSlug` for tour-enabled starters).
 - **Community study cards** — server: `explore.communityStudies` (recent + most-replicated public studies). Title, author display name, up to 3 tags, use-count, "Replicate".
-- **Researcher showcase** — server: `explore.publicProfiles` (opt-in, ≥1 published study). Avatar, name, handle.
+- **Researcher showcase** — server: `explore.publicProfiles` (opt-in `publicProfileEnabled`, ≥1 publicly-discoverable study; PII-free). Avatar, display name, affiliation, research-area chips, public-study count + follower count; ordered by followers then studies. ("Articles"/publications intentionally not shown — no ORCID/Scholar/OSF data source exists, only a manual list.)
 - **Section "see more" links** — static routes (`/browse`, library).
 
 ## States

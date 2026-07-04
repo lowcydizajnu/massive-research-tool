@@ -2,7 +2,7 @@ import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/server/db/client";
-import { experiment, experimentVersion, user, workspaceTemplate } from "@/server/db/schema";
+import { experiment, experimentVersion, follow, user, workspaceTemplate } from "@/server/db/schema";
 import { publicProcedure, router } from "@/server/trpc/trpc";
 
 /**
@@ -66,30 +66,89 @@ export const exploreRouter = router({
   /**
    * Opt-in researcher profiles for the showcase band (EE2, ADR-0077): public
    * profiles that have at least one publicly-discoverable study. Returns only
-   * the public handle + display name (PII-free).
+   * PII-free fields already shown on the public profile page (ADR-0014): the
+   * handle, display name, affiliation, research areas, public avatar, plus two
+   * discovery counts (public studies + followers). Ordered by popularity
+   * (followers, then studies) so the most-followed researchers surface first.
    */
   publicProfiles: publicProcedure
     .input(z.object({ limit: z.number().int().min(1).max(24).default(8) }).default({ limit: 8 }))
-    .query(async ({ input }): Promise<{ handle: string; displayName: string }[]> => {
-      const rows = await db
-        .select({ handle: user.handle, displayName: user.displayName })
-        .from(user)
+    .query(async ({ input }): Promise<ShowcaseRow[]> => {
+      // Counts are computed in separate grouped queries and merged in JS rather
+      // than as subqueries correlated to `user`: pglite (the hermetic test DB)
+      // does not correlate the reserved-word `user` table inside a subquery.
+      // These queries only correlate to `experiment` (which pglite handles) or
+      // don't correlate at all, so they behave identically in test and prod.
+      const studyRows = await db
+        .select({ ownerId: experiment.ownerId, n: sql<number>`count(*)::int` })
+        .from(experiment)
         .where(
           and(
-            eq(user.publicProfileEnabled, true),
-            sql`${user.handle} is not null`,
-            sql`exists (
-              select 1 from ${experiment} e
-              where e.owner_id = ${user.id}
-                and e.forkable_by = 'public'
-                and e.archived_at is null
-                and e.is_demo = false
-                and exists (select 1 from ${experimentVersion} v where v.experiment_id = e.id and v.kind in ('published','preregistered'))
-            )`,
+            eq(experiment.forkableBy, "public"),
+            isNull(experiment.archivedAt),
+            eq(experiment.isDemo, false),
+            sql`exists (select 1 from ${experimentVersion} v where v.experiment_id = ${experiment.id} and v.kind in ('published','preregistered'))`,
           ),
         )
-        .orderBy(sql`${user.displayName} asc`)
-        .limit(input.limit);
-      return rows.filter((r): r is { handle: string; displayName: string } => r.handle !== null);
+        .groupBy(experiment.ownerId);
+      const studyCountByOwner = new Map(studyRows.map((r) => [r.ownerId, r.n]));
+
+      const followRows = await db
+        .select({ targetId: follow.targetId, n: sql<number>`count(*)::int` })
+        .from(follow)
+        .where(eq(follow.targetType, "author"))
+        .groupBy(follow.targetId);
+      const followerByAuthor = new Map(followRows.map((r) => [r.targetId, r.n]));
+
+      const candidates = await db
+        .select({
+          id: user.id,
+          handle: user.handle,
+          displayName: user.displayName,
+          affiliation: user.affiliation,
+          researchAreas: user.researchAreas,
+          avatarKey: user.publicAvatarR2Key,
+          avatarUrl: user.avatarUrl,
+        })
+        .from(user)
+        .where(and(eq(user.publicProfileEnabled, true), sql`${user.handle} is not null`));
+
+      return candidates
+        .flatMap((c): ShowcaseRow[] => {
+          if (c.handle === null) return [];
+          const studyCount = studyCountByOwner.get(c.id) ?? 0;
+          if (studyCount === 0) return []; // must have >=1 publicly-discoverable study
+          return [
+            {
+              handle: c.handle,
+              displayName: c.displayName,
+              affiliation: c.affiliation,
+              researchAreas: c.researchAreas,
+              avatarKey: c.avatarKey,
+              avatarUrl: c.avatarUrl,
+              studyCount,
+              followerCount: followerByAuthor.get(c.id) ?? 0,
+            },
+          ];
+        })
+        .sort(
+          (a, b) =>
+            b.followerCount - a.followerCount ||
+            b.studyCount - a.studyCount ||
+            a.displayName.localeCompare(b.displayName),
+        )
+        .slice(0, input.limit);
     }),
 });
+
+/** Enriched showcase row for the Explore "Researchers to follow" band (EE2). */
+type ShowcaseRow = {
+  handle: string;
+  displayName: string;
+  affiliation: string | null;
+  researchAreas: string[];
+  avatarKey: string | null;
+  avatarUrl: string | null;
+  studyCount: number;
+  followerCount: number;
+};

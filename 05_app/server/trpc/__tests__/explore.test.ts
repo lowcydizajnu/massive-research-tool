@@ -15,7 +15,7 @@ vi.mock("@/server/db/client", async () => {
 
 import type { AuthUser } from "@/server/adapters/auth";
 import { db } from "@/server/db/client";
-import { experiment, experimentVersion, user, workspace, workspaceTemplate } from "@/server/db/schema";
+import { experiment, experimentVersion, follow, user, workspace, workspaceTemplate } from "@/server/db/schema";
 import { appRouter } from "@/server/trpc/root";
 import { createCallerFactory } from "@/server/trpc/trpc";
 
@@ -48,6 +48,7 @@ beforeEach(async () => {
   await db.delete(workspaceTemplate);
   await db.delete(experimentVersion);
   await db.delete(experiment);
+  await db.delete(follow);
   await db.delete(workspace);
   await db.delete(user);
 });
@@ -88,5 +89,53 @@ describe("explore router (EE1.3, ADR-0076)", () => {
     const rows = await createCaller(anon()).explore.communityStudies({ limit: 9 });
     expect(rows.map((r) => r.title)).toEqual(["Public Frozen"]);
     expect(rows[0].authorName).toBe("Boss");
+  });
+
+  it("publicProfiles enriches with counts + affiliation and orders by followers (EE2)", async () => {
+    const mk = async (h: string, opts: { pub: boolean; aff?: string; areas?: string[] }) =>
+      (
+        await db
+          .insert(user)
+          .values({
+            externalId: h,
+            email: `${h}@e.com`,
+            displayName: h[0].toUpperCase() + h.slice(1),
+            handle: h,
+            publicProfileEnabled: opts.pub,
+            affiliation: opts.aff ?? null,
+            researchAreas: opts.areas ?? [],
+          })
+          .returning()
+      )[0];
+
+    const alice = await mk("alice", { pub: true, aff: "Uni A", areas: ["misinformation"] });
+    const bob = await mk("bob", { pub: true, aff: "Uni B" });
+    await mk("carol", { pub: false, aff: "Uni C" }); // profile disabled → excluded
+    const dave = await mk("dave", { pub: true, aff: "Uni D" }); // enabled but no PUBLIC study → excluded
+    const f1 = await mk("f1", { pub: false });
+    const f2 = await mk("f2", { pub: false });
+
+    const [w] = await db.insert(workspace).values({ name: "W", slug: "w", ownerId: alice.id }).returning();
+    await frozenStudy({ tenantId: w.id, ownerId: alice.id, title: "A study", forkableBy: "public" });
+    await frozenStudy({ tenantId: w.id, ownerId: bob.id, title: "B study", forkableBy: "public" });
+    await frozenStudy({ tenantId: w.id, ownerId: dave.id, title: "D private", forkableBy: "private" });
+
+    // bob has 2 followers, alice has 1 → bob sorts first.
+    await db.insert(follow).values([
+      { id: ulid(), userId: f1.id, targetType: "author", targetId: bob.id },
+      { id: ulid(), userId: f2.id, targetType: "author", targetId: bob.id },
+      { id: ulid(), userId: f1.id, targetType: "author", targetId: alice.id },
+    ]);
+
+    const rows = await createCaller(anon()).explore.publicProfiles({ limit: 12 });
+    expect(rows.map((r) => r.handle)).toEqual(["bob", "alice"]); // ordered by followerCount desc
+    const b = rows.find((r) => r.handle === "bob")!;
+    expect(b.followerCount).toBe(2);
+    expect(b.studyCount).toBe(1);
+    expect(b.affiliation).toBe("Uni B");
+    const a = rows.find((r) => r.handle === "alice")!;
+    expect(a.followerCount).toBe(1);
+    expect(a.studyCount).toBe(1);
+    expect(a.researchAreas).toEqual(["misinformation"]);
   });
 });
