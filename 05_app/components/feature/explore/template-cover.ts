@@ -2,6 +2,7 @@ import {
   STARTER_AB_TEMPLATE_ID,
   STARTER_MISINFO_TEMPLATE_ID,
   STARTER_PILOT_TEMPLATE_ID,
+  STARTER_SURVEY_TEMPLATE_ID,
 } from "@/lib/system/starter";
 
 /**
@@ -18,6 +19,7 @@ const STARTER_TEMPLATE_COVERS: Record<string, string> = {
   [STARTER_MISINFO_TEMPLATE_ID]: "/explore-covers/misinfo.png",
   [STARTER_AB_TEMPLATE_ID]: "/explore-covers/ab.png",
   [STARTER_PILOT_TEMPLATE_ID]: "/explore-covers/pilot.png",
+  [STARTER_SURVEY_TEMPLATE_ID]: "/explore-covers/survey.png",
 };
 
 /**

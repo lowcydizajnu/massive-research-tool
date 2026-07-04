@@ -18,6 +18,9 @@ describe("templateCoverSrc — featured-template cover precedence (ADR-0091)", (
     expect(templateCoverSrc({ id: STARTER_PILOT_TEMPLATE_ID, coverImageR2Key: null })).toBe(
       "/explore-covers/pilot.png",
     );
+    expect(templateCoverSrc({ id: "starter-survey-v1", coverImageR2Key: null })).toBe(
+      "/explore-covers/survey.png",
+    );
   });
 
   it("the committed starter asset wins even if a coverImageR2Key is also set", () => {
@@ -32,9 +35,7 @@ describe("templateCoverSrc — featured-template cover precedence (ADR-0091)", (
     );
   });
 
-  it("a template with neither returns null (card falls back to the gradient)", () => {
+  it("a non-starter template with neither returns null (card falls back to the gradient)", () => {
     expect(templateCoverSrc({ id: "user-template-123", coverImageR2Key: null })).toBeNull();
-    // The survey starter intentionally has no committed cover yet.
-    expect(templateCoverSrc({ id: "starter-survey-v1", coverImageR2Key: null })).toBeNull();
   });
 });

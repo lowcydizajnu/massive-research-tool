@@ -5,6 +5,8 @@
 - **Persona:** [Postdoc operator](../../02_product/personas/postdoc-operator.md)
 - **Status:** draft
 
+> **Amendment 2026-07-04 (owner):** The **Use-case scenarios band** ("Start with a use case") was **removed** — it duplicated the Featured starter templates once those carried real covers. Featured starter templates is now the lead band. Its two unique hooks were preserved: (a) the **guided tutorial** now launches from the Featured card's "Use template" for tour-enabled starters (misinfo / A/B / pilot) via `?tour=`, and (b) a persistent **"Browse published studies →"** link now lives in the header band (previously only the curated "replicate-published" scenario + the community band's conditional "Browse all" pointed at `/browse`). The `content/explore/scenarios.ts` module + `ExploreScenarioCard` were deleted (dead code). Featured tiles widened to a 2-up grid on desktop.
+
 ## Purpose
 
 > One sentence: what this screen exists to do.
@@ -17,21 +19,20 @@ Show a researcher (or a prospect) what Massive Research Tool can do and give the
 
 Single scrolling column on `surface.page` parchment, max-width ~1100px centred, vertical rhythm of stacked **bands** (modular floating cards on parchment, per design language v0.6):
 
-1. **Header band** — Plex Serif headline ("Explore") + one-line subhead. In the authed variant this sits under the standard workspace TopBar; in the public variant it sits under the marketing header (see [explore-public-route-header](./explore-public-route-header.md)).
-2. **Use-case scenarios band** — 2-up (desktop) / 1-up (mobile) grid of scenario cards (see [explore-use-case-card](./explore-use-case-card.md)). Always present (curated; never empty).
-3. **Featured starter templates band** — section heading + horizontal card grid (up to 6), each a template card (cover, name, description, use-count, "Use this template"). "See all templates →" link to Library/Browse.
-4. **Community studies band** — section heading + card grid (6–9) of public studies (title, author, tags, use-count, "Replicate"). "See more →" → `/browse`.
-5. **Researcher showcase band** — avatars + names of opt-in researchers; entire band omitted when none exist.
+1. **Header band** — Plex Serif headline ("Explore") + one-line subhead on the left; a persistent **"Browse published studies →"** link on the right (→ `/browse`, or `/signup` in the public variant). In the authed variant this sits under the standard workspace TopBar; in the public variant it sits under the marketing header (see [explore-public-route-header](./explore-public-route-header.md)).
+2. **Featured starter templates band** (lead band) — section heading + card grid, **2-up on desktop** / 1-up on mobile (up to 6), each a template card (cover image, name, description, use-count, "Use template"). Tour-enabled starters (misinfo / A/B / pilot) launch the guided Builder tour on use.
+3. **Community studies band** — section heading + card grid (6–9) of public studies (title, author, tags, use-count, "Replicate"). Header "Browse all →" → `/browse`.
+4. **Researcher showcase band** — opt-in researchers; entire band omitted when none exist.
 
-Bands 3–5 are dynamic; band 2 is curated and carries the page if the catalogue is cold.
+All three bands are dynamic and collapse when empty. The app-shipped starter templates (seeded) keep the Featured band populated on a cold catalogue, so it reliably carries the page.
 
 ## Content inventory
 
 > Every piece of content visible on the screen.
 
 - **Page headline + subhead** — static copy ("Explore" / "See what you can run, then make it yours").
-- **Scenario cards** — from Markdown files in `content/explore/scenarios/*.md` (title, 2-sentence body, cover image, primary CTA, optional "Read more →"). 5–8 to start.
-- **Featured template cards** — server: `explore.featuredTemplates` (starter + public, by use-count). Cover image, name, description (~140 chars), use-count, CTA.
+- **Browse link** — static "Browse published studies →" in the header (→ `/browse`, or `/signup` when public).
+- **Featured template cards** — server: `explore.featuredTemplates` (starter + public, by use-count). Cover image (committed starter art keyed by starter id, ADR-0091, else `coverImageR2Key`, else gradient), name, description (~140 chars), use-count, "Use template" CTA (`UseTemplateButton`, with an optional `tourSlug` for tour-enabled starters).
 - **Community study cards** — server: `explore.communityStudies` (recent + most-replicated public studies). Title, author display name, up to 3 tags, use-count, "Replicate".
 - **Researcher showcase** — server: `explore.publicProfiles` (opt-in, ≥1 published study). Avatar, name, handle.
 - **Section "see more" links** — static routes (`/browse`, library).
@@ -40,9 +41,9 @@ Bands 3–5 are dynamic; band 2 is curated and carries the page if the catalogue
 
 > Describe each.
 
-- **Default** — header + scenarios + any populated dynamic bands.
-- **Loading** — scenarios render immediately (static/SSR); dynamic bands show skeleton card rows.
-- **Empty** — cold catalogue: dynamic bands (templates/community/researchers) collapse entirely (no empty shells); scenarios band always carries the page. No global empty state.
+- **Default** — header (with Browse link) + any populated dynamic bands (Featured leads).
+- **Loading** — header renders immediately (static/SSR); dynamic bands show skeleton card rows.
+- **Empty** — cold catalogue: community/researcher bands collapse (no empty shells). Featured stays populated by the seeded starter templates, so it carries the page; the header Browse link is always present. No global empty state.
 - **Partial** — some dynamic bands populated, others collapsed; render what exists.
 - **Error** — a dynamic query failing collapses only its own band (logged); the page still renders. No full-page error.
 - **Success/optimistic** — clicking a CTA shows a pending state on that card's button (PendingButton) until the fork resolves / navigation occurs.
@@ -51,9 +52,8 @@ Bands 3–5 are dynamic; band 2 is curated and carries the page if the catalogue
 
 > For each interactive element.
 
-- **Scenario primary CTA ("Use this starter template")** — authed: fork the scenario's template → redirect to Builder; anonymous: route to sign-up carrying the fork intent. Degrades to "Browse public studies" / "Build from scratch" when no template is configured. Error → toast, stay on Explore.
-- **Scenario "Read more →"** — opens the scenario's docs page (new tab when public).
-- **Template card "Use this template"** — fork (authed) or sign-up-then-fork (anonymous).
+- **Header "Browse published studies →"** — navigate to `/browse` (authed) or `/signup` (public). Always present.
+- **Template card "Use template"** — authed: fork the starter into the active workspace → redirect to Builder; for tour-enabled starters (misinfo / A/B / pilot) the Builder opens with `?tour=<slug>` so the guided coachmark tour auto-launches once. Anonymous: sign-up-then-fork. Pending state on the button until the fork resolves. Error → inline "Couldn't use this template" message, stay on Explore.
 - **Community study "Replicate"** — `studies.fork` (authed) or sign-up-then-fork (anonymous).
 - **Researcher avatar** — navigate to `/u/<handle>`.
 - **"See more / See all" links** — navigate to `/browse` / library.
@@ -82,5 +82,5 @@ Bands 3–5 are dynamic; band 2 is curated and carries the page if the catalogue
 
 > Resolve before high-fi.
 
-- Final band order on first paint (assume scenarios → templates → community → researchers).
+- Band order on first paint: featured templates → community → researchers (resolved; scenarios band removed 2026-07-04).
 - Whether the public variant pre-renders dynamic bands for SEO or hydrates them (resolved in the Explore ADR).

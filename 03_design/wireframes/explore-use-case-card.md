@@ -5,6 +5,8 @@
 - **Persona:** [Postdoc operator](../../02_product/personas/postdoc-operator.md)
 - **Status:** draft
 
+> **⚠️ Superseded 2026-07-04 (owner) — do not implement.** The Explore "Start with a use case" scenarios band this card belonged to was removed — it duplicated the Featured starter templates once those carried real covers. The card component (`ExploreScenarioCard`) and its content module (`content/explore/scenarios.ts`) were deleted. See the amendment in [explore-destination](./explore-destination.md). Kept as the historical record for [ADR-0076](../../04_architecture/adrs/0076-explore-destination.md); do not implement.
+
 ## Purpose
 
 > One sentence: what this screen exists to do.

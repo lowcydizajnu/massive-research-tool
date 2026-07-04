@@ -2,10 +2,13 @@ import { LayoutTemplate } from "lucide-react";
 import Link from "next/link";
 import type { Route } from "next";
 
-import { ExploreScenarioCard } from "@/components/feature/explore/explore-scenario-card";
 import { templateCoverSrc } from "@/components/feature/explore/template-cover";
 import { UseTemplateButton } from "@/components/feature/library/use-template-button";
-import { getExploreScenarios } from "@/content/explore/scenarios";
+import {
+  STARTER_AB_TEMPLATE_ID,
+  STARTER_MISINFO_TEMPLATE_ID,
+  STARTER_PILOT_TEMPLATE_ID,
+} from "@/lib/system/starter";
 
 /**
  * Explore content island (EE1, ADR-0076; explore-destination.md). One component
@@ -14,9 +17,12 @@ import { getExploreScenarios } from "@/content/explore/scenarios";
  * workspace-scoped affordances. The dynamic data is fetched by the page and
  * passed in, so the island stays presentational + shell-agnostic.
  *
- * EE1.3 wired the curated scenarios (EE1.2) + the dynamic featured-templates and
- * community-studies bands. Empty dynamic bands collapse (no empty shells); the
- * researcher showcase awaits opt-in profiles (EE2).
+ * Bands: featured starter templates → community studies → opt-in researcher
+ * showcase (all collapse when empty). The earlier "Start with a use case" band
+ * was removed (owner 2026-07-04): it duplicated the featured templates. Its two
+ * unique hooks were preserved — the guided tour now rides the featured cards'
+ * "Use template" (via STARTER_TOUR_SLUG → UseTemplateButton), and a persistent
+ * "Browse published studies" link in the header keeps /browse reachable.
  */
 export type FeaturedTemplate = {
   id: string;
@@ -44,6 +50,19 @@ const COVER_FRAME = "aspect-[16/9] w-full overflow-hidden";
 const COVER_PLACEHOLDER =
   "flex size-full items-center justify-center bg-gradient-to-br from-[var(--color-primary-subtle)] to-[var(--color-surface-subtle)]";
 
+/**
+ * Tour-enabled starter templates → their guided-tour slug (= scenario slug the
+ * BuilderScenarioTour narrows via scenarioTourFor). Featured cards for these
+ * starters open the Builder with `?tour=`, preserving the guided tutorial that
+ * used to launch from the removed "Start with a use case" band. Starters absent
+ * here (e.g. survey) just open the Builder with no tour.
+ */
+const STARTER_TOUR_SLUG: Record<string, string> = {
+  [STARTER_MISINFO_TEMPLATE_ID]: "misinformation-study",
+  [STARTER_AB_TEMPLATE_ID]: "prolific-ab-test",
+  [STARTER_PILOT_TEMPLATE_ID]: "pilot-with-friends",
+};
+
 export function ExploreContent({
   isPublic = false,
   featuredTemplates = [],
@@ -55,39 +74,32 @@ export function ExploreContent({
   communityStudies?: CommunityStudy[];
   showcaseProfiles?: ShowcaseProfile[];
 }) {
-  const scenarios = getExploreScenarios();
   return (
     <div className="flex flex-col gap-4">
-      <header className="flex flex-col gap-1">
-        <h1 className="font-serif text-[length:var(--text-display)] font-medium text-[var(--color-text-primary)]">
-          Explore
-        </h1>
-        <p className="text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
-          See what you can run, then make it yours.
-        </p>
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div className="flex flex-col gap-1">
+          <h1 className="font-serif text-[length:var(--text-display)] font-medium text-[var(--color-text-primary)]">
+            Explore
+          </h1>
+          <p className="text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
+            See what you can run, then make it yours.
+          </p>
+        </div>
+        <Link
+          href={(isPublic ? "/signup" : "/browse") as Route}
+          className="text-[length:var(--text-body)] font-medium text-[var(--color-primary)] hover:underline"
+        >
+          Browse published studies →
+        </Link>
       </header>
 
-      {/* Band 1 — curated use-case scenarios (EE1.2) */}
-      <section aria-labelledby="explore-scenarios" className={BAND}>
-        <h2 id="explore-scenarios" className={BAND_TITLE}>
-          Start with a use case
-        </h2>
-        <ul className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {scenarios.map((s) => (
-            <li key={s.slug}>
-              <ExploreScenarioCard scenario={s} isPublic={isPublic} />
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      {/* Band 2 — featured starter templates (collapses when none) */}
+      {/* Band 1 — featured starter templates (collapses when none) */}
       {featuredTemplates.length > 0 ? (
         <section aria-labelledby="explore-templates" className={BAND}>
           <h2 id="explore-templates" className={BAND_TITLE}>
             Featured starter templates
           </h2>
-          <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-2">
             {featuredTemplates.map((t) => {
               const coverSrc = templateCoverSrc(t);
               return (
@@ -124,7 +136,7 @@ export function ExploreContent({
                           Use template
                         </Link>
                       ) : (
-                        <UseTemplateButton templateId={t.id} />
+                        <UseTemplateButton templateId={t.id} tourSlug={STARTER_TOUR_SLUG[t.id]} />
                       )}
                     </div>
                   </div>
@@ -136,7 +148,7 @@ export function ExploreContent({
         </section>
       ) : null}
 
-      {/* Band 3 — community studies (collapses when none) */}
+      {/* Band 2 — community studies (collapses when none) */}
       {communityStudies.length > 0 ? (
         <section aria-labelledby="explore-community" className={BAND}>
           <div className="flex items-baseline justify-between gap-3">
@@ -185,7 +197,7 @@ export function ExploreContent({
         </section>
       ) : null}
 
-      {/* Band 4 — opt-in researcher showcase (EE2): only when profiles exist. */}
+      {/* Band 3 — opt-in researcher showcase (EE2): only when profiles exist. */}
       {showcaseProfiles.length > 0 ? (
         <section aria-labelledby="explore-researchers" className={BAND}>
           <h2 id="explore-researchers" className={BAND_TITLE}>
