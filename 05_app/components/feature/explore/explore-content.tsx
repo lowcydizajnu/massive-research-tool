@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { Route } from "next";
 
 import { ExploreScenarioCard } from "@/components/feature/explore/explore-scenario-card";
+import { templateCoverSrc } from "@/components/feature/explore/template-cover";
 import { UseTemplateButton } from "@/components/feature/library/use-template-button";
 import { getExploreScenarios } from "@/content/explore/scenarios";
 
@@ -39,8 +40,9 @@ const BAND_TITLE =
   "font-serif text-[length:var(--text-title)] font-medium text-[var(--color-text-primary)]";
 const CARD =
   "flex flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)]";
-const COVER =
-  "flex aspect-[16/9] w-full items-center justify-center bg-gradient-to-br from-[var(--color-primary-subtle)] to-[var(--color-surface-subtle)]";
+const COVER_FRAME = "aspect-[16/9] w-full overflow-hidden";
+const COVER_PLACEHOLDER =
+  "flex size-full items-center justify-center bg-gradient-to-br from-[var(--color-primary-subtle)] to-[var(--color-surface-subtle)]";
 
 export function ExploreContent({
   isPublic = false,
@@ -86,11 +88,20 @@ export function ExploreContent({
             Featured starter templates
           </h2>
           <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {featuredTemplates.map((t) => (
+            {featuredTemplates.map((t) => {
+              const coverSrc = templateCoverSrc(t);
+              return (
               <li key={t.id}>
                 <article className={CARD}>
-                  <div aria-hidden className={COVER}>
-                    <LayoutTemplate className="size-10 text-[var(--color-primary)]" />
+                  <div aria-hidden className={COVER_FRAME}>
+                    {coverSrc ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={coverSrc} alt="" className="size-full object-cover" />
+                    ) : (
+                      <div className={COVER_PLACEHOLDER}>
+                        <LayoutTemplate className="size-10 text-[var(--color-primary)]" />
+                      </div>
+                    )}
                   </div>
                   <div className="flex flex-col gap-2 p-4">
                     <h3 className="font-serif text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">
@@ -119,7 +130,8 @@ export function ExploreContent({
                   </div>
                 </article>
               </li>
-            ))}
+              );
+            })}
           </ul>
         </section>
       ) : null}
