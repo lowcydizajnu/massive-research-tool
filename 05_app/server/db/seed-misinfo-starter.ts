@@ -12,7 +12,7 @@ import {
 } from "@/server/db/schema";
 import { locksFromBlocks, type BlockInstance, type StudyGroup } from "@/server/modules/blocks";
 import { DEFAULT_CONSENT } from "@/server/modules/consent";
-import type { StudyTheme } from "@/lib/themes/themes";
+import { studyThemeSchema, type StudyTheme } from "@/lib/themes/themes";
 import {
   STARTER_AB_CONDITION_A_ID,
   STARTER_AB_CONDITION_B_ID,
@@ -328,6 +328,17 @@ async function seedStarter(spec: StarterSpec): Promise<void> {
     .set({ kind: "published" })
     .where(eq(experimentVersion.id, spec.versionId));
 
+  // Reconcile the frozen snapshot (blocks + theme + locks) to the seed code — the
+  // version insert above uses onConflictDoNothing, so an already-seeded starter
+  // otherwise never picks up content/theme edits on a re-seed (owner 2026-07-04:
+  // the misinfo starter needed its Facebook theme applied to the LIVE template).
+  // Safe: existing forks copied the snapshot independently; only the public
+  // template preview + NEW forks read this.
+  await db
+    .update(experimentVersion)
+    .set({ definitionSnapshot: snapshot, moduleVersionLocks: locksFromBlocks(spec.blocks) })
+    .where(eq(experimentVersion.id, spec.versionId));
+
   // Random-assignment arms (A/B). Fixed ids → idempotent; onConflictDoNothing on
   // the (version, slug) unique index reconciles a re-seed.
   for (const c of spec.conditions ?? []) {
@@ -361,6 +372,21 @@ async function seedStarter(spec: StarterSpec): Promise<void> {
     .onConflictDoNothing({ target: workspaceTemplate.id });
 }
 
+/** The misinformation starter renders its social posts Facebook-style (owner
+ *  2026-07-04): a `facebook` theme at the default `layout` branding tier — the plain
+ *  FB post look, NO uploaded logo (so no ADR-0084 IRB gate) and the decorative page
+ *  nav off ("just the post"). `mimicAcknowledged` is set because the app owner ships
+ *  it; `studyThemeSchema.parse` fills the socialPost defaults + validates. */
+const MISINFO_FB_THEME: StudyTheme = studyThemeSchema.parse({
+  presetKey: "facebook",
+  colors: { page: "#F0F2F5", card: "#FFFFFF", text: "#050505", muted: "#65676B", accent: "#0866FF" },
+  typography: { headingFont: "helvetica", bodyFont: "helvetica", baseSize: "M" },
+  shape: { radius: "rounded", density: "normal" },
+  layout: { width: "medium", progress: "bar", backButton: true },
+  mimicAcknowledged: true,
+  socialPost: { platformChrome: false },
+});
+
 export async function seedMisinfoStarter(): Promise<void> {
   await ensureSystemAccount();
 
@@ -386,6 +412,7 @@ export async function seedMisinfoStarter(): Promise<void> {
     ],
     overview: STARTER_OVERVIEW,
     consent: STARTER_CONSENT,
+    theme: MISINFO_FB_THEME, // posts render Facebook-style (owner 2026-07-04)
   });
 }
 

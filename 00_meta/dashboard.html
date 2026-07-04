@@ -1214,6 +1214,10 @@
   ],
   "recentActivity": [
     {
+      "text": "feat(starter): the misinformation starter now renders its posts Facebook-style (owner ask). Gave the misinfo starter a 'facebook' theme at the default 'layout' branding tier (MISINFO_FB_THEME via studyThemeSchema.parse): plain FB post look — no uploaded logo (no ADR-0084 IRB gate) + the decorative page nav off (platformChrome:false) = 'just the post'; mimicAcknowledged:true. Also fixed a latent seed gotcha — seedStarter inserted the frozen version with onConflictDoNothing, so an already-seeded starter could never pick up content/theme edits on re-seed; it now reconciles definitionSnapshot + moduleVersionLocks to the code every run (idempotent; existing forks are independent, so only the public template preview + NEW forks change). Applied to prod via db:seed:prod. Seed idempotency test still green (933). tsc/lint/build clean. No migration.",
+      "date": "2026-07-04"
+    },
+    {
       "text": "fix(take): light-themed studies render light native form controls (dark-radio-dots bug). Owner spotted (live capture) that the accuracy/confidence radios, share-intention Likert, and checkboxes render as dark filled dots on a light study card. Cause: native <input>s follow the browser/OS color-scheme; the take runtime never declared one, so a dark-mode browser darkens the controls on a light theme. Fix: new themeColorScheme(theme) (page luminance → light/dark) applied as color-scheme on both themed containers — the real take runtime layout and the builder live preview — so every native control matches the study theme. +1 test. tsc/lint clean; build 25/25. No migration. Queued next (owner ask, needs a careful prod re-seed): render the misinfo starter's posts Facebook-style (facebook theme at the 'layout' tier — plain FB look, no logo/IRB); the starter ships presetKey 'custom' and the seed uses onConflictDoNothing on the frozen version, so it needs a snapshot-reconciling re-seed.",
       "date": "2026-07-04"
     },
