@@ -88,8 +88,21 @@ export default async function ScreenPage({
               <BlockView block={b} seed={sessionId} namePrefix={prefix} presetKey={effectivePresetKey(s.theme)} responseId={sessionId} chat={resolveChat(s.theme)} blockCopy={s.blockCopy} social={s.theme.socialPost} />
             </>
           );
+          // In feed mode the outer Card is dropped so each social post floats as its
+          // own unit — but that left the non-post question blocks bare on the grey
+          // feed background. Give each non-social block its own white box so it reads
+          // as a dedicated card (owner 2026-07-04). The social-post carries its own
+          // <article> surface, so it's excluded here and never double-boxed.
+          const boxed = feed && b.key !== "social-post";
           return (
-            <div key={b.instanceId}>
+            <div
+              key={b.instanceId}
+              className={
+                boxed
+                  ? "rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-4 shadow-[var(--shadow-md)]"
+                  : undefined
+              }
+            >
               {reveal ? <RevealGate condition={reveal}>{body}</RevealGate> : body}
             </div>
           );
