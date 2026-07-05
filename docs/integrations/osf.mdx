@@ -3,7 +3,7 @@ title: OSF (Open Science Framework)
 description: Connect OSF to preregister your study and keep the public record honest.
 ---
 
-Connecting the **OSF** lets you push a frozen version of your study to the Open Science Framework as a timestamped **preregistration**, push later **amendments** to the same project, and have Massive Research Lab watch the registration for withdrawals and DOI minting.
+Connecting the **OSF** lets you push a frozen version of your study to the Open Science Framework as a timestamped **preregistration**, push later **amendments** to the same project, and have My Research Lab watch the registration for withdrawals and DOI minting.
 
 This page describes exactly what we send, what we deliberately don't, and how the two-way sync behaves — so the record on OSF is something you can stand behind.
 
@@ -16,7 +16,7 @@ Connect once, in **Settings · Connections → OSF**. Two paths are supported:
     Generate a token at [osf.io/settings/tokens](https://osf.io/settings/tokens) with the **`osf.full_write`** scope and paste it. We validate it against OSF before storing (a bad or wrong-scope token is rejected on the spot), then keep it **encrypted**. Works everywhere, including self-hosted.
   </Card>
   <Card title="Sign in with OSF (OAuth)" icon="right-to-bracket">
-    If your Massive Research Lab instance has the OSF OAuth app configured, you can authorize via OSF directly. The OAuth flow requests the same `osf.full_write` scope. When OAuth isn't configured on the server, only the PAT path is shown.
+    If your My Research Lab instance has the OSF OAuth app configured, you can authorize via OSF directly. The OAuth flow requests the same `osf.full_write` scope. When OAuth isn't configured on the server, only the PAT path is shown.
   </Card>
 </CardGroup>
 
@@ -66,7 +66,7 @@ When you [preregister](/methodology/preregistration) a study, a background job s
 Be clear-eyed about the boundaries — a naive reading might assume more than the integration does:
 
 <Warning>
-- **No participant data.** Raw responses, completion records, and recruitment data never leave Massive Research Lab in any OSF push.
+- **No participant data.** Raw responses, completion records, and recruitment data never leave My Research Lab in any OSF push.
 - **No uploaded files or stimuli.** Images, audio, video, and other uploaded materials are **not** uploaded to OSF as files. The *design* (including the text of stimuli that live in the protocol) is captured in the JSON snapshot, but binary materials stay in the app.
 - **No rendered PDF.** The registration is the prose summary plus the JSON snapshot — there is no separately generated PDF artifact.
 - **No automatic DOI at push time.** OSF mints the DOI only after the registration is **approved**, so the DOI is empty immediately after pushing and is backfilled later (see the watch below).
@@ -86,7 +86,7 @@ This distinction is the whole point: the timestamped plan is immutable, amendmen
 
 ## The OSF watch
 
-Massive Research Lab periodically polls your pushed registrations and reflects two things back into the study:
+My Research Lab periodically polls your pushed registrations and reflects two things back into the study:
 
 - **DOI backfill** — once OSF approves the registration and mints a DOI, the watch reads it and stores it against the version, so your citation resolves.
 - **Withdrawal** — if a registration is withdrawn/retracted on OSF, the watch marks the version as **withdrawn** and notifies you. (OSF keeps a public tombstone — title, contributors, justification — after withdrawal.)
