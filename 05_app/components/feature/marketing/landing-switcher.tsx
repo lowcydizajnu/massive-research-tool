@@ -12,7 +12,6 @@ export function LandingSwitcher({ current }: { current: "minimal" | "bold" | "sc
   const off = "text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]";
   const opts: { label: string; href: string; key: "minimal" | "bold" | "scenes" }[] = [
     { label: "Minimal", href: "/", key: "minimal" },
-    { label: "Bold", href: "/?style=bold", key: "bold" },
     { label: "Scenes", href: "/?style=scenes", key: "scenes" },
   ];
   return (

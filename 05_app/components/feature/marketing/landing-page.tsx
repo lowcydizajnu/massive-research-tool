@@ -101,12 +101,12 @@ function Hero() {
 
 /* ---------------- 2. Pain points (dark) ---------------- */
 const PAINS = [
-  ["Rebuilding the same study", " three times across three tools just to run it once."],
+  ["No streamlined path", " from the first idea, through preregistration, to collecting responses."],
   ["Replicating a published study", " meaning rebuilding it from scratch out of the methods section."],
-  ["Losing track of which version", " your last 200 participants actually saw."],
+  ["Losing track of which version", " is final and accepted."],
   ["Modern stimulus types", " (audio, voice conversation, emotion scoring) being either impossible or a hack."],
-  ["Paying per response", " just to collect data when your grant is already paying for participants."],
-  ["Vendor lock-in", " that means leaving means losing five years of study designs."],
+  ["No modern tool", " to work with your team, run innovative studies, and find new peer researchers."],
+  ["No single transparent home", " for your work — one place from idea to the published record."],
 ] as const;
 
 function PainPoints() {
