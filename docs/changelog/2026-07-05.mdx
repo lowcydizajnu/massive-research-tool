@@ -1,0 +1,60 @@
+---
+title: "Week of July 5, 2026"
+description: "AI persuasion starter, researcher directory, workspace archive, social‑post gating, and a big round of Builder polish."
+---
+
+## New features
+
+**AI persuasion chat starter.** A new starter template lets you run persuasion studies against a real LLM. Bring your own Anthropic key from the [Anthropic integration](/integrations/anthropic) — no extra billing from us.
+
+**Meet Researchers directory.** Discover other researchers on the platform and browse their public work from a dedicated directory. Your own [researcher profile](/workspace/researcher-profiles) now shows a public tab, avatar upload, and links to your published articles.
+
+**Workspaces, from Settings.** A new **Workspaces** tab under Settings lets you list, rename, create, and restore your [workspaces](/workspace/team) — with reversible archive/restore in place of hard delete.
+
+**Duplicate and delete, everywhere.** Study tiles and block tiles now have a ⋯ menu for duplicate and delete. You can also duplicate a block straight from the Configure panel. See [Blocks](/builder/blocks).
+
+**Social‑post gating.** When you use a social‑post [block](/builder/blocks), you can now require participants to react, comment, reply, or optionally report before Continue unlocks. A live chip summary keeps them oriented, and labels are translatable.
+
+**Branch on a reaction.** Add [conditions](/builder/conditions) that branch a study based on which reaction a participant left on a social post — chosen from a dropdown, not free text.
+
+**In‑screen conditional reveals.** Blocks can now reveal follow‑ups inline without pushing participants to a new page. Great for social‑feed style flows.
+
+**Start‑here checklist and guided tutorial.** New researchers land on a pinned "Start here" checklist that tracks their newest study, plus a **Take the guided tutorial** button that replays the onboarding tour any time.
+
+**Activity and What's‑New in the top nav.** Two new bells surface notifications and product updates from anywhere in the app, with per‑item read state and grouped items.
+
+**Home widgets for replication.** The dashboard now shows **Studies you replicated** and **Replications of yours**, making it easy to jump back into related work. Learn more about [replication](/methodology/replication).
+
+**Reader‑chosen changelog detail.** Viewers of a study changelog can now pick how much detail they want — from a summary to a full edit‑event timeline.
+
+**Editable block labels.** Rename record, reaction‑time, and other block labels to match your study's wording — beyond just social‑post blocks.
+
+## Updates
+
+**Facebook‑authentic social posts.** The social‑post block got a large visual pass: real Facebook‑style rendering in Preview and Take, one logo/branding toggle, correct comment counts, tappable live reactions, comment avatars, likeable comments, and honest post sizing across tiers.
+
+**Explore, redesigned.** The [Explore](https://myresearchlab.app/explore) surface now leads with real starter‑template cover images, drops the use‑case band, and shows richer "Researchers to follow" tiles with stats.
+
+**Faster navigation.** Section switches and stage navigation now show instant loading skeletons instead of blank frames.
+
+**Wider content column.** The Builder and Take views now use a wider column with Facebook‑scale sizing for social posts.
+
+**Data residency: EU (Frankfurt).** Compute is pinned to Vercel's Frankfurt (`fra1`) region and our database is now on Neon EU. See [Data & security](/trust/data-and-security).
+
+**Mobile Take.** Edge‑to‑edge layout on mobile, plus an option to require participants to watch a video before continuing.
+
+**Prolific dropdowns.** Country and language pickers on [Prolific](/integrations/prolific) recruitment are now searchable dropdowns.
+
+## Bug fixes
+
+- **Explore:** `/researchers` no longer crashes when the requested limit exceeds the max.
+- **Builder:** the condition allocation badge now wraps to fit the left panel.
+- **Builder:** undo of an ungroup no longer blinks then reverts.
+- **Builder:** the Wording tab only shows block groups for blocks that are actually in your study.
+- **Take:** each question block is now visually boxed on the social‑feed background.
+- **Take:** studies with light themes get light native controls (color‑scheme now follows theme).
+- **Preview:** closing Preview returns you to the stage you opened it from, and Preview sessions no longer pollute study lifecycle, counts, or the changelog.
+- **Onboarding:** the Start‑here checklist is workspace‑scoped, and Preview sessions no longer count as "opened recruitment."
+- **Export:** social‑post replies (with parent comment) and comment likes are now recorded.
+- **Video:** we now record whether a participant actually watched a required video.
+- **Versions:** version snapshots restore full conditions so drift clears properly.
