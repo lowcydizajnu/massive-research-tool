@@ -30,10 +30,20 @@
       {
         "group": "Builder",
         "pages": [
+          "builder/study-workspace",
           "builder/blocks",
           "builder/conditions",
           "builder/variants",
           "builder/themes"
+        ]
+      },
+      {
+        "group": "Workspace",
+        "pages": [
+          "workspace/participants",
+          "workspace/team",
+          "workspace/playground",
+          "workspace/researcher-profiles"
         ]
       },
       {

@@ -47,6 +47,37 @@ When a participant starts, the app picks their condition by **weighted random as
 You can skew the split deliberately by changing a condition's allocation weight in the Builder (e.g. weight a pilot arm lower).
 </Tip>
 
+## Beyond two arms — conditional visibility
+
+An A/B test assigns participants to fixed conditions upfront, but you can also gate blocks dynamically based on earlier responses. **Conditional visibility** lets you show or hide any block depending on what a participant answered in a previous block — without needing separate conditions.
+
+For example:
+- If a participant answers "yes" to a question, show them a follow-up; if "no", skip it.
+- If they score above a threshold on a pretest, show the advanced version; below it, show the simplified one.
+- If they click a specific region of an image, reveal a detail block; otherwise hide it.
+
+To set this up, open a block in the **Builder** and scroll to **Show this block when**. Pick an answerable block from earlier in the flow, choose an operator (equals, contains, answered, between, etc.), and set the condition value. Multiple conditions can be combined with AND (all must be true) or OR (any must be true).
+
+Conditional visibility works within any design — a single-arm study, an A/B test, or a [factorial design](/builder/variants). It's especially useful for adaptive flows where the next step depends on what participants tell you.
+
+<Tip>
+Recorded answers that gate later blocks are logged in the dataset, so you can compare responders and non-responders, or analyse which branching paths were taken. Combine this with [preregistration](/methodology/preregistration) to plan your analysis upfront.
+</Tip>
+
+## Factorial designs with variants
+
+Beyond simple A/B, you can test multiple factors at once — **factorial designs** where participants are split across all combinations of levels. If you're comparing tone × length × image style, that's 3 factors that might produce 2×2×2 = 8 cells.
+
+In the **Builder**, open the **Variants** section to define factors (e.g. "Tone", "Length") and their levels (e.g. "Formal" / "Casual" for Tone, "Short" / "Long" for Length). Then bind fields from your blocks — perhaps the message text, an image, or a number — to each factor. Each time a field varies, you specify its value for every level.
+
+When the study runs, each participant is randomly assigned one **combination** — one level from each factor. The exported dataset includes a `variant_combination` column so you can compare outcomes across cells. Shared content (blocks, measures) stays the same; only the bound fields change.
+
+Variants work independently of conditions — you can have variants *and* conditions in the same study, giving you a hybrid design (factors nested inside or crossed with arms).
+
+<Tip>
+Factorial designs grow quickly: 3 factors with 3 levels each = 27 combinations. Keep the number of cells manageable for your sample size. The Builder shows a count and warns if you exceed ~12 combinations.
+</Tip>
+
 ## Recruiting a balanced sample on Prolific
 
 From the **Run** stage, connect [Prolific](/integrations/prolific) and create a study with a single **target N**. Prolific recruits that many participants to your one recruitment link; the app then assigns each arriving participant to a condition by the weighted-random rule above. With equal weights, that yields roughly even arms.
