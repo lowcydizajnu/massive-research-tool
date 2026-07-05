@@ -69,6 +69,12 @@
         "pages": [
           "trust/data-and-security"
         ]
+      },
+      {
+        "group": "Changelog",
+        "pages": [
+          "changelog/2026-07-05"
+        ]
       }
     ]
   },
