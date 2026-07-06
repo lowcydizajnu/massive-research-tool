@@ -3,7 +3,7 @@
 import { CircleAlert, CircleCheck, Info, TriangleAlert, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import { resolveNavTarget, type NotificationCta } from "@/lib/take/nav-target";
+import { resolveNavTarget, resolveScreenHref, type NotificationCta } from "@/lib/take/nav-target";
 
 /**
  * Notification stimulus (ADR-0095): an in-context notice with a type, up to two
@@ -83,12 +83,20 @@ export function NotificationView({
 
   if (!shown || dismissed) return <div className="hidden">{fields}</div>;
 
+  // Toast-like: a compact, elevated, capped-width card. `fixed-top` floats it at
+  // the top-center of the viewport (a real system-notice overlay); otherwise it's
+  // a centered toast in the screen flow. In the Builder preview it never floats.
+  const wrapperCls =
+    fixedTop && !preview
+      ? "fixed left-1/2 top-3 z-50 w-[min(92vw,26rem)] -translate-x-1/2"
+      : "mx-auto w-full max-w-md";
+
   return (
-    <div className={fixedTop ? "sticky top-2 z-30" : ""}>
+    <div className={wrapperCls}>
       {fields}
       <div
         role={role}
-        className="motion-safe:animate-in flex items-start gap-3 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-3"
+        className="motion-safe:animate-in flex items-start gap-3 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-3 shadow-[var(--shadow-md)]"
         style={custom ? { background: "var(--color-surface-raised)" } : { background: sty!.bg, color: sty!.fg, borderColor: "transparent" }}
       >
         {custom ? (
@@ -113,10 +121,30 @@ export function NotificationView({
                 const label = str(cta.label) || "Open";
                 const cls =
                   "rounded-[var(--radius-sm)] bg-[var(--color-surface-raised)] px-2.5 py-1 text-[length:var(--text-small)] font-medium text-[var(--color-text-primary)] shadow-[var(--shadow-sm)] hover:opacity-90";
-                const nav = preview ? null : resolveNavTarget(cta);
+                if (preview) {
+                  return <button key={i} type="button" className={cls}>{label}</button>;
+                }
+                // Same-study jump: navigate within the current take session.
+                if (cta.targetKind === "screen") {
+                  return (
+                    <button
+                      key={i}
+                      type="button"
+                      className={cls}
+                      onClick={() => {
+                        record(`cta:${i}`);
+                        const href = resolveScreenHref(window.location.pathname, cta.targetScreen);
+                        if (href) window.location.assign(href);
+                      }}
+                    >
+                      {label}
+                    </button>
+                  );
+                }
+                const nav = resolveNavTarget(cta);
                 if (!nav) {
                   return (
-                    <button key={i} type="button" className={cls} onClick={preview ? undefined : () => record(`cta:${i}`)}>
+                    <button key={i} type="button" className={cls} onClick={() => record(`cta:${i}`)}>
                       {label}
                     </button>
                   );

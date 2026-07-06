@@ -60,7 +60,16 @@ export function NotificationConfig({
     body: init.body ?? "",
     thumbnailUrl: init.thumbnailUrl ?? "",
     thumbnailShape: init.thumbnailShape ?? "circle",
-    ctas: Array.isArray(init.ctas) ? init.ctas.slice(0, 2) : [],
+    ctas: Array.isArray(init.ctas)
+      ? init.ctas.slice(0, 2).map((c) => ({
+          label: c.label ?? "",
+          targetKind: c.targetKind ?? "url",
+          targetUrl: c.targetUrl ?? "",
+          targetStudyId: c.targetStudyId ?? "",
+          // Older notification blocks predate the screen target — default it.
+          targetScreen: typeof c.targetScreen === "number" ? c.targetScreen : 1,
+        }))
+      : [],
     dismissable: init.dismissable !== false,
     position: init.position ?? "inline",
     triggerKind: init.triggerKind ?? "on-load",
@@ -167,29 +176,41 @@ export function NotificationConfig({
                 <X className="size-4" aria-hidden />
               </button>
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex flex-col gap-1.5">
               <select
                 value={cta.targetKind}
                 onChange={(e) => setCta(i, { targetKind: e.target.value as NotificationCta["targetKind"] })}
-                className={`${fieldCls} py-1`}
+                className={`${fieldCls} w-full`}
               >
                 <option value="url">External link</option>
                 <option value="study">Another study</option>
+                <option value="screen">This study — a screen</option>
               </select>
               {cta.targetKind === "url" ? (
                 <input
                   value={cta.targetUrl}
                   placeholder="https://…"
                   onChange={(e) => setCta(i, { targetUrl: e.target.value })}
-                  className={`${fieldCls} flex-1`}
+                  className={`${fieldCls} w-full min-w-0`}
                 />
-              ) : (
+              ) : cta.targetKind === "study" ? (
                 <input
                   value={cta.targetStudyId}
                   placeholder="Study ID to send the participant to"
                   onChange={(e) => setCta(i, { targetStudyId: e.target.value })}
-                  className={`${fieldCls} flex-1`}
+                  className={`${fieldCls} w-full min-w-0`}
                 />
+              ) : (
+                <label className="flex items-center gap-2 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+                  Go to screen #
+                  <input
+                    type="number"
+                    min={1}
+                    value={cta.targetScreen}
+                    onChange={(e) => setCta(i, { targetScreen: Math.max(1, Number(e.target.value) || 1) })}
+                    className={`${fieldCls} w-20 py-1`}
+                  />
+                </label>
               )}
             </div>
           </div>
@@ -197,7 +218,7 @@ export function NotificationConfig({
         {cfg.ctas.length < 2 ? (
           <button
             type="button"
-            onClick={() => set({ ctas: [...cfg.ctas, { label: "", targetKind: "url", targetUrl: "", targetStudyId: "" }] })}
+            onClick={() => set({ ctas: [...cfg.ctas, { label: "", targetKind: "url", targetUrl: "", targetStudyId: "", targetScreen: 1 }] })}
             className="flex w-fit items-center gap-1 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-2.5 py-1 text-[length:var(--text-small)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
           >
             <Plus className="size-3.5" aria-hidden /> Add a button

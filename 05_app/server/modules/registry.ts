@@ -691,13 +691,14 @@ const linkBlock: CoreModuleDef = {
 
 // ---------- Simulated-app-environment stimuli (ADR-0095) ----------
 
-/** A CTA target on a Notification/Modal: an external link or another study.
- *  Intra-study screen-jump is deferred (ADR-0095), so no `screen` kind yet. */
+/** A CTA target on a Notification/Modal (ADR-0095): an external link, another
+ *  study, or another part of THIS study (a 1-based screen number). */
 const notificationCtaSchema = z.object({
   label: z.string().default(""),
-  targetKind: z.enum(["url", "study"]).default("url"),
+  targetKind: z.enum(["url", "study", "screen"]).default("url"),
   targetUrl: z.string().default(""), // when targetKind === "url"
   targetStudyId: z.string().default(""), // when targetKind === "study"
+  targetScreen: z.number().int().min(1).default(1), // when targetKind === "screen"
 });
 
 const notificationBlock: CoreModuleDef = {
@@ -755,9 +756,10 @@ const notificationBlock: CoreModuleDef = {
           type: "object",
           properties: {
             label: { type: "string" },
-            targetKind: { type: "string", enum: ["url", "study"] },
+            targetKind: { type: "string", enum: ["url", "study", "screen"] },
             targetUrl: { type: "string" },
             targetStudyId: { type: "string" },
+            targetScreen: { type: "integer", minimum: 1 },
           },
           additionalProperties: false,
         },

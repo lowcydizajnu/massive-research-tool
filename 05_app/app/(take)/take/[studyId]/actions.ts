@@ -124,6 +124,11 @@ function extractAnswer(moduleKey: string, prefix: string, fd: FormData): unknown
     if (!r2Key) return {}; // no recording → empty (required check applies)
     return { r2Key, durationMs: Number(g("durms")) || 0 };
   }
+  if (moduleKey === "notification") {
+    // Which action the participant took (ADR-0095). Always an object — exposure
+    // is recorded even without interaction (default "ignored"); never gates.
+    return { action: String(g("action") ?? "ignored"), atMs: Math.max(0, Number(g("atMs")) || 0) };
+  }
   if (moduleKey === "social-post") {
     // Engagement interactions (ADR-0024): always an object — exposure is
     // recorded even without interaction (liked/shared false). v1 social-post
