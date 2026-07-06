@@ -76,7 +76,7 @@ import { changelogBetween, initialVersionSummary, DEFAULT_NEW_STUDY_SNAPSHOT } f
 import { recordStudyEdit } from "@/server/modules/study-edits";
 import { readConsent, type StudyConsent } from "@/server/modules/consent";
 import { runPreflight, type PreflightCheck } from "@/server/modules/preflight";
-import { BRANDING_GATE_MESSAGE, evaluateBrandingGate } from "@/server/modules/branding-gate";
+import { BRANDING_GATE_MESSAGE, DECEPTION_GATE_MESSAGE, customNotificationsNeedingAck, evaluateBrandingGate } from "@/server/modules/branding-gate";
 import { registry as registryAdapter } from "@/server/adapters/registry";
 import { divergenceAgainstPinned, injectReplicationRecipe, type DivergenceStatus } from "@/server/modules/replication";
 import { getModuleDef } from "@/server/modules/registry";
@@ -121,6 +121,10 @@ function normalizeTags(raw: string[]): string[] {
 function assertBrandingGate(snapshot: unknown): void {
   if (!evaluateBrandingGate(snapshot).ok) {
     throw new TRPCError({ code: "PRECONDITION_FAILED", message: BRANDING_GATE_MESSAGE });
+  }
+  // Same deception hard-gate for a custom (imitation) notification (ADR-0095).
+  if (customNotificationsNeedingAck(snapshot).length > 0) {
+    throw new TRPCError({ code: "PRECONDITION_FAILED", message: DECEPTION_GATE_MESSAGE });
   }
 }
 

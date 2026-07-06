@@ -26,7 +26,16 @@ function str(v: unknown): string {
   return typeof v === "string" ? v : "";
 }
 
-export function NotificationView({ config, np }: { config: Record<string, unknown>; np: string }) {
+export function NotificationView({
+  config,
+  np,
+  preview = false,
+}: {
+  config: Record<string, unknown>;
+  np: string;
+  /** Builder live-preview: always shown (no trigger timer), CTAs + close inert. */
+  preview?: boolean;
+}) {
   const variant = (["error", "warning", "info", "success", "custom"].includes(str(config.variant)) ? config.variant : "info") as Variant;
   const title = str(config.title);
   const body = str(config.body);
@@ -39,7 +48,8 @@ export function NotificationView({ config, np }: { config: Record<string, unknow
   const ctas = (Array.isArray(config.ctas) ? config.ctas : []).slice(0, 2) as NotificationCta[];
 
   // `after` starts hidden and reveals on a timer; everything else shows at once.
-  const [shown, setShown] = useState(triggerKind !== "after");
+  // In the Builder preview it's always shown (no timer).
+  const [shown, setShown] = useState(preview || triggerKind !== "after");
   const [dismissed, setDismissed] = useState(false);
   const actionRef = useRef<HTMLInputElement>(null);
   const atMsRef = useRef<HTMLInputElement>(null);
@@ -47,10 +57,10 @@ export function NotificationView({ config, np }: { config: Record<string, unknow
 
   useEffect(() => {
     start.current = performance.now();
-    if (triggerKind !== "after") return;
+    if (preview || triggerKind !== "after") return;
     const t = setTimeout(() => setShown(true), Math.max(0, afterSec) * 1000);
     return () => clearTimeout(t);
-  }, [triggerKind, afterSec]);
+  }, [preview, triggerKind, afterSec]);
 
   function record(action: string) {
     if (actionRef.current) actionRef.current.value = action;
@@ -63,7 +73,8 @@ export function NotificationView({ config, np }: { config: Record<string, unknow
   const Icon = sty ? sty.Icon : Info;
 
   // Hidden fields always submit (default "ignored"); the notice may be hidden.
-  const fields = (
+  // No form fields in the Builder preview (there's no take form there).
+  const fields = preview ? null : (
     <>
       <input ref={actionRef} type="hidden" name={`${np}action`} defaultValue="ignored" />
       <input ref={atMsRef} type="hidden" name={`${np}atMs`} defaultValue="" />
@@ -99,13 +110,13 @@ export function NotificationView({ config, np }: { config: Record<string, unknow
           {ctas.length ? (
             <div className="mt-2 flex flex-wrap gap-2">
               {ctas.map((cta, i) => {
-                const nav = resolveNavTarget(cta);
                 const label = str(cta.label) || "Open";
                 const cls =
                   "rounded-[var(--radius-sm)] bg-[var(--color-surface-raised)] px-2.5 py-1 text-[length:var(--text-small)] font-medium text-[var(--color-text-primary)] shadow-[var(--shadow-sm)] hover:opacity-90";
+                const nav = preview ? null : resolveNavTarget(cta);
                 if (!nav) {
                   return (
-                    <button key={i} type="button" className={cls} onClick={() => record(`cta:${i}`)}>
+                    <button key={i} type="button" className={cls} onClick={preview ? undefined : () => record(`cta:${i}`)}>
                       {label}
                     </button>
                   );
@@ -131,10 +142,14 @@ export function NotificationView({ config, np }: { config: Record<string, unknow
             type="button"
             aria-label="Dismiss notification"
             className="-m-1 shrink-0 rounded-[var(--radius-sm)] p-1 opacity-70 hover:opacity-100"
-            onClick={() => {
-              record("dismissed");
-              setDismissed(true);
-            }}
+            onClick={
+              preview
+                ? undefined
+                : () => {
+                    record("dismissed");
+                    setDismissed(true);
+                  }
+            }
           >
             <X className="size-4" aria-hidden />
           </button>

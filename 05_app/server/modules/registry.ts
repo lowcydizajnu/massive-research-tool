@@ -722,6 +722,10 @@ const notificationBlock: CoreModuleDef = {
     // (conditional reuses the block's own showIf — no new engine here).
     triggerKind: z.enum(["on-load", "after", "conditional"]).default("on-load"),
     triggerAfterSec: z.number().int().min(0).max(600).default(3),
+    // Deception acknowledgement (ADR-0095 / ADR-0084 gate): the `custom` variant
+    // imitates a real system notice, so the researcher must attest IRB approval
+    // before the study can go live. Ignored for the neutral variants.
+    deceptionAck: z.boolean().default(false),
   }),
   defaultConfig: {
     variant: "info",
@@ -734,6 +738,7 @@ const notificationBlock: CoreModuleDef = {
     position: "inline",
     triggerKind: "on-load",
     triggerAfterSec: 3,
+    deceptionAck: false,
   },
   jsonSchema: {
     type: "object",
@@ -761,6 +766,7 @@ const notificationBlock: CoreModuleDef = {
       position: { type: "string", enum: ["inline", "fixed-top"] },
       triggerKind: { type: "string", enum: ["on-load", "after", "conditional"] },
       triggerAfterSec: { type: "integer", minimum: 0, maximum: 600 },
+      deceptionAck: { type: "boolean" },
     },
     additionalProperties: false,
   },
@@ -774,6 +780,8 @@ const notificationBlock: CoreModuleDef = {
   isComplete: (c) => {
     const s = (v: unknown) => (typeof v === "string" ? v : "");
     if (!s(c.title).trim() && !s(c.body).trim()) return false;
+    // The imitation (custom) variant needs the IRB deception attestation.
+    if (c.variant === "custom" && c.deceptionAck !== true) return false;
     const ctas = Array.isArray(c.ctas) ? (c.ctas as Record<string, unknown>[]) : [];
     for (const cta of ctas) {
       if (!s(cta.label).trim()) return false;

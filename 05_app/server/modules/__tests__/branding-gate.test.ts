@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { evaluateBrandingGate } from "@/server/modules/branding-gate";
+import { customNotificationsNeedingAck, evaluateBrandingGate } from "@/server/modules/branding-gate";
 import {
   ACADEMIC,
   effectiveBrandingTier,
@@ -103,5 +103,25 @@ describe("evaluateBrandingGate", () => {
         theme: themeWith({ brandingTierDefault: "branded", irbAttestation: attestation }),
       }).ok,
     ).toBe(true);
+  });
+});
+
+describe("customNotificationsNeedingAck (ADR-0095 deception gate)", () => {
+  const notif = (instanceId: string, config: Record<string, unknown>) => ({
+    instanceId,
+    source: "core" as const,
+    key: "notification",
+    version: "1.0.0",
+    config,
+  });
+
+  it("flags a custom notification missing the deception acknowledgement", () => {
+    const snap = { blocks: [notif("n1", { variant: "custom", title: "Account locked", deceptionAck: false })] };
+    expect(customNotificationsNeedingAck(snap).map((x) => x.instanceId)).toEqual(["n1"]);
+  });
+
+  it("passes when acknowledged, and ignores neutral variants", () => {
+    expect(customNotificationsNeedingAck({ blocks: [notif("n1", { variant: "custom", deceptionAck: true })] })).toEqual([]);
+    expect(customNotificationsNeedingAck({ blocks: [notif("n2", { variant: "error", title: "x" })] })).toEqual([]);
   });
 });

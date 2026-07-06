@@ -45,3 +45,23 @@ export function evaluateBrandingGate(snapshot: unknown): BrandingGateResult {
 /** The participant-facing/researcher message when the gate blocks a freeze. */
 export const BRANDING_GATE_MESSAGE =
   "This study uses a fully-branded stimulus. Add the brand logo to each branded post and confirm the IRB attestation before preregistering, publishing, or running it.";
+
+/**
+ * Custom (imitation) notification blocks missing the deception attestation
+ * (ADR-0095) — the same deception hard-gate as branded social-posts. A `custom`
+ * notification imitates a real system notice, so the study can't freeze until the
+ * researcher confirms IRB coverage in the block's Configure panel.
+ */
+export function customNotificationsNeedingAck(snapshot: unknown): { instanceId: string; name: string }[] {
+  return readBlocks(snapshot)
+    .filter(
+      (b) =>
+        b.key === "notification" &&
+        (b.config as { variant?: unknown }).variant === "custom" &&
+        (b.config as { deceptionAck?: unknown }).deceptionAck !== true,
+    )
+    .map((b) => ({ instanceId: b.instanceId, name: nameOf(b) }));
+}
+
+export const DECEPTION_GATE_MESSAGE =
+  "A custom notification imitates a real system notice. Confirm your IRB/ethics approval covers it (in the block's Configure panel) before preregistering, publishing, or running the study.";
