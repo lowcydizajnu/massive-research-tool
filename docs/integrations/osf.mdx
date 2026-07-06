@@ -66,11 +66,23 @@ When you [preregister](/methodology/preregistration) a study, a background job s
 Be clear-eyed about the boundaries — a naive reading might assume more than the integration does:
 
 <Warning>
-- **No participant data.** Raw responses, completion records, and recruitment data never leave My Research Lab in any OSF push.
-- **No uploaded files or stimuli.** Images, audio, video, and other uploaded materials are **not** uploaded to OSF as files. The *design* (including the text of stimuli that live in the protocol) is captured in the JSON snapshot, but binary materials stay in the app.
-- **No rendered PDF.** The registration is the prose summary plus the JSON snapshot — there is no separately generated PDF artifact.
+- **No participant data.** Raw responses, completion records, recruitment data, and participant-uploaded media (signatures, recordings, file answers) never leave My Research Lab in any OSF push — including the materials upload below.
 - **No automatic DOI at push time.** OSF mints the DOI only after the registration is **approved**, so the DOI is empty immediately after pushing and is backfilled later (see the watch below).
 </Warning>
+
+## Uploading materials to OSF
+
+Separately from the preregistration, you can push your study's **materials** to your OSF project — on demand, from the study's **Record**. This uploads three kinds of file:
+
+- **Your stimulus files** — the images, audio, and video your study uses (from your Materials library). Participant-contributed media is never included.
+- **`design-snapshot.json`** — the machine-readable study definition (the same lossless snapshot the registration embeds), as a standalone file.
+- **`protocol.pdf`** — a human-readable study document (title, authors, abstract, hypotheses, method, and block list).
+
+<Note>
+Materials go into a folder on your editable OSF **project**, not into the frozen registration — OSF registrations are immutable, so files can't be added to them. If you upload materials **before** you register, the registration snapshots them; you can also upload (or re-upload) any time after. Files inherit the project's privacy — **private** unless you make the project public.
+</Note>
+
+To use it, open a study's **Record**, find **Materials on OSF**, and choose **Upload to OSF**. Each file shows its status; **Re-upload** sends a new version of anything that changed. It needs an active [OSF connection](/integrations/osf) and an existing OSF project (i.e. you've preregistered or pushed a record at least once) — otherwise the panel tells you what to do first. Very large single files are skipped with a note rather than stalling the upload.
 
 ## Amendments vs. record updates
 
