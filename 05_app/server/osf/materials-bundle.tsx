@@ -57,6 +57,20 @@ function uniqueName(name: string, seen: Set<string>): string {
   return candidate;
 }
 
+/**
+ * Resolve the bare R2 object key from a material's stored config value. The
+ * Builder stores image/video fields as the browser URL `/api/media/<key>` (so
+ * `<img src>` just works); R2 `getBytes` needs the bare key (`ws/…`). A pasted
+ * external `http(s)://` image isn't one of our objects → null (can't upload).
+ */
+export function materialR2Key(url: string): string | null {
+  let s = url.trim();
+  if (/^https?:\/\//i.test(s)) return null; // external URL — not an R2 object
+  s = s.replace(/^\/?api\/media\//, ""); // strip the media-gateway prefix
+  s = s.replace(/^\/+/, ""); // and any leading slash
+  return /^(ws|resp)\/[^\s]+/.test(s) ? s : null;
+}
+
 const MIME_BY_EXT: Record<string, string> = {
   png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml",
   mp3: "audio/mpeg", wav: "audio/wav", m4a: "audio/mp4", ogg: "audio/ogg",
@@ -117,7 +131,17 @@ export async function assembleOsfMaterialFiles(input: {
       let bytes: Uint8Array;
       let contentType: string;
       if (a.kind === "stimulus") {
-        bytes = await getBytes(a.artifactKey);
+        const key = materialR2Key(a.artifactKey);
+        if (!key) {
+          failed.push({
+            kind: a.kind,
+            artifactKey: a.artifactKey,
+            fileName: a.fileName,
+            error: "External image URL — not stored in your workspace, so it can't be uploaded to OSF.",
+          });
+          continue;
+        }
+        bytes = await getBytes(key);
         contentType = contentTypeForName(a.fileName);
       } else if (a.kind === "design-json") {
         bytes = new TextEncoder().encode(JSON.stringify(input.snapshot ?? {}, null, 2));
