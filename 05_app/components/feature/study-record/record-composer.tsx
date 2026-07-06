@@ -22,6 +22,7 @@ import { ulid } from "ulid";
 
 import { DataPublishControl } from "@/components/feature/study-record/data-publish-control";
 import { MarkdownField } from "@/components/feature/study-record/markdown-field";
+import { OsfMaterialsPanel } from "@/components/feature/study-record/osf-materials-panel";
 import { PushToOsfButton } from "@/components/feature/study-record/push-to-osf-button";
 import { RecordSections } from "@/components/feature/study-record/record-sections";
 import { PendingButton } from "@/components/ui/pending-button";
@@ -208,6 +209,10 @@ function Editor({ studyId, data, onSaved }: { studyId: string; data: StudyRecord
       {preview ? (
         <RecordPreviewPane studyId={studyId} />
       ) : (
+        <OsfMaterialsPanel studyId={studyId} />
+      )}
+
+      {preview ? null : (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
           <SortableContext items={sections.map((s) => s.id)} strategy={verticalListSortingStrategy}>
             <ul className="flex flex-col gap-2">
