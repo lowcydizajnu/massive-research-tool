@@ -1,0 +1,64 @@
+---
+title: "Week of July 6, 2026"
+description: "OSF materials upload, AI persuasion starter, Meet Researchers, workspace archive, and a wave of social-post polish."
+---
+
+A big week — the highlight is one-click **study materials upload to OSF**, plus new discoverability, workspace, and gating features across the app.
+
+## New features
+
+### Upload study materials to OSF
+Push your full study to the Open Science Framework — stimuli files, machine-readable JSON, and a protocol PDF — from the Study Record. A dedicated **Materials on OSF** panel now also appears on the **Preregister** tab so you can freeze materials at the same moment you freeze your hypotheses. See [OSF integration](/integrations/osf).
+
+### AI persuasion chat starter
+A new starter template lets participants chat with Claude, powered by your own [Anthropic API key](/integrations/anthropic). Clone it from the [Explore](https://myresearchlab.app/explore) page and adapt to your paradigm.
+
+### Meet Researchers directory
+Discover other researchers on the platform and see who is following whom. Your public [researcher profile](/workspace/researcher-profiles) now has a personal tab, and the Explore page shows richer "Researchers to follow" tiles with study and follower stats.
+
+### Workspaces tab in Settings
+Manage all your workspaces from one place: list, rename, create, and restore. Workspace rename is now surfaced directly on the Workspace settings page.
+
+### Archive and restore a workspace
+Archiving a workspace is now reversible — no destructive delete. Bring an archived workspace back at any time from the Workspaces tab.
+
+### Home page: Start-here checklist and replication widgets
+A new **Start here** pinned card walks first-time users through the getting-started steps, tracking progress on your newest study. Two new widgets — **Studies you replicated** and **Replications of yours** — surface [replication](/methodology/replication) activity at a glance.
+
+### Global Activity and What's-New bells
+Two new bells in the top nav: **Activity** (grouped, per-item read state) and **What's New**. Notifications now fan out inline, so your Activity feed stays responsive.
+
+### Social-post interaction gating
+Require participants to react, comment, or Report before they can continue. Configure requirements per [block](/builder/blocks), see live chips in-runtime, and toggle a compact interaction summary. Report is opt-in and fully recorded.
+
+### Branch on a social-post reaction
+Route participants down different paths based on the reaction they picked, from the [Conditions](/builder/conditions) panel — no free-text matching, just a dropdown.
+
+### In-screen conditional reveal
+Reveal follow-up content on the same screen instead of navigating to a new one. Great for tight follow-up questions and dependent stimuli.
+
+### Duplicate and delete from tiles
+Study tiles now have a ⋯ menu with duplicate and delete. Block tiles inside a study support the same, and you can duplicate a block directly from the Configure panel.
+
+## Updates
+
+- **Product renamed to My Research Lab.** New name, same product; the app footer and legal pages have been updated to match.
+- **Faster navigation.** Instant loading skeletons when switching sections — no more blank screens.
+- **EU compute region.** App compute is pinned to Frankfurt (Vercel `fra1`) — details on the [data and security](/trust/data-and-security) page.
+- **Explore leads with starter covers.** Real cover images for starter templates, and the use-case band has been dropped.
+- **Misinformation starter** now renders posts Facebook-style out of the box.
+- **Social-post branding** simplified — one logo toggle replaces the earlier branding tiers.
+- **Comment counts** bump when a participant leaves a comment.
+- **Social-post feed** un-boxes posts, with a gate top-bar and a fake-nav toggle for tighter simulations.
+
+## Bug fixes
+
+- **OSF image uploads** now resolve correctly when the source is a media-gateway URL.
+- **Researchers directory** no longer crashes on large result sets.
+- **Builder** — the condition allocation badge wraps to fit the left panel.
+- **Study runtime** — question blocks are properly boxed on the social-feed background, and light studies now get light native controls (via `color-scheme` from the theme).
+- **Onboarding** — fixed a redirect leak, scoped the Start-here checklist to the current workspace, excluded Preview sessions from the "opened recruitment" step, and reworked the checklist into a pinned card.
+- **Data export** — social-post replies (with parent comment) and comment likes are now recorded.
+- **Social-post** — static post-copy size, one consistent Like size, honest comment count, inline reply that also works in preview, and unrevealed conditional blocks no longer block Continue.
+- **Versions** — restoring a saved version now brings back the full snapshot and its conditions, so drift clears cleanly.
+- **Conditions** — stray empty strings are stripped from reaction conditions.
