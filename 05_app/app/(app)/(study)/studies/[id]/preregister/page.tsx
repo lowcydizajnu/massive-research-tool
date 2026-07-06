@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { PreflightChecklist } from "@/components/feature/run/preflight-checklist";
 import { AmendButton } from "@/components/feature/preregister/amend-button";
+import { OsfMaterialsPanel } from "@/components/feature/study-record/osf-materials-panel";
 import { PushToOsfButton } from "@/components/feature/study-record/push-to-osf-button";
 import { PreregisterButton } from "@/components/feature/preregister/preregister-button";
 import { RefreshOsfStatus } from "@/components/feature/preregister/refresh-osf-status";
@@ -225,6 +226,15 @@ export default async function PreregisterStagePage({
             {!pre.withdrawn ? (
               <div className="border-t border-[var(--color-border-subtle)] pt-3">
                 <PushToOsfButton studyId={study.id} />
+              </div>
+            ) : null}
+
+            {/* Materials → OSF here too (ADR-0094): once a preregistration exists
+                an OSF project does, so you can push stimuli + design + protocol
+                before the study opens, and re-push later. Self-hides otherwise. */}
+            {!pre.withdrawn ? (
+              <div className="border-t border-[var(--color-border-subtle)] pt-3">
+                <OsfMaterialsPanel studyId={study.id} />
               </div>
             ) : null}
 
