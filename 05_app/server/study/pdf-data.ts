@@ -3,7 +3,6 @@ import { and, desc, eq, isNotNull } from "drizzle-orm";
 import type { StudyPdfData } from "@/components/feature/overview/study-pdf";
 import { db } from "@/server/db/client";
 import { experimentVersion, registryPush, user } from "@/server/db/schema";
-import { getServerApi } from "@/server/trpc/server";
 
 /**
  * Build the data the study document PDF renders (`StudyPdfDocument`). Shared by
@@ -23,6 +22,11 @@ const STAGE_LABEL: Record<string, string> = {
 };
 
 export async function buildStudyPdfData(studyId: string): Promise<StudyPdfData> {
+  // Deferred import: `@/server/trpc/server` is `server-only`, and this module is
+  // pulled into the router graph — a top-level import would trip the server-only
+  // guard when tests build the appRouter. The dynamic import keeps the guard at
+  // runtime (this only ever runs server-side) without poisoning import time.
+  const { getServerApi } = await import("@/server/trpc/server");
   const api = await getServerApi();
   const study = await api.studies.get({ id: studyId });
 
