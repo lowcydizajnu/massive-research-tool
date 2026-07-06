@@ -1,0 +1,99 @@
+---
+title: "Week of July 6, 2026"
+description: "New Notification and Modal blocks, materials upload to OSF, workspace management, and a wave of Social post improvements."
+---
+
+## New features
+
+### Notification and Modal blocks
+
+Two new UI-imitation [blocks](/builder/blocks) join the catalogue for studying attention, deception paradigms, and pop-up compliance:
+
+- **Notification** — an in-context banner or toast with optional call-to-action buttons. Records which action the participant took (dismissed, clicked a CTA, or ignored). Never blocks Continue.
+- **Modal dialog** — an overlay dialog with configurable title, body, optional image, and up to two CTAs (Advance, Stay, external link, another study, or another screen). Supports triggers (on-open, delay, or condition) and an IRB deception gate when the modal imitates a real product.
+
+### Upload study materials to OSF
+
+You can now push your study's stimulus files, block-level configuration, and the protocol PDF to your [OSF project](/integrations/osf#uploading-materials-to-osf) — on demand from a study's **Record**, or from the **Preregister** tab immediately after preregistering. Files go into your editable OSF project (not the frozen registration), and **Re-upload** ships new versions of anything that changed. Participant data is never included.
+
+### AI persuasion chat starter
+
+A new bring-your-own-key starter template that lets participants chat with Claude in a persuasion paradigm. Add your [Anthropic key](/integrations/anthropic) under **Settings → AI connections** to try it.
+
+### Meet Researchers directory
+
+Discover collaborators through the new **Meet Researchers** directory on Explore, with richer profile tiles showing each researcher's studies and stats. Opt in from your [researcher profile](/workspace/researcher-profiles) — profiles are hidden by default.
+
+### Workspaces settings tab
+
+A new **Workspaces** tab under Settings lets you list, rename, create, and restore workspaces. Workspaces can now be **archived and restored** — a fully reversible alternative to deletion.
+
+### Start-here checklist and guided tutorial
+
+New users land on a pinned **Start-here** getting-started card on the home page. Checklist progress now tracks your newest study rather than lifetime activity, and a **Take the guided tutorial** button surfaces the walk-through at any time.
+
+### Global Activity and What's-New bells
+
+Two bells now live in the top nav across the app: an **Activity** feed (grouped, with per-item read state) and a **What's-New** feed for product updates.
+
+### Study and block duplication
+
+Duplicate or delete a study from its tile's **⋯** menu on the Studies page, or duplicate a block directly from the Configure panel in the [Builder](/builder/study-workspace).
+
+### Home-page replication widgets
+
+Two new widgets on Home surface **Studies you replicated** and **Replications of yours** so ongoing replication work stays visible.
+
+## Updates
+
+### Social post block
+
+A major polish pass on the [Social post](/builder/blocks) block:
+
+- **Design → Social** tab with a live Facebook-style preview and one place to edit branding, logo, replies, emotion summary, and IRB withdraw copy.
+- **Branding tiers** with a single logo toggle and a per-post override. An IRB attestation is required before freezing a study that uses branded posts.
+- **Configurable reactions** on the participant render, with a visible tappable reaction row (no hover tray) and a dedicated reaction export column.
+- **Comment threads** with avatars, likeable comments, inline replies that work in preview and runtime, and honest comment counts that bump when a participant comments.
+- **Report action** as an opt-in interaction (completes the gating types).
+- **Interaction summary** toggle with compact emoji chips and translatable labels.
+- **Branch on a reaction** — use a social-post reaction as a [condition](/builder/conditions) source via a dropdown.
+- **Wider content column** and Facebook-scale sizing so posts look like the real thing.
+
+### Take (participant) experience
+
+- **Edge-to-edge mobile layout** for participants.
+- **Force-watch video** option that only lets participants continue after they've watched.
+- **In-screen conditional reveal** — reveal a block on the same screen based on a prior answer.
+- **Feed layout** un-boxes posts on the social-feed background, with a gate top-bar and a fake-nav toggle.
+- **Back navigation is off by default** in the participant runtime; enable it per study when you need it.
+- Light-themed studies now render light native controls on mobile.
+
+### Results and exports
+
+- **Export columns are visible during study design**, so you know exactly what will land in your dataset before you launch.
+- Social-post exports now record **replies** (with their parent comment) and **comment likes**, and reactions get their own dedicated column.
+
+### Study edit history
+
+Frozen drafts now list **real edits** (not baseline diffs), and a new **Detailed timeline** view surfaces edit events with timestamps — useful for [preregistration amendments](/methodology/preregistration).
+
+### Faster navigation
+
+Instant loading skeletons on section and stage navigation, so switching around the app feels immediate.
+
+### EU compute region
+
+App compute is now pinned to **Frankfurt (fra1)** in the EU. See [Trust & security](/trust/data-and-security) for the current data-region details.
+
+## Bug fixes
+
+- **Preview no longer pollutes study lifecycle, counts, or the changelog** — running the Preview leaves no trace on real study state.
+- **Onboarding checklist** no longer counts Preview sessions as "opened recruitment," and is now correctly workspace-scoped.
+- **OSF image upload** now resolves media-gateway URLs correctly so stimulus images upload reliably.
+- **Explore /researchers page** no longer crashes when the requested list size exceeded the max.
+- **Notifications feed** can no longer freeze; notification fan-out runs inline.
+- **Version drift** — restoring a full snapshot (including conditions) now clears drift indicators.
+- **Condition editor** strips stray empty-string values from reaction conditions.
+- **Whiteboard** — undoing an ungroup no longer blinks then reverts.
+- **Builder** — the condition allocation badge now wraps to fit the left panel.
+- **A/B starter** no longer ships one-member screen groups.
