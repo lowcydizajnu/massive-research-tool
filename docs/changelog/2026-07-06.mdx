@@ -1,0 +1,48 @@
+---
+title: "Week of July 6, 2026"
+description: "New Notification and Modal blocks, OSF materials upload, AI persuasion starter, Meet Researchers directory, and a fix for Preview polluting live study data."
+---
+
+A busy week. Two new stimulus blocks, OSF materials sync, a public researcher directory, and a data-integrity fix for anyone running studies in Preview.
+
+## New features
+
+**Notification and Modal blocks.** Two new [stimulus blocks](/builder/blocks) for realistic in-context prompts. The **Notification** block drops a slim banner under the nav (with optional CTAs and dismissal) and records which action the participant took. The **Modal** block shows an overlay dialog with up to two CTAs — Advance, Stay, external link, or jump to another screen — and supports show-on-open, delayed, or condition-triggered display. Both include an IRB deception gate if the block imitates a real product.
+
+**Materials upload to OSF.** Preregistrations now push your study **materials** to OSF alongside the record — stimulus files, the full study JSON, and a protocol PDF. Manage it from the **Materials on OSF** panel on the Study Record or the Preregister tab. See [OSF integration](/integrations/osf).
+
+**AI persuasion chat starter.** A new [starter template](https://myresearchlab.app/explore) for studies that put a participant in a Claude-powered dialogue. Bring your own [Anthropic key](/integrations/anthropic) and clone the template to run it.
+
+**Meet Researchers directory.** A public directory of [researcher profiles](/workspace/researcher-profiles) with a personal tab, follower stats, and richer tiles. Turn on your public profile from **Settings → Account → Profile**.
+
+**Workspace management.** New **Workspaces** tab in Settings lets you list, rename, create, and restore workspaces. Workspace archive is fully reversible — no destructive delete. See [Team & workspaces](/workspace/team).
+
+**Study and block tile menus.** A `⋯` menu on every study tile and block tile in the Builder for one-click **duplicate** and **delete**.
+
+**Force-watch video + edge-to-edge mobile.** The Take (participant) view now records whether the participant actually watched a video, supports force-watch stimuli, and uses an edge-to-edge layout on mobile.
+
+**Landing page.** The product now has a public landing page at [myresearchlab.app](https://myresearchlab.app).
+
+## Updates
+
+**Onboarding checklist.** The **Start here** getting-started widget is now a pinned card on Home, tracks progress against your newest study (not lifetime), and surfaces the guided tutorial as a dedicated button. Preview sessions are excluded from the "opened recruitment" step.
+
+**Explore polish.** [Explore](https://myresearchlab.app/explore) now leads with real starter-template covers, replaces the use-case band with richer researcher tiles, and pins the AI persuasion starter in the second slot.
+
+**Study changelog gets real edits.** The Study Record's changelog now lists actual edits on never-frozen drafts (baseline diff) and includes a detailed event timeline for freezes and amendments.
+
+**Social-post block.** Branding-tier picker, per-post logo override, configurable reaction pickers, comment threads with avatars and likes, Design → Social one-place editing, live Facebook-style preview, and an authentic mobile-scale layout.
+
+**EU compute region.** All app compute is now pinned to Frankfurt (`fra1`). See [Trust & security](/trust/data-and-security).
+
+**Faster stage navigation.** Instant loading skeletons when moving between sections and study stages — no more blank flashes.
+
+## Bug fixes
+
+- **Preview no longer pollutes live data.** Running a study in Preview will not update the study's lifecycle, participant counts, or changelog.
+- **OSF image uploads.** Bare R2 keys returned by the media gateway are now correctly resolved before upload.
+- **A/B starter groups.** The A/B starter no longer ships one-member screen groups.
+- **Whiteboard undo.** Undo of an ungroup no longer blinks and reverts.
+- **Take view.** Question blocks are boxed on the social-feed background; light themes now render light native controls.
+- **Builder.** Condition allocation badges wrap so they fit the left panel.
+- **Explore.** Fixed a crash on `/researchers` when the limit exceeded the max.
