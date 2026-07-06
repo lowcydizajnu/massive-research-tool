@@ -1,6 +1,13 @@
 /** Shared participant-runtime presentational parts (participant-runtime.md). */
 
-export function Card({ children, flush = false }: { children: React.ReactNode; flush?: boolean }) {
+export function Card({ children, flush = false, bare = false }: { children: React.ReactNode; flush?: boolean; bare?: boolean }) {
+  // Bare (ADR-0096 am.): a screen whose ONLY block is an imitation surface
+  // (login / modal / notification). Drop the study card box entirely so the block
+  // renders as its true self — a full-screen login, a modal over the previous
+  // screen, or a top-banner notification — with no empty white card around it.
+  if (bare) {
+    return <div className="flex flex-col gap-4 [--take-card-pad:0px]">{children}</div>;
+  }
   // Feed mode (social presets): DROP the outer card entirely so each post renders
   // as its OWN card floating on the page background — a real feed, not a card
   // stack boxed inside another card (owner 2026-07-01: "each post is a separate

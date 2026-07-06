@@ -41,6 +41,7 @@ export function BlockView({
   chat,
   blockCopy,
   social,
+  bareOverlay,
 }: {
   block: RuntimeBlock;
   seed?: string;
@@ -55,6 +56,9 @@ export function BlockView({
   blockCopy?: BlockCopy;
   /** Social-post design (ADR-0084/0085) — undefined = not configured (preset behavior). */
   social?: SocialPostDesign;
+  /** The screen's only block is an imitation surface (ADR-0096 am.) — a login then
+   *  renders as a full-screen takeover instead of a boxed card. */
+  bareOverlay?: boolean;
 }) {
   const c = block.config;
   const np = namePrefix;
@@ -109,7 +113,7 @@ export function BlockView({
   if (block.key === "notification")
     return <NotificationView config={c} np={np} responseId={responseId ?? ""} instanceId={block.instanceId} />;
   if (block.key === "modal") return <ModalView config={c} np={np} />;
-  if (block.key === "login") return <LoginView config={c} np={np} />;
+  if (block.key === "login") return <LoginView config={c} np={np} bare={bareOverlay} />;
   // V1.12 C2 — standard form blocks.
   if (block.key === "email") return <SimpleFieldInput config={c} type="email" np={np} />;
   if (block.key === "url") return <SimpleFieldInput config={c} type="url" np={np} />;

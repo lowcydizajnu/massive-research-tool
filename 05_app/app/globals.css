@@ -94,13 +94,15 @@ body {
   color: var(--color-primary-text-on-subtle);
 }
 
-/* Take flow: while a modal dialog is open (ModalView sets the body flag), hide the
-   marked screen chrome BEHIND it — on a bare-modal screen that's the screen's own
-   Continue/Back row, so the modal's buttons drive the flow and the dimmed page
-   content (from the previous screen) reads cleanly. Reappears on close, so a
+/* Take flow: while a modal dialog OR a full-screen login is open (ModalView /
+   LoginView set the body flag), hide the marked screen chrome BEHIND it — on a
+   bare-overlay screen that's the screen's own Continue/Back row, so the overlay's
+   own buttons drive the flow and the page reads cleanly. Reappears on close, so a
    dismissable modal never traps the participant. `visibility` keeps the Continue
-   button programmatically clickable for the modal's Advance (ADR-0096). */
-body[data-take-modal-open] [data-take-hide-under-modal] { visibility: hidden; }
+   button programmatically clickable for advance (ADR-0096 / ADR-0098). A chrome-
+   only notification sets no flag, so its Continue stays visible (non-blocking). */
+body[data-take-modal-open] [data-take-hide-under-overlay],
+body[data-take-login-open] [data-take-hide-under-overlay] { visibility: hidden; }
 
 /* Study Record authored markdown (ADR-0056). Token-driven prose for the
    record-markdown client island — headings, lists, links, emphasis. */

@@ -62,10 +62,23 @@ Live testing surfaced two problems, both fixed:
 - **The backdrop no longer dismisses the modal.** A stray click on the dimmed area used to close a deliberate dialog (`onMouseDown` → `close`). Removed — only the ✕ (when `dismissable`), Esc, and the buttons close it now. (Supersedes "dismissable by ✕ / backdrop / Esc" above: backdrop is dropped.)
 - **A modal alone on its screen shows the PREVIOUS screen's content behind it.** With one modal on a screen there was nothing behind the dialog but an empty card + a stray Continue — it read as "the content disappeared" (owner). Now, when a screen's only block is a modal, the take page renders the **previous visible screen's blocks inert** (`aria-hidden` + `inert`, `responseId=""` so no live block connects, overlays skipped) behind the dimmed backdrop, so the dialog reads as popping over the page. While the modal is open the screen's own Continue/Back row is hidden (`ModalView` sets `body[data-take-modal-open]`, `globals.css` hides `[data-take-hide-under-modal]`) so the modal's buttons drive the flow; the row returns on close, so a dismissable modal never traps the participant (the hidden Continue stays programmatically clickable for `advance`).
 
+## Amendment — 2026-07-06 (bare-overlay family: notification chrome + login full-screen)
+
+The bare-modal render treatment generalizes to the whole imitation family. Root cause the owner hit: every ungrouped block becomes its own screen wrapped in the study card, which is wrong for chrome (a lone **notification** shows an empty study card below its banner) and for a takeover (a **login** sits boxed inside the "Page N of M" card instead of *being* the screen).
+
+**Decision — a `bareOverlay` render mode (render-only; screen numbering untouched).** A screen whose ONLY block is `modal | notification | login` renders as its true self:
+
+- **Card gains a `bare` prop** — drops the study card box (no border/bg/shadow/padding). `ScreenHeader` (progress "Page N of M") is not rendered on a bare-overlay screen.
+- **Login → full-screen takeover.** `LoginView` gains a `bare` prop: it renders inside a `fixed inset-0` opaque container that fills the viewport (a login *is* the screen). Its Sign-in/SSO advance via `[data-take-continue]`; the study's own Continue row is hidden (`body[data-take-login-open]` + `globals.css`), so a **visible in-card "Continue without signing in"** link is the ethical escape (records `ignored`).
+- **Notification → chrome, no empty card.** The banner already portals into `#take-topbar`; with `bare` there's no empty study box, and (like the modal) the previous screen's content renders inert behind it. A notification is non-blocking, so its Continue row stays visible (no body flag).
+- **Numbering is NOT changed.** We deliberately did NOT filter these blocks out of `deriveScreens` (the rejected route): the CTA screen-target picker, `resolveScreenHref`, and the bare-overlay `index − 1` backdrop all depend on 1-based screen indices. A `deriveScreens` test locks this. The classification is an extracted pure helper `classifyBareOverlay` (`lib/take/bare-overlay.ts`, unit-tested); a "mixed" screen (overlay + a question) falls through to normal card rendering — the takeover applies only when the block truly owns the screen.
+
+New/changed: `lib/take/bare-overlay.ts`, `components/feature/take/parts.tsx` (`Card` `bare`), `login-view.tsx` (`bare` full-screen + escape), `block-view.tsx` (thread `bareOverlay`), `app/(take)/take/[studyId]/[sessionId]/[questionIndex]/page.tsx`, `app/globals.css` (`data-take-hide-under-overlay` + `data-take-login-open`).
+
 ## Revisit triggers
 
 - Researchers need `on-action` opening, multiple images, or WYSIWYG text → extend the Modal.
-- The "previous screen behind a bare modal" needs to follow branching precisely (it currently uses screen `index − 1`) → resolve the actual traversed-from screen.
+- The "previous screen behind a bare modal/notification" needs to follow branching precisely (it currently uses screen `index − 1`) → resolve the actual traversed-from screen.
 - Multiple simultaneous overlays (a toast + a modal on one screen) need z-index/stacking rules → extend the overlay primitive.
 - The advance mechanism proves brittle across screen layouts → give the runtime a first-class "advance current screen" action instead of clicking Continue.
 

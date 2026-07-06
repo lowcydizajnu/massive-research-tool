@@ -3,10 +3,10 @@ import { describe, expect, it } from "vitest";
 import { deriveScreens } from "@/lib/whiteboard/screens";
 import type { BlockInstance, StudyGroup } from "@/server/modules/blocks";
 
-const blk = (instanceId: string, groupId?: string): BlockInstance => ({
+const blk = (instanceId: string, groupId?: string, key = "likert-7"): BlockInstance => ({
   instanceId,
   source: "core",
-  key: "likert-7",
+  key,
   version: "1.0.0",
   config: {},
   ...(groupId ? { groupId } : {}),
@@ -17,6 +17,15 @@ describe("deriveScreens (ADR-0028)", () => {
     const s = deriveScreens([blk("a"), blk("b")], []);
     expect(s.map((x) => x.kind)).toEqual(["single", "single"]);
     expect(s.map((x) => x.id)).toEqual(["a", "b"]);
+  });
+
+  it("an imitation surface (modal / notification / login) still gets its OWN screen — numbering is untouched (ADR-0096 am.)", () => {
+    // The bare-overlay fix is render-only: it must NOT filter these out of the
+    // screen list (that would shift every 1-based screen index the CTA picker +
+    // resolveScreenHref depend on). Guards against a regression toward filtering.
+    const s = deriveScreens([blk("intro"), blk("n1", undefined, "notification"), blk("l1", undefined, "login"), blk("q")], []);
+    expect(s.map((x) => x.id)).toEqual(["intro", "n1", "l1", "q"]);
+    expect(s).toHaveLength(4);
   });
 
   it("contiguous shared groupId → one group screen with all members", () => {

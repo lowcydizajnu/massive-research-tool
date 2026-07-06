@@ -12,6 +12,7 @@ import { getRuntimeScreen } from "@/server/runtime/participant";
 import { normalizeCondition } from "@/lib/whiteboard/conditions";
 import { effectivePresetKey, isFeedSkin, resolveChat } from "@/lib/themes/themes";
 import { formatProgress } from "@/lib/take/ui-copy";
+import { classifyBareOverlay, OVERLAY_KEYS } from "@/lib/take/bare-overlay";
 
 import { answerAction } from "../../actions";
 
@@ -52,20 +53,22 @@ export default async function ScreenPage({
   // drop the outer card so each post is its own unit on the page (owner 2026-07-01).
   const feed = isFeedSkin(s.theme) && s.screen.blocks.some((b) => b.key === "social-post");
 
-  // Bare modal screen — a modal alone on its screen. Render the PREVIOUS screen's
-  // content (inert, dimmed behind the modal backdrop) so the dialog reads as
-  // popping over the page rather than an empty card (owner 2026-07-06). Overlays
-  // from the previous screen are skipped so we never stack two modals; `responseId`
-  // is blank so no live block (ai-chat) connects behind the dialog.
-  const bareModal = s.screen.blocks.length > 0 && s.screen.blocks.every((b) => b.key === "modal");
+  // Bare-overlay screen (ADR-0096 am.) — the screen's ONLY block is an imitation
+  // surface (modal / notification / login). It renders as its true self, not a
+  // boxed study card: a login fills the screen; a modal / notification shows the
+  // PREVIOUS screen's content behind it (inert) instead of an empty card. Screen
+  // numbering is untouched — this is purely how the screen renders.
+  const { bareModal, bareNotification, bareOverlay } = classifyBareOverlay(s.screen.blocks);
   let backdropBlocks: typeof s.screen.blocks = [];
-  if (bareModal && index > 0) {
+  // Login fills the viewport opaquely, so only modal / notification need a backdrop.
+  // Overlays are skipped so two never stack; `responseId=""` so no live block connects.
+  if ((bareModal || bareNotification) && index > 0) {
     const prev = await getRuntimeScreen({ studyId, responseId: sessionId, screenIndex: index - 1 });
-    if ("screen" in prev) backdropBlocks = prev.screen.blocks.filter((b) => b.key !== "modal" && b.key !== "notification");
+    if ("screen" in prev) backdropBlocks = prev.screen.blocks.filter((b) => !OVERLAY_KEYS.has(b.key));
   }
 
   return (
-    <Card flush={feed}>
+    <Card flush={feed} bare={bareOverlay}>
       {/* Persist-scope notifications (ADR-0095 am.) ride here from an earlier
           anchor screen — rendered into #take-topbar, so this mount is invisible
           on screens with no carried notice. */}
@@ -74,15 +77,19 @@ export default async function ScreenPage({
           arrow — one researcher choice for both (owner 2026-07-06). Preview keeps
           normal navigation so the researcher can move around freely. */}
       {!s.theme.layout.backButton && s.mode !== "preview" ? <BackNavigationGuard /> : null}
-      <ScreenHeader
-        position={s.position}
-        total={s.total}
-        preview={s.mode === "preview"}
-        progress={s.theme.layout.progress}
-        stepLabel={formatProgress(s.uiCopy.progressLabel, s.position + 1, s.total)}
-      />
+      {/* No "Page N of M" chrome on a bare-overlay screen — a login takeover / a
+          chrome-only notification shouldn't wear the study card's progress header. */}
+      {!bareOverlay ? (
+        <ScreenHeader
+          position={s.position}
+          total={s.total}
+          preview={s.mode === "preview"}
+          progress={s.theme.layout.progress}
+          stepLabel={formatProgress(s.uiCopy.progressLabel, s.position + 1, s.total)}
+        />
+      ) : null}
 
-      {bareModal && backdropBlocks.length ? (
+      {bareOverlay && backdropBlocks.length ? (
         <div inert aria-hidden className="pointer-events-none flex flex-col gap-[var(--take-block-gap,1.5rem)]">
           {backdropBlocks.map((b) => (
             <BlockView
@@ -125,7 +132,7 @@ export default async function ScreenPage({
           const body = (
             <>
               <input type="hidden" name="blocks" value={`${b.instanceId}|${b.key}|${prefix}`} />
-              <BlockView block={b} seed={sessionId} namePrefix={prefix} presetKey={effectivePresetKey(s.theme)} responseId={sessionId} chat={resolveChat(s.theme)} blockCopy={s.blockCopy} social={s.theme.socialPost} />
+              <BlockView block={b} seed={sessionId} namePrefix={prefix} presetKey={effectivePresetKey(s.theme)} responseId={sessionId} chat={resolveChat(s.theme)} blockCopy={s.blockCopy} social={s.theme.socialPost} bareOverlay={bareOverlay} />
             </>
           );
           // In feed mode the outer Card is dropped so each social post floats as its
@@ -154,10 +161,11 @@ export default async function ScreenPage({
           </p>
         ) : null}
 
-        {/* On a bare-modal screen this row is hidden WHILE the modal is open
-            (globals.css) so the dialog + dimmed page read cleanly; it returns on
-            close so a dismissable modal never traps the participant. */}
-        <div className="flex items-center gap-3" {...(bareModal ? { "data-take-hide-under-modal": "" } : {})}>
+        {/* On a bare-overlay screen this row is hidden WHILE a modal / login is open
+            (globals.css) so the dialog / full-screen login reads cleanly; it returns
+            on close so a dismissable modal never traps the participant. A chrome-only
+            notification sets no body flag, so its Continue stays visible (non-blocking). */}
+        <div className="flex items-center gap-3" {...(bareOverlay ? { "data-take-hide-under-overlay": "" } : {})}>
           {index > 0 && s.theme.layout.backButton ? (
             <Link
               href={`/take/${studyId}/${sessionId}/${index - 1}` as Route}

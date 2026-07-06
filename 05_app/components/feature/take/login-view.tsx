@@ -27,7 +27,7 @@ function str(v: unknown): string {
   return typeof v === "string" ? v : "";
 }
 
-export function LoginView({ config, np, preview = false }: { config: Record<string, unknown>; np: string; preview?: boolean }) {
+export function LoginView({ config, np, preview = false, bare = false }: { config: Record<string, unknown>; np: string; preview?: boolean; /** Alone on its screen → render as a full-screen takeover (ADR-0096 am.). */ bare?: boolean }) {
   const brandName = str(config.brandName);
   const brandLogoUrl = str(config.brandLogoUrl).trim();
   const title = str(config.title);
@@ -48,6 +48,7 @@ export function LoginView({ config, np, preview = false }: { config: Record<stri
   const atMsRef = useRef<HTMLInputElement>(null);
   const uRef = useRef<HTMLInputElement>(null);
   const pRef = useRef<HTMLInputElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
   const start = useRef(0);
 
   useEffect(() => {
@@ -56,6 +57,19 @@ export function LoginView({ config, np, preview = false }: { config: Record<stri
     const t = setTimeout(() => setShown(true), Math.max(0, afterSec) * 1000);
     return () => clearTimeout(t);
   }, [preview, triggerKind, afterSec]);
+
+  // Full-screen takeover: flag the body so the take page hides the screen's own
+  // Continue/Back row (globals.css) and move focus into the login for a11y.
+  useEffect(() => {
+    if (preview || !bare || typeof document === "undefined") return;
+    if (shown) {
+      document.body.setAttribute("data-take-login-open", "1");
+      cardRef.current?.focus();
+    } else {
+      document.body.removeAttribute("data-take-login-open");
+    }
+    return () => document.body.removeAttribute("data-take-login-open");
+  }, [preview, bare, shown]);
 
   function markTyped(ref: React.RefObject<HTMLInputElement | null>, value: string) {
     if (ref.current) ref.current.value = value.length > 0 ? "1" : "0";
@@ -86,8 +100,12 @@ export function LoginView({ config, np, preview = false }: { config: Record<stri
     "w-full rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-3 py-2 text-[length:var(--text-body)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]";
   const linkCls = "text-[length:var(--text-small)] text-[var(--color-primary)] hover:underline cursor-pointer";
 
-  return (
-    <div className="motion-safe:animate-in mx-auto flex w-full max-w-sm flex-col gap-4 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-raised)] p-6 shadow-[var(--shadow-md)]">
+  const loginCard = (
+    <div
+      ref={cardRef}
+      tabIndex={bare && !preview ? -1 : undefined}
+      className="motion-safe:animate-in mx-auto flex w-full max-w-sm flex-col gap-4 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-raised)] p-6 shadow-[var(--shadow-md)] outline-none"
+    >
       {fields}
 
       <div className="flex flex-col items-center gap-2">
@@ -158,6 +176,26 @@ export function LoginView({ config, np, preview = false }: { config: Record<stri
           Don’t have an account? <span className="text-[var(--color-primary)]">Sign up</span>
         </p>
       ) : null}
+
+      {/* Ethical escape (ADR-0098): a participant who won't sign in can proceed.
+          On a full-screen (bare) login the study's own Continue is hidden, so this
+          in-card link is the way out — records `ignored` and advances. */}
+      {bare && !preview ? (
+        <button type="button" onClick={() => act("ignored")} className={`mt-1 self-center ${linkCls}`}>
+          Continue without signing in
+        </button>
+      ) : null}
     </div>
   );
+
+  // Full-screen takeover: the whole screen IS the login (owner: "login screen is
+  // an individual component"). Opaque fill over the app, centered card.
+  if (bare && !preview) {
+    return (
+      <div className="motion-safe:animate-in fixed inset-0 z-50 flex items-center justify-center overflow-auto bg-[var(--color-surface-page)] p-4">
+        {loginCard}
+      </div>
+    );
+  }
+  return loginCard;
 }
