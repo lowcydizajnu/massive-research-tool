@@ -14,6 +14,7 @@ import { SignatureInput } from "@/components/feature/take/signature-input";
 import { FileUploadInput } from "@/components/feature/take/file-upload-input";
 import { VideoRecordInput } from "@/components/feature/take/video-record-input";
 import { AiChatInput } from "@/components/feature/take/ai-chat-input";
+import { NotificationView } from "@/components/feature/take/notification-view";
 import { ChatWindowPreview } from "@/components/feature/take/chat-window-preview";
 import { SOCIAL_PLATFORM_PRESETS, type BrandingTier, type ChatAppearance, type ReactionKey, type SocialPostDesign } from "@/lib/themes/themes";
 import { BLOCK_COPY_DEFAULTS, type BlockCopyKey } from "@/lib/take/ui-copy";
@@ -102,6 +103,8 @@ export function BlockView({
   if (block.key === "video") return <VideoView config={c} np={np} />;
   if (block.key === "audio-stimulus") return <AudioStimulusView config={c} />;
   if (block.key === "link") return <LinkView config={c} />;
+  // Simulated-app-environment stimuli (ADR-0095).
+  if (block.key === "notification") return <NotificationView config={c} np={np} />;
   // V1.12 C2 — standard form blocks.
   if (block.key === "email") return <SimpleFieldInput config={c} type="email" np={np} />;
   if (block.key === "url") return <SimpleFieldInput config={c} type="url" np={np} />;

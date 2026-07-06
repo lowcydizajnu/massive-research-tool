@@ -689,6 +689,101 @@ const linkBlock: CoreModuleDef = {
   isComplete: (c) => typeof c.url === "string" && c.url.trim().length > 0,
 };
 
+// ---------- Simulated-app-environment stimuli (ADR-0095) ----------
+
+/** A CTA target on a Notification/Modal: an external link or another study.
+ *  Intra-study screen-jump is deferred (ADR-0095), so no `screen` kind yet. */
+const notificationCtaSchema = z.object({
+  label: z.string().default(""),
+  targetKind: z.enum(["url", "study"]).default("url"),
+  targetUrl: z.string().default(""), // when targetKind === "url"
+  targetStudyId: z.string().default(""), // when targetKind === "study"
+});
+
+const notificationBlock: CoreModuleDef = {
+  source: "core",
+  key: "notification",
+  version: "1.0.0",
+  name: "Notification",
+  description:
+    "An in-context notice (banner/toast) shown to participants — type, up to 2 call-to-action buttons, and an optional close. Records which action the participant took.",
+  categoryTags: ["content", "stimulus", "interface"],
+  configSchema: z.object({
+    variant: z.enum(["error", "warning", "info", "success", "custom"]).default("info"),
+    title: z.string().default(""),
+    body: z.string().default(""),
+    // `custom` variant only: a left thumbnail (researcher-uploaded R2 asset).
+    thumbnailUrl: mediaUrl.default(""),
+    thumbnailShape: z.enum(["circle", "square"]).default("circle"),
+    ctas: z.array(notificationCtaSchema).max(2).default([]),
+    dismissable: z.boolean().default(true),
+    position: z.enum(["inline", "fixed-top"]).default("inline"),
+    // Trigger (ADR-0095): show on screen load, after N seconds, or conditionally
+    // (conditional reuses the block's own showIf — no new engine here).
+    triggerKind: z.enum(["on-load", "after", "conditional"]).default("on-load"),
+    triggerAfterSec: z.number().int().min(0).max(600).default(3),
+  }),
+  defaultConfig: {
+    variant: "info",
+    title: "",
+    body: "",
+    thumbnailUrl: "",
+    thumbnailShape: "circle",
+    ctas: [],
+    dismissable: true,
+    position: "inline",
+    triggerKind: "on-load",
+    triggerAfterSec: 3,
+  },
+  jsonSchema: {
+    type: "object",
+    properties: {
+      variant: { type: "string", enum: ["error", "warning", "info", "success", "custom"] },
+      title: { type: "string" },
+      body: { type: "string" },
+      thumbnailUrl: { type: "string" },
+      thumbnailShape: { type: "string", enum: ["circle", "square"] },
+      ctas: {
+        type: "array",
+        maxItems: 2,
+        items: {
+          type: "object",
+          properties: {
+            label: { type: "string" },
+            targetKind: { type: "string", enum: ["url", "study"] },
+            targetUrl: { type: "string" },
+            targetStudyId: { type: "string" },
+          },
+          additionalProperties: false,
+        },
+      },
+      dismissable: { type: "boolean" },
+      position: { type: "string", enum: ["inline", "fixed-top"] },
+      triggerKind: { type: "string", enum: ["on-load", "after", "conditional"] },
+      triggerAfterSec: { type: "integer", minimum: 0, maximum: 600 },
+    },
+    additionalProperties: false,
+  },
+  // Records which action the participant took (dismissed / clicked a CTA /
+  // ignored). Never gates Continue — `isAnswerEmpty` is always false, like the
+  // video exposure signal. Not a branch source in v1 (exposure/interaction data).
+  collectsResponse: true,
+  conditionSource: false,
+  responseSchema: z.object({ action: z.string(), atMs: z.number().int().min(0) }).partial(),
+  isAnswerEmpty: () => false,
+  isComplete: (c) => {
+    const s = (v: unknown) => (typeof v === "string" ? v : "");
+    if (!s(c.title).trim() && !s(c.body).trim()) return false;
+    const ctas = Array.isArray(c.ctas) ? (c.ctas as Record<string, unknown>[]) : [];
+    for (const cta of ctas) {
+      if (!s(cta.label).trim()) return false;
+      if (cta.targetKind === "url" && !s(cta.targetUrl).trim()) return false;
+      if (cta.targetKind === "study" && !s(cta.targetStudyId).trim()) return false;
+    }
+    return true;
+  },
+};
+
 // ---------- V1.12 C2 (Group 1): standard form blocks ----------
 
 const valueStr = (a: unknown): string => {
@@ -2323,6 +2418,7 @@ export const MODULE_REGISTRY: CoreModuleDef[] = [
   imageBlock,
   videoBlock,
   linkBlock,
+  notificationBlock,
   emailBlock,
   urlBlock,
   numberBlock,
