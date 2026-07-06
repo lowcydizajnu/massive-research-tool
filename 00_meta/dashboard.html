@@ -1215,6 +1215,10 @@
   ],
   "recentActivity": [
     {
+      "text": "feat(settings): surface workspace rename on the Workspace settings page. The workspace.rename mutation (ADR-0092 — name-only, slug stays stable so links + bookmarks keep working; owner/admin only) already existed but was reachable only from Account -> Workspaces (the personal list of all your workspaces). Owner reported the gap: no way to rename the *active* workspace from where you'd look. FIX: a new WorkspaceNameSetting client control at the top of /settings/workspace, self-fetching workspace.active (id/name/role) and reusing the same mutation + the WorkspacesSection inline-edit UX (Enter save / Esc cancel, PendingButton, error alert); non-admins see the name read-only. No new server logic, no new mutation, no ADR (ADR-0092 already governs rename) — a discoverability fix, not a new primitive. tsc/lint clean; 9/9 workspace tests green (rename already covered). No migration. Commit 171eb15. Pending deploy.",
+      "date": "2026-07-06"
+    },
+    {
       "text": "fix(explore): /researchers crashed ('Something went wrong') + move AI persuasion to 2nd in Featured. ROOT CAUSE of the crash: the /researchers directory called explore.publicProfiles({limit:48}) but the procedure input capped limit at .max(24) — 48 fails Zod validation, the procedure throws BAD_REQUEST, and the page (direct await, no catch) hit the error boundary. Invisible to typecheck/build (48 is a valid number) and untested (tests used 12); /explore worked because it passes 12. FIX: raised publicProfiles max 24->100 (the directory legitimately wants a full page; the query fetches all candidates then JS-slices, so a higher cap is free) + regression test now calls it with limit:48. REORDER (owner): a curated FEATURED_PIN in explore-content pins misinfo 1st + AI persuasion 2nd; the rest keep useCount-desc order (stable sort). tsc/lint clean; 7 explore tests; build 25/25. No migration.",
       "date": "2026-07-04"
     },
