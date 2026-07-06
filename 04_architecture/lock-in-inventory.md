@@ -72,8 +72,9 @@ For each vendor:
 
 | | |
 | --- | --- |
-| **What we use it for** | Push-to-OSF on preregistration. Per-user OAuth (researchers own their OSF identity). |
-| **Behind an adapter** | `RegistryAdapter` (`05_app/server/adapters/registry.ts`, registry-agnostic) — all OSF API/OAuth calls confined to `registry.osf.ts`. |
+| **What we use it for** | Push-to-OSF on preregistration. Per-user OAuth (researchers own their OSF identity). **Materials upload (ADR-0094):** stimulus files + design JSON + protocol PDF pushed to the editable project node's osfstorage via WaterButler. |
+| **Behind an adapter** | `RegistryAdapter` (`05_app/server/adapters/registry.ts`, registry-agnostic) — all OSF API/OAuth calls confined to `registry.osf.ts`, incl. the WaterButler file upload. |
+| **Second OSF host (ADR-0094)** | File bytes go to **`files.osf.io/v1`** (WaterButler), separate from `api.osf.io/v2` metadata — same bearer token, existing `osf.full_write` scope (no new scope). Configured via `OSF_FILES_BASE` (defaults to the documented host); still confined to `registry.osf.ts`. |
 | **Deliberate exceptions** | (none — the OSF OAuth redirect/callback routes use the adapter's `getAuthorizeUrl`/`completeConnection`, no OSF SDK leaks into route/UI code.) |
 | **Migration target** | Not a migration so much as a *plurality*: AsPredicted, ClinicalTrials.gov, PsyArXiv all plug into the same `RegistryAdapter` shape. Per-tenant config picks which registries are enabled. |
 | **Cost-ceiling trigger** | OSF is free for researchers — no cost trigger. Capability trigger: when a customer demands a registry we don't support. |
