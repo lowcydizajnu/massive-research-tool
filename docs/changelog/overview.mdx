@@ -1,0 +1,62 @@
+---
+title: Changelog
+description: What's new in My Research Lab.
+---
+
+Product updates, week by week. For docs changes, follow the repository directly.
+
+<Update label="July 6, 2026">
+
+## New features
+
+**Notification and Modal blocks**
+Two new [blocks](/builder/blocks) let you simulate real interface events inside a study. **Notification** drops an opaque banner at the top of the screen; **Modal** overlays a dialog that can either advance or hold the participant. Both include a deception gate so debrief handling is enforced by default, and both show up live in the Configure editor while you set them up.
+
+**Upload study materials to OSF**
+When you [connect OSF](/integrations/osf), you can now push your study's materials — stimuli files, a machine-readable JSON of the design, and a rendered protocol PDF — straight to the OSF project. A **Materials on OSF** panel is available on both the Study Record and the [Preregister tab](/methodology/preregistration), so preregistering and archiving materials happen in the same flow.
+
+**AI persuasion chat starter**
+A new starter template lets you run [Anthropic-powered](/integrations/anthropic) conversational persuasion studies. Bring your own API key, clone the template, and edit prompts and conditions like any other study.
+
+**Meet Researchers directory**
+A new public directory surfaces active researchers, with a personal tab for the profiles you follow. Discover collaborators and see richer stats on [researcher profiles](/workspace/researcher-profiles) from the Explore section.
+
+**Workspaces tab in Settings**
+List, rename, create, and restore your [workspaces](/workspace/team) from a single Settings tab. Renaming is now also available on the Workspace settings page.
+
+**Reversible workspace archive**
+Archive a workspace to hide it without losing anything, then restore it at any time. There's no destructive delete — archive is fully reversible.
+
+**Study and block duplicate/delete menus**
+Study tiles and block tiles now have a `⋯` menu with **Duplicate** and **Delete**, so you can iterate on designs and swap variants without rebuilding from scratch.
+
+**Start-here checklist on Home**
+A pinned Start-here card on the Home page walks new researchers through their first study — sign up, build, pilot, and open recruitment — and tracks progress against your newest study rather than lifetime activity. A **Take the guided tutorial** button is available whenever you want a refresher.
+
+**Interaction summary in gating**
+Gated blocks can now show a compact, translatable interaction summary with emoji chips, giving participants a clearer picture of what they've done so far.
+
+## Updates
+
+**Explore redesign**
+The Explore section now leads with real starter-template cover images and richer "Researchers to follow" tiles that include stats. The use-case band has been removed in favor of a cleaner, more discoverable layout.
+
+**Faster section navigation**
+Switching between sections shows instant loading skeletons, so navigation feels immediate even on slower connections.
+
+**EU compute region**
+Backend compute is now pinned to Frankfurt (EU). See [Trust & security](/trust/data-and-security) for the up-to-date data residency details.
+
+**Misinformation starter styling**
+The misinformation starter now renders social posts in a Facebook-style layout, matching the look participants expect.
+
+## Bug fixes
+
+- **OSF image uploads:** fixed a case where bare storage keys weren't resolved correctly, so image assets now upload reliably alongside other materials.
+- **Take flow:** each question block is now boxed against the social-feed background, and light-themed studies correctly render native controls in light mode.
+- **Builder:** the condition allocation badge now wraps to fit the left panel instead of overflowing.
+- **Explore:** fixed a crash on the `/researchers` page when the pagination limit exceeded the max.
+- **Onboarding:** the Start-here checklist is now workspace-scoped, ignores Preview sessions when checking "opened recruitment," and no longer leaks internal redirects.
+- **Data export:** replies to social-post comments (with their parent comment) and comment likes are now included in exports.
+
+</Update>
