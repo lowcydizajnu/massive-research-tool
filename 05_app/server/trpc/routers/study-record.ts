@@ -2,12 +2,19 @@ import { createHash } from "node:crypto";
 
 import { TRPCError } from "@trpc/server";
 import { and, count, desc, eq, inArray } from "drizzle-orm";
+import { ulid } from "ulid";
 import { z } from "zod";
 
 import { citation } from "@/server/adapters/citation";
 import { registry } from "@/server/adapters/registry";
 import { db } from "@/server/db/client";
-import { experiment, experimentVersion, registryPush, response, studyRecord } from "@/server/db/schema";
+import { experiment, experimentVersion, osfMaterialUpload, registryPush, response, studyRecord } from "@/server/db/schema";
+import {
+  OSF_MATERIALS_FOLDER,
+  assembleOsfMaterialFiles,
+  planOsfArtifacts,
+} from "@/server/osf/materials-bundle";
+import { buildStudyPdfData } from "@/server/study/pdf-data";
 import {
   DEFAULT_LAYOUT,
   SECTION_TYPES,
@@ -170,7 +177,56 @@ async function osfProjectNode(studyId: string): Promise<string | null> {
   return null;
 }
 
+/** The newest frozen (published/preregistered) version — the source of a study's
+ *  materials + design snapshot for OSF upload (ADR-0094), matching the E3
+ *  materials inventory. */
+async function latestFrozenVersion(studyId: string): Promise<{ id: string; snapshot: unknown } | null> {
+  const [ver] = await db
+    .select({ id: experimentVersion.id, snapshot: experimentVersion.definitionSnapshot })
+    .from(experimentVersion)
+    .where(
+      and(
+        eq(experimentVersion.experimentId, studyId),
+        inArray(experimentVersion.kind, ["published", "preregistered"]),
+      ),
+    )
+    .orderBy(desc(experimentVersion.versionNumber))
+    .limit(1);
+  return ver ?? null;
+}
+
 export type OsfPushItem = { label: string; value: string };
+
+/** OSF materials upload status for one artifact, as the panel sees it (ADR-0094). */
+export type OsfArtifactStatus = "not_uploaded" | "uploaded" | "failed" | "skipped";
+
+export type StudyOsfMaterialArtifact = {
+  kind: "stimulus" | "design-json" | "protocol-pdf";
+  artifactKey: string;
+  fileName: string;
+  status: OsfArtifactStatus;
+  osfUrl: string | null;
+  error: string | null;
+  uploadedAt: string | null;
+};
+
+export type StudyOsfMaterials = {
+  connected: boolean;
+  /** Whether an OSF project node exists yet (a prior preregistration/record push). */
+  hasNode: boolean;
+  /** Whether the study has a frozen version to take materials from. */
+  hasVersion: boolean;
+  folderName: string;
+  artifacts: StudyOsfMaterialArtifact[];
+  lastUploadedAt: string | null;
+};
+
+export type OsfMaterialsUploadResult = {
+  uploaded: number;
+  failed: number;
+  skipped: number;
+  total: number;
+};
 
 /**
  * The exact, itemized content the OSF project-node push would write (ADR-0056 E4b
@@ -270,6 +326,180 @@ export const studyRecordRouter = router({
         .set({ osfPushedHash: summary.hash, osfPushedAt: new Date() })
         .where(eq(studyRecord.experimentId, input.studyId));
       return { ok: true };
+    }),
+
+  /**
+   * Materials-on-OSF panel state (ADR-0094): the artifacts this study would push
+   * (its stimulus files + the design snapshot + a protocol PDF), each with its
+   * last upload status. Read-only; safe to call before any push.
+   */
+  getMaterialsForOsf: writeProcedure
+    .input(z.object({ studyId: z.string().uuid() }))
+    .query(async ({ ctx, input }): Promise<StudyOsfMaterials> => {
+      await requireOwnStudy(input.studyId, ctx.workspace.id);
+      const [nodeId, conn, ver] = await Promise.all([
+        osfProjectNode(input.studyId),
+        registry.getConnection(ctx.dbUser.id),
+        latestFrozenVersion(input.studyId),
+      ]);
+      const planned = ver ? planOsfArtifacts(ver.snapshot) : [];
+      const rows = await db
+        .select()
+        .from(osfMaterialUpload)
+        .where(eq(osfMaterialUpload.experimentId, input.studyId));
+      const byKey = new Map(rows.map((r) => [r.artifactKey, r]));
+      let lastUploadedAt: Date | null = null;
+      for (const r of rows) {
+        if (r.uploadedAt && (!lastUploadedAt || r.uploadedAt > lastUploadedAt)) lastUploadedAt = r.uploadedAt;
+      }
+      return {
+        connected: conn.connected,
+        hasNode: !!nodeId,
+        hasVersion: !!ver,
+        folderName: OSF_MATERIALS_FOLDER,
+        artifacts: planned.map((p) => {
+          const r = byKey.get(p.artifactKey);
+          return {
+            kind: p.kind,
+            artifactKey: p.artifactKey,
+            fileName: p.fileName,
+            status: (r?.status ?? "not_uploaded") as OsfArtifactStatus,
+            osfUrl: r?.osfUrl ?? null,
+            error: r?.errorText ?? null,
+            uploadedAt: r?.uploadedAt?.toISOString() ?? null,
+          };
+        }),
+        lastUploadedAt: lastUploadedAt?.toISOString() ?? null,
+      };
+    }),
+
+  /**
+   * Upload this study's materials to its OSF **project node** (ADR-0094) — the
+   * mutable node from the original preregistration, never the frozen
+   * registration. Assembles stimulus files + the design snapshot + a protocol
+   * PDF, uploads via WaterButler (create, or new-version on re-push), and records
+   * per-file state. Requires an OSF node (preregister first) + an active
+   * connection. Participant response media is never included.
+   */
+  uploadMaterialsToOsf: writeProcedure
+    .input(z.object({ studyId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }): Promise<OsfMaterialsUploadResult> => {
+      await requireOwnStudy(input.studyId, ctx.workspace.id);
+      const nodeId = await osfProjectNode(input.studyId);
+      if (!nodeId) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Push a preregistration to OSF first — there's no OSF project to add materials to yet.",
+        });
+      }
+      const conn = await registry.getConnection(ctx.dbUser.id);
+      if (!conn.connected) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Connect OSF in Settings · Connections first." });
+      }
+      const ver = await latestFrozenVersion(input.studyId);
+      if (!ver) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "This study has no saved version to take materials from." });
+      }
+
+      // Prior OSF file ids → re-push updates in place (new version), no duplicates.
+      const priorRows = await db
+        .select()
+        .from(osfMaterialUpload)
+        .where(eq(osfMaterialUpload.experimentId, input.studyId));
+      const existingByKey = new Map(
+        priorRows.filter((r) => r.osfFileId).map((r) => [r.artifactKey, r.osfFileId!]),
+      );
+
+      const pdfData = await buildStudyPdfData(input.studyId);
+      const { files, skipped, failed } = await assembleOsfMaterialFiles({
+        snapshot: ver.snapshot,
+        pdfData,
+        existingByKey,
+      });
+
+      const uploaded = files.length
+        ? await registry.uploadMaterials(ctx.dbUser.id, { nodeId, folderName: OSF_MATERIALS_FOLDER, files })
+        : [];
+
+      // Persist per-artifact state (upsert on (experimentId, artifactKey)).
+      const kindByKey = new Map(planOsfArtifacts(ver.snapshot).map((p) => [p.artifactKey, p.kind]));
+      const now = new Date();
+      type Row = {
+        artifactKey: string;
+        fileName: string;
+        status: "uploaded" | "failed" | "skipped";
+        osfFileId: string | null;
+        osfPath: string | null;
+        osfUrl: string | null;
+        sizeBytes: number | null;
+        error: string | null;
+      };
+      const rows: Row[] = [
+        ...uploaded.map((u) => ({
+          artifactKey: u.artifactKey,
+          fileName: u.fileName,
+          status: u.status,
+          osfFileId: u.osfFileId,
+          osfPath: u.osfPath,
+          osfUrl: u.osfUrl,
+          sizeBytes: null,
+          error: u.error ?? null,
+        })),
+        ...skipped.map((s) => ({
+          artifactKey: s.artifactKey,
+          fileName: s.fileName,
+          status: "skipped" as const,
+          osfFileId: null,
+          osfPath: null,
+          osfUrl: null,
+          sizeBytes: s.sizeBytes,
+          error: `Skipped — larger than the ${Math.round((100 * 1024 * 1024) / (1024 * 1024))} MB per-file limit.`,
+        })),
+        ...failed.map((f) => ({
+          artifactKey: f.artifactKey,
+          fileName: f.fileName,
+          status: "failed" as const,
+          osfFileId: null,
+          osfPath: null,
+          osfUrl: null,
+          sizeBytes: null,
+          error: f.error,
+        })),
+      ];
+
+      for (const r of rows) {
+        // Preserve a prior OSF file id when this attempt didn't produce one
+        // (skipped / failed) so a later re-push can still update in place.
+        const osfFileId = r.osfFileId ?? existingByKey.get(r.artifactKey) ?? null;
+        const values = {
+          nodeId,
+          experimentVersionId: ver.id,
+          kind: kindByKey.get(r.artifactKey) ?? "stimulus",
+          fileName: r.fileName,
+          osfFileId,
+          osfPath: r.osfPath,
+          osfUrl: r.osfUrl,
+          status: r.status,
+          sizeBytes: r.sizeBytes,
+          errorText: r.error,
+          uploadedAt: r.status === "uploaded" ? now : null,
+          updatedAt: now,
+        };
+        await db
+          .insert(osfMaterialUpload)
+          .values({ id: ulid(), experimentId: input.studyId, artifactKey: r.artifactKey, ...values })
+          .onConflictDoUpdate({
+            target: [osfMaterialUpload.experimentId, osfMaterialUpload.artifactKey],
+            set: values,
+          });
+      }
+
+      return {
+        uploaded: uploaded.filter((u) => u.status === "uploaded").length,
+        failed: uploaded.filter((u) => u.status === "failed").length + failed.length,
+        skipped: skipped.length,
+        total: rows.length,
+      };
     }),
 
   /**

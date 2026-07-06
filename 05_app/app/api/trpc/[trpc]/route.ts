@@ -14,6 +14,10 @@ import { appRouter } from "@/server/trpc/root";
  * every query refetches fresh, so data changes appear without a hard refresh.
  */
 export const dynamic = "force-dynamic";
+// Headroom for the rare long-running mutation that streams bytes to a third
+// party (OSF materials upload, ADR-0094 — files fetched from R2 then PUT to
+// WaterButler inline). Vercel Pro caps at 300s; ordinary calls finish in ms.
+export const maxDuration = 300;
 
 const handler = (req: Request) =>
   fetchRequestHandler({

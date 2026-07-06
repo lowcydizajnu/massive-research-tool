@@ -22,8 +22,35 @@ vi.mock("@/server/adapters/registry", () => ({
   registry: {
     getConnection: vi.fn(async () => ({ connected: true })),
     pushRecordSummary: vi.fn(async () => ({ ok: true })),
+    uploadMaterials: vi.fn(async (_userId: string, { files }: { files: { artifactKey: string; fileName: string }[] }) =>
+      files.map((f) => ({
+        artifactKey: f.artifactKey,
+        fileName: f.fileName,
+        status: "uploaded" as const,
+        osfFileId: `osf-${f.artifactKey}`,
+        osfPath: `/${f.artifactKey}`,
+        osfUrl: "https://osf.io/NODE-1/files/osfstorage",
+      })),
+    ),
   },
 }));
+// The protocol PDF + byte assembly are unit-tested directly; here we stub them so
+// the mutation test focuses on guards + persistence (ADR-0094).
+vi.mock("@/server/study/pdf-data", () => ({ buildStudyPdfData: vi.fn(async () => ({ title: "T" })) }));
+vi.mock("@/server/osf/materials-bundle", async (orig) => {
+  const actual = (await orig()) as Record<string, unknown>;
+  return {
+    ...actual,
+    assembleOsfMaterialFiles: vi.fn(async () => ({
+      files: [
+        { artifactKey: "design-snapshot.json", fileName: "design-snapshot.json", bytes: new Uint8Array([1]), existingOsfFileId: null },
+        { artifactKey: "protocol.pdf", fileName: "protocol.pdf", bytes: new Uint8Array([2]), existingOsfFileId: null },
+      ],
+      skipped: [],
+      failed: [],
+    })),
+  };
+});
 
 import type { AuthUser } from "@/server/adapters/auth";
 import { db } from "@/server/db/client";
@@ -38,6 +65,7 @@ import {
   member,
   mention,
   notification,
+  osfMaterialUpload,
   recruitmentSession,
   registry,
   registryConnection,
@@ -90,6 +118,7 @@ beforeEach(async () => {
   await db.delete(recruitmentSession);
   await db.delete(condition);
   await db.delete(savedRecord);
+  await db.delete(osfMaterialUpload);
   await db.delete(studyRecord);
   await db.delete(registryPush);
   await db.delete(registryConnection);
@@ -423,5 +452,80 @@ describe("studyRecord tenant scoping", () => {
     await expect(b.studyRecord.saveAuthored({ studyId: id, abstract: "x" })).rejects.toMatchObject({
       code: "NOT_FOUND",
     });
+  });
+});
+
+describe("studyRecord OSF materials (ADR-0094)", () => {
+  /** Give a study an OSF project node by faking a prior preregistration push. */
+  async function seedOsfNode(studyId: string) {
+    const [ver] = await db
+      .select({ id: experimentVersion.id })
+      .from(experimentVersion)
+      .where(eq(experimentVersion.experimentId, studyId))
+      .limit(1);
+    await db.insert(registry).values({ id: "reg-osf", key: "osf", name: "OSF", oauthConfig: {}, pushConfig: {} });
+    await db.insert(registryPush).values({
+      id: "push-1",
+      experimentVersionId: ver!.id,
+      registryId: "reg-osf",
+      status: "pushed",
+      requestPayload: {},
+      responsePayload: { nodeId: "NODE-1" },
+    });
+  }
+
+  it("refuses to upload when the study has no OSF project node yet", async () => {
+    await seed("hanna", "Hanna Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const { id } = await a.studies.create({ kind: "blank", title: "No node" });
+    await a.studies.preregister({ studyId: id }); // frozen version, but no push row → no node
+
+    await expect(a.studyRecord.uploadMaterialsToOsf({ studyId: id })).rejects.toMatchObject({
+      code: "PRECONDITION_FAILED",
+    });
+  });
+
+  it("refuses to upload when OSF isn't connected", async () => {
+    await seed("hanna", "Hanna Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const { id } = await a.studies.create({ kind: "blank", title: "Disconnected" });
+    await a.studies.preregister({ studyId: id });
+    await seedOsfNode(id);
+
+    // Set the disconnected state right before the call so earlier procedures
+    // (which also read the connection) don't consume the one-time override.
+    const { registry: reg } = await import("@/server/adapters/registry");
+    (reg.getConnection as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ connected: false });
+
+    await expect(a.studyRecord.uploadMaterialsToOsf({ studyId: id })).rejects.toMatchObject({
+      code: "PRECONDITION_FAILED",
+    });
+  });
+
+  it("uploads the design JSON + protocol PDF, records per-file state, and the panel reflects it", async () => {
+    await seed("hanna", "Hanna Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const { id } = await a.studies.create({ kind: "blank", title: "Uploadable" });
+    await a.studies.preregister({ studyId: id });
+    await seedOsfNode(id);
+
+    // Before: node + connection exist, nothing uploaded.
+    const before = await a.studyRecord.getMaterialsForOsf({ studyId: id });
+    expect(before.hasNode).toBe(true);
+    expect(before.connected).toBe(true);
+    expect(before.artifacts.map((x) => x.artifactKey)).toEqual(["design-snapshot.json", "protocol.pdf"]);
+    expect(before.artifacts.every((x) => x.status === "not_uploaded")).toBe(true);
+
+    const res = await a.studyRecord.uploadMaterialsToOsf({ studyId: id });
+    expect(res).toEqual({ uploaded: 2, failed: 0, skipped: 0, total: 2 });
+
+    // Rows persisted, and a re-query shows them uploaded with OSF links.
+    const rows = await db.select().from(osfMaterialUpload).where(eq(osfMaterialUpload.experimentId, id));
+    expect(rows).toHaveLength(2);
+    expect(rows.every((r) => r.status === "uploaded" && r.osfFileId && r.uploadedAt)).toBe(true);
+
+    const after = await a.studyRecord.getMaterialsForOsf({ studyId: id });
+    expect(after.artifacts.every((x) => x.status === "uploaded" && x.osfUrl)).toBe(true);
+    expect(after.lastUploadedAt).not.toBeNull();
   });
 });
