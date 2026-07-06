@@ -1,0 +1,53 @@
+---
+title: "Week of July 6, 2026"
+description: "Notification and Modal blocks, materials-on-OSF upload, workspace archive & rename, and a batch of onboarding and Explore polish."
+---
+
+A busy week — two new UI-imitation blocks, one-click materials upload to OSF, and reversible workspace management, plus a lot of polish across onboarding, Explore, and the take-a-study runtime.
+
+## ✨ New
+
+**Notification block.** A slim, opaque banner that drops in under a study's fake top nav so participants see a realistic push-style alert mid-task. Configure it in the [Block catalogue](/builder/blocks), pick which screens it appears on, and record whether participants tap, dismiss, or ignore it (including late dismissals).
+
+**Modal block.** An overlay dialog that either advances the study on tap or holds the participant on-screen — useful for cookie prompts, consent-style interstitials, and deception gates. See it in the [Block catalogue](/builder/blocks).
+
+**Materials-on-OSF upload.** Push your stimulus files, a machine-readable study JSON, and a protocol PDF straight to your OSF project in one click, from either the **Study Record** or the **Preregister** tab. See [Materials on OSF](/integrations/osf).
+
+**AI persuasion starter template.** A new BYO-Anthropic-key starter that runs a live chat as the stimulus. Browse it on Explore or via the [Anthropic integration](/integrations/anthropic).
+
+**Meet Researchers directory.** A public directory of researchers on the platform, plus a personal tab for the people you follow — see [Researcher profiles](/workspace/researcher-profiles).
+
+**Start-here checklist.** A pinned getting-started card on your home page that tracks your **newest** study through recruitment, so returning users get a fresh checklist for each new project. Includes a **Take the guided tutorial** button.
+
+**Workspace archive & restore.** Archive a workspace when a project wraps up and restore it later — fully reversible, nothing is deleted. Managed from the new **Workspaces** tab in Settings (list, rename, create, restore). See [Team & workspaces](/workspace/team).
+
+**Workspace rename.** Rename a workspace directly from its settings page.
+
+## 🔧 Updates
+
+**Explore refresh.** Explore now leads with real starter-template cover images and richer "Researchers to follow" tiles that surface stats at a glance.
+
+**Duplicate & delete, everywhere.** A ⋯ menu on every study tile (duplicate / delete) and a matching duplicate/delete on every block tile in the Builder. You can now also duplicate a block from its Configure panel.
+
+**Social-post gating polish.** New opt-in **Report** action completes the set of gating interactions, plus an interaction-summary toggle with compact emoji chips and translatable labels. Branding tiers collapsed to a single logo toggle for a simpler Theme step. See [Blocks](/builder/blocks).
+
+**In-screen conditional reveal.** Follow-up blocks can now reveal in place on the same screen instead of pushing the participant to a new one — smoother flow for social-post studies.
+
+**Take-a-study runtime.** The feed now un-boxes posts against the social background, the fake top-bar is gateable, and there's a fake-nav toggle for studies that don't need it. Back-nav is now off by default. Light studies also get light native controls (date pickers, dropdowns) thanks to a proper `color-scheme` declaration.
+
+**Faster section switches.** Instant loading skeletons when you switch between sections of the app — no more blank flashes.
+
+**EU compute region.** All app compute is now pinned to Frankfurt (`fra1`). See [Data & security](/trust/data-and-security).
+
+## 🐛 Fixes
+
+- **OSF image uploads** now resolve correctly when the source URL points through the media gateway.
+- **Social-post replies** (with their parent comment) and **comment likes** are now recorded in exports.
+- **Reaction picker** on social posts is back to the working visible tappable row (the hover-tray variant was reverted).
+- An **unrevealed conditional block** no longer blocks the Continue button.
+- Stray empty-string values are stripped from **reaction-based conditions**.
+- **"Just the post"** branding tier now honors the study's social design.
+- **Preview sessions** are correctly excluded from the "opened recruitment" onboarding step.
+- **Onboarding checklist** is now scoped per-workspace and no longer leaks a redirect error on completion.
+- **Explore /researchers** no longer crashes when the page limit exceeds the max.
+- **Condition allocation badge** in the Builder now wraps so it fits the left panel.
