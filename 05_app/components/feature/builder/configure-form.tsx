@@ -11,6 +11,7 @@ import { EMOTION_ANALYSIS_AVAILABLE, EMOTION_UNAVAILABLE_REASON } from "@/lib/ai
 import { AiChatConfig } from "@/components/feature/builder/ai-chat-config";
 import { AudioStimulusConfig } from "@/components/feature/builder/audio-stimulus-config";
 import { NotificationConfig } from "@/components/feature/builder/notification-config";
+import { ModalConfig } from "@/components/feature/builder/modal-config";
 import { PickFromMaterialsButton } from "@/components/feature/builder/pick-from-materials-button";
 import { UploadButton } from "@/components/feature/builder/upload-button";
 import { mediaKindForField } from "@/lib/uploads";
@@ -131,6 +132,11 @@ export function ConfigureForm({
   // The notification block has a live-preview appearance editor (ADR-0095).
   if (block.key === "notification") {
     return <NotificationConfig block={block} onChange={onChange} onRename={onRename} onRemove={onRemove} />;
+  }
+
+  // The modal block has a live-preview appearance editor (ADR-0096).
+  if (block.key === "modal") {
+    return <ModalConfig block={block} onChange={onChange} onRename={onRename} onRemove={onRemove} />;
   }
 
   // The audio-stimulus block has a purpose-built config (script + TTS generation).

@@ -794,6 +794,99 @@ const notificationBlock: CoreModuleDef = {
   },
 };
 
+/** A Modal button (ADR-0096): advance the study, just close, or navigate. */
+const modalCtaSchema = z.object({
+  label: z.string().default(""),
+  action: z.enum(["advance", "stay", "url", "study", "screen"]).default("advance"),
+  targetUrl: z.string().default(""), // action === "url"
+  targetStudyId: z.string().default(""), // action === "study"
+  targetScreen: z.number().int().min(1).default(1), // action === "screen"
+});
+
+const modalBlock: CoreModuleDef = {
+  source: "core",
+  key: "modal",
+  version: "1.0.0",
+  name: "Modal dialog",
+  description:
+    "A centered pop-up dialog over a backdrop — title, text, an optional image, and up to 2 buttons that can advance the study or just close. Records the participant's action.",
+  categoryTags: ["content", "stimulus", "interface"],
+  configSchema: z.object({
+    title: z.string().default(""),
+    body: z.string().default(""),
+    imageUrl: mediaUrl.default(""),
+    imagePosition: z.enum(["none", "top", "left", "right"]).default("none"),
+    ctas: z.array(modalCtaSchema).max(2).default([]),
+    dismissable: z.boolean().default(true),
+    triggerKind: z.enum(["on-load", "after", "conditional"]).default("on-load"),
+    triggerAfterSec: z.number().int().min(0).max(600).default(3),
+    // Deception (ADR-0096 / ADR-0084 gate): a modal that imitates a real
+    // product's dialog (cookie/consent/paywall/system) needs an IRB attestation.
+    imitatesReal: z.boolean().default(false),
+    deceptionAck: z.boolean().default(false),
+  }),
+  defaultConfig: {
+    title: "",
+    body: "",
+    imageUrl: "",
+    imagePosition: "none",
+    ctas: [{ label: "Continue", action: "advance", targetUrl: "", targetStudyId: "", targetScreen: 1 }],
+    dismissable: true,
+    triggerKind: "on-load",
+    triggerAfterSec: 3,
+    imitatesReal: false,
+    deceptionAck: false,
+  },
+  jsonSchema: {
+    type: "object",
+    properties: {
+      title: { type: "string" },
+      body: { type: "string" },
+      imageUrl: { type: "string" },
+      imagePosition: { type: "string", enum: ["none", "top", "left", "right"] },
+      ctas: {
+        type: "array",
+        maxItems: 2,
+        items: {
+          type: "object",
+          properties: {
+            label: { type: "string" },
+            action: { type: "string", enum: ["advance", "stay", "url", "study", "screen"] },
+            targetUrl: { type: "string" },
+            targetStudyId: { type: "string" },
+            targetScreen: { type: "integer", minimum: 1 },
+          },
+          additionalProperties: false,
+        },
+      },
+      dismissable: { type: "boolean" },
+      triggerKind: { type: "string", enum: ["on-load", "after", "conditional"] },
+      triggerAfterSec: { type: "integer", minimum: 0, maximum: 600 },
+      imitatesReal: { type: "boolean" },
+      deceptionAck: { type: "boolean" },
+    },
+    additionalProperties: false,
+  },
+  collectsResponse: true,
+  conditionSource: false,
+  responseSchema: z.object({ action: z.string(), atMs: z.number().int().min(0) }).partial(),
+  isAnswerEmpty: () => false,
+  isComplete: (c) => {
+    const s = (v: unknown) => (typeof v === "string" ? v : "");
+    if (!s(c.title).trim() && !s(c.body).trim()) return false;
+    if (c.imitatesReal === true && c.deceptionAck !== true) return false;
+    const ctas = Array.isArray(c.ctas) ? (c.ctas as Record<string, unknown>[]) : [];
+    for (const cta of ctas) {
+      if (!s(cta.label).trim()) return false;
+      if (cta.action === "url" && !s(cta.targetUrl).trim()) return false;
+      if (cta.action === "study" && !s(cta.targetStudyId).trim()) return false;
+    }
+    // Anti-trap: a non-dismissable modal must have a way out (an advance button).
+    if (c.dismissable === false && !ctas.some((cta) => cta.action === "advance")) return false;
+    return true;
+  },
+};
+
 // ---------- V1.12 C2 (Group 1): standard form blocks ----------
 
 const valueStr = (a: unknown): string => {
@@ -2429,6 +2522,7 @@ export const MODULE_REGISTRY: CoreModuleDef[] = [
   videoBlock,
   linkBlock,
   notificationBlock,
+  modalBlock,
   emailBlock,
   urlBlock,
   numberBlock,

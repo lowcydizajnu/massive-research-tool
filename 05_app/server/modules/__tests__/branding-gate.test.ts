@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { customNotificationsNeedingAck, evaluateBrandingGate } from "@/server/modules/branding-gate";
+import { customNotificationsNeedingAck, evaluateBrandingGate, imitationModalsNeedingAck } from "@/server/modules/branding-gate";
 import {
   ACADEMIC,
   effectiveBrandingTier,
@@ -123,5 +123,25 @@ describe("customNotificationsNeedingAck (ADR-0095 deception gate)", () => {
   it("passes when acknowledged, and ignores neutral variants", () => {
     expect(customNotificationsNeedingAck({ blocks: [notif("n1", { variant: "custom", deceptionAck: true })] })).toEqual([]);
     expect(customNotificationsNeedingAck({ blocks: [notif("n2", { variant: "error", title: "x" })] })).toEqual([]);
+  });
+});
+
+describe("imitationModalsNeedingAck (ADR-0096 deception gate)", () => {
+  const modal = (instanceId: string, config: Record<string, unknown>) => ({
+    instanceId,
+    source: "core" as const,
+    key: "modal",
+    version: "1.0.0",
+    config,
+  });
+
+  it("flags an imitation modal missing the deception acknowledgement", () => {
+    const snap = { blocks: [modal("m1", { title: "Enable notifications?", imitatesReal: true, deceptionAck: false })] };
+    expect(imitationModalsNeedingAck(snap).map((x) => x.instanceId)).toEqual(["m1"]);
+  });
+
+  it("passes when acknowledged, and ignores non-imitation modals", () => {
+    expect(imitationModalsNeedingAck({ blocks: [modal("m1", { imitatesReal: true, deceptionAck: true })] })).toEqual([]);
+    expect(imitationModalsNeedingAck({ blocks: [modal("m2", { imitatesReal: false })] })).toEqual([]);
   });
 });
