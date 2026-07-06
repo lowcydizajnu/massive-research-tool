@@ -55,6 +55,16 @@ export function ModalView({ config, np, preview = false }: { config: Record<stri
     if (!preview && shown && !closed) cardRef.current?.focus();
   }, [preview, shown, closed]);
 
+  // Flag the body while open so the take page can hide the screen's own
+  // Continue/Back row on a bare-modal screen (globals.css) — the modal drives the
+  // flow; the row reappears on close so a dismissable modal never traps anyone.
+  useEffect(() => {
+    if (preview || typeof document === "undefined") return;
+    if (shown && !closed) document.body.setAttribute("data-take-modal-open", "1");
+    else document.body.removeAttribute("data-take-modal-open");
+    return () => document.body.removeAttribute("data-take-modal-open");
+  }, [preview, shown, closed]);
+
   function record(action: string) {
     if (actionRef.current) actionRef.current.value = action;
     if (atMsRef.current) atMsRef.current.value = String(Math.round(performance.now() - start.current));
@@ -174,13 +184,11 @@ export function ModalView({ config, np, preview = false }: { config: Record<stri
 
   // Preview: inline card (no backdrop/fixed). Runtime: a real centered overlay.
   if (preview) return <div className="mx-auto w-full max-w-md">{card}</div>;
+  // The backdrop does NOT dismiss the modal (owner 2026-07-06) — only the ✕
+  // (when dismissable), Esc, and the buttons close it. A stray click on the
+  // dimmed area shouldn't drop a deliberate dialog.
   return (
-    <div
-      className="motion-safe:animate-in fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget && dismissable) close("dismissed");
-      }}
-    >
+    <div className="motion-safe:animate-in fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       {card}
     </div>
   );

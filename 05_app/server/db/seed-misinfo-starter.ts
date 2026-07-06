@@ -385,7 +385,7 @@ const MISINFO_FB_THEME: StudyTheme = studyThemeSchema.parse({
   colors: { page: "#F0F2F5", card: "#FFFFFF", text: "#050505", muted: "#65676B", accent: "#0866FF" },
   typography: { headingFont: "helvetica", bodyFont: "helvetica", baseSize: "M" },
   shape: { radius: "rounded", density: "normal" },
-  layout: { width: "medium", progress: "bar", backButton: true },
+  layout: { width: "medium", progress: "bar", backButton: false },
   mimicAcknowledged: true,
   socialPost: { platformChrome: false },
 });
@@ -451,7 +451,7 @@ const SURVEY_THEME_V07: StudyTheme = {
   colors: { page: "#F8F9F7", card: "#FFFFFF", text: "#1A1F2C", muted: "#6E7480", accent: "#047144" },
   typography: { headingFont: "plex-serif", bodyFont: "plex-sans", baseSize: "M" },
   shape: { radius: "rounded", density: "normal" },
-  layout: { width: "medium", progress: "bar", backButton: true },
+  layout: { width: "medium", progress: "bar", backButton: false },
 };
 
 let nSurvey = 0;

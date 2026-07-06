@@ -55,9 +55,17 @@ Concretely, scoped to the Modal MVP:
 - **Committed to:** advance goes through the normal Continue (no submit bypass); the deception gate now spans social-post + notification + modal via one function.
 - **Precluded (for now):** `on-action` trigger and multi-image / rich WYSIWYG formatting (basic text + one image in v1); stacking multiple modals.
 
+## Amendment — 2026-07-06 (backdrop + bare-modal background)
+
+Live testing surfaced two problems, both fixed:
+
+- **The backdrop no longer dismisses the modal.** A stray click on the dimmed area used to close a deliberate dialog (`onMouseDown` → `close`). Removed — only the ✕ (when `dismissable`), Esc, and the buttons close it now. (Supersedes "dismissable by ✕ / backdrop / Esc" above: backdrop is dropped.)
+- **A modal alone on its screen shows the PREVIOUS screen's content behind it.** With one modal on a screen there was nothing behind the dialog but an empty card + a stray Continue — it read as "the content disappeared" (owner). Now, when a screen's only block is a modal, the take page renders the **previous visible screen's blocks inert** (`aria-hidden` + `inert`, `responseId=""` so no live block connects, overlays skipped) behind the dimmed backdrop, so the dialog reads as popping over the page. While the modal is open the screen's own Continue/Back row is hidden (`ModalView` sets `body[data-take-modal-open]`, `globals.css` hides `[data-take-hide-under-modal]`) so the modal's buttons drive the flow; the row returns on close, so a dismissable modal never traps the participant (the hidden Continue stays programmatically clickable for `advance`).
+
 ## Revisit triggers
 
 - Researchers need `on-action` opening, multiple images, or WYSIWYG text → extend the Modal.
+- The "previous screen behind a bare modal" needs to follow branching precisely (it currently uses screen `index − 1`) → resolve the actual traversed-from screen.
 - Multiple simultaneous overlays (a toast + a modal on one screen) need z-index/stacking rules → extend the overlay primitive.
 - The advance mechanism proves brittle across screen layouts → give the runtime a first-class "advance current screen" action instead of clicking Continue.
 

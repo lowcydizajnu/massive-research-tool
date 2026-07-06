@@ -11,13 +11,13 @@ A stimulus block that shows a participant a **modal dialog** — a centered card
 
 ## Layout
 
-**Take render** — a semi-transparent **backdrop** covering the take viewport, with a centered **dialog card**: an optional **image** (top / left / right of the text), a **title**, **body**, a **✕ close** (when dismissable, top-right), and a **button row** (0–2). Focus is trapped inside the dialog.
+**Take render** — a semi-transparent **backdrop** covering the take viewport, with a centered **dialog card**: an optional **image** (top / left / right of the text), a **title**, **body**, a **✕ close** (when dismissable, top-right), and a **button row** (0–2). Focus is trapped inside the dialog. Clicking the backdrop does **not** close the modal (owner 2026-07-06) — only the ✕, Esc, and the buttons do. When the modal is **alone on its screen**, the **previous screen's content** renders inert (dimmed) behind it so the dialog reads as popping over the page, and the screen's own Continue/Back row is hidden while the modal is open (it returns on close so a dismissable modal never traps the participant).
 
 **Builder Configure panel** — a live-preview editor (like the notification / social-post editors): Content (title, body), Image (upload + position), Buttons (0–2 rows: label + action picker), Behaviour (dismissable, trigger), plus an "imitates a real product" toggle with the deception attestation. A live preview renders the real modal inline (not floating) in the panel.
 
 ## Content inventory
 
-- **Backdrop** — static overlay; click to close when dismissable.
+- **Backdrop** — static overlay; a click does **not** close the modal (owner 2026-07-06).
 - **Image** (optional) — R2 upload; `imagePosition` = top / left / right — config.
 - **Title** — short text — config, ≤ ~120 chars.
 - **Body** — one or more short paragraphs — config, ≤ ~1000 chars.
@@ -37,7 +37,7 @@ A stimulus block that shows a participant a **modal dialog** — a centered card
 
 ## Interactions
 
-- **✕ / backdrop / Esc** — close the modal (records `dismissed`); only when `dismissable`. Focus returns to the take surface.
+- **✕ / Esc** — close the modal (records `dismissed`); only when `dismissable`. Focus returns to the take surface. (The backdrop no longer closes it.)
 - **Advance button** — closes, then triggers the screen's Continue control (`[data-take-continue]`) so branching + answer recording behave exactly as a normal Continue.
 - **Stay button** — closes only.
 - **Link / study / screen button** — navigates per `resolveNavTarget` / `resolveScreenHref` (new tab for external; same tab for study/screen).

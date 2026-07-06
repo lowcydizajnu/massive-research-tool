@@ -10,6 +10,15 @@ import {
 } from "@/lib/themes/themes";
 
 describe("study themes (ADR-0024)", () => {
+  it("back navigation is OFF by default across all presets (owner 2026-07-06)", () => {
+    // Most studies don't want participants revisiting earlier screens; researchers
+    // opt in per study via the Design panel (which also governs the browser Back arrow).
+    for (const p of Object.values(THEME_PRESETS)) {
+      expect(p.layout.backButton).toBe(false);
+    }
+    expect(ACADEMIC.layout.backButton).toBe(false);
+  });
+
   it("every preset passes its own schema", () => {
     for (const p of Object.values(THEME_PRESETS)) {
       expect(studyThemeSchema.safeParse(p).success).toBe(true);

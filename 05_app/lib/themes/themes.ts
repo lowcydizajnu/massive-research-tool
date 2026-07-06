@@ -279,7 +279,7 @@ export const ACADEMIC: StudyTheme = {
   colors: { page: "#F7F2E8", card: "#FFFFFF", text: "#1A1F2C", muted: "#6E7480", accent: "#1747C9" },
   typography: { headingFont: "plex-serif", bodyFont: "plex-sans", baseSize: "M" },
   shape: { radius: "rounded", density: "normal" },
-  layout: { width: "medium", progress: "bar", backButton: true },
+  layout: { width: "medium", progress: "bar", backButton: false },
 };
 
 export const THEME_PRESETS: Record<Exclude<StudyTheme["presetKey"], "custom">, StudyTheme> = {
@@ -289,7 +289,7 @@ export const THEME_PRESETS: Record<Exclude<StudyTheme["presetKey"], "custom">, S
     colors: { page: "#F4F8FB", card: "#FFFFFF", text: "#16242F", muted: "#5C6B77", accent: "#0E7490" },
     typography: { headingFont: "inter", bodyFont: "inter", baseSize: "M" },
     shape: { radius: "soft", density: "normal" },
-    layout: { width: "medium", progress: "steps", backButton: true },
+    layout: { width: "medium", progress: "steps", backButton: false },
   },
   modern: {
     presetKey: "modern",
@@ -303,7 +303,7 @@ export const THEME_PRESETS: Record<Exclude<StudyTheme["presetKey"], "custom">, S
     colors: { page: "#FDF6F9", card: "#FFFFFF", text: "#3B2F45", muted: "#8B7E96", accent: "#D9489B" },
     typography: { headingFont: "system-ui", bodyFont: "system-ui", baseSize: "L" },
     shape: { radius: "pill", density: "spacious" },
-    layout: { width: "medium", progress: "bar", backButton: true },
+    layout: { width: "medium", progress: "bar", backButton: false },
   },
   // Platform-mimicking presets (Wave 5 quartet, ADR-0024): ecological-validity
   // stimuli looks. They carry warnings + require researcher acknowledgment.
@@ -326,14 +326,14 @@ export const THEME_PRESETS: Record<Exclude<StudyTheme["presetKey"], "custom">, S
     colors: { page: "#FFFFFF", card: "#FFFFFF", text: "#121212", muted: "#5A5A5A", accent: "#BB1919" },
     typography: { headingFont: "georgia", bodyFont: "helvetica", baseSize: "M" },
     shape: { radius: "sharp", density: "normal" },
-    layout: { width: "wide", progress: "none", backButton: true },
+    layout: { width: "wide", progress: "none", backButton: false },
   },
   business: {
     presetKey: "business",
     colors: { page: "#F5F7FA", card: "#FFFFFF", text: "#1F2937", muted: "#6B7280", accent: "#0A66C2" },
     typography: { headingFont: "inter", bodyFont: "inter", baseSize: "M" },
     shape: { radius: "soft", density: "normal" },
-    layout: { width: "medium", progress: "steps", backButton: true },
+    layout: { width: "medium", progress: "steps", backButton: false },
   },
   // Wave 5b presets.
   instagram: {
@@ -355,21 +355,21 @@ export const THEME_PRESETS: Record<Exclude<StudyTheme["presetKey"], "custom">, S
     colors: { page: "#FAF7F2", card: "#FFFFFF", text: "#2D2A26", muted: "#8A8378", accent: "#C2714F" },
     typography: { headingFont: "georgia", bodyFont: "helvetica", baseSize: "L" },
     shape: { radius: "rounded", density: "spacious" },
-    layout: { width: "medium", progress: "bar", backButton: true },
+    layout: { width: "medium", progress: "bar", backButton: false },
   },
   forum: {
     presetKey: "forum",
     colors: { page: "#DAE0E6", card: "#FFFFFF", text: "#1A1A1B", muted: "#787C7E", accent: "#3B6EBF" },
     typography: { headingFont: "helvetica", bodyFont: "helvetica", baseSize: "M" },
     shape: { radius: "soft", density: "compact" },
-    layout: { width: "medium", progress: "none", backButton: true },
+    layout: { width: "medium", progress: "none", backButton: false },
   },
   blog: {
     presetKey: "blog",
     colors: { page: "#FFFFFF", card: "#FFFFFF", text: "#242424", muted: "#757575", accent: "#1A8917" },
     typography: { headingFont: "georgia", bodyFont: "georgia", baseSize: "L" },
     shape: { radius: "soft", density: "spacious" },
-    layout: { width: "narrow", progress: "none", backButton: true },
+    layout: { width: "narrow", progress: "none", backButton: false },
   },
   // Wave 5c presets.
   reddit: {
@@ -377,21 +377,21 @@ export const THEME_PRESETS: Record<Exclude<StudyTheme["presetKey"], "custom">, S
     colors: { page: "#DAE0E6", card: "#FFFFFF", text: "#1A1A1B", muted: "#7C7C7C", accent: "#FF4500" },
     typography: { headingFont: "helvetica", bodyFont: "helvetica", baseSize: "M" },
     shape: { radius: "soft", density: "compact" },
-    layout: { width: "medium", progress: "none", backButton: true },
+    layout: { width: "medium", progress: "none", backButton: false },
   },
   linkedin: {
     presetKey: "linkedin",
     colors: { page: "#F4F2EE", card: "#FFFFFF", text: "#191919", muted: "#666666", accent: "#0A66C2" },
     typography: { headingFont: "system-ui", bodyFont: "system-ui", baseSize: "M" },
     shape: { radius: "soft", density: "normal" },
-    layout: { width: "medium", progress: "none", backButton: true },
+    layout: { width: "medium", progress: "none", backButton: false },
   },
   youtube: {
     presetKey: "youtube",
     colors: { page: "#FFFFFF", card: "#FFFFFF", text: "#0F0F0F", muted: "#606060", accent: "#FF0000" },
     typography: { headingFont: "helvetica", bodyFont: "helvetica", baseSize: "M" },
     shape: { radius: "rounded", density: "normal" },
-    layout: { width: "wide", progress: "none", backButton: true },
+    layout: { width: "wide", progress: "none", backButton: false },
   },
   whatsapp: {
     presetKey: "whatsapp",

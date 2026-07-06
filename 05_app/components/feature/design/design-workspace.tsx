@@ -361,14 +361,19 @@ export function DesignWorkspace({
             options={[["bar", "Bar"], ["steps", "Step count"], ["none", "None"]]}
             onChange={(v) => patch({ layout: { ...theme.layout, progress: v as StudyTheme["layout"]["progress"] } })}
           />
-          <label className="flex items-center gap-2 text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
+          <label className="flex items-start gap-2 text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
             <input
               type="checkbox"
               checked={theme.layout.backButton}
               onChange={(e) => patch({ layout: { ...theme.layout, backButton: e.target.checked } })}
-              className="size-4 accent-[var(--color-primary)]"
+              className="mt-0.5 size-4 accent-[var(--color-primary)]"
             />
-            Show a Back button
+            <span>
+              Let participants go back
+              <span className="block text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                Shows a Back button and allows the browser Back arrow. Off by default — most studies don’t want participants revisiting earlier screens.
+              </span>
+            </span>
           </label>
         </fieldset>
 

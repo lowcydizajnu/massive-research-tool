@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Route } from "next";
 import { notFound, redirect } from "next/navigation";
 
+import { BackNavigationGuard } from "@/components/feature/take/back-navigation-guard";
 import { BlockView } from "@/components/feature/take/block-view";
 import { InteractionGate } from "@/components/feature/take/interaction-gate";
 import { PersistentNotificationHost } from "@/components/feature/take/persistent-notifications";
@@ -51,12 +52,28 @@ export default async function ScreenPage({
   // drop the outer card so each post is its own unit on the page (owner 2026-07-01).
   const feed = isFeedSkin(s.theme) && s.screen.blocks.some((b) => b.key === "social-post");
 
+  // Bare modal screen — a modal alone on its screen. Render the PREVIOUS screen's
+  // content (inert, dimmed behind the modal backdrop) so the dialog reads as
+  // popping over the page rather than an empty card (owner 2026-07-06). Overlays
+  // from the previous screen are skipped so we never stack two modals; `responseId`
+  // is blank so no live block (ai-chat) connects behind the dialog.
+  const bareModal = s.screen.blocks.length > 0 && s.screen.blocks.every((b) => b.key === "modal");
+  let backdropBlocks: typeof s.screen.blocks = [];
+  if (bareModal && index > 0) {
+    const prev = await getRuntimeScreen({ studyId, responseId: sessionId, screenIndex: index - 1 });
+    if ("screen" in prev) backdropBlocks = prev.screen.blocks.filter((b) => b.key !== "modal" && b.key !== "notification");
+  }
+
   return (
     <Card flush={feed}>
       {/* Persist-scope notifications (ADR-0095 am.) ride here from an earlier
           anchor screen — rendered into #take-topbar, so this mount is invisible
           on screens with no carried notice. */}
       <PersistentNotificationHost responseId={sessionId} screenIndex={index} />
+      {/* Back off (default) hides the Back button AND traps the browser Back
+          arrow — one researcher choice for both (owner 2026-07-06). Preview keeps
+          normal navigation so the researcher can move around freely. */}
+      {!s.theme.layout.backButton && s.mode !== "preview" ? <BackNavigationGuard /> : null}
       <ScreenHeader
         position={s.position}
         total={s.total}
@@ -64,6 +81,24 @@ export default async function ScreenPage({
         progress={s.theme.layout.progress}
         stepLabel={formatProgress(s.uiCopy.progressLabel, s.position + 1, s.total)}
       />
+
+      {bareModal && backdropBlocks.length ? (
+        <div inert aria-hidden className="pointer-events-none flex flex-col gap-[var(--take-block-gap,1.5rem)]">
+          {backdropBlocks.map((b) => (
+            <BlockView
+              key={b.instanceId}
+              block={b}
+              seed={sessionId}
+              namePrefix=""
+              presetKey={effectivePresetKey(s.theme)}
+              responseId=""
+              chat={resolveChat(s.theme)}
+              blockCopy={s.blockCopy}
+              social={s.theme.socialPost}
+            />
+          ))}
+        </div>
+      ) : null}
 
       <form action={answerAction} data-take-form className="flex flex-col gap-[var(--take-block-gap,1.5rem)]">
         <input type="hidden" name="studyId" value={studyId} />
@@ -119,7 +154,10 @@ export default async function ScreenPage({
           </p>
         ) : null}
 
-        <div className="flex items-center gap-3">
+        {/* On a bare-modal screen this row is hidden WHILE the modal is open
+            (globals.css) so the dialog + dimmed page read cleanly; it returns on
+            close so a dismissable modal never traps the participant. */}
+        <div className="flex items-center gap-3" {...(bareModal ? { "data-take-hide-under-modal": "" } : {})}>
           {index > 0 && s.theme.layout.backButton ? (
             <Link
               href={`/take/${studyId}/${sessionId}/${index - 1}` as Route}
