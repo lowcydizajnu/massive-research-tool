@@ -1139,11 +1139,17 @@ describe("studies.getResults (end-to-end)", () => {
     expect(results!.rows[0]).toMatchObject({ conditionSlug: "control", externalPid: "P1" });
   });
 
-  it("returns null when the study isn't preregistered", async () => {
+  it("returns the STRUCTURE-ONLY summary before preregistration so columns show while designing (owner 2026-07-06)", async () => {
     await seedUserWithWorkspace("ext_a", "Alpha");
     const caller = createCaller({ authUser: authUser("ext_a") });
     const { id } = await caller.studies.create({ kind: "blank", title: "S" });
-    expect(await caller.studies.getResults({ studyId: id })).toBeNull();
+    const r = await caller.studies.getResults({ studyId: id });
+    // No runnable version yet ⇒ not null; availableVersions === [] is the signal,
+    // no rows/responses, but the (draft) block-derived questions are present.
+    expect(r).not.toBeNull();
+    expect(r!.availableVersions).toEqual([]);
+    expect(r!.totalCompleted).toBe(0);
+    expect(r!.rows).toHaveLength(0);
   });
 
   it("surfaces the factorial variant combination in results + on each row (ADR-0058)", async () => {

@@ -4975,7 +4975,7 @@ export const studiesRouter = router({
     .query(async ({ ctx, input }): Promise<ResultsSummary | null> => {
       // All runnable versions (newest first), tenant-scoped. Pooling across them
       // is the default so a made-live v2 never silently hides v1's data (ADR-0044).
-      const versions = await db
+      const runnableVersions = await db
         .select({ id: experimentVersion.id, n: experimentVersion.versionNumber, snapshot: experimentVersion.definitionSnapshot })
         .from(experimentVersion)
         .innerJoin(experiment, eq(experimentVersion.experimentId, experiment.id))
@@ -4987,14 +4987,29 @@ export const studiesRouter = router({
           ),
         )
         .orderBy(desc(experimentVersion.versionNumber));
-      if (!versions.length) return null;
+      // Runnable versions the researcher can filter by. Empty ⇒ the study isn't
+      // running yet; getResults then returns the OUTPUT STRUCTURE from the latest
+      // DRAFT (below) so the export/columns are visible while DESIGNING — seeing
+      // the dataset shape is part of designing the study (owner 2026-07-06).
+      // `availableVersions.length === 0` on a non-null summary is the "structure
+      // only" signal for the UI.
+      const availableVersions = runnableVersions.map((v) => v.n);
+      const scopeSource = runnableVersions.length
+        ? runnableVersions
+        : await db
+            .select({ id: experimentVersion.id, n: experimentVersion.versionNumber, snapshot: experimentVersion.definitionSnapshot })
+            .from(experimentVersion)
+            .innerJoin(experiment, eq(experimentVersion.experimentId, experiment.id))
+            .where(and(eq(experimentVersion.experimentId, input.studyId), eq(experiment.tenantId, ctx.workspace.id)))
+            .orderBy(desc(experimentVersion.versionNumber))
+            .limit(1);
+      if (!scopeSource.length) return null; // no version at all → truly nothing to show
 
-      const latest = versions[0];
-      const availableVersions = versions.map((v) => v.n);
-      const verNumById = new Map(versions.map((v) => [v.id, v.n]));
+      const latest = scopeSource[0];
+      const verNumById = new Map(scopeSource.map((v) => [v.id, v.n]));
       // Selected scope: a specific version (if it exists) or all pooled (null).
-      const selected = input.version != null ? versions.find((v) => v.n === input.version) ?? null : null;
-      const scopeVersions = selected ? [selected] : versions; // newest-first
+      const selected = input.version != null ? scopeSource.find((v) => v.n === input.version) ?? null : null;
+      const scopeVersions = selected ? [selected] : scopeSource; // newest-first
       const scopeIds = scopeVersions.map((v) => v.id);
 
       // Conditions across the scoped versions; the per-condition aggregate merges

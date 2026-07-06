@@ -29,11 +29,11 @@ import { beaconNotificationAction, clearCarry, registerLive, setCarry, unregiste
  */
 type Variant = "error" | "warning" | "info" | "success" | "custom";
 
-const VARIANT_STYLE: Record<Exclude<Variant, "custom">, { fg: string; Icon: typeof Info; role: "alert" | "status" }> = {
-  error: { fg: "var(--color-danger-text-on-subtle)", Icon: CircleAlert, role: "alert" },
-  warning: { fg: "var(--color-warning-text-on-subtle)", Icon: TriangleAlert, role: "alert" },
-  info: { fg: "var(--color-primary-text-on-subtle)", Icon: Info, role: "status" },
-  success: { fg: "var(--color-success-text-on-subtle)", Icon: CircleCheck, role: "status" },
+const VARIANT_STYLE: Record<Exclude<Variant, "custom">, { bg: string; fg: string; Icon: typeof Info; role: "alert" | "status" }> = {
+  error: { bg: "var(--color-danger-subtle)", fg: "var(--color-danger-text-on-subtle)", Icon: CircleAlert, role: "alert" },
+  warning: { bg: "var(--color-warning-subtle)", fg: "var(--color-warning-text-on-subtle)", Icon: TriangleAlert, role: "alert" },
+  info: { bg: "var(--color-primary-subtle)", fg: "var(--color-primary-text-on-subtle)", Icon: Info, role: "status" },
+  success: { bg: "var(--color-success-subtle)", fg: "var(--color-success-text-on-subtle)", Icon: CircleCheck, role: "status" },
 };
 
 function str(v: unknown): string {
@@ -155,18 +155,26 @@ export function NotificationView({
 
   if (!shown || dismissed) return <div className="hidden">{fields}</div>;
 
+  // Status shade (owner 2026-07-06): an OPAQUE variant tint — the subtle colour
+  // layered over the opaque surface (background-color from the class), so it reads
+  // as the status shade without letting scrolled-under content bleed through.
+  const bgStyle = sty ? { backgroundImage: `linear-gradient(${sty.bg}, ${sty.bg})` } : undefined;
+
   const notice = (
     <div
       role={role}
+      style={bgStyle}
       className={
         banner
-          ? // Slim full-width bar: opaque canvas, hairline bottom border, tight row.
+          ? // Slim full-width bar under the nav; status-tinted, hairline bottom border.
             "motion-safe:animate-in w-full border-b border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] shadow-[var(--shadow-sm)]"
           : // Inline: a capped, centered card in the content flow.
             "motion-safe:animate-in mx-auto flex w-full max-w-md items-start gap-3 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-raised)] p-3 shadow-[var(--shadow-md)]"
       }
     >
-      <div className={banner ? "mx-auto flex w-full max-w-[600px] items-start gap-3 px-4 py-2.5" : "contents"}>
+      {/* Banner content aligns to the study content column (var set by the take
+          layout) — same width as the content below, not full-bleed. */}
+      <div className={banner ? "mx-auto flex w-full max-w-[var(--take-content-max,640px)] items-start gap-3 px-4 py-2.5" : "contents"}>
         {custom ? (
           thumbnailUrl ? (
             // eslint-disable-next-line @next/next/no-img-element -- researcher-supplied stimulus URL

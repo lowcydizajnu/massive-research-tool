@@ -45,7 +45,10 @@ export default async function ThemedTakeLayout({
 
   return (
     <div
-      style={{ ...vars, colorScheme: themeColorScheme(theme) }}
+      // `--take-content-max` = the study's content column width, so page-level
+      // top-bar elements (notification banner) can align to the content below
+      // instead of stretching full-bleed (owner 2026-07-06).
+      style={{ ...vars, colorScheme: themeColorScheme(theme), ["--take-content-max" as string]: WIDTHS[theme.layout.width] }}
       className="flex min-h-screen flex-col items-center bg-[var(--color-surface-page)] font-sans text-[var(--color-text-primary)]"
     >
       {Frame ? (

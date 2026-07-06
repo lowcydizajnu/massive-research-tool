@@ -31,14 +31,23 @@ export default async function ResultsStagePage({
   const api = await getServerApi();
 
   let study: StudyDetail | null = null;
-  let results: ResultsSummary | null = null;
   try {
     study = await api.studies.get({ id });
-    results = await api.studies.getResults({ studyId: id, includePreview, version });
   } catch {
     study = null;
   }
   if (!study) notFound();
+  // A failing getResults must NOT 404 the page — results are secondary to the
+  // study existing, and the export/columns are available even with no responses.
+  let results: ResultsSummary | null = null;
+  try {
+    results = await api.studies.getResults({ studyId: id, includePreview, version });
+  } catch {
+    results = null;
+  }
+  // No runnable version yet ⇒ getResults returns a STRUCTURE-ONLY summary
+  // (availableVersions === []) so the output columns are visible while designing.
+  const structureOnly = !!results && results.availableVersions.length === 0;
 
   // Filter links preserve the preview toggle.
   const previewQs = includePreview ? "preview=1" : "";
@@ -68,17 +77,21 @@ export default async function ResultsStagePage({
               {study.title}
             </h1>
             <p className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
-              {results
-                ? `${results.totalCompleted} completed response${results.totalCompleted === 1 ? "" : "s"} across ${results.conditions.length} condition${results.conditions.length === 1 ? "" : "s"}${results.includesPreview ? " (including preview)" : ""}${scopeLabel}.`
-                : "Results appear here once the study is preregistered and collecting responses."}
+              {!results
+                ? "Results appear here once the study is preregistered and collecting responses."
+                : structureOnly
+                  ? "Not collecting responses yet — the output structure is ready to review via Export."
+                  : `${results.totalCompleted} completed response${results.totalCompleted === 1 ? "" : "s"} across ${results.conditions.length} condition${results.conditions.length === 1 ? "" : "s"}${results.includesPreview ? " (including preview)" : ""}${scopeLabel}.`}
             </p>
           </div>
-          {results && results.totalCompleted > 0 ? (
+          {/* The Export/columns configurator is available from the get-go so the
+              researcher can see the dataset shape while designing (owner 2026-07-06). */}
+          {results ? (
             <Link
               href={`/studies/${study.id}/results/export` as Route}
               className="inline-flex shrink-0 items-center gap-1 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-1.5 text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
             >
-              Export data
+              {structureOnly ? "Export · columns" : "Export data"}
             </Link>
           ) : null}
         </div>
@@ -104,6 +117,18 @@ export default async function ResultsStagePage({
               Run stage
             </Link>{" "}
             (Preregister to OSF, or Publish &amp; run without OSF).
+          </Empty>
+        ) : structureOnly ? (
+          <Empty>
+            Not collecting responses yet — freeze a version from the{" "}
+            <Link href={`/studies/${study.id}/run`} className="underline">
+              Run stage
+            </Link>{" "}
+            to start. Meanwhile, open{" "}
+            <Link href={`/studies/${study.id}/results/export`} className="underline">
+              Export
+            </Link>{" "}
+            to review the exact columns your data will have — part of designing the study.
           </Empty>
         ) : results.totalCompleted === 0 ? (
           <>
