@@ -1,0 +1,57 @@
+---
+title: "Week of July 6, 2026"
+description: "Notification blocks, OSF materials upload, workspace management, and an AI persuasion starter."
+---
+
+A busy week. Highlights: a new **Notification** block, one-click **materials upload to OSF**, and reversible **workspace archive & restore**.
+
+## New features
+
+**Notification block.** Add an in-context notification (banner or toast) to any screen — pick a type, wire up call-to-action buttons, and design it in a live-preview editor. The block records which action each participant takes without gating Continue. See the [block catalogue](/builder/blocks).
+
+**Upload study materials to OSF.** Push your full study package — media files, the machine-readable study JSON, and a human-readable protocol PDF — straight to your OSF project. The **Materials on OSF** panel is available on both the Study Record and the [Preregister tab](/integrations/osf).
+
+**AI persuasion chat starter.** A new starter template that runs a live chat with Anthropic's Claude as the stimulus. Bring your own Anthropic API key. See the [Anthropic integration](/integrations/anthropic).
+
+**Meet Researchers directory.** A new **Researchers** section on Explore surfaces active researchers with study counts and follow stats, plus a personal tab of the people you've followed. See [researcher profiles](/workspace/researcher-profiles).
+
+**Branch on a social-post reaction.** [Conditions](/builder/conditions) can now branch on which reaction a participant clicked on a social post — no free-text matching required.
+
+**In-screen conditional reveal.** During Take, follow-up blocks can now reveal in place on the same screen instead of jumping to a new one. Gating chips make requirements explicit and the top bar hides for a cleaner feed.
+
+**Social-post gating.** New Configure controls let you require specific interactions (reactions, comments, replies, share, or an opt-in Report action) before Continue unlocks, with a translatable summary chip row shown to participants.
+
+**Home widgets: replications.** Two new home widgets — *Studies you replicated* and *Replications of yours* — surface your replication activity in both directions.
+
+**Activity & What's New.** Two global bells in the top navigation: **Activity** groups your own notifications with per-item read state, and **What's New** surfaces product updates.
+
+**Duplicate anywhere.** A ⋯ menu on every study tile and block tile duplicates or deletes in one click. You can also duplicate a block directly from the Configure panel. See the [Builder overview](/builder/study-workspace).
+
+**Start-here onboarding.** A pinned Start-here checklist on Home tracks your newest study's progress toward launch and links to the guided tutorial.
+
+## Updates
+
+**Workspace archive & restore.** Archiving a workspace is now fully reversible — no destructive deletes. Rename, create, and restore workspaces from **Settings → Workspaces**.
+
+**Rebrand to My Research Lab.** The product is now called **My Research Lab** across the app, marketing site, and legal pages. No action needed.
+
+**Explore, refreshed.** The Explore page now leads with real starter-template cover art and richer *Researchers to follow* tiles.
+
+**EU compute region.** All app compute now runs in the Vercel Frankfurt (`fra1`) region. See [data & security](/trust/data-and-security).
+
+**Faster navigation.** Instant loading skeletons on section and stage switches make navigation feel immediate.
+
+**Wider study canvas.** The content column is wider and social-post sizing now matches native Facebook scale — closer to what participants actually see in the wild.
+
+**Misinformation starter, Facebook-style.** The misinformation starter template now renders posts in the native Facebook look and feel.
+
+## Bug fixes
+
+- **OSF image uploads** now resolve correctly when a study references media by URL rather than a raw key.
+- **Social-post reactions** show as a visible, tappable row in the runtime — no more hidden hover tray.
+- **Export completeness:** social-post replies (with parent comment) and comment likes are now included in the exported dataset.
+- **Version drift** clears reliably now that full snapshots include conditions.
+- **Take runtime:** each question block is properly boxed on the social-feed background, and light studies get light native controls (color-scheme is declared from the theme).
+- **Preview return:** closing Preview now returns you to the exact stage you launched it from.
+- **Onboarding:** Preview sessions no longer count as "opened recruitment," and the Start-here checklist is scoped to the current workspace.
+- **Builder:** condition allocation badges wrap to fit the left panel; unrevealed conditional blocks never block Continue.
