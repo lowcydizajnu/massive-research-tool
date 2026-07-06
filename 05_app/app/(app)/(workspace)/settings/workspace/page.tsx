@@ -3,6 +3,7 @@ import { AiProviderSettings } from "@/components/feature/settings/ai-provider-se
 import { ArchiveWorkspaceSection } from "@/components/feature/settings/archive-workspace-section";
 import { DemoContentToggle } from "@/components/feature/settings/demo-content-toggle";
 import { SupportAccessToggle } from "@/components/feature/settings/support-access-toggle";
+import { WorkspaceNameSetting } from "@/components/feature/settings/workspace-name-setting";
 import { getCurrentDbUser } from "@/server/auth/current-db-user";
 import { isAdminUser } from "@/server/admin/is-admin";
 import { getServerApi } from "@/server/trpc/server";
@@ -39,8 +40,13 @@ export default async function WorkspaceSettingsPage() {
       </div>
 
       <section className="flex flex-col gap-3">
-        {isAdmin ? <DemoContentToggle /> : null}
-        <div className={isAdmin ? "mt-2 border-t border-[var(--color-border-subtle)] pt-4" : ""}>
+        <WorkspaceNameSetting />
+        {isAdmin ? (
+          <div className="mt-2 border-t border-[var(--color-border-subtle)] pt-4">
+            <DemoContentToggle />
+          </div>
+        ) : null}
+        <div className="mt-2 border-t border-[var(--color-border-subtle)] pt-4">
           <ActivityFilterSettings />
         </div>
         <div className="mt-2 border-t border-[var(--color-border-subtle)] pt-4">
