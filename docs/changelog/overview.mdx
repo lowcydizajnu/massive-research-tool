@@ -1,0 +1,66 @@
+---
+title: Changelog
+description: What's new in My Research Lab.
+---
+
+<Update label="Week of July 6, 2026">
+
+## 🚀 New features
+
+**AI persuasion chat starter.** Spin up a new study from a ready-made AI-persuasion chat template. Bring your own Anthropic key to power the conversation. See [Integrations → Anthropic](/integrations/anthropic).
+
+**Meet Researchers directory.** Browse a public directory of researchers using the platform, and jump to a personal tab for your own profile. Great for finding collaborators or seeing who's replicating work in your area.
+
+**Workspaces management.** A new **Workspaces** tab in settings lets you list, rename, create, archive, and restore workspaces. Archiving is reversible — nothing is destroyed. See [Workspace](/workspace/team).
+
+**Start-here checklist.** A pinned Start-here card on Home walks new researchers through their first study. A "Take the guided tutorial" button opens the guided tour any time.
+
+**Duplicate & delete, everywhere.** Study tiles now have a ⋯ menu to duplicate or delete a study. Blocks can be duplicated or deleted directly from the Builder's Configure panel and from the block tile. See [Builder → Blocks](/builder/blocks).
+
+**Activity & What's New bells.** The top nav now has a global Activity bell and a What's New bell, with per-item read state and grouped notifications.
+
+**Replication widgets on Home.** Two new widgets — "Studies you replicated" and "Replications of yours" — surface replication activity at a glance. See [Replication](/methodology/replication).
+
+**Social-post gating.** Require participants to interact with a social post — like, react, comment, share, or report — before they can continue. Configure required interactions in the Builder; participants see compact chips and a gated Continue button at runtime. Includes a new opt-in **Report** action and a translatable interaction summary. See [Blocks](/builder/blocks).
+
+**In-screen conditional reveal.** Later blocks can now appear inline within the same feed screen, based on an earlier social-post interaction. The take view un-boxes posts, gates the top bar, and adds a fake-nav toggle for a more authentic feel.
+
+**Branch on a social-post reaction.** Route participants down different paths based on which reaction they picked, via a dedicated dropdown. See [Conditions](/builder/conditions).
+
+**Force-watch video + watch tracking.** Video blocks can now require the participant to watch through, and the platform records whether they did.
+
+**Edge-to-edge mobile take layout.** The participant runtime now goes edge-to-edge on mobile for a native feel.
+
+**Detailed edit timeline for drafts.** Never-frozen drafts now show a real per-edit timeline so you can see exactly what changed and when.
+
+**Richer Explore page.** Explore now leads with real starter-template cover images and richer researcher-to-follow tiles with stats. The misinformation starter renders posts in a Facebook-style layout out of the box.
+
+## 🛠️ Updates
+
+**Rebrand to My Research Lab.** The product is now My Research Lab. Legal v2 and an updated app footer are live.
+
+**EU compute region.** All compute is now pinned to Vercel's Frankfurt (`fra1`) region. See [Data & security](/trust/data-and-security).
+
+**Wider content column + Facebook-scale social posts.** Studies get a wider content column and social posts now match Facebook's real sizing for a more faithful stimulus.
+
+**Instant loading skeletons.** Section switches and stage navigation now render an instant skeleton, so navigation feels snappier.
+
+**Simpler social-post branding.** The three branding tiers collapse to a single logo toggle. "Just the post" now honors the social design.
+
+## 🐛 Bug fixes
+
+- **Preview no longer pollutes data.** Preview sessions are excluded from study lifecycle counts, changelog, and the onboarding "opened recruitment" step.
+- **Onboarding fixes.** The Start-here checklist is now workspace-scoped and tracks your newest study rather than lifetime activity. A `NEXT_REDIRECT` leak on the guided tour is fixed.
+- **Complete export coverage for social posts.** Replies (with parent comment) and comment likes are now recorded on export, and a dedicated reaction column is always on.
+- **Restored full version snapshots.** Version restore now brings back the full snapshot plus conditions, clearing drift.
+- **Activity feed can't freeze.** Notifications now fan out inline so the feed stays live.
+- **Font-size actually changes things.** Fixed a root-cause bug where the design font-size setting didn't apply.
+- **Light studies get light native controls.** The take view declares its color-scheme from the theme.
+- **A/B starter fix.** The A/B starter no longer ships single-member screen groups.
+- **Whiteboard undo.** Undo of an ungroup no longer blinks and reverts.
+- **Question blocks on a social feed.** Each question block is now visibly boxed on the social-feed background.
+- **Condition allocation badge** wraps to fit the Builder's left panel.
+- **/researchers crash** on high `limit` values fixed.
+- **Preview return.** Closing preview returns you to the stage you opened it from.
+
+</Update>
