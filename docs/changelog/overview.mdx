@@ -1,0 +1,42 @@
+---
+title: Changelog
+description: What's new in My Research Lab.
+---
+
+<Update label="Week of July 6, 2026">
+
+## New features
+
+**Materials on OSF.** When you preregister a study, My Research Lab now uploads your full study materials to the OSF project alongside the frozen record — every stimulus file, a machine-readable JSON snapshot of the study, and a human-readable protocol PDF. The upload runs from the **Materials on OSF** panel on both the Study Record and the Preregister tab, so co-authors and reviewers can inspect exactly what participants saw without leaving OSF. See [OSF integration](/integrations/osf).
+
+**AI persuasion chat starter.** A new starter template runs a Claude-powered chat as one arm of a between-subjects study, using your own Anthropic key. Duplicate it, adapt the prompt, and you have a runnable AI-persuasion experiment in minutes. See [Anthropic (Claude)](/integrations/anthropic) for how bring-your-own-key works.
+
+**Meet Researchers directory.** A new discovery surface lets you browse public researcher profiles across the platform, follow peers, and land on their studies. Each tile now shows stats (studies, replications, followers), and your own personal tab makes it easy to keep track of who you follow. See [Researcher profiles](/workspace/researcher-profiles).
+
+**Workspaces tab in Settings.** You can now list, rename, create, archive, and restore workspaces from **Settings → Workspaces**. Archiving is fully reversible — nothing is deleted, and restore brings the workspace back exactly as it was. See [Team & workspaces](/workspace/team).
+
+**Start-here checklist on Home.** A pinned onboarding card on your home dashboard walks you through your first study end-to-end. The study-related steps now track your newest study rather than your lifetime activity, so returning users get a fresh, relevant path forward.
+
+**Study and block quick actions.** Study tiles and block tiles now have a **⋯ menu** for duplicating or deleting in one click, and you can duplicate a block directly from the Configure panel while editing it.
+
+**Interaction summary controls for social posts.** The social-post block now has a toggle for the interaction summary row, compact emoji chips, and translatable labels — so you can match the platform look you're studying without extra design work. See [Block catalogue](/builder/blocks).
+
+## Updates
+
+**Faster navigation.** Section switches and stage navigation now show instant loading skeletons, so moving around the app feels immediate even on slow connections.
+
+**EU compute region.** Platform compute is now pinned to Frankfurt (EU). Combined with EU data storage, this keeps participant data on EU infrastructure end-to-end. See [Data & security](/trust/data-and-security).
+
+**Richer Explore surface.** The Explore page leads with real starter-template cover images and researcher tiles that show live stats, making it easier to spot templates and people worth following.
+
+**Cleaner take experience.** Question blocks now sit on a properly boxed panel over social-feed backgrounds, and studies with a light theme render native controls (date pickers, dropdowns) in light mode to match.
+
+## Bug fixes
+
+- **OSF image uploads:** stimulus images hosted behind the media gateway now resolve correctly when uploading to OSF, so materials packages are complete.
+- **Researcher directory:** fixed a crash on `/researchers` caused by an out-of-range page size.
+- **Onboarding checklist:** Preview sessions no longer count as "opened recruitment," and the guided tutorial now surfaces reliably for new users.
+- **Builder:** the condition allocation badge now wraps cleanly inside the left panel instead of overflowing.
+- **Social-post block:** reactions display as a visible tappable row (no hidden hover tray), unrevealed conditional blocks no longer block Continue, and the "Just the post" branding tier honors the social design.
+
+</Update>
