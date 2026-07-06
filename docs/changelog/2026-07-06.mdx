@@ -1,0 +1,74 @@
+---
+title: "Week of July 6, 2026"
+description: "OSF materials upload, Workspaces tab, AI persuasion starter, and a Meet Researchers directory."
+---
+
+A big week for sharing your work: study materials now push to OSF alongside your preregistration, workspaces got a proper settings home, and you can find (and be found by) other researchers from the top nav.
+
+## New features
+
+### Upload study materials to OSF
+
+When you push a study to the [OSF](/integrations/osf), My Research Lab now assembles a full **materials bundle** — the raw study definition, a human-readable protocol PDF, and any attached files — and uploads it to the OSF project alongside the preregistration. A new **Materials on OSF** panel on the Study Record shows exactly what was sent and links back to each file.
+
+### AI persuasion chat starter
+
+Explore has a new **AI persuasion** starter template built on the Anthropic block. Duplicate it, drop in your own Anthropic API key ([BYO key setup](/integrations/anthropic)), and you have a running chat-based persuasion study in a few clicks.
+
+### Meet Researchers directory
+
+The new **Meet Researchers** page in the top nav lists everyone publishing on My Research Lab, with a **You** tab for your own public profile. See who's shipping what and follow the labs whose work you want to track.
+
+### Home replication widgets
+
+Two new widgets on the Home dashboard: **Studies you replicated** and **Replications of yours**, so you can see at a glance where your work is being reused and which of your replications have gone live. See [Replication](/methodology/replication) for how the replication flow works.
+
+### Activity and What's-New bells
+
+The top nav now has a grouped **Activity** bell and a **What's-New** bell. Activity groups notifications by study and tracks per-item read state; What's-New surfaces product changes as they ship.
+
+### Duplicate blocks and studies from a menu
+
+Every study tile and every block tile now has a **⋯ menu** with **Duplicate** and **Delete** — no more copying by hand. The Builder's Configure panel also has a **Duplicate block** action for iterating on variants side by side.
+
+## Updates
+
+### Workspaces tab in Settings
+
+**Settings → Workspaces** now lists all your workspaces with one-click **rename**, **create**, and **restore**. Archived workspaces are reversible — nothing is hard-deleted — so it's safe to tidy up. See [Team](/workspace/team) for how workspace membership works.
+
+### Better Explore covers
+
+The Explore page now leads with the real cover images from each starter template instead of the old use-case band, and **Researchers to follow** tiles show follower and study counts so you can pick who to follow at a glance.
+
+### Onboarding checklist
+
+The **Start-here** getting-started checklist is now a pinned card on the Home page and is scoped per-workspace. Study-progress steps track your **newest** study rather than a lifetime tally, and a **Take the guided tutorial** button surfaces the walkthrough anytime you want a refresher. Preview sessions no longer count toward the "opened recruitment" step.
+
+### Faster section navigation
+
+Section switches in the app now show an **instant loading skeleton** and stage navigation inside a study does the same — the UI stops feeling stuck while data loads.
+
+### EU compute region
+
+All app compute now runs in **Frankfurt (EU)** on Vercel. Combined with the earlier Neon EU database migration, your studies and participant data stay in the EU end-to-end. See [Data & security](/trust/data-and-security).
+
+### Social-post block polish
+
+The social-post block (Facebook-style stimuli) got a Design → Social editor, a single **logo toggle** for branding, a single **platform selector** that defaults from your theme, a visible reaction row (no more hover tray), inline replies that work in preview, honest comment counts, and an opt-in **Report** action. Reactions can now branch conditions from a dropdown, and social-post columns are split cleanly on export.
+
+### Wider content column, real font sizes
+
+The Builder's content column is wider, social-post sizing now matches Facebook's actual scale, and changing the design font size actually changes the rendered font size across preview, take, and export.
+
+## Bug fixes
+
+- **Preview no longer pollutes study data.** Running a Preview session doesn't change study status, participant counts, or the changelog.
+- **Closing Preview returns to the stage you opened it from** instead of dumping you back at the Builder.
+- **Exports** now record social-post **replies** (with the parent comment) and comment likes.
+- **Versions** restore the full study snapshot and conditions, so drift indicators clear after a restore.
+- **Take runtime** boxes each question on the social-feed background, and light-themed studies get light native controls (color-scheme now declared from the theme).
+- **Builder** condition-allocation badges wrap so they fit in the left panel; the A/B starter no longer ships one-member screen groups.
+- **Whiteboard** undo of an ungroup no longer blinks then reverts.
+- **Explore** `/researchers` no longer crashes when the requested page size exceeds the limit.
+- **Activity feed** can't freeze anymore — notifications fan out inline so the feed stays live.
