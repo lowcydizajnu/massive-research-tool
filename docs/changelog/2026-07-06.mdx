@@ -1,0 +1,53 @@
+---
+title: "Week of July 6, 2026"
+description: "Notification block, OSF materials upload, workspaces on Settings, AI persuasion starter, and a batch of Builder polish."
+---
+
+A big week — a new stimulus block, one‑click materials sharing on OSF, plus workspace, discoverability, and social‑post improvements.
+
+## New
+
+**Notification block.** A new stimulus block renders a realistic in‑app notification (banner or toast) with optional call‑to‑action buttons. Which action a participant takes (dismiss, click a CTA, or ignore) is recorded, and the block never blocks **Continue**. See [Block catalogue → Notification](/builder/blocks).
+
+**Upload study materials to OSF.** From a study's **Record** or the **Preregister** tab, push your stimulus files, a machine‑readable study spec, and the protocol PDF to your OSF project in one click. Files land in your editable OSF project (not the frozen registration), and **Re‑upload** ships new versions of anything that changed. See [OSF → Uploading materials](/integrations/osf#uploading-materials-to-osf).
+
+**AI persuasion chat starter.** A new starter template runs a Claude‑powered persuasion dialogue against a participant. Bring your own Anthropic key and clone it from **Explore**. See [Anthropic integration](/integrations/anthropic).
+
+**Meet Researchers directory.** A public directory of researchers on the platform, with a personal tab for the people you follow. Discover peers, browse their work, and follow along. See [Researcher profiles](/workspace/researcher-profiles).
+
+**Workspaces tab in Settings.** List, rename, create, archive, and restore workspaces from a single place in **Settings**. Archiving is fully reversible — no destructive delete. See [Team & workspaces](/workspace/team).
+
+**Home checklist and replication widgets.** A pinned **Start‑here** checklist walks new researchers through their first study. Two new home widgets — *Studies you replicated* and *Replications of yours* — surface the replication trail across your account. See [Quickstart](/getting-started/quickstart) and [Replication](/methodology/replication).
+
+**Activity and What's‑New bells.** Two new bells in the top nav — one for grouped activity notifications on your studies, one for product announcements — each with per‑item read state.
+
+**Study edit timeline.** Draft studies now log every meaningful edit, and the study record shows a **Detailed timeline** of changes alongside the baseline diff.
+
+## Updates
+
+**Social‑post block — Design tab, gating, and conditions.** The social‑post block gained a dedicated **Design → Social** tab with a live Facebook‑style preview, branding tier picker (with per‑post logo override), a configurable reaction picker, comment threads and replies, an IRB deception attestation gate, and gated **Continue** rules based on required interactions (reaction, comment, share, report). You can also branch the study on a participant's reaction via a dropdown [condition](/builder/conditions).
+
+**Builder polish.** Duplicate a block from the **Configure** panel, or duplicate and delete studies and blocks from a new tile menu. Tab arrows and a **Configure → Design** deep link speed up jumping between editors. The content column is wider, so long posts, comments, and stimuli render at their real size.
+
+**Explore refresh.** The Explore page now leads with starter‑template cover art and shows richer "Researchers to follow" tiles with stats.
+
+**Workspace rename on Settings.** Rename a workspace directly from the **Workspace settings** page — no more digging.
+
+**Onboarding tour button.** A **Take the guided tutorial** button surfaces the interactive tour from the checklist. The checklist tracks steps against your newest study rather than your lifetime activity, and each workspace has its own progress.
+
+**EU compute region.** Platform compute is now pinned to **Frankfurt (fra1)** for lower latency and clearer data‑residency posture for EU researchers. See [Data & security](/trust/data-and-security).
+
+**Faster section navigation.** Section switches and stage navigation now show instant loading skeletons instead of blank screens.
+
+## Fixes
+
+- Notification block: participant answers are now recorded correctly, and the toast presentation matches the design.
+- OSF materials upload: images uploaded to OSF resolve correctly (media‑gateway key normalization).
+- Data exports: social‑post replies (with their parent comment) and comment likes are now included.
+- Study lifecycle: **Preview** sessions no longer pollute study counts, lifecycle state, or the changelog.
+- Onboarding checklist: Preview sessions no longer trigger the "opened recruitment" step; the checklist is scoped to the active workspace; a stray redirect leak is fixed.
+- Take: participants on light‑themed studies now get light native form controls (color‑scheme derived from theme); each question block is boxed on the social‑feed background; mobile now uses an edge‑to‑edge layout.
+- Builder: the condition‑allocation badge wraps to fit the left panel.
+- Versions: study‑version drift now clears when the full snapshot and conditions restore correctly.
+- Activity feed: notifications fan out inline so the feed can't freeze.
+- Explore: `/researchers` no longer crashes when the page limit exceeds the max.
