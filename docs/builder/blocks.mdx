@@ -282,6 +282,14 @@ Blocks that display content to participants without collecting a response — us
     **Use it when** you need to present a social-media style stimulus in a misinformation paradigm; configure interaction options and veracity ground-truth for your analysis.
   </Accordion>
   
+  <Accordion title="Notification">
+    Show an in-context notification (banner/toast) — a type, optional call-to-action buttons, and an optional close — configured in a live-preview editor. **Records data:** which action the participant took (dismissed / clicked a CTA / ignored); never blocks Continue.
+
+    **Key options:** `variant` — error / warning / info / success / **custom** (custom imitates a real system notice and adds a left thumbnail); `title`, `body` — the text; `ctas` — up to 2 buttons, each linking to an **external URL** (new tab) or **another study**; `dismissable` — show a ✕; `position` — inline or fixed to the top; `triggerKind` — show when the screen opens, after a delay, or when a condition is met (via *Show this block when*); `deceptionAck` — required IRB attestation for the custom variant.
+
+    **Use it when** you want to study reactions to alerts, nudges, or (with the custom variant) a simulated system notice. The custom variant is a deception — the study can't go live until you confirm your ethics approval covers it.
+  </Accordion>
+  
   <Accordion title="Audio stimulus (AI voice)">
     Play a spoken stimulus generated from your script using Hume Octave text-to-speech. Write the words and a delivery direction (e.g. "anxious, urgent newsreader"); the system generates and caches the audio. **Records data:** — (stimulus/flow only).
 
