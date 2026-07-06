@@ -166,15 +166,15 @@ export function NotificationView({
       style={bgStyle}
       className={
         banner
-          ? // Slim full-width bar under the nav; status-tinted, hairline bottom border.
-            "motion-safe:animate-in w-full border-b border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] shadow-[var(--shadow-sm)]"
+          ? // Slim notice under the nav — status-tinted, sized to the study content
+            // column (never full-bleed): capped to the content width, ≥16px inset on
+            // narrower viewports, centered (owner 2026-07-06).
+            "motion-safe:animate-in mx-auto my-2 flex w-[calc(100%-2rem)] max-w-[var(--take-content-max,640px)] items-start gap-3 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-4 py-2.5 shadow-[var(--shadow-sm)]"
           : // Inline: a capped, centered card in the content flow.
             "motion-safe:animate-in mx-auto flex w-full max-w-md items-start gap-3 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-raised)] p-3 shadow-[var(--shadow-md)]"
       }
     >
-      {/* Banner content aligns to the study content column (var set by the take
-          layout) — same width as the content below, not full-bleed. */}
-      <div className={banner ? "mx-auto flex w-full max-w-[var(--take-content-max,640px)] items-start gap-3 px-4 py-2.5" : "contents"}>
+      <div className="contents">
         {custom ? (
           thumbnailUrl ? (
             // eslint-disable-next-line @next/next/no-img-element -- researcher-supplied stimulus URL

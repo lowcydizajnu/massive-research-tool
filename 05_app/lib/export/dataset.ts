@@ -157,14 +157,14 @@ export function baseColumns(results: ResultsSummary): ExportColumn[] {
     .flatMap((q): ExportColumn[] => {
       const base = slugifyLabel(q.prompt || q.moduleKey);
       const src = q.prompt || q.moduleKey;
-      const out: ExportColumn[] = [
+      // Always list all three — action, time, and the SCREEN the action happened on
+      // — so the researcher sees the full output structure while designing (owner
+      // 2026-07-06); the screen cell is blank for records predating screen capture.
+      return [
         { key: `notifaction:${q.instanceId}`, source: `${src} — action`, type: "categorical", label: dedupe(`${base}_action`), hidden: false },
         { key: `notifatms:${q.instanceId}`, source: `${src} — time to action (ms)`, type: "numeric", label: dedupe(`${base}_action_ms`), hidden: false },
+        { key: `notifscreen:${q.instanceId}`, source: `${src} — action on screen`, type: "categorical", label: dedupe(`${base}_action_screen`), hidden: false },
       ];
-      if (results.rows.some((r) => (r.answers[`notifscreen:${q.instanceId}`] ?? "") !== "")) {
-        out.push({ key: `notifscreen:${q.instanceId}`, source: `${src} — action on screen`, type: "categorical", label: dedupe(`${base}_action_screen`), hidden: false });
-      }
-      return out;
     });
   return [...meta, ...questions, ...viz, ...emotion, ...socialPost, ...notifModal];
 }

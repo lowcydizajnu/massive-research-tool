@@ -328,14 +328,15 @@ describe("export companions (V1.12 D — formats)", () => {
     ]);
   });
 
-  it("omits the notification action-screen column when no respondent has one", () => {
+  it("always lists the notification action-screen column so it's visible while designing (owner 2026-07-06)", () => {
     const r: ResultsSummary = {
       ...results,
-      questions: [{ instanceId: "notif1", prompt: "Alert", moduleKey: "notification", n: 1, kind: "text", mean: null, optionCounts: [] }],
-      rows: [{ ...results.rows[0], answers: { "notifaction:notif1": "ignored", "notifatms:notif1": "0", "notifscreen:notif1": "" } }],
+      questions: [{ instanceId: "notif1", prompt: "Alert", moduleKey: "notification", n: 0, kind: "text", mean: null, optionCounts: [] }],
+      rows: [],
     };
     const keys = baseColumns(r).map((c) => c.key);
     expect(keys).toContain("notifaction:notif1");
-    expect(keys).not.toContain("notifscreen:notif1"); // all-blank → omitted
+    expect(keys).toContain("notifatms:notif1");
+    expect(keys).toContain("notifscreen:notif1"); // present even with no rows
   });
 });
