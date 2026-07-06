@@ -81,3 +81,20 @@ export function imitationModalsNeedingAck(snapshot: unknown): { instanceId: stri
 
 export const MODAL_DECEPTION_GATE_MESSAGE =
   "A modal imitates a real product's dialog. Confirm your IRB/ethics approval covers it (in the block's Configure panel) before preregistering, publishing, or running the study.";
+
+/** Login-screen blocks that imitate a real product's sign-in but lack the
+ *  deception attestation (ADR-0098) — same deception hard-gate as imitation
+ *  modals. A credential prompt imitating a real product is deception by design. */
+export function loginScreensNeedingAck(snapshot: unknown): { instanceId: string; name: string }[] {
+  return readBlocks(snapshot)
+    .filter(
+      (b) =>
+        b.key === "login" &&
+        (b.config as { imitatesReal?: unknown }).imitatesReal !== false &&
+        (b.config as { deceptionAck?: unknown }).deceptionAck !== true,
+    )
+    .map((b) => ({ instanceId: b.instanceId, name: nameOf(b) }));
+}
+
+export const LOGIN_DECEPTION_GATE_MESSAGE =
+  "A login screen imitates a real product's sign-in. Confirm your IRB/ethics approval covers it (in the block's Configure panel) before preregistering, publishing, or running the study.";

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { customNotificationsNeedingAck, evaluateBrandingGate, imitationModalsNeedingAck } from "@/server/modules/branding-gate";
+import { customNotificationsNeedingAck, evaluateBrandingGate, imitationModalsNeedingAck, loginScreensNeedingAck } from "@/server/modules/branding-gate";
 import {
   ACADEMIC,
   effectiveBrandingTier,
@@ -143,5 +143,26 @@ describe("imitationModalsNeedingAck (ADR-0096 deception gate)", () => {
   it("passes when acknowledged, and ignores non-imitation modals", () => {
     expect(imitationModalsNeedingAck({ blocks: [modal("m1", { imitatesReal: true, deceptionAck: true })] })).toEqual([]);
     expect(imitationModalsNeedingAck({ blocks: [modal("m2", { imitatesReal: false })] })).toEqual([]);
+  });
+});
+
+describe("loginScreensNeedingAck (ADR-0098 deception gate)", () => {
+  const login = (instanceId: string, config: Record<string, unknown>) => ({
+    instanceId,
+    source: "core" as const,
+    key: "login",
+    version: "1.0.0",
+    config,
+  });
+
+  it("flags a login imitating a real product missing the acknowledgement (imitatesReal defaults on)", () => {
+    // Default: imitatesReal absent ⇒ treated as true (a login is deception by default).
+    expect(loginScreensNeedingAck({ blocks: [login("l1", { title: "Sign in" })] }).map((x) => x.instanceId)).toEqual(["l1"]);
+    expect(loginScreensNeedingAck({ blocks: [login("l2", { imitatesReal: true, deceptionAck: false })] }).map((x) => x.instanceId)).toEqual(["l2"]);
+  });
+
+  it("passes when acknowledged, or explicitly not imitating a real product", () => {
+    expect(loginScreensNeedingAck({ blocks: [login("l1", { imitatesReal: true, deceptionAck: true })] })).toEqual([]);
+    expect(loginScreensNeedingAck({ blocks: [login("l2", { imitatesReal: false })] })).toEqual([]);
   });
 });

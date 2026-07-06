@@ -293,9 +293,17 @@ Blocks that display content to participants without collecting a response — us
   <Accordion title="Modal dialog">
     Show a centered pop-up dialog over a backdrop — a title, text, an optional image, and up to two buttons — configured in a live-preview editor. **Records data:** which action the participant took (advanced / stayed / clicked a button / dismissed); never blocks Continue by itself.
 
-    **Key options:** `title`, `body` — the dialog text; `imageUrl` + `imagePosition` — an optional image (top / left / right); `ctas` — up to 2 buttons, each an **Advance** (close and go to the next screen), **Stay** (close only), **External link**, **Another study**, or **This study — a screen**; `dismissable` — allow ✕ / backdrop / Esc to close; `triggerKind` — show when the screen opens, after a delay, or when a condition is met; `imitatesReal` + `deceptionAck` — the IRB attestation required when the modal imitates a real product's dialog.
+    **Key options:** `title`, `body` — the dialog text; `imageUrl` + `imagePosition` — an optional image (top / left / right); `ctas` — up to 2 buttons, each an **Advance** (close and go to the next screen), **Stay** (close only), **External link**, **Another study**, or **This study — a screen**; `dismissable` — allow ✕ or Esc to close (a click on the backdrop does **not** close it); `triggerKind` — show when the screen opens, after a delay, or when a condition is met; `imitatesReal` + `deceptionAck` — the IRB attestation required when the modal imitates a real product's dialog.
 
-    **Use it when** you need a consent/cookie/paywall/system-dialog paradigm, or any pop-up that advances the study or offers a choice. If it imitates a real product it's a deception — the study can't go live until you confirm ethics approval. A non-closable modal must include an Advance button so participants aren't trapped.
+    **Use it when** you need a consent/cookie/paywall/system-dialog paradigm, or any pop-up that advances the study or offers a choice. If it imitates a real product it's a deception — the study can't go live until you confirm ethics approval. A non-closable modal must include an Advance button so participants aren't trapped. Placed alone on a screen, the modal pops over the *previous* screen's content.
+  </Accordion>
+
+  <Accordion title="Login screen">
+    Show a realistic sign-in screen — a brand, username + password fields, a sign-in button, and optional single-sign-on buttons — for phishing-susceptibility and deception-in-context research, configured in a live-preview editor. **Privacy — records data:** only the participant's **action** (sign-in / SSO / ignored), its timing, and whether they typed into each field. **What they type into the username and password fields is never recorded** — those inputs are never submitted or stored.
+
+    **Key options:** `brandName` + logo; `title`, `subtitle`; the username / password field labels + placeholders; `submitLabel`; `ssoProviders` — which "Continue with …" buttons to show (Google / Facebook / Apple / Microsoft / X / generic); `showForgot`, `showSignup` — optional links; `triggerKind` — show when the screen opens, after a delay, or when a condition is met; `imitatesReal` + `deceptionAck` — the IRB attestation (on by default — a credential prompt is deception by design).
+
+    **Use it when** you're studying whether participants would enter credentials into a given screen. The Sign-in and SSO buttons advance the study; the screen's own Continue is the escape for participants who won't log in.
   </Accordion>
   
   <Accordion title="Audio stimulus (AI voice)">

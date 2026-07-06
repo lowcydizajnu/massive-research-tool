@@ -16,6 +16,7 @@ import { VideoRecordInput } from "@/components/feature/take/video-record-input";
 import { AiChatInput } from "@/components/feature/take/ai-chat-input";
 import { NotificationView } from "@/components/feature/take/notification-view";
 import { ModalView } from "@/components/feature/take/modal-view";
+import { LoginView } from "@/components/feature/take/login-view";
 import { ChatWindowPreview } from "@/components/feature/take/chat-window-preview";
 import { SOCIAL_PLATFORM_PRESETS, type BrandingTier, type ChatAppearance, type ReactionKey, type SocialPostDesign } from "@/lib/themes/themes";
 import { BLOCK_COPY_DEFAULTS, type BlockCopyKey } from "@/lib/take/ui-copy";
@@ -108,6 +109,7 @@ export function BlockView({
   if (block.key === "notification")
     return <NotificationView config={c} np={np} responseId={responseId ?? ""} instanceId={block.instanceId} />;
   if (block.key === "modal") return <ModalView config={c} np={np} />;
+  if (block.key === "login") return <LoginView config={c} np={np} />;
   // V1.12 C2 — standard form blocks.
   if (block.key === "email") return <SimpleFieldInput config={c} type="email" np={np} />;
   if (block.key === "url") return <SimpleFieldInput config={c} type="url" np={np} />;

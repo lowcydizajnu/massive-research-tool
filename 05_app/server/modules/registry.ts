@@ -901,6 +901,97 @@ const modalBlock: CoreModuleDef = {
   },
 };
 
+/** Single-sign-on providers a login screen can offer (ADR-0098). */
+const LOGIN_SSO = ["google", "facebook", "apple", "microsoft", "x", "generic"] as const;
+
+const loginBlock: CoreModuleDef = {
+  source: "core",
+  key: "login",
+  version: "1.0.0",
+  name: "Login screen",
+  description:
+    "A realistic sign-in screen — brand, username + password fields, a sign-in button, and optional single-sign-on buttons — for deception / phishing-susceptibility research. Records only the participant's ACTION and whether they typed into each field; the typed username and password are NEVER stored.",
+  categoryTags: ["content", "stimulus", "interface"],
+  configSchema: z.object({
+    brandKind: z.enum(["generic", "custom"]).default("generic"),
+    brandName: z.string().default(""),
+    brandLogoUrl: mediaUrl.default(""),
+    title: z.string().default(""),
+    subtitle: z.string().default(""),
+    usernameLabel: z.string().default("Email or username"),
+    usernamePlaceholder: z.string().default(""),
+    passwordLabel: z.string().default("Password"),
+    passwordPlaceholder: z.string().default(""),
+    submitLabel: z.string().default("Sign in"),
+    ssoProviders: z.array(z.enum(["google", "facebook", "apple", "microsoft", "x", "generic"])).default([]),
+    showForgot: z.boolean().default(true),
+    showSignup: z.boolean().default(true),
+    triggerKind: z.enum(["on-load", "after", "conditional"]).default("on-load"),
+    triggerAfterSec: z.number().int().min(0).max(600).default(3),
+    // A credential prompt imitating a real product is deception by design (ADR-0098);
+    // default ON, and it needs the IRB attestation before the study can go live.
+    imitatesReal: z.boolean().default(true),
+    deceptionAck: z.boolean().default(false),
+  }),
+  defaultConfig: {
+    brandKind: "generic",
+    brandName: "",
+    brandLogoUrl: "",
+    title: "",
+    subtitle: "",
+    usernameLabel: "Email or username",
+    usernamePlaceholder: "",
+    passwordLabel: "Password",
+    passwordPlaceholder: "",
+    submitLabel: "Sign in",
+    ssoProviders: [],
+    showForgot: true,
+    showSignup: true,
+    triggerKind: "on-load",
+    triggerAfterSec: 3,
+    imitatesReal: true,
+    deceptionAck: false,
+  },
+  jsonSchema: {
+    type: "object",
+    properties: {
+      brandKind: { type: "string", enum: ["generic", "custom"] },
+      brandName: { type: "string" },
+      brandLogoUrl: { type: "string" },
+      title: { type: "string" },
+      subtitle: { type: "string" },
+      usernameLabel: { type: "string" },
+      usernamePlaceholder: { type: "string" },
+      passwordLabel: { type: "string" },
+      passwordPlaceholder: { type: "string" },
+      submitLabel: { type: "string" },
+      ssoProviders: { type: "array", items: { type: "string", enum: [...LOGIN_SSO] } },
+      showForgot: { type: "boolean" },
+      showSignup: { type: "boolean" },
+      triggerKind: { type: "string", enum: ["on-load", "after", "conditional"] },
+      triggerAfterSec: { type: "integer", minimum: 0, maximum: 600 },
+      imitatesReal: { type: "boolean" },
+      deceptionAck: { type: "boolean" },
+    },
+    additionalProperties: false,
+  },
+  // Records ONLY behavioural signals — the action, its timing, and whether the
+  // participant typed into each field. The typed username + password are NEVER
+  // recorded (ADR-0098 / ADR-0014): the inputs carry no `name`, so they're never
+  // in the form POST, the server, or the DB.
+  collectsResponse: true,
+  conditionSource: false,
+  responseSchema: z
+    .object({ action: z.string(), atMs: z.number().int().min(0), typedUsername: z.boolean(), typedPassword: z.boolean() })
+    .partial(),
+  isAnswerEmpty: () => false,
+  isComplete: (c) => {
+    // A login imitating a real product needs the IRB deception attestation.
+    if (c.imitatesReal !== false && c.deceptionAck !== true) return false;
+    return true;
+  },
+};
+
 // ---------- V1.12 C2 (Group 1): standard form blocks ----------
 
 const valueStr = (a: unknown): string => {
@@ -2537,6 +2628,7 @@ export const MODULE_REGISTRY: CoreModuleDef[] = [
   linkBlock,
   notificationBlock,
   modalBlock,
+  loginBlock,
   emailBlock,
   urlBlock,
   numberBlock,

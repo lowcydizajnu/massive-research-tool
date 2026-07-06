@@ -137,6 +137,16 @@ function extractAnswer(moduleKey: string, prefix: string, fd: FormData): unknown
       ...(screen ? { screen } : {}),
     };
   }
+  if (moduleKey === "login") {
+    // Login (ADR-0098) records ONLY behavioural signals — never the typed
+    // username/password (those inputs have no name, so they aren't in `fd`).
+    return {
+      action: String(g("action") ?? "ignored"),
+      atMs: Math.max(0, Number(g("atMs")) || 0),
+      typedUsername: g("typedUsername") === "1",
+      typedPassword: g("typedPassword") === "1",
+    };
+  }
   if (moduleKey === "social-post") {
     // Engagement interactions (ADR-0024): always an object — exposure is
     // recorded even without interaction (liked/shared false). v1 social-post

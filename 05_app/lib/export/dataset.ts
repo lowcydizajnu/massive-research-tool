@@ -67,7 +67,7 @@ export function baseColumns(results: ResultsSummary): ExportColumn[] {
   // Social-post + notification/modal blocks get dedicated sub-columns below
   // instead of one packed cell, so they are excluded from the generic per-block
   // column here (owner request).
-  const SPLIT_MODULES = new Set(["social-post", "notification", "modal"]);
+  const SPLIT_MODULES = new Set(["social-post", "notification", "modal", "login"]);
   const questions = results.questions
     .filter((q) => !SPLIT_MODULES.has(q.moduleKey))
     .map((q) => ({
@@ -166,7 +166,22 @@ export function baseColumns(results: ResultsSummary): ExportColumn[] {
         { key: `notifscreen:${q.instanceId}`, source: `${src} — action on screen`, type: "categorical", label: dedupe(`${base}_action_screen`), hidden: false },
       ];
     });
-  return [...meta, ...questions, ...viz, ...emotion, ...socialPost, ...notifModal];
+  // Login (ADR-0098): behavioural signals ONLY — the action, its timing, and
+  // whether the participant typed into each field. There are NO value columns:
+  // the typed username/password are never recorded.
+  const login = results.questions
+    .filter((q) => q.moduleKey === "login")
+    .flatMap((q): ExportColumn[] => {
+      const base = slugifyLabel(q.prompt || q.moduleKey);
+      const src = q.prompt || q.moduleKey;
+      return [
+        { key: `loginaction:${q.instanceId}`, source: `${src} — action`, type: "categorical", label: dedupe(`${base}_action`), hidden: false },
+        { key: `loginatms:${q.instanceId}`, source: `${src} — time to action (ms)`, type: "numeric", label: dedupe(`${base}_action_ms`), hidden: false },
+        { key: `logintypedu:${q.instanceId}`, source: `${src} — typed username`, type: "categorical", label: dedupe(`${base}_typed_username`), hidden: false },
+        { key: `logintypedp:${q.instanceId}`, source: `${src} — typed password`, type: "categorical", label: dedupe(`${base}_typed_password`), hidden: false },
+      ];
+    });
+  return [...meta, ...questions, ...viz, ...emotion, ...socialPost, ...notifModal, ...login];
 }
 
 /** responseIds that actually have a per-respondent response, per block instanceId

@@ -76,7 +76,7 @@ import { changelogBetween, initialVersionSummary, DEFAULT_NEW_STUDY_SNAPSHOT } f
 import { recordStudyEdit } from "@/server/modules/study-edits";
 import { readConsent, type StudyConsent } from "@/server/modules/consent";
 import { runPreflight, type PreflightCheck } from "@/server/modules/preflight";
-import { BRANDING_GATE_MESSAGE, DECEPTION_GATE_MESSAGE, MODAL_DECEPTION_GATE_MESSAGE, customNotificationsNeedingAck, evaluateBrandingGate, imitationModalsNeedingAck } from "@/server/modules/branding-gate";
+import { BRANDING_GATE_MESSAGE, DECEPTION_GATE_MESSAGE, LOGIN_DECEPTION_GATE_MESSAGE, MODAL_DECEPTION_GATE_MESSAGE, customNotificationsNeedingAck, evaluateBrandingGate, imitationModalsNeedingAck, loginScreensNeedingAck } from "@/server/modules/branding-gate";
 import { registry as registryAdapter } from "@/server/adapters/registry";
 import { divergenceAgainstPinned, injectReplicationRecipe, type DivergenceStatus } from "@/server/modules/replication";
 import { getModuleDef } from "@/server/modules/registry";
@@ -129,6 +129,10 @@ function assertBrandingGate(snapshot: unknown): void {
   // …and an imitation modal (ADR-0096).
   if (imitationModalsNeedingAck(snapshot).length > 0) {
     throw new TRPCError({ code: "PRECONDITION_FAILED", message: MODAL_DECEPTION_GATE_MESSAGE });
+  }
+  // …and a login screen imitating a real product's sign-in (ADR-0098).
+  if (loginScreensNeedingAck(snapshot).length > 0) {
+    throw new TRPCError({ code: "PRECONDITION_FAILED", message: LOGIN_DECEPTION_GATE_MESSAGE });
   }
 }
 
@@ -5097,7 +5101,8 @@ export const studiesRouter = router({
               key === "file-upload" ||
               key === "video-record" ||
               key === "notification" ||
-              key === "modal"
+              key === "modal" ||
+              key === "login"
             ? "text"
             : "numeric"; // likert-7, slider
 
@@ -5207,6 +5212,23 @@ export const studiesRouter = router({
           row[`notifaction:${b.instanceId}`] = typeof a.action === "string" ? a.action : "";
           row[`notifatms:${b.instanceId}`] = typeof a.atMs === "number" ? String(a.atMs) : "";
           row[`notifscreen:${b.instanceId}`] = typeof a.screen === "number" && a.screen > 0 ? String(a.screen) : "";
+          answersByResponse.set(it.responseId, row);
+        }
+      }
+
+      // Login (ADR-0098): behavioural signals only — action, timing, and whether
+      // the participant typed into each field. The typed username/password are
+      // NEVER present (do-not-record), so there's nothing here that could leak them.
+      for (const b of questionBlocks) {
+        if (b.key !== "login") continue;
+        for (const it of items) {
+          if (it.blockInstanceId !== b.instanceId) continue;
+          const a = (it.answer ?? {}) as { action?: unknown; atMs?: unknown; typedUsername?: unknown; typedPassword?: unknown };
+          const row = answersByResponse.get(it.responseId) ?? {};
+          row[`loginaction:${b.instanceId}`] = typeof a.action === "string" ? a.action : "";
+          row[`loginatms:${b.instanceId}`] = typeof a.atMs === "number" ? String(a.atMs) : "";
+          row[`logintypedu:${b.instanceId}`] = typeof a.typedUsername === "boolean" ? String(a.typedUsername) : "";
+          row[`logintypedp:${b.instanceId}`] = typeof a.typedPassword === "boolean" ? String(a.typedPassword) : "";
           answersByResponse.set(it.responseId, row);
         }
       }

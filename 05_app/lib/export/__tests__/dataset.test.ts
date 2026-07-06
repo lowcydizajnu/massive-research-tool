@@ -328,6 +328,24 @@ describe("export companions (V1.12 D — formats)", () => {
     ]);
   });
 
+  it("login → behavioural columns only (action / time / typed-username / typed-password); NEVER value columns (ADR-0098)", () => {
+    const r: ResultsSummary = {
+      ...results,
+      questions: [{ instanceId: "login1", prompt: "Sign in", moduleKey: "login", n: 1, kind: "text", mean: null, optionCounts: [] }],
+      rows: [
+        { ...results.rows[0], answers: { "loginaction:login1": "submit", "loginatms:login1": "4200", "logintypedu:login1": "true", "logintypedp:login1": "true" } },
+      ],
+    };
+    const cols = baseColumns(r);
+    const keys = cols.map((c) => c.key);
+    expect(keys).not.toContain("login1"); // packed per-block column excluded
+    expect(keys).toEqual(expect.arrayContaining(["loginaction:login1", "loginatms:login1", "logintypedu:login1", "logintypedp:login1"]));
+    // No column carries a typed username/password value — only the booleans exist.
+    expect(keys.some((k) => /username$|password$/.test(cols.find((c) => c.key === k)!.label) && !/typed_/.test(cols.find((c) => c.key === k)!.label))).toBe(false);
+    const m = buildMatrix(r, cols.filter((c) => c.key.startsWith("login")));
+    expect(m.rows).toEqual([["submit", "4200", "true", "true"]]);
+  });
+
   it("always lists the notification action-screen column so it's visible while designing (owner 2026-07-06)", () => {
     const r: ResultsSummary = {
       ...results,

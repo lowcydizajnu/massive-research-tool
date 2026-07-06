@@ -56,6 +56,7 @@ describe("seedCoreModules", () => {
       "core/image",
       "core/likert-7",
       "core/link",
+      "core/login",
       "core/matrix-grid",
       "core/maxdiff",
       "core/modal",
@@ -86,7 +87,7 @@ describe("seedCoreModules", () => {
     ]);
 
     const versions = await db.select().from(moduleVersion);
-    expect(versions).toHaveLength(53); // +voice/text-emotion-probe (ADR-0066 H3b/H4b); +audio-stimulus; social-post v1+v2; +notification (ADR-0095); +modal (ADR-0096)
+    expect(versions).toHaveLength(54); // +voice/text-emotion-probe (ADR-0066 H3b/H4b); +audio-stimulus; social-post v1+v2; +notification (ADR-0095); +modal (ADR-0096); +login (ADR-0098)
 
     const social = mods.find((m) => m.key === "social-post")!;
     const socialVersions = versions
@@ -100,7 +101,7 @@ describe("seedCoreModules", () => {
   it("is idempotent across repeated runs", async () => {
     await seedCoreModules();
     await seedCoreModules();
-    expect(await db.select().from(moduleTable)).toHaveLength(52);
-    expect(await db.select().from(moduleVersion)).toHaveLength(53);
+    expect(await db.select().from(moduleTable)).toHaveLength(53);
+    expect(await db.select().from(moduleVersion)).toHaveLength(54);
   });
 });

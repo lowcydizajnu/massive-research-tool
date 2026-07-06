@@ -12,6 +12,7 @@ import { AiChatConfig } from "@/components/feature/builder/ai-chat-config";
 import { AudioStimulusConfig } from "@/components/feature/builder/audio-stimulus-config";
 import { NotificationConfig } from "@/components/feature/builder/notification-config";
 import { ModalConfig } from "@/components/feature/builder/modal-config";
+import { LoginConfig } from "@/components/feature/builder/login-config";
 import { PickFromMaterialsButton } from "@/components/feature/builder/pick-from-materials-button";
 import { UploadButton } from "@/components/feature/builder/upload-button";
 import { mediaKindForField } from "@/lib/uploads";
@@ -143,6 +144,11 @@ export function ConfigureForm({
   // The modal block has a live-preview appearance editor (ADR-0096).
   if (block.key === "modal") {
     return <ModalConfig block={block} screens={screens} onChange={onChange} onRename={onRename} onRemove={onRemove} />;
+  }
+
+  // The login-screen block has a live-preview appearance editor (ADR-0098).
+  if (block.key === "login") {
+    return <LoginConfig block={block} onChange={onChange} onRename={onRename} onRemove={onRemove} />;
   }
 
   // The audio-stimulus block has a purpose-built config (script + TTS generation).
