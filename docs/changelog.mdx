@@ -1,0 +1,25 @@
+---
+title: Changelog
+description: What shipped recently on My Research Lab.
+---
+
+<Update label="July 6, 2026" description="Weekly release">
+
+## New features
+
+**Notification block** — Drop an in-context banner or toast into any screen. Configure the type, optional call-to-action buttons, and dismiss behavior in a live-preview editor; runtime records which action the participant took (dismissed, clicked a CTA, or ignored) without blocking Continue. If the notification imitates a real product, an IRB deception attestation is required before the study can go live. See [Blocks → Notification](/builder/blocks).
+
+**Modal block** — Overlay dialog for consent, cookie, paywall, and system-dialog paradigms. Supports up to two buttons that can advance the study, stay on the screen, open an external link, jump to another study, or jump to a specific screen. Includes optional images, triggers (on open, after a delay, or on a condition), and the same deception attestation when imitating a real product. See [Blocks → Modal dialog](/builder/blocks).
+
+**Upload study materials to OSF** — From a study's **Record** or its **Preregister** tab, push your materials to the linked OSF project: stimulus files from your Materials library, a machine-readable study JSON, and a human-readable protocol PDF. Files land in a folder on your editable OSF project (registrations are immutable), so you can re-upload new versions as your design evolves. Participant data is never included. See [Uploading materials to OSF](/integrations/osf#uploading-materials-to-osf).
+
+**Rename a workspace from Settings** — The workspace name is now editable directly on the **Workspace settings** page, alongside the existing archive and restore controls.
+
+## Fixes
+
+- **Notifications look like real toasts** — Rendered as an opaque top-of-screen banner instead of a see-through panel, with a slim variant that tucks under the study nav.
+- **Notification answers now record correctly** — Fixed a bug where the participant's chosen action wasn't captured; also cleaned up the toast styling and same-study call-to-action.
+- **OSF image uploads work for older stimuli** — Fixed a key-normalization issue that could prevent some images from being fetched during a materials upload.
+- **Condition allocation badge wraps** — The allocation badge in the builder's left panel now wraps cleanly instead of overflowing.
+
+</Update>
