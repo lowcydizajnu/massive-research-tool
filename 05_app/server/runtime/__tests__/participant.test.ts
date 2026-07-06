@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/server/db/client", async () => {
@@ -32,6 +32,7 @@ import {
   openRecruitment,
   pickCondition,
   recordAnswer,
+  recordNotificationAction,
   recordScreenAnswers,
   resolveVisibleBlocks,
   answerMatches,
@@ -392,5 +393,88 @@ describe("recordScreenAnswers + getRuntimeScreen (ADR-0028 grouping)", () => {
     expect(r).toEqual({ ok: false, error: "answer_required" });
     const items = await db.select().from(responseItem).where(eq(responseItem.responseId, responseId));
     expect(items).toHaveLength(0); // m1 not written either
+  });
+});
+
+describe("recordNotificationAction (out-of-band beacon, ADR-0097)", () => {
+  // A study with a PERSIST notification (n1), a non-persist notification (n2),
+  // and a plain question — so we can prove the beacon writes only for persist.
+  async function seedNotif() {
+    const [u] = await db.insert(user).values({ externalId: "n-ext", email: "n@e.com", displayName: "N" }).returning();
+    const [ws] = await db.insert(workspace).values({ name: "NLab", slug: "nlab", ownerId: u.id }).returning();
+    await db.insert(member).values({ workspaceId: ws.id, userId: u.id, role: "owner", status: "active" });
+    const [exp] = await db.insert(experiment).values({ tenantId: ws.id, ownerId: u.id, title: "Notif" }).returning();
+    const [ver] = await db
+      .insert(experimentVersion)
+      .values({
+        experimentId: exp.id,
+        versionNumber: 1,
+        kind: "preregistered",
+        name: "v1",
+        createdBy: u.id,
+        moduleVersionLocks: {},
+        definitionSnapshot: {
+          blocks: [
+            { instanceId: "q1", source: "core", key: "likert-7", version: "1.0.0", config: { prompt: "P", required: true } },
+            { instanceId: "n1", source: "core", key: "notification", version: "1.0.0", config: { title: "Hi", scope: "persist" } },
+            { instanceId: "n2", source: "core", key: "notification", version: "1.0.0", config: { title: "Hi", scope: "screen" } },
+          ],
+        },
+      })
+      .returning();
+    await db.update(experiment).set({ currentVersionId: ver.id }).where(eq(experiment.id, exp.id));
+    const { id: rsId } = await openRecruitment(ver.id);
+    const started = await startResponse({ recruitmentSessionId: rsId, mode: "run", externalPid: null });
+    if ("error" in started) throw new Error("start failed");
+    return { responseId: started.responseId };
+  }
+
+  const answerFor = async (responseId: string, blockInstanceId: string) => {
+    const [row] = await db
+      .select()
+      .from(responseItem)
+      .where(and(eq(responseItem.responseId, responseId), eq(responseItem.blockInstanceId, blockInstanceId)));
+    return row?.answer as { action?: string; atMs?: number; screen?: number } | undefined;
+  };
+
+  it("records action + atMs + screen for a persist notification", async () => {
+    const { responseId } = await seedNotif();
+    const r = await recordNotificationAction({ responseId, blockInstanceId: "n1", action: "dismissed", atMs: 1234, screen: 3 });
+    expect(r).toEqual({ ok: true });
+    expect(await answerFor(responseId, "n1")).toEqual({ action: "dismissed", atMs: 1234, screen: 3 });
+  });
+
+  it("upserts on a second beacon (last action wins)", async () => {
+    const { responseId } = await seedNotif();
+    await recordNotificationAction({ responseId, blockInstanceId: "n1", action: "ignored", atMs: 10, screen: 2 });
+    await recordNotificationAction({ responseId, blockInstanceId: "n1", action: "cta:0", atMs: 50, screen: 4 });
+    const items = await db.select().from(responseItem).where(eq(responseItem.blockInstanceId, "n1"));
+    expect(items).toHaveLength(1);
+    expect(await answerFor(responseId, "n1")).toEqual({ action: "cta:0", atMs: 50, screen: 4 });
+  });
+
+  it("rejects a non-persist notification (writes nothing)", async () => {
+    const { responseId } = await seedNotif();
+    const r = await recordNotificationAction({ responseId, blockInstanceId: "n2", action: "dismissed", atMs: 1, screen: 1 });
+    expect(r).toEqual({ ok: false });
+    expect(await answerFor(responseId, "n2")).toBeUndefined();
+  });
+
+  it("rejects an unknown block instance", async () => {
+    const { responseId } = await seedNotif();
+    const r = await recordNotificationAction({ responseId, blockInstanceId: "nope", action: "dismissed", atMs: 1, screen: 1 });
+    expect(r).toEqual({ ok: false });
+  });
+
+  it("rejects a forged action string", async () => {
+    const { responseId } = await seedNotif();
+    const r = await recordNotificationAction({ responseId, blockInstanceId: "n1", action: "drop table", atMs: 1, screen: 1 });
+    expect(r).toEqual({ ok: false });
+    expect(await answerFor(responseId, "n1")).toBeUndefined();
+  });
+
+  it("rejects an unknown response", async () => {
+    const r = await recordNotificationAction({ responseId: "missing", blockInstanceId: "n1", action: "dismissed", atMs: 1, screen: 1 });
+    expect(r).toEqual({ ok: false });
   });
 });

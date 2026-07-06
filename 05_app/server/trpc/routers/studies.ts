@@ -5080,7 +5080,9 @@ export const studiesRouter = router({
               key === "graphic-slider" ||
               key === "signature" ||
               key === "file-upload" ||
-              key === "video-record"
+              key === "video-record" ||
+              key === "notification" ||
+              key === "modal"
             ? "text"
             : "numeric"; // likert-7, slider
 
@@ -5172,6 +5174,24 @@ export const studiesRouter = router({
           // unit-tested in lib/export/social-post-cells.ts.
           row[`spreplies:${b.instanceId}`] = formatReplyCell(a.replies);
           row[`spcommentlikes:${b.instanceId}`] = formatCommentLikesCell(a.commentLikes);
+          answersByResponse.set(it.responseId, row);
+        }
+      }
+
+      // Notification / Modal (ADR-0095/0096/0097): split the packed {action, atMs,
+      // screen} into dedicated cells — the action taken, the ms to that action
+      // (from when the notice appeared), and the 1-based screen it happened on (for
+      // a persist notice, the screen it was finally dismissed on). dataset.ts reads
+      // these keys directly and omits the packed per-block column.
+      for (const b of questionBlocks) {
+        if (b.key !== "notification" && b.key !== "modal") continue;
+        for (const it of items) {
+          if (it.blockInstanceId !== b.instanceId) continue;
+          const a = (it.answer ?? {}) as { action?: unknown; atMs?: unknown; screen?: unknown };
+          const row = answersByResponse.get(it.responseId) ?? {};
+          row[`notifaction:${b.instanceId}`] = typeof a.action === "string" ? a.action : "";
+          row[`notifatms:${b.instanceId}`] = typeof a.atMs === "number" ? String(a.atMs) : "";
+          row[`notifscreen:${b.instanceId}`] = typeof a.screen === "number" && a.screen > 0 ? String(a.screen) : "";
           answersByResponse.set(it.responseId, row);
         }
       }

@@ -13,7 +13,7 @@ import { NotificationView } from "./notification-view";
  * the participant dismisses it. Instances whose own block is live on THIS screen
  * are skipped, so the anchor screen never shows the banner twice.
  */
-export function PersistentNotificationHost({ responseId }: { responseId: string }) {
+export function PersistentNotificationHost({ responseId, screenIndex }: { responseId: string; screenIndex: number }) {
   const [items, setItems] = useState<CarriedNotification[]>([]);
 
   useEffect(() => {
@@ -32,6 +32,8 @@ export function PersistentNotificationHost({ responseId }: { responseId: string 
           carried
           responseId={responseId}
           instanceId={c.instanceId}
+          screenIndex={screenIndex}
+          shownAt={c.shownAt}
         />
       ))}
     </>

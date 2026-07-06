@@ -101,9 +101,13 @@ function SocialPostDesignPointer({ studyId, block }: { studyId: string; block: S
   );
 }
 
+/** A labeled study screen for the CTA "go to a screen" picker (1-based index). */
+export type ScreenOption = { index: number; label: string };
+
 export function ConfigureForm({
   studyId,
   block,
+  screens,
   onChange,
   onRename,
   onRemove,
@@ -112,6 +116,8 @@ export function ConfigureForm({
 }: {
   studyId: string;
   block: StudyBlock;
+  /** The study's screens (notification/modal screen-target picker). */
+  screens?: ScreenOption[];
   onChange: (config: Record<string, unknown>) => void;
   /** Commit a researcher-set block title (blank clears it → falls back to the type name). */
   onRename?: (title: string) => void;
@@ -131,12 +137,12 @@ export function ConfigureForm({
 
   // The notification block has a live-preview appearance editor (ADR-0095).
   if (block.key === "notification") {
-    return <NotificationConfig block={block} onChange={onChange} onRename={onRename} onRemove={onRemove} />;
+    return <NotificationConfig block={block} screens={screens} onChange={onChange} onRename={onRename} onRemove={onRemove} />;
   }
 
   // The modal block has a live-preview appearance editor (ADR-0096).
   if (block.key === "modal") {
-    return <ModalConfig block={block} onChange={onChange} onRename={onRename} onRemove={onRemove} />;
+    return <ModalConfig block={block} screens={screens} onChange={onChange} onRename={onRename} onRemove={onRemove} />;
   }
 
   // The audio-stimulus block has a purpose-built config (script + TTS generation).

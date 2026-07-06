@@ -126,8 +126,16 @@ function extractAnswer(moduleKey: string, prefix: string, fd: FormData): unknown
   }
   if (moduleKey === "notification" || moduleKey === "modal") {
     // Which action the participant took (ADR-0095/0096). Always an object —
-    // exposure is recorded even without interaction (default "ignored").
-    return { action: String(g("action") ?? "ignored"), atMs: Math.max(0, Number(g("atMs")) || 0) };
+    // exposure is recorded even without interaction (default "ignored"). `screen`
+    // (1-based) is the anchor screen, free from the form's questionIndex (ADR-0097);
+    // a persist notice dismissed on a later screen overwrites it via the beacon.
+    const qi = Number(fd.get("questionIndex"));
+    const screen = Number.isInteger(qi) && qi >= 0 ? qi + 1 : undefined;
+    return {
+      action: String(g("action") ?? "ignored"),
+      atMs: Math.max(0, Number(g("atMs")) || 0),
+      ...(screen ? { screen } : {}),
+    };
   }
   if (moduleKey === "social-post") {
     // Engagement interactions (ADR-0024): always an object — exposure is

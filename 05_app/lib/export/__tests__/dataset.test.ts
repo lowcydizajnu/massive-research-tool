@@ -300,4 +300,42 @@ describe("export companions (V1.12 D — formats)", () => {
     expect(doFile).toContain('import delimited "study.csv", varnames(1) clear');
     expect(doFile).toContain('label variable how_credible "How credible?"');
   });
+
+  it("notification/modal → dedicated action/time/screen columns; packed column excluded (ADR-0097)", () => {
+    const r: ResultsSummary = {
+      ...results,
+      questions: [
+        { instanceId: "notif1", prompt: "System alert", moduleKey: "notification", n: 2, kind: "text", mean: null, optionCounts: [] },
+      ],
+      rows: [
+        { ...results.rows[0], answers: { "notifaction:notif1": "dismissed", "notifatms:notif1": "1200", "notifscreen:notif1": "3" } },
+        { ...results.rows[1], answers: { "notifaction:notif1": "ignored", "notifatms:notif1": "0", "notifscreen:notif1": "1" } },
+      ],
+    };
+    const cols = baseColumns(r);
+    const keys = cols.map((c) => c.key);
+    expect(keys).not.toContain("notif1"); // packed per-block column excluded
+    expect(keys).toContain("notifaction:notif1");
+    expect(keys).toContain("notifatms:notif1");
+    expect(keys).toContain("notifscreen:notif1");
+    expect(cols.find((c) => c.key === "notifaction:notif1")?.type).toBe("categorical");
+    expect(cols.find((c) => c.key === "notifaction:notif1")?.label).toBe("system_alert_action");
+    expect(cols.find((c) => c.key === "notifatms:notif1")?.type).toBe("numeric");
+    const m = buildMatrix(r, cols.filter((c) => c.key.startsWith("notif")));
+    expect(m.rows).toEqual([
+      ["dismissed", "1200", "3"],
+      ["ignored", "0", "1"],
+    ]);
+  });
+
+  it("omits the notification action-screen column when no respondent has one", () => {
+    const r: ResultsSummary = {
+      ...results,
+      questions: [{ instanceId: "notif1", prompt: "Alert", moduleKey: "notification", n: 1, kind: "text", mean: null, optionCounts: [] }],
+      rows: [{ ...results.rows[0], answers: { "notifaction:notif1": "ignored", "notifatms:notif1": "0", "notifscreen:notif1": "" } }],
+    };
+    const keys = baseColumns(r).map((c) => c.key);
+    expect(keys).toContain("notifaction:notif1");
+    expect(keys).not.toContain("notifscreen:notif1"); // all-blank → omitted
+  });
 });

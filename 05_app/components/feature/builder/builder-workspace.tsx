@@ -3,12 +3,12 @@
 import { Copy, GripVertical, Plus, Redo2, Trash2, Undo2 } from "lucide-react";
 import Link from "next/link";
 import type { Route } from "next";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { SortableList } from "@/components/feature/whiteboard/sortable-list";
 import { useBlockHistory } from "@/lib/whiteboard/use-block-history";
 import { dissolveSmallGroups } from "@/lib/whiteboard/dissolve-groups";
-import { regroupAfterMove } from "@/lib/whiteboard/screens";
+import { deriveScreens, regroupAfterMove } from "@/lib/whiteboard/screens";
 import { groupToDefinition } from "@/lib/custom-modules";
 import {
   conditionWithSources,
@@ -314,6 +314,27 @@ export function BuilderWorkspace({
     ...(b.divergenceNote ? { divergenceNote: b.divergenceNote } : {}),
     ...(groupId ? { groupId } : {}),
   });
+  // Labeled 1-based screen list (participant screen order via deriveScreens) for
+  // the notification/modal "go to a screen" CTA picker — so the researcher picks a
+  // screen by what's on it, not by guessing a number (owner 2026-07-06).
+  const screenOptions = useMemo<{ index: number; label: string }[]>(() => {
+    const instances = study.blocks.map((b) => toInstance(b, b.groupId));
+    const byId = new Map(study.blocks.map((b) => [b.instanceId, b]));
+    const preview = (b: StudyBlock | undefined): string => {
+      if (!b) return "screen";
+      const c = (b.config ?? {}) as Record<string, unknown>;
+      const s = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+      return b.title?.trim() || s(c.prompt) || s(c.headline) || s(c.title) || s(c.body) || b.name;
+    };
+    return deriveScreens(instances, study.groups).map((sc, i) => {
+      const raw =
+        sc.kind === "group"
+          ? study.groups.find((g) => g.id === sc.id)?.title?.trim() || "Question group"
+          : preview(byId.get(sc.id));
+      return { index: i + 1, label: raw.length > 48 ? `${raw.slice(0, 47)}…` : raw };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [study.blocks, study.groups]);
   /** Persist a groupId override for one block + recompute the groups[] metadata. */
   const persistGroupChange = (changedId: string, newGroupId: string | null, newGroup?: { id: string; title: string }) => {
     if (!canEdit) return;
@@ -1266,6 +1287,7 @@ export function BuilderWorkspace({
               key={`${selected.instanceId}-${panelEpoch}`}
               studyId={study.id}
               block={selected}
+              screens={screenOptions}
               pending={updateConfig.isPending || removeBlock.isPending}
               onChange={(config) =>
                 updateConfig.mutate({ studyId: study.id, instanceId: selected.instanceId, config })

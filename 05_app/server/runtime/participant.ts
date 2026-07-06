@@ -738,6 +738,72 @@ export async function recordScreenAnswers(input: {
   return { ok: true, done, nextIndex };
 }
 
+/** Actions a notification may record — the beacon rejects anything else. */
+const NOTIFICATION_ACTION = /^(dismissed|ignored|cta:\d+)$/;
+
+/**
+ * Out-of-band record of a persistent notification's action (ADR-0097). Used only
+ * when a `scope: "persist"` notice is dismissed / clicked on a screen LATER than
+ * its anchor, where no per-screen form field exists for it. Upserts the block's
+ * existing response item (keyed by response + block instance), preserving its
+ * anchor `blockPosition` and touching only the answer. Hard-guarded: it writes
+ * ONLY for a notification block that is actually present in the response's
+ * version snapshot AND set to persist — a forged beacon for anything else is a
+ * silent no-op. Never throws (best-effort recording).
+ */
+export async function recordNotificationAction(input: {
+  responseId: string;
+  blockInstanceId: string;
+  action: string;
+  atMs: number;
+  screen: number;
+}): Promise<{ ok: boolean }> {
+  if (!NOTIFICATION_ACTION.test(input.action)) return { ok: false };
+  const [resp] = await db.select().from(response).where(eq(response.id, input.responseId)).limit(1);
+  if (!resp) return { ok: false };
+  const [ver] = await db
+    .select({ snapshot: experimentVersion.definitionSnapshot })
+    .from(experimentVersion)
+    .where(eq(experimentVersion.id, resp.experimentVersionId))
+    .limit(1);
+  if (!ver) return { ok: false };
+
+  const snapshotBlocks = readBlocks(ver.snapshot);
+  const idx = snapshotBlocks.findIndex((b) => b.instanceId === input.blockInstanceId);
+  const block = idx >= 0 ? snapshotBlocks[idx] : undefined;
+  // Only a PERSIST notification may write out-of-band.
+  if (!block || block.key !== "notification" || (block.config as { scope?: unknown } | undefined)?.scope !== "persist") {
+    return { ok: false };
+  }
+  const def = getModuleDef(block.source, block.key, block.version);
+  if (!def?.responseSchema) return { ok: false };
+  const parsed = def.responseSchema.safeParse({
+    action: input.action,
+    atMs: Math.max(0, Math.floor(input.atMs) || 0),
+    screen: Math.max(1, Math.floor(input.screen) || 1),
+  });
+  if (!parsed.success) return { ok: false };
+
+  await db
+    .insert(responseItem)
+    .values({
+      id: ulid(),
+      responseId: resp.id,
+      blockInstanceId: block.instanceId,
+      blockPosition: idx, // anchor position (insert only — the anchor form usually created the row already)
+      moduleSource: block.source,
+      moduleKey: block.key,
+      moduleVersion: block.version,
+      answer: parsed.data,
+    })
+    .onConflictDoUpdate({
+      target: [responseItem.responseId, responseItem.blockInstanceId],
+      // Keep the anchor blockPosition; only the answer + timestamp change.
+      set: { answer: parsed.data, answeredAt: new Date() },
+    });
+  return { ok: true };
+}
+
 /** Mark a response complete + bump the session's completed count (run mode). */
 export async function completeResponse(responseId: string): Promise<void> {
   const [resp] = await db

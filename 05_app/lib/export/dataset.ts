@@ -64,11 +64,12 @@ export function baseColumns(results: ResultsSummary): ExportColumn[] {
     seen.set(base, n + 1);
     return n > 0 ? `${base}_${n + 1}` : base;
   };
-  // Social-post blocks get dedicated sub-columns below (reaction / shared /
-  // comment / replies) instead of one packed "liked=…; shared=…" cell, so they
-  // are excluded from the generic per-block column here (owner request).
+  // Social-post + notification/modal blocks get dedicated sub-columns below
+  // instead of one packed cell, so they are excluded from the generic per-block
+  // column here (owner request).
+  const SPLIT_MODULES = new Set(["social-post", "notification", "modal"]);
   const questions = results.questions
-    .filter((q) => q.moduleKey !== "social-post")
+    .filter((q) => !SPLIT_MODULES.has(q.moduleKey))
     .map((q) => ({
       key: q.instanceId,
       source: q.prompt || q.moduleKey,
@@ -145,7 +146,27 @@ export function baseColumns(results: ResultsSummary): ExportColumn[] {
       }
       return out;
     });
-  return [...meta, ...questions, ...viz, ...emotion, ...socialPost];
+  // Notification / Modal (ADR-0095/0096/0097): the participant's engagement split
+  // into its own analyzable cells — the action taken, the time to that action
+  // (ms), and the screen it happened on. Keys (`notifaction:`/`notifatms:`/
+  // `notifscreen:`) resolve via row.answers in cell() — no clash with other
+  // prefixes. The screen column appears only when some respondent has one (a
+  // persist notice, or new data) so older single-screen records don't add blanks.
+  const notifModal = results.questions
+    .filter((q) => q.moduleKey === "notification" || q.moduleKey === "modal")
+    .flatMap((q): ExportColumn[] => {
+      const base = slugifyLabel(q.prompt || q.moduleKey);
+      const src = q.prompt || q.moduleKey;
+      const out: ExportColumn[] = [
+        { key: `notifaction:${q.instanceId}`, source: `${src} — action`, type: "categorical", label: dedupe(`${base}_action`), hidden: false },
+        { key: `notifatms:${q.instanceId}`, source: `${src} — time to action (ms)`, type: "numeric", label: dedupe(`${base}_action_ms`), hidden: false },
+      ];
+      if (results.rows.some((r) => (r.answers[`notifscreen:${q.instanceId}`] ?? "") !== "")) {
+        out.push({ key: `notifscreen:${q.instanceId}`, source: `${src} — action on screen`, type: "categorical", label: dedupe(`${base}_action_screen`), hidden: false });
+      }
+      return out;
+    });
+  return [...meta, ...questions, ...viz, ...emotion, ...socialPost, ...notifModal];
 }
 
 /** responseIds that actually have a per-respondent response, per block instanceId

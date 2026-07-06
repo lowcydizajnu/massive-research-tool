@@ -787,7 +787,10 @@ const notificationBlock: CoreModuleDef = {
   // video exposure signal. Not a branch source in v1 (exposure/interaction data).
   collectsResponse: true,
   conditionSource: false,
-  responseSchema: z.object({ action: z.string(), atMs: z.number().int().min(0) }).partial(),
+  // `screen` (1-based) — the screen the action happened on. Recorded on the
+  // anchor screen via the form and, for a persist notice dismissed later, via the
+  // out-of-band beacon (ADR-0097).
+  responseSchema: z.object({ action: z.string(), atMs: z.number().int().min(0), screen: z.number().int().min(1) }).partial(),
   isAnswerEmpty: () => false,
   isComplete: (c) => {
     const s = (v: unknown) => (typeof v === "string" ? v : "");
@@ -879,7 +882,8 @@ const modalBlock: CoreModuleDef = {
   },
   collectsResponse: true,
   conditionSource: false,
-  responseSchema: z.object({ action: z.string(), atMs: z.number().int().min(0) }).partial(),
+  // `screen` (1-based) — the screen the action happened on (ADR-0097).
+  responseSchema: z.object({ action: z.string(), atMs: z.number().int().min(0), screen: z.number().int().min(1) }).partial(),
   isAnswerEmpty: () => false,
   isComplete: (c) => {
     const s = (v: unknown) => (typeof v === "string" ? v : "");

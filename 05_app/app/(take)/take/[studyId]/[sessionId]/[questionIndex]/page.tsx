@@ -56,7 +56,7 @@ export default async function ScreenPage({
       {/* Persist-scope notifications (ADR-0095 am.) ride here from an earlier
           anchor screen — rendered into #take-topbar, so this mount is invisible
           on screens with no carried notice. */}
-      <PersistentNotificationHost responseId={sessionId} />
+      <PersistentNotificationHost responseId={sessionId} screenIndex={index} />
       <ScreenHeader
         position={s.position}
         total={s.total}

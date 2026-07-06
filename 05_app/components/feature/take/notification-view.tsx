@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { resolveNavTarget, resolveScreenHref, type NotificationCta } from "@/lib/take/nav-target";
-import { clearCarry, registerLive, setCarry, unregisterLive } from "@/lib/take/notification-carry";
+import { beaconNotificationAction, clearCarry, registerLive, setCarry, unregisterLive } from "@/lib/take/notification-carry";
 
 /**
  * Notification stimulus (ADR-0095): an in-context notice with a type, up to two
@@ -47,18 +47,26 @@ export function NotificationView({
   carried = false,
   responseId = "",
   instanceId = "",
+  screenIndex = 0,
+  shownAt = 0,
 }: {
   config: Record<string, unknown>;
   np: string;
   /** Builder live-preview: always shown (no trigger timer), CTAs + close inert. */
   preview?: boolean;
   /** Rendered by the persistent host on a LATER screen — always shown, no form
-   *  fields, dismiss/CTA just clears the carry (recording happened at the anchor). */
+   *  fields; dismiss/CTA clears the carry AND beacons the action (ADR-0097). */
   carried?: boolean;
-  /** Response id — needed to write/clear the cross-screen persist carry. */
+  /** Response id — needed to write/clear the cross-screen persist carry + beacon. */
   responseId?: string;
-  /** Block instance id — carry key + live-registry key. */
+  /** Block instance id — carry key + live-registry key + beacon target. */
   instanceId?: string;
+  /** 0-based index of the screen this instance is rendering on — for the beacon's
+   *  1-based `screen`. Only meaningful in `carried` mode. */
+  screenIndex?: number;
+  /** Wall-clock ms when the notice first appeared (from the carry) — for the
+   *  beacon's elapsed `atMs`. Only meaningful in `carried` mode. */
+  shownAt?: number;
 }) {
   const variant = (["error", "warning", "info", "success", "custom"].includes(str(config.variant)) ? config.variant : "info") as Variant;
   const title = str(config.title);
@@ -93,11 +101,16 @@ export function NotificationView({
   }, [preview, carried, triggerKind, afterSec, banner]);
 
   // Anchor block, persist scope: claim the instance so the host skips it on THIS
-  // screen (no double banner), and carry the config forward while it's up.
+  // screen (no double banner), and carry the config forward (with its first-shown
+  // timestamp) while it's up.
+  const anchorShownAt = useRef<number>(0);
   useEffect(() => {
     if (preview || carried || !persist || !responseId || !instanceId) return;
     registerLive(instanceId);
-    if (shown && !dismissed) setCarry(responseId, instanceId, config);
+    if (shown && !dismissed) {
+      if (!anchorShownAt.current) anchorShownAt.current = Date.now();
+      setCarry(responseId, instanceId, config, anchorShownAt.current);
+    }
     return () => unregisterLive(instanceId);
     // config is stable per render of a given block; re-run on shown/dismissed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -107,9 +120,21 @@ export function NotificationView({
     if (actionRef.current) actionRef.current.value = action;
     if (atMsRef.current) atMsRef.current.value = String(Math.round(performance.now() - start.current));
   }
-  // Terminal action (dismiss / CTA): stop carrying it to later screens.
-  function endCarry() {
+  // A terminal action (dismiss / CTA). On the anchor screen the form fields carry
+  // it; when this is the CARRIED render on a later screen, beacon it out-of-band
+  // (ADR-0097) with the screen it happened on + elapsed time since first shown.
+  function finishAction(action: string) {
+    record(action);
     if (persist && responseId && instanceId) clearCarry(responseId, instanceId);
+    if (carried && responseId && instanceId) {
+      beaconNotificationAction({
+        responseId,
+        blockInstanceId: instanceId,
+        action,
+        atMs: shownAt ? Math.max(0, Math.round(Date.now() - shownAt)) : 0,
+        screen: screenIndex + 1,
+      });
+    }
   }
 
   const custom = variant === "custom";
@@ -177,8 +202,7 @@ export function NotificationView({
                       type="button"
                       className={cls}
                       onClick={() => {
-                        record(`cta:${i}`);
-                        endCarry();
+                        finishAction(`cta:${i}`);
                         const href = resolveScreenHref(window.location.pathname, cta.targetScreen);
                         if (href) window.location.assign(href);
                       }}
@@ -190,7 +214,7 @@ export function NotificationView({
                 const nav = resolveNavTarget(cta);
                 if (!nav) {
                   return (
-                    <button key={i} type="button" className={cls} onClick={() => { record(`cta:${i}`); endCarry(); }}>
+                    <button key={i} type="button" className={cls} onClick={() => finishAction(`cta:${i}`)}>
                       {label}
                     </button>
                   );
@@ -201,7 +225,7 @@ export function NotificationView({
                     href={nav.href}
                     {...(nav.newTab ? { target: "_blank", rel: "noopener noreferrer" } : {})}
                     className={cls}
-                    onClick={() => { record(`cta:${i}`); endCarry(); }}
+                    onClick={() => finishAction(`cta:${i}`)}
                   >
                     {label}
                   </a>
@@ -220,8 +244,7 @@ export function NotificationView({
               preview
                 ? undefined
                 : () => {
-                    record("dismissed");
-                    endCarry();
+                    finishAction("dismissed");
                     setDismissed(true);
                   }
             }

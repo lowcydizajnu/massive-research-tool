@@ -4,6 +4,8 @@ import { Plus, X } from "lucide-react";
 import { useState } from "react";
 
 import { PickFromMaterialsButton } from "@/components/feature/builder/pick-from-materials-button";
+import { ScreenTargetPicker } from "@/components/feature/builder/screen-target-picker";
+import type { ScreenOption } from "@/components/feature/builder/configure-form";
 import { UploadButton } from "@/components/feature/builder/upload-button";
 import { NotificationView } from "@/components/feature/take/notification-view";
 import type { NotificationCta } from "@/lib/take/nav-target";
@@ -45,11 +47,13 @@ const VARIANTS: { value: Cfg["variant"]; label: string }[] = [
 
 export function NotificationConfig({
   block,
+  screens,
   onChange,
   onRename,
   onRemove,
 }: {
   block: StudyBlock;
+  screens?: ScreenOption[];
   onChange: (config: Record<string, unknown>) => void;
   onRename?: (title: string) => void;
   onRemove: () => void;
@@ -208,16 +212,11 @@ export function NotificationConfig({
                   className={`${fieldCls} w-full min-w-0`}
                 />
               ) : (
-                <label className="flex items-center gap-2 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
-                  Go to screen #
-                  <input
-                    type="number"
-                    min={1}
-                    value={cta.targetScreen}
-                    onChange={(e) => setCta(i, { targetScreen: Math.max(1, Number(e.target.value) || 1) })}
-                    className={`${fieldCls} w-20 py-1`}
-                  />
-                </label>
+                <ScreenTargetPicker
+                  value={cta.targetScreen}
+                  onChange={(index) => setCta(i, { targetScreen: index })}
+                  screens={screens}
+                />
               )}
             </div>
           </div>
