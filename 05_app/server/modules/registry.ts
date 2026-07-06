@@ -718,10 +718,15 @@ const notificationBlock: CoreModuleDef = {
     thumbnailShape: z.enum(["circle", "square"]).default("circle"),
     ctas: z.array(notificationCtaSchema).max(2).default([]),
     dismissable: z.boolean().default(true),
-    // A notification is a top-of-screen element by default (ADR-0095): it pins to
-    // the top of the take surface regardless of the block's order. `inline` keeps
-    // it in the content flow for researchers who want that.
+    // A notification is a top-of-screen element by default (ADR-0095): `fixed-top`
+    // renders a slim full-width banner directly under the fake nav (never over it),
+    // regardless of the block's order. `inline` keeps it in the content flow.
     position: z.enum(["inline", "fixed-top"]).default("fixed-top"),
+    // Scope (ADR-0095 am. 2026-07-06) — `screen` shows the notice on its anchor
+    // screen only; `persist` keeps it visible across subsequent screens until the
+    // participant dismisses it (client-side carry). The participant's response is
+    // recorded on the anchor screen either way. `persist` always renders as a banner.
+    scope: z.enum(["screen", "persist"]).default("screen"),
     // Trigger (ADR-0095): show on screen load, after N seconds, or conditionally
     // (conditional reuses the block's own showIf — no new engine here).
     triggerKind: z.enum(["on-load", "after", "conditional"]).default("on-load"),
@@ -740,6 +745,7 @@ const notificationBlock: CoreModuleDef = {
     ctas: [],
     dismissable: true,
     position: "fixed-top",
+    scope: "screen",
     triggerKind: "on-load",
     triggerAfterSec: 3,
     deceptionAck: false,
@@ -769,6 +775,7 @@ const notificationBlock: CoreModuleDef = {
       },
       dismissable: { type: "boolean" },
       position: { type: "string", enum: ["inline", "fixed-top"] },
+      scope: { type: "string", enum: ["screen", "persist"] },
       triggerKind: { type: "string", enum: ["on-load", "after", "conditional"] },
       triggerAfterSec: { type: "integer", minimum: 0, maximum: 600 },
       deceptionAck: { type: "boolean" },

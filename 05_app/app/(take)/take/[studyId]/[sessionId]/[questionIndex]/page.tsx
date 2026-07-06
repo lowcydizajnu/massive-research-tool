@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { BlockView } from "@/components/feature/take/block-view";
 import { InteractionGate } from "@/components/feature/take/interaction-gate";
+import { PersistentNotificationHost } from "@/components/feature/take/persistent-notifications";
 import { RevealGate } from "@/components/feature/take/reveal-gate";
 import { Card, ScreenHeader } from "@/components/feature/take/parts";
 import { getRuntimeScreen } from "@/server/runtime/participant";
@@ -52,6 +53,10 @@ export default async function ScreenPage({
 
   return (
     <Card flush={feed}>
+      {/* Persist-scope notifications (ADR-0095 am.) ride here from an earlier
+          anchor screen — rendered into #take-topbar, so this mount is invisible
+          on screens with no carried notice. */}
+      <PersistentNotificationHost responseId={sessionId} />
       <ScreenHeader
         position={s.position}
         total={s.total}

@@ -11,9 +11,11 @@ A stimulus block that shows a participant an in-context **notification** (banner
 
 ## Layout
 
-**Take render** — a horizontal notice: an optional left **thumbnail** (circular or square, `custom` variant only) or a variant **icon**, then a stack of **title** + **body**, then **0–2 CTA buttons**, and a right **✕ close** (when dismissable). Positioned either **inline** in the screen flow or **fixed to the top** of the take viewport (an overlay bar above the content). Variant drives the accent/background (error/warning/info/success via the existing semantic tokens; custom uses the neutral surface + the researcher thumbnail).
+**Take render** — a horizontal notice: an optional left **thumbnail** (circular or square, `custom` variant only) or a variant **icon**, then a stack of **title** + **body**, then **0–2 CTA buttons**, and a right **✕ close** (when dismissable). Positioned either **inline** in the screen flow or, by default, as a **slim full-width banner directly under the app’s (fake) nav bar** — rendered into the page-level `#take-topbar` slot (the same slot the interaction gate uses), never covering the nav, with content flowing below. Variant drives a small **type-coloured icon** on an opaque canvas surface (no full-height coloured rail); `custom` uses the neutral surface + the researcher thumbnail.
 
-**Builder Configure panel** — sections: Type (variant select), Content (title, body), Thumbnail (upload; shown for `custom`), Call-to-action (0–2 rows: label + target picker), Behaviour (dismissable toggle, position toggle, trigger select). A live mini-preview mirrors the take render. A deception notice + attestation prompt appears for `custom`.
+**Scope (persistence)** — a banner can be set to appear on **only its anchor screen** (`scope: "screen"`, default) or to **persist across subsequent screens until the participant dismisses it** (`scope: "persist"`). Persist rides forward via a client-side `sessionStorage` carry re-rendered by a page-level host (ADR-0095 am. 2026-07-06). Either way, the participant's response is recorded on the **anchor screen** where the block is placed; a later cross-screen dismissal hides the banner but isn't separately recorded.
+
+**Builder Configure panel** — sections: Type (variant select), Content (title, body), Thumbnail (upload; shown for `custom`), Call-to-action (0–2 rows: label + target picker), Behaviour (dismissable toggle, position select, persistence select [banner only], trigger select). A live mini-preview mirrors the take render, with a caption noting banner-vs-inline placement. A deception notice + attestation prompt appears for `custom`.
 
 ## Content inventory
 
@@ -21,9 +23,9 @@ A stimulus block that shows a participant an in-context **notification** (banner
 - **Title** — short text — config, ≤ ~120 chars.
 - **Body** — one or two lines — config, ≤ ~300 chars.
 - **Thumbnail** (custom only) — image (R2 upload) + shape (circle/square) — config.
-- **CTA row × 0–2** — label (≤ ~40 chars) + target: **External link** (URL), **Another study** (study picker), — config. (Intra-study "screen" target deferred, ADR-0095.)
+- **CTA row × 0–2** — label (≤ ~40 chars) + target: **External link** (URL), **Another study** (study picker), or **This study — a screen** (intra-study jump via `resolveScreenHref`) — config.
 - **Close ✕** — shown when `dismissable` — static control.
-- **Behaviour** — `dismissable` (bool), `position` (inline / fixed-top), `trigger` (on load / after N seconds / conditional).
+- **Behaviour** — `dismissable` (bool), `position` (slim banner / inline), `scope` (only this screen / until dismissed across screens — banner only), `trigger` (on load / after N seconds / conditional).
 - **Deception notice** (custom) — static warning + link to the attestation, mirroring social-post branded tier.
 
 ## States
@@ -48,11 +50,12 @@ A stimulus block that shows a participant an in-context **notification** (banner
 ## Edge cases
 
 - **Very long title/CTA label** — truncate with ellipsis; body wraps to a max of ~3 lines then clamps.
-- **Fixed-top on mobile** — the bar spans full width, doesn't cover the progress bar; content below gets top padding so nothing is hidden.
+- **Banner on mobile** — the bar spans full width under the nav, doesn't cover the nav or the progress bar; the inner row is capped (~600px) and centered like the interaction gate.
 - **Two CTAs on a narrow screen** — buttons wrap below the text rather than overflow.
 - **No CTAs** — the notice is informational; only the ✕ (if dismissable) is interactive.
 - **`study` target = a study the participant can't access / unpublished** — the link still points at `/take/<id>/start`; that study's own gate handles access (we don't pre-validate reachability here).
-- **Not dismissable + fixed-top** — persists on the screen until Continue; make sure it can't trap focus or hide the Continue button.
+- **`persist` + not dismissable** — the banner would follow the participant with no way to close it; the researcher is expected to pair persist with dismissable. (It never traps focus or hides Continue since it lives in the top-bar, outside the form.)
+- **`persist` in a private-mode / no-sessionStorage browser** — the carry write silently no-ops, so persistence degrades gracefully to this-screen-only.
 
 ## Accessibility notes
 

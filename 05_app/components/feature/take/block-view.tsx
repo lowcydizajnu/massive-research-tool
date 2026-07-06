@@ -105,7 +105,8 @@ export function BlockView({
   if (block.key === "audio-stimulus") return <AudioStimulusView config={c} />;
   if (block.key === "link") return <LinkView config={c} />;
   // Simulated-app-environment stimuli (ADR-0095/0096).
-  if (block.key === "notification") return <NotificationView config={c} np={np} />;
+  if (block.key === "notification")
+    return <NotificationView config={c} np={np} responseId={responseId ?? ""} instanceId={block.instanceId} />;
   if (block.key === "modal") return <ModalView config={c} np={np} />;
   // V1.12 C2 — standard form blocks.
   if (block.key === "email") return <SimpleFieldInput config={c} type="email" np={np} />;

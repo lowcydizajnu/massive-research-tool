@@ -29,6 +29,7 @@ type Cfg = {
   ctas: NotificationCta[];
   dismissable: boolean;
   position: "inline" | "fixed-top";
+  scope: "screen" | "persist";
   triggerKind: "on-load" | "after" | "conditional";
   triggerAfterSec: number;
   deceptionAck: boolean;
@@ -71,7 +72,8 @@ export function NotificationConfig({
         }))
       : [],
     dismissable: init.dismissable !== false,
-    position: init.position ?? "inline",
+    position: init.position ?? "fixed-top",
+    scope: init.scope ?? "screen",
     triggerKind: init.triggerKind ?? "on-load",
     triggerAfterSec: typeof init.triggerAfterSec === "number" ? init.triggerAfterSec : 3,
     deceptionAck: init.deceptionAck === true,
@@ -107,6 +109,11 @@ export function NotificationConfig({
         <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] p-3">
           <NotificationView config={cfg} np="" preview />
         </div>
+        <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+          {cfg.position === "fixed-top"
+            ? "Participants see this as a slim full-width banner directly under the app’s nav bar."
+            : "Participants see this inline, in the content flow."}
+        </p>
       </div>
 
       <label className="flex flex-col gap-1">
@@ -235,11 +242,34 @@ export function NotificationConfig({
         </label>
         <label className="flex items-center gap-2 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
           Position
-          <select value={cfg.position} onChange={(e) => set({ position: e.target.value as Cfg["position"] })} className={`${fieldCls} py-1`}>
-            <option value="fixed-top">Top of the screen (banner)</option>
+          <select
+            value={cfg.position}
+            onChange={(e) => {
+              const position = e.target.value as Cfg["position"];
+              // Persistence is a banner-only behaviour; drop it when going inline.
+              set(position === "inline" ? { position, scope: "screen" } : { position });
+            }}
+            className={`${fieldCls} py-1`}
+          >
+            <option value="fixed-top">Slim banner under the nav</option>
             <option value="inline">Inline (in the content flow)</option>
           </select>
         </label>
+        {cfg.position === "fixed-top" ? (
+          <label className="flex items-center gap-2 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+            Stays
+            <select value={cfg.scope} onChange={(e) => set({ scope: e.target.value as Cfg["scope"] })} className={`${fieldCls} py-1`}>
+              <option value="screen">Only on this screen</option>
+              <option value="persist">Until dismissed (across screens)</option>
+            </select>
+          </label>
+        ) : null}
+        {cfg.scope === "persist" ? (
+          <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+            The banner rides along on later screens until the participant closes it. Their response (dismissed / clicked / ignored) is
+            recorded on <strong>this</strong> screen — where you placed the block.
+          </p>
+        ) : null}
         <label className="flex items-center gap-2 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
           Show
           <select value={cfg.triggerKind} onChange={(e) => set({ triggerKind: e.target.value as Cfg["triggerKind"] })} className={`${fieldCls} py-1`}>

@@ -57,6 +57,23 @@ Concretely, scoped to the Notification MVP:
 - **Committed to:** overlays stay *blocks on the current screen* (linear submit preserved); CTAs link out only (`url`/`study`) until intra-study nav is designed; deception variants are attestation-gated.
 - **Precluded (for now):** intra-study screen-jump; cross-block "study variables"; the "do-not-record" field model — each is a later ADR (Modal/Toolbar/Login).
 
+## Amendment — 2026-07-06 (slim banner + cross-screen persistence)
+
+Live testing surfaced two gaps in the first `fixed-top` render, and the owner set the direction (behavior "up to the researcher"; look "slim banner below the nav"):
+
+- **Placement was wrong.** `fixed inset-x-0 top-0` *covered* the fake platform nav and used a heavy coloured left rail. A notification must sit **directly under** the nav, not over it.
+- **Scope was implicit.** A block appears on exactly one screen, so a notice showed on only that screen — but researchers want to choose between a one-screen notice and one that follows the participant.
+
+**Decisions:**
+
+- **Slim banner under the nav.** `fixed-top` no longer uses viewport-fixed positioning. It renders a **slim, full-width, opaque bar portaled into the page-level `#take-topbar` slot** — the same slot the interaction gate (ADR-0087) already uses, which sits directly beneath the fake nav and above the content. Styling matches that bar (hairline bottom border, `--color-surface-canvas`, a small type-coloured icon) — no full-height coloured rail. The banner never overlaps the nav and content flows below it.
+- **Researcher-chosen `scope`.** A new config field `scope: "screen" | "persist"` (default `"screen"`). `screen` shows the notice on its anchor screen only. `persist` keeps it visible across subsequent screens **until the participant dismisses it (or clicks a CTA)**. Because the take flow is a server-rendered MPA (each screen is a fresh render), persistence lives in **`sessionStorage`**, keyed by the response: the anchor block writes its config while shown, and a page-level `PersistentNotificationHost` re-renders it into `#take-topbar` on every later screen. Same-tab only, cleared on tab close — which matches one participant run. `persist` always renders as a banner.
+- **Recording stays at the anchor.** The engagement answer (`{action, atMs}`) is still recorded on the **anchor screen** (where the researcher placed the block), because `recordScreenAnswers` only writes blocks belonging to the resolved screen and records are keyed by `(response_id, block_instance_id)`. So a `persist` notice records exposure + any interaction that happens *before the participant leaves the anchor screen*; a later cross-screen dismissal hides the banner but is **not** separately recorded. This is called out in the Configure panel. **Why not a mid-flow beacon** (to timestamp late dismissals exactly): that is a genuinely new write path (no notification currently writes outside the per-screen form POST) and deserves its own ADR + endpoint + rate-limit + tests — deferred until a researcher needs exact late-dismissal data.
+
+**Also corrected in the code since first draft:** the `screen` nav-target (intra-study jump) named as "deferred" above was in fact shipped with the Notification (`resolveScreenHref` in `lib/take/nav-target.ts`) and reused by the Modal (ADR-0096).
+
+New code: `05_app/lib/take/notification-carry.ts` (sessionStorage carry + in-page live registry), `05_app/components/feature/take/persistent-notifications.tsx` (the host), amended `notification-view.tsx` (portal + `carried` mode + carry writes).
+
 ## Revisit triggers
 
 - Modal/Toolbar need capabilities the minimal seam doesn't cover (multiple simultaneous overlays, stacking, focus-trap depth) → extend the overlay primitive.
