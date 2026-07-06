@@ -236,8 +236,8 @@ export function NotificationConfig({
         <label className="flex items-center gap-2 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
           Position
           <select value={cfg.position} onChange={(e) => set({ position: e.target.value as Cfg["position"] })} className={`${fieldCls} py-1`}>
-            <option value="inline">Inline (in the page flow)</option>
-            <option value="fixed-top">Fixed to the top</option>
+            <option value="fixed-top">Top of the screen (banner)</option>
+            <option value="inline">Inline (in the content flow)</option>
           </select>
         </label>
         <label className="flex items-center gap-2 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">

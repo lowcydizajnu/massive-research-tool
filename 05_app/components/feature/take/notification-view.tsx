@@ -83,21 +83,27 @@ export function NotificationView({
 
   if (!shown || dismissed) return <div className="hidden">{fields}</div>;
 
-  // Toast-like: a compact, elevated, capped-width card. `fixed-top` floats it at
-  // the top-center of the viewport (a real system-notice overlay); otherwise it's
-  // a centered toast in the screen flow. In the Builder preview it never floats.
-  const wrapperCls =
-    fixedTop && !preview
-      ? "fixed left-1/2 top-3 z-50 w-[min(92vw,26rem)] -translate-x-1/2"
-      : "mx-auto w-full max-w-md";
+  // A notification is a TOP-OF-SCREEN element: `fixed-top` pins it as a full-width
+  // OPAQUE banner at the very top of the take surface, above the content — no
+  // matter where the block sits in the builder order. `inline` is a capped,
+  // centered toast in the flow. The Builder preview never floats.
+  const wrapperCls = fixedTop && !preview ? "fixed inset-x-0 top-0 z-50" : "mx-auto w-full max-w-md";
+  const banner = fixedTop && !preview;
+  // Opaque card (no content bleed-through) with a coloured left accent + icon.
+  const accent = custom ? "var(--color-border-subtle)" : sty!.fg;
 
   return (
     <div className={wrapperCls}>
       {fields}
       <div
         role={role}
-        className="motion-safe:animate-in flex items-start gap-3 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-3 shadow-[var(--shadow-md)]"
-        style={custom ? { background: "var(--color-surface-raised)" } : { background: sty!.bg, color: sty!.fg, borderColor: "transparent" }}
+        className={
+          "motion-safe:animate-in mx-auto flex w-full items-start gap-3 border-l-4 bg-[var(--color-surface-raised)] p-3 shadow-[var(--shadow-md)] " +
+          (banner
+            ? "max-w-3xl rounded-none border-b border-[var(--color-border-subtle)]"
+            : "max-w-md rounded-[var(--radius-md)]")
+        }
+        style={{ borderLeftColor: accent }}
       >
         {custom ? (
           thumbnailUrl ? (
@@ -109,18 +115,18 @@ export function NotificationView({
             />
           ) : null
         ) : (
-          <Icon className="mt-0.5 size-5 shrink-0" aria-hidden />
+          <Icon className="mt-0.5 size-5 shrink-0" style={{ color: accent }} aria-hidden />
         )}
 
         <div className="min-w-0 flex-1">
-          {title ? <p className="text-[length:var(--text-body-emphasis)] font-medium">{title}</p> : null}
-          {body ? <p className="whitespace-pre-wrap text-[length:var(--text-small)] opacity-90">{body}</p> : null}
+          {title ? <p className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">{title}</p> : null}
+          {body ? <p className="whitespace-pre-wrap text-[length:var(--text-small)] text-[var(--color-text-secondary)]">{body}</p> : null}
           {ctas.length ? (
             <div className="mt-2 flex flex-wrap gap-2">
               {ctas.map((cta, i) => {
                 const label = str(cta.label) || "Open";
                 const cls =
-                  "rounded-[var(--radius-sm)] bg-[var(--color-surface-raised)] px-2.5 py-1 text-[length:var(--text-small)] font-medium text-[var(--color-text-primary)] shadow-[var(--shadow-sm)] hover:opacity-90";
+                  "rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2.5 py-1 text-[length:var(--text-small)] font-medium text-[var(--color-text-primary)] hover:bg-[var(--color-surface-subtle)]";
                 if (preview) {
                   return <button key={i} type="button" className={cls}>{label}</button>;
                 }
@@ -169,7 +175,7 @@ export function NotificationView({
           <button
             type="button"
             aria-label="Dismiss notification"
-            className="-m-1 shrink-0 rounded-[var(--radius-sm)] p-1 opacity-70 hover:opacity-100"
+            className="-m-1 shrink-0 rounded-[var(--radius-sm)] p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)]"
             onClick={
               preview
                 ? undefined

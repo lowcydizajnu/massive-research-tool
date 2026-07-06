@@ -718,7 +718,10 @@ const notificationBlock: CoreModuleDef = {
     thumbnailShape: z.enum(["circle", "square"]).default("circle"),
     ctas: z.array(notificationCtaSchema).max(2).default([]),
     dismissable: z.boolean().default(true),
-    position: z.enum(["inline", "fixed-top"]).default("inline"),
+    // A notification is a top-of-screen element by default (ADR-0095): it pins to
+    // the top of the take surface regardless of the block's order. `inline` keeps
+    // it in the content flow for researchers who want that.
+    position: z.enum(["inline", "fixed-top"]).default("fixed-top"),
     // Trigger (ADR-0095): show on screen load, after N seconds, or conditionally
     // (conditional reuses the block's own showIf — no new engine here).
     triggerKind: z.enum(["on-load", "after", "conditional"]).default("on-load"),
@@ -736,7 +739,7 @@ const notificationBlock: CoreModuleDef = {
     thumbnailShape: "circle",
     ctas: [],
     dismissable: true,
-    position: "inline",
+    position: "fixed-top",
     triggerKind: "on-load",
     triggerAfterSec: 3,
     deceptionAck: false,
