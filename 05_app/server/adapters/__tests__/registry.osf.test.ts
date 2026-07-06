@@ -254,6 +254,154 @@ describe("osfRegistry.connectWithToken (PAT path)", () => {
   });
 });
 
+describe("osfRegistry.uploadMaterials (ADR-0094 WaterButler)", () => {
+  const prev = { ...process.env };
+  const FILES = "https://files.osf.io/v1";
+  const PROVIDER = `${FILES}/resources/node-1/providers/osfstorage`;
+  beforeEach(() => {
+    process.env.OSF_API_BASE = "https://api.osf.io/v2";
+    process.env.OSF_FILES_BASE = FILES;
+  });
+  afterEach(() => {
+    process.env = { ...prev };
+    vi.restoreAllMocks();
+  });
+
+  type Call = { method: string; url: string; body: unknown; headers: Record<string, string> };
+  function mockFetch(handler: (c: Call) => Response | undefined): Call[] {
+    const calls: Call[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const c: Call = {
+        method: init?.method ?? "GET",
+        url: String(input),
+        body: init?.body,
+        headers: (init?.headers as Record<string, string>) ?? {},
+      };
+      calls.push(c);
+      const res = handler(c);
+      if (res) return res;
+      throw new Error(`unexpected call: ${c.method} ${c.url}`);
+    });
+    return calls;
+  }
+  const j = (data: unknown, status = 201) => new Response(JSON.stringify(data), { status });
+
+  it("creates the folder then uploads each file to files.osf.io as raw bytes", async () => {
+    const calls = mockFetch((c) => {
+      if (c.method === "GET" && c.url.startsWith("https://api.osf.io/v2/nodes/node-1/files/osfstorage/"))
+        return j({ data: [] }, 200); // no existing folder
+      if (c.method === "PUT" && c.url === `${PROVIDER}/?kind=folder&name=Materials`)
+        return j({ data: { attributes: { kind: "folder", name: "Materials", path: "/fold1/" } } });
+      if (c.method === "PUT" && c.url === `${PROVIDER}/fold1/?kind=file&name=stim.png`)
+        return j({ data: { attributes: { kind: "file", name: "stim.png", path: "/file1" } } });
+      if (c.method === "PUT" && c.url === `${PROVIDER}/fold1/?kind=file&name=design-snapshot.json`)
+        return j({ data: { attributes: { kind: "file", name: "design-snapshot.json", path: "/file2" } } });
+      return undefined;
+    });
+
+    const results = await osfRegistry.uploadMaterials("user-1", {
+      nodeId: "node-1",
+      folderName: "Materials",
+      files: [
+        { artifactKey: "ws/w/stim.png", fileName: "stim.png", bytes: new Uint8Array([1, 2, 3]), contentType: "image/png" },
+        { artifactKey: "design-snapshot.json", fileName: "design-snapshot.json", bytes: new Uint8Array([7]), contentType: "application/json" },
+      ],
+    });
+
+    expect(results).toEqual([
+      { artifactKey: "ws/w/stim.png", fileName: "stim.png", status: "uploaded", osfFileId: "file1", osfPath: "/file1", osfUrl: "https://osf.io/node-1/files/osfstorage" },
+      { artifactKey: "design-snapshot.json", fileName: "design-snapshot.json", status: "uploaded", osfFileId: "file2", osfPath: "/file2", osfUrl: "https://osf.io/node-1/files/osfstorage" },
+    ]);
+
+    // File bytes went to the WaterButler host with a Bearer header and a raw body.
+    const put1 = calls.find((c) => c.url === `${PROVIDER}/fold1/?kind=file&name=stim.png`)!;
+    expect(put1.headers.Authorization).toBe("Bearer osf-access-token");
+    expect(put1.headers["Content-Type"]).toBe("image/png");
+    expect(put1.body).toBeInstanceOf(Uint8Array);
+    // No JSON:API envelope — the body is the file itself.
+    expect(put1.headers["Content-Type"]).not.toBe("application/vnd.api+json");
+  });
+
+  it("updates an existing file (new version) when we already know its OSF id — no name, no folder create", async () => {
+    const calls = mockFetch((c) => {
+      if (c.method === "GET" && c.url.includes("/files/osfstorage/"))
+        return j({ data: [{ attributes: { kind: "folder", name: "Materials", path: "/fold1/" }, relationships: { files: { links: { related: { href: "https://api.osf.io/v2/children" } } } } }] }, 200);
+      if (c.method === "PUT" && c.url === `${PROVIDER}/file1?kind=file`)
+        return j({ data: { attributes: { kind: "file", name: "stim.png", path: "/file1" } } }, 200);
+      return undefined;
+    });
+
+    const results = await osfRegistry.uploadMaterials("user-1", {
+      nodeId: "node-1",
+      folderName: "Materials",
+      files: [{ artifactKey: "ws/w/stim.png", fileName: "stim.png", bytes: new Uint8Array([9]), existingOsfFileId: "file1" }],
+    });
+
+    expect(results[0]).toMatchObject({ status: "uploaded", osfFileId: "file1" });
+    expect(calls.some((c) => c.url.includes("kind=folder"))).toBe(false); // folder existed
+    expect(calls.some((c) => c.url.includes("&name="))).toBe(false); // update carries no name
+  });
+
+  it("on a 409 name collision, resolves the existing file id from the folder listing and updates it", async () => {
+    mockFetch((c) => {
+      if (c.method === "GET" && c.url === "https://api.osf.io/v2/nodes/node-1/files/osfstorage/")
+        return j({ data: [{ attributes: { kind: "folder", name: "Materials", path: "/fold1/" }, relationships: { files: { links: { related: { href: "https://api.osf.io/v2/children" } } } } }] }, 200);
+      if (c.method === "PUT" && c.url === `${PROVIDER}/fold1/?kind=file&name=stim.png`)
+        return new Response("conflict", { status: 409 });
+      if (c.method === "GET" && c.url === "https://api.osf.io/v2/children")
+        return j({ data: [{ attributes: { kind: "file", name: "stim.png", path: "/file9" } }] }, 200);
+      if (c.method === "PUT" && c.url === `${PROVIDER}/file9?kind=file`)
+        return j({ data: { attributes: { kind: "file", name: "stim.png", path: "/file9" } } }, 200);
+      return undefined;
+    });
+
+    const results = await osfRegistry.uploadMaterials("user-1", {
+      nodeId: "node-1",
+      folderName: "Materials",
+      files: [{ artifactKey: "ws/w/stim.png", fileName: "stim.png", bytes: new Uint8Array([5]) }],
+    });
+    expect(results[0]).toMatchObject({ status: "uploaded", osfFileId: "file9" });
+  });
+
+  it("captures a per-file failure without aborting the batch", async () => {
+    mockFetch((c) => {
+      if (c.method === "GET" && c.url.includes("/files/osfstorage/")) return j({ data: [] }, 200);
+      if (c.url === `${PROVIDER}/?kind=folder&name=Materials`)
+        return j({ data: { attributes: { kind: "folder", name: "Materials", path: "/fold1/" } } });
+      if (c.url === `${PROVIDER}/fold1/?kind=file&name=bad.png`) return new Response("boom", { status: 500 });
+      if (c.url === `${PROVIDER}/fold1/?kind=file&name=ok.png`)
+        return j({ data: { attributes: { kind: "file", name: "ok.png", path: "/file2" } } });
+      return undefined;
+    });
+
+    const results = await osfRegistry.uploadMaterials("user-1", {
+      nodeId: "node-1",
+      folderName: "Materials",
+      files: [
+        { artifactKey: "a", fileName: "bad.png", bytes: new Uint8Array([1]) },
+        { artifactKey: "b", fileName: "ok.png", bytes: new Uint8Array([2]) },
+      ],
+    });
+    expect(results[0]).toMatchObject({ status: "failed" });
+    expect(results[0].error).toMatch(/create 500/);
+    expect(results[1]).toMatchObject({ status: "uploaded", osfFileId: "file2" });
+  });
+
+  it("aborts the whole batch on a 401 (auth failure)", async () => {
+    mockFetch((c) => {
+      if (c.method === "GET" && c.url.includes("/files/osfstorage/")) return new Response("nope", { status: 401 });
+      return undefined;
+    });
+    await expect(
+      osfRegistry.uploadMaterials("user-1", {
+        nodeId: "node-1",
+        folderName: "Materials",
+        files: [{ artifactKey: "a", fileName: "a.png", bytes: new Uint8Array([1]) }],
+      }),
+    ).rejects.toThrow(/reconnect in Settings/);
+  });
+});
+
 describe("osfIdFromDoi", () => {
   it("extracts the lowercased OSF guid from a full DOI", () => {
     expect(osfIdFromDoi("10.17605/OSF.IO/RXZQA")).toBe("rxzqa");

@@ -69,4 +69,16 @@ export const r2Storage: StorageAdapter = {
       throw new Error(`R2 delete failed for ${key}: ${res.status}`);
     }
   },
+  // Server-side read (ADR-0094 OSF materials upload). aws4fetch signs + executes
+  // a GET; the bytes DO pass through our function here (the one exception to the
+  // presign-only rule), so this path is server-only and never on the hot path.
+  getBytes: async (key) => {
+    const cfg = init();
+    if (!cfg) throw new Error("R2 storage is not configured (R2_* env vars missing).");
+    const res = await cfg.client.fetch(`${cfg.endpoint}/${key}`, { method: "GET" });
+    if (!res.ok) {
+      throw new Error(`R2 read failed for ${key}: ${res.status}`);
+    }
+    return new Uint8Array(await res.arrayBuffer());
+  },
 };

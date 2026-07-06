@@ -19,6 +19,11 @@ export interface StorageAdapter {
    *  Used by study/response erasure (ADR-0082/0083 data-lifecycle). No-op when
    *  storage is unconfigured (local dev) so callers can fire-and-forget. */
   delete(key: string): Promise<void>;
+  /** Read an object's bytes SERVER-SIDE. Unlike presign*, this streams the file
+   *  through our function — reserved for the rare server-to-server forward
+   *  (OSF materials upload, ADR-0094), never the participant/browser path.
+   *  Throws when storage is unconfigured or the object is missing. */
+  getBytes(key: string): Promise<Uint8Array>;
 }
 
 // Active implementation. Switching vendors is a one-line change here.

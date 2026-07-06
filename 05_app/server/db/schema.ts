@@ -990,6 +990,61 @@ export const registryPush = pgTable("registry_push", {
   completedAt: timestamp("completed_at", { withTimezone: true }),
 });
 
+/* ---------- OSF materials upload (ADR-0094) ----------
+ * Per-artifact state for pushing a study's materials (stimulus files + the
+ * design-snapshot.json + the protocol.pdf) to the study's editable OSF project
+ * node via WaterButler. One row per (study, artifact); a re-push updates the
+ * same row and PUTs a new file version on OSF (osfFileId reused). Registrations
+ * are immutable, so files always land on the mutable project node, never the
+ * registration. Participant response media is never uploaded (ADR-0094). */
+export const osfMaterialUploadStatus = pgEnum("osf_material_upload_status", [
+  "pending",
+  "uploaded",
+  "failed",
+  "skipped",
+]);
+
+export const osfMaterialUploadKind = pgEnum("osf_material_upload_kind", [
+  "stimulus",
+  "design-json",
+  "protocol-pdf",
+]);
+
+export const osfMaterialUpload = pgTable(
+  "osf_material_upload",
+  {
+    id: text("id").primaryKey(), // ULID
+    experimentId: uuid("experiment_id")
+      .notNull()
+      .references(() => experiment.id),
+    // Which frozen version's content was last uploaded (informational; the
+    // design JSON + PDF are version-specific, stimuli are workspace assets).
+    experimentVersionId: uuid("experiment_version_id").references(() => experimentVersion.id),
+    // The OSF project node the file lives on (from registry_push.responsePayload.nodeId).
+    nodeId: text("node_id").notNull(),
+    kind: osfMaterialUploadKind("kind").notNull(),
+    // Identity within the study for idempotency: the R2 key for a stimulus, or a
+    // fixed sentinel ("design-snapshot.json" / "protocol.pdf") for the generated ones.
+    artifactKey: text("artifact_key").notNull(),
+    fileName: text("file_name").notNull(),
+    // WaterButler file identity, captured on first upload so re-push updates the
+    // existing OSF file (a new version) instead of colliding (409).
+    osfFileId: text("osf_file_id"),
+    osfPath: text("osf_path"),
+    osfUrl: text("osf_url"),
+    status: osfMaterialUploadStatus("status").notNull().default("pending"),
+    sizeBytes: integer("size_bytes"),
+    errorText: text("error_text"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    uploadedAt: timestamp("uploaded_at", { withTimezone: true }),
+  },
+  (t) => [
+    // One row per artifact per study — a re-push upserts on this key.
+    uniqueIndex("osf_material_upload_study_artifact_uq").on(t.experimentId, t.artifactKey),
+  ],
+);
+
 /* ---------- V1.7: notifications, comments, activity (ADR-0015) ----------
  * Own PKs are text ULIDs; FKs to existing tables use their column type (uuid
  * for user/workspace/experiment), polymorphic refs are plain text — the V1.5

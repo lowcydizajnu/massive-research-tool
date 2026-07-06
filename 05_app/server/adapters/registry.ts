@@ -70,6 +70,35 @@ export type RegistrationStatus = {
   public: boolean;
 };
 
+/** One file to upload to the registry's file storage (ADR-0094). */
+export type MaterialFile = {
+  /** Caller's stable identity for the artifact (R2 key or a sentinel) — echoed
+   *  back in the result so the caller can persist per-artifact state. */
+  artifactKey: string;
+  /** Filename to create on the registry. */
+  fileName: string;
+  bytes: Uint8Array;
+  contentType?: string;
+  /** The registry's file id from a prior upload — present → update (new version)
+   *  rather than create, avoiding a name collision. */
+  existingOsfFileId?: string | null;
+};
+
+/** Outcome of one file upload (ADR-0094). Never throws for a single file — a
+ *  failure is reported here so one bad file doesn't abort the batch. */
+export type MaterialUploadResult = {
+  artifactKey: string;
+  fileName: string;
+  status: "uploaded" | "failed";
+  /** The registry file id (for a later new-version update); null on failure. */
+  osfFileId: string | null;
+  /** The registry's internal path for the file (diagnostic). */
+  osfPath: string | null;
+  /** A human-openable URL to view the file on the registry. */
+  osfUrl: string | null;
+  error?: string;
+};
+
 export interface RegistryAdapter {
   /** OAuth: the URL a user visits to authorize their registry account. The
    *  redirect URI is adapter config (must match the registered app), not a
@@ -109,6 +138,18 @@ export interface RegistryAdapter {
    * project node from the original push (`registry_push.responsePayload.nodeId`).
    */
   pushRecordSummary(userId: string, input: { nodeId: string; summary: string }): Promise<void>;
+  /**
+   * Upload study materials (files) to the MUTABLE project node's file storage
+   * (ADR-0094). Never targets the frozen registration (immutable). Creates/reuses
+   * a folder, then creates or new-versions each file. Per-file failures are
+   * returned, not thrown, so one bad file doesn't abort the batch. `nodeId` is
+   * the OSF project node from the original push
+   * (`registry_push.responsePayload.nodeId`).
+   */
+  uploadMaterials(
+    userId: string,
+    input: { nodeId: string; folderName: string; files: MaterialFile[] },
+  ): Promise<MaterialUploadResult[]>;
 }
 
 // Active implementation. Switching registries is a one-line change here.

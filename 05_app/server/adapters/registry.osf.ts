@@ -6,6 +6,7 @@ import { registry as registryTable, registryConnection } from "@/server/db/schem
 import { decryptSecret, encryptSecret } from "@/server/crypto/tokens";
 
 import type {
+  MaterialUploadResult,
   PushResult,
   RegistrationPayload,
   RegistryAdapter,
@@ -37,6 +38,9 @@ export function osfConfig() {
     authorizeUrl: process.env.OSF_AUTHORIZE_URL ?? "https://accounts.osf.io/oauth2/authorize",
     tokenUrl: process.env.OSF_TOKEN_URL ?? "https://accounts.osf.io/oauth2/token",
     apiBase: process.env.OSF_API_BASE ?? "https://api.osf.io/v2",
+    // WaterButler file host (ADR-0094) — file bytes go here, NOT apiBase. Same
+    // bearer token; `osf.full_write` already covers file write (NODE_FILE_WRITE).
+    filesBase: process.env.OSF_FILES_BASE ?? "https://files.osf.io/v1",
     scopes: process.env.OSF_SCOPES ?? "osf.full_write",
     // Registration schema to file under. "Open-Ended Registration" has a single
     // free-text `summary` response, so our lossless snapshot always validates —
@@ -181,6 +185,105 @@ function buildSummary(payload: RegistrationPayload): string {
     body +
     `\n\n--- Machine-readable design snapshot ---\n${json}`
   );
+}
+
+/* ---------- OSF file storage (WaterButler) — ADR-0094 ----------
+ * File BYTES go to the WaterButler host (`filesBase`), not the JSON:API host.
+ * Same bearer token; `osf.full_write` covers file write. We only ever write to
+ * the mutable PROJECT node (registrations are immutable). osfstorage identifies
+ * items by opaque path ids; the v2 file listing gives them to us.
+ */
+
+/** A v2 osfstorage file/folder item (only the fields we read). */
+type OsfFileItem = {
+  attributes?: { kind?: string; name?: string; path?: string };
+  relationships?: { files?: { links?: { related?: { href?: string } } } };
+};
+
+/** Strip the leading slash WaterButler/v2 put on `attributes.path`
+ *  ("/<id>/" → "<id>/", "/<id>" → "<id>"). */
+function osfPathId(path: string | undefined): string {
+  return (path ?? "").replace(/^\/+/, "");
+}
+
+/** Page through a v2 osfstorage listing, yielding every item. */
+async function osfListFiles(token: string, url: string): Promise<OsfFileItem[]> {
+  const out: OsfFileItem[] = [];
+  let next: string | null = url;
+  while (next) {
+    const res = await fetch(next, { headers: { Authorization: `Bearer ${token}`, Accept: JSON_API } });
+    if (res.status === 401) {
+      throw new OsfNotConnectedError(
+        "OSF rejected the stored token (it may have been revoked or regenerated) — reconnect in Settings · Connections.",
+      );
+    }
+    if (!res.ok) throw new Error(`OSF file listing failed: ${res.status} ${await res.text()}`);
+    const json = (await res.json()) as { data: OsfFileItem[]; links?: { next?: string | null } };
+    out.push(...json.data);
+    next = json.links?.next ?? null;
+  }
+  return out;
+}
+
+/** Find a folder by name at the node's osfstorage root. Returns its path id
+ *  ("<id>/") + the href to list its children, or null when absent. */
+async function findOsfFolder(
+  token: string,
+  nodeId: string,
+  name: string,
+): Promise<{ pathId: string; childrenHref: string | null } | null> {
+  const cfg = osfConfig();
+  const items = await osfListFiles(token, `${cfg.apiBase}/nodes/${nodeId}/files/osfstorage/`);
+  const match = items.find((i) => i.attributes?.kind === "folder" && i.attributes?.name === name);
+  if (!match) return null;
+  return {
+    pathId: osfPathId(match.attributes?.path),
+    childrenHref: match.relationships?.files?.links?.related?.href ?? null,
+  };
+}
+
+/** Ensure the materials folder exists at the node root; returns its upload path
+ *  id ("<id>/") + a children-listing href (null when we just created it, since
+ *  a fresh folder is empty so no name collision is possible). */
+async function ensureOsfFolder(
+  token: string,
+  nodeId: string,
+  name: string,
+): Promise<{ pathId: string; childrenHref: string | null }> {
+  const found = await findOsfFolder(token, nodeId, name);
+  if (found) return found;
+  const cfg = osfConfig();
+  const res = await fetch(
+    `${cfg.filesBase}/resources/${nodeId}/providers/osfstorage/?kind=folder&name=${encodeURIComponent(name)}`,
+    { method: "PUT", headers: { Authorization: `Bearer ${token}` } },
+  );
+  if (res.status === 401) {
+    throw new OsfNotConnectedError(
+      "OSF rejected the stored token (it may have been revoked or regenerated) — reconnect in Settings · Connections.",
+    );
+  }
+  if (res.status === 409) {
+    // Raced / already exists — re-read.
+    const again = await findOsfFolder(token, nodeId, name);
+    if (again) return again;
+  }
+  if (!res.ok) throw new Error(`OSF folder create failed: ${res.status} ${await res.text()}`);
+  const data = (await res.json()) as { data?: OsfFileItem };
+  return { pathId: osfPathId(data.data?.attributes?.path), childrenHref: null };
+}
+
+/** PUT raw bytes to WaterButler (create or update). Returns the raw Response so
+ *  the caller can branch on 409 (name collision). */
+function osfWbPut(token: string, url: string, bytes: Uint8Array, contentType?: string): Promise<Response> {
+  return fetch(url, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(contentType ? { "Content-Type": contentType } : {}),
+    },
+    // aws4fetch/WaterButler want the raw body, not a form/JSON envelope.
+    body: bytes as unknown as BodyInit,
+  });
 }
 
 export const osfRegistry: RegistryAdapter = {
@@ -511,6 +614,87 @@ export const osfRegistry: RegistryAdapter = {
     if (!res.ok) {
       throw new Error(`OSF record push failed: ${res.status} ${(await res.text()).slice(0, 500)}`);
     }
+  },
+
+  // Upload materials to the mutable project node's osfstorage (ADR-0094). Files
+  // go into a named folder; each file is created (201) or, when we already know
+  // its OSF id, updated in place (200 → new version). A create that hits a name
+  // collision (409) resolves the existing file's id from the folder listing and
+  // updates it instead — so re-pushing never duplicates. Per-file failures are
+  // captured, never thrown, so one bad file can't abort the batch. Only the
+  // frozen registration is off-limits; the project node is writable.
+  async uploadMaterials(userId, { nodeId, folderName, files }): Promise<MaterialUploadResult[]> {
+    const token = await osfAccessToken(userId);
+    const cfg = osfConfig();
+    const provider = `${cfg.filesBase}/resources/${nodeId}/providers/osfstorage`;
+    const folder = await ensureOsfFolder(token, nodeId, folderName);
+    // A file's public-ish OSF location: the project's Files tab (osfstorage). We
+    // don't get a per-file GUID page from WaterButler, so link to the folder view.
+    const folderUrl = `https://osf.io/${nodeId}/files/osfstorage`;
+
+    const results: MaterialUploadResult[] = [];
+    for (const f of files) {
+      try {
+        let entity: OsfFileItem;
+        if (f.existingOsfFileId) {
+          // Known file → update to a new version.
+          const res = await osfWbPut(
+            token,
+            `${provider}/${f.existingOsfFileId}?kind=file`,
+            f.bytes,
+            f.contentType,
+          );
+          if (res.status === 401) throw new OsfNotConnectedError();
+          if (!res.ok) throw new Error(`update ${res.status} ${(await res.text()).slice(0, 300)}`);
+          entity = ((await res.json()) as { data: OsfFileItem }).data;
+        } else {
+          // New file in the folder.
+          const createUrl = `${provider}/${folder.pathId}?kind=file&name=${encodeURIComponent(f.fileName)}`;
+          const res = await osfWbPut(token, createUrl, f.bytes, f.contentType);
+          if (res.status === 401) throw new OsfNotConnectedError();
+          if (res.status === 409) {
+            // Same-named file already there and we didn't have its id — find + update.
+            const existingId = folder.childrenHref
+              ? osfPathId(
+                  (await osfListFiles(token, folder.childrenHref)).find(
+                    (i) => i.attributes?.kind === "file" && i.attributes?.name === f.fileName,
+                  )?.attributes?.path,
+                )
+              : "";
+            if (!existingId) {
+              throw new Error(`a file named "${f.fileName}" already exists on OSF`);
+            }
+            const up = await osfWbPut(token, `${provider}/${existingId}?kind=file`, f.bytes, f.contentType);
+            if (!up.ok) throw new Error(`update-after-409 ${up.status} ${(await up.text()).slice(0, 300)}`);
+            entity = ((await up.json()) as { data: OsfFileItem }).data;
+          } else if (!res.ok) {
+            throw new Error(`create ${res.status} ${(await res.text()).slice(0, 300)}`);
+          } else {
+            entity = ((await res.json()) as { data: OsfFileItem }).data;
+          }
+        }
+        results.push({
+          artifactKey: f.artifactKey,
+          fileName: f.fileName,
+          status: "uploaded",
+          osfFileId: osfPathId(entity?.attributes?.path) || f.existingOsfFileId || null,
+          osfPath: entity?.attributes?.path ?? null,
+          osfUrl: folderUrl,
+        });
+      } catch (e) {
+        if (e instanceof OsfNotConnectedError) throw e; // auth failure aborts the batch
+        results.push({
+          artifactKey: f.artifactKey,
+          fileName: f.fileName,
+          status: "failed",
+          osfFileId: f.existingOsfFileId ?? null,
+          osfPath: null,
+          osfUrl: null,
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
+    }
+    return results;
   },
 };
 
