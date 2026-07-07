@@ -113,7 +113,7 @@ export function BlockView({
   if (block.key === "notification")
     return <NotificationView config={c} np={np} responseId={responseId ?? ""} instanceId={block.instanceId} />;
   if (block.key === "modal") return <ModalView config={c} np={np} />;
-  if (block.key === "login") return <LoginView config={c} np={np} bare={bareOverlay} />;
+  if (block.key === "login") return <LoginView config={c} np={np} bare={bareOverlay} responseId={responseId ?? ""} />;
   // V1.12 C2 — standard form blocks.
   if (block.key === "email") return <SimpleFieldInput config={c} type="email" np={np} />;
   if (block.key === "url") return <SimpleFieldInput config={c} type="url" np={np} />;

@@ -6,6 +6,8 @@ import { BackNavigationGuard } from "@/components/feature/take/back-navigation-g
 import { BlockView } from "@/components/feature/take/block-view";
 import { InteractionGate } from "@/components/feature/take/interaction-gate";
 import { PersistentNotificationHost } from "@/components/feature/take/persistent-notifications";
+import { SignedInBar } from "@/components/feature/take/study-variable-bar";
+import { StudyVariableHydrator } from "@/components/feature/take/study-variable-hydrator";
 import { RevealGate } from "@/components/feature/take/reveal-gate";
 import { Card, ScreenHeader } from "@/components/feature/take/parts";
 import { getRuntimeScreen } from "@/server/runtime/participant";
@@ -73,6 +75,11 @@ export default async function ScreenPage({
           anchor screen — rendered into #take-topbar, so this mount is invisible
           on screens with no carried notice. */}
       <PersistentNotificationHost responseId={sessionId} screenIndex={index} />
+      {/* Study variables (ADR-0099): the signed-in bar (username in the top slot)
+          + the `{token}` hydrator that fills participant-entered values into copy.
+          Client-only; the value never leaves the participant's browser tab. */}
+      <SignedInBar responseId={sessionId} />
+      <StudyVariableHydrator responseId={sessionId} />
       {/* Back off (default) hides the Back button AND traps the browser Back
           arrow — one researcher choice for both (owner 2026-07-06). Preview keeps
           normal navigation so the researcher can move around freely. */}

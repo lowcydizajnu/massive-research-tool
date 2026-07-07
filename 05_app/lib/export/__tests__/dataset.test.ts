@@ -340,8 +340,13 @@ describe("export companions (V1.12 D — formats)", () => {
     const keys = cols.map((c) => c.key);
     expect(keys).not.toContain("login1"); // packed per-block column excluded
     expect(keys).toEqual(expect.arrayContaining(["loginaction:login1", "loginatms:login1", "logintypedu:login1", "logintypedp:login1"]));
-    // No column carries a typed username/password value — only the booleans exist.
-    expect(keys.some((k) => /username$|password$/.test(cols.find((c) => c.key === k)!.label) && !/typed_/.test(cols.find((c) => c.key === k)!.label))).toBe(false);
+    // Exactly these four behavioural columns — no 5th column that could carry a
+    // typed username/password VALUE (ADR-0098 leak guard). The username/password
+    // columns are 1/0 booleans; the reused-username value (ADR-0099) stays in the
+    // participant's browser and never reaches export.
+    expect(cols.filter((c) => c.key.endsWith(":login1")).map((c) => c.key).sort()).toEqual(
+      ["loginaction:login1", "loginatms:login1", "logintypedp:login1", "logintypedu:login1"],
+    );
     const m = buildMatrix(r, cols.filter((c) => c.key.startsWith("login")));
     expect(m.rows).toEqual([["submit", "4200", "true", "true"]]);
   });

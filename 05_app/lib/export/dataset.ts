@@ -167,8 +167,11 @@ export function baseColumns(results: ResultsSummary): ExportColumn[] {
       ];
     });
   // Login (ADR-0098): behavioural signals ONLY — the action, its timing, and
-  // whether the participant typed into each field. There are NO value columns:
-  // the typed username/password are never recorded.
+  // whether the participant typed into each field (1/0). There are NO value
+  // columns: the typed username/password are never recorded (even when the
+  // username is reused in-run as a study variable, ADR-0099 — that stays in the
+  // participant's browser and never reaches export). The "Username" column is the
+  // 1/0 "did they type one" signal (owner 2026-07-07).
   const login = results.questions
     .filter((q) => q.moduleKey === "login")
     .flatMap((q): ExportColumn[] => {
@@ -177,8 +180,8 @@ export function baseColumns(results: ResultsSummary): ExportColumn[] {
       return [
         { key: `loginaction:${q.instanceId}`, source: `${src} — action`, type: "categorical", label: dedupe(`${base}_action`), hidden: false },
         { key: `loginatms:${q.instanceId}`, source: `${src} — time to action (ms)`, type: "numeric", label: dedupe(`${base}_action_ms`), hidden: false },
-        { key: `logintypedu:${q.instanceId}`, source: `${src} — typed username`, type: "categorical", label: dedupe(`${base}_typed_username`), hidden: false },
-        { key: `logintypedp:${q.instanceId}`, source: `${src} — typed password`, type: "categorical", label: dedupe(`${base}_typed_password`), hidden: false },
+        { key: `logintypedu:${q.instanceId}`, source: `${src} — username (1 = typed, 0 = not)`, type: "categorical", label: dedupe(`${base}_username`), hidden: false },
+        { key: `logintypedp:${q.instanceId}`, source: `${src} — password (1 = typed, 0 = not)`, type: "categorical", label: dedupe(`${base}_password`), hidden: false },
       ];
     });
   return [...meta, ...questions, ...viz, ...emotion, ...socialPost, ...notifModal, ...login];

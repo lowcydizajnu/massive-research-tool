@@ -41,10 +41,21 @@ Everything else the block needs — a trigger (on-load / after / conditional), a
 - **Committed to:** never persisting typed credentials; deception attestation gating; advance-via-Continue.
 - **Precluded (for now):** storing the typed username (Option C); a real auth handshake; multi-step login flows (email → password screens).
 
+## Amendment — 2026-07-07 (captureUsername → study variable, runtime-only, never exported)
+
+Revisit trigger #1 fired: the owner wants the typed **username** reused in-run — shown in a nav bar and dropped into message/block copy — *"only saved for experiment runtime but not exported... In export we can have column Username which values is 1 or 0."* This is **not** Option C (which anticipated server-side persistence + encryption at rest). The value is captured **client-side only** and never reaches the server/DB/export, so the do-not-record construction below is **preserved unchanged** — this amendment adds a display/immersion path, not a recording path.
+
+**Decision** (see **ADR-0099 — study variables**, which owns the primitive):
+- **`captureUsername` config (default ON) + `usernameVar` name (default `username`).** When on, the login's client island reads the username input value on submit and writes it to the client-only study-variable carry (`sessionStorage`, ADR-0099) **before** advancing. The username `<input>` still carries **no `name`** — the value never enters the form POST, the server, or the DB. The **password is never captured**, unconditionally.
+- **`showSignedInBar` (default ON) + `signedInTemplate` (default "Signed in as {username}").** After the participant signs in, a slim signed-in bar renders into `#take-topbar` on later screens, and `{username}` resolves in any participant-facing copy (ADR-0099's hydrator).
+- **Export unchanged.** The typed-username column stays a **1/0** signal (relabelled "Username"). No username *value* column exists anywhere — the recorded answer shape is untouched, and the "no credential value in the answer" regression test still holds.
+
+Net: Option C (persisting the typed username server-side, with encryption) remains **precluded**. This amendment only carries the value in the participant's own browser tab for the duration of their run.
+
 ## Revisit triggers
 
-- A study genuinely needs the typed **username** value → its own ADR with a loud opt-in + encryption (never the password).
-- The Toolbar/Nav block needs shared "study variables" (reuse a username across blocks) → the study-variables ADR (names this block as a producer).
+- A study genuinely needs the typed **username** value *in the export / server logic* → still its own decision with a loud opt-in + encryption (never the password); ADR-0099 explicitly does **not** do this.
+- The Toolbar/Nav block needs shared "study variables" (reuse a username across blocks) → **ADR-0099** (this block is the first producer).
 - Multi-step / SSO-popup fidelity is required → extend the login renderer.
 
 ## References

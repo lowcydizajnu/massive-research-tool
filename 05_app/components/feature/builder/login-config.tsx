@@ -43,6 +43,10 @@ type Cfg = {
   showSignup: boolean;
   triggerKind: "on-load" | "after" | "conditional";
   triggerAfterSec: number;
+  captureUsername: boolean;
+  usernameVar: string;
+  showSignedInBar: boolean;
+  signedInTemplate: string;
   imitatesReal: boolean;
   deceptionAck: boolean;
 };
@@ -75,6 +79,10 @@ export function LoginConfig({
     showSignup: init.showSignup !== false,
     triggerKind: init.triggerKind ?? "on-load",
     triggerAfterSec: typeof init.triggerAfterSec === "number" ? init.triggerAfterSec : 3,
+    captureUsername: init.captureUsername !== false,
+    usernameVar: init.usernameVar ?? "username",
+    showSignedInBar: init.showSignedInBar !== false,
+    signedInTemplate: init.signedInTemplate ?? "Signed in as {username}",
     imitatesReal: init.imitatesReal !== false,
     deceptionAck: init.deceptionAck === true,
   });
@@ -109,8 +117,10 @@ export function LoginConfig({
       </div>
 
       <p className="rounded-[var(--radius-md)] bg-[var(--color-primary-subtle)] p-3 text-[length:var(--text-small)] text-[var(--color-primary-text-on-subtle)]">
-        Privacy: what the participant types into the username and password fields is <strong>never recorded</strong>. Only their action
-        (sign-in / SSO / ignored), its timing, and whether they typed into each field are saved.
+        Privacy: what the participant types is <strong>never recorded or exported</strong> — your data has only their action
+        (sign-in / SSO / ignored), its timing, and a <strong>1/0 “Username” column</strong> (did they type one). The password is never
+        captured. If you turn on “Reuse the username” below, the value is kept <strong>only in the participant’s browser for this run</strong>
+        (to personalise later screens) and still never reaches your data.
       </p>
 
       {/* Brand */}
@@ -165,6 +175,46 @@ export function LoginConfig({
             );
           })}
         </div>
+      </div>
+
+      {/* Personalisation — reuse the typed username as a study variable (ADR-0099).
+          Client-only: the value never reaches the server / DB / export. */}
+      <div className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-3">
+        <span className={labelCls}>Personalisation</span>
+        <label className="flex items-center gap-2 text-[length:var(--text-body)] text-[var(--color-text-primary)]">
+          <input type="checkbox" checked={cfg.captureUsername} onChange={(e) => set({ captureUsername: e.target.checked })} className="size-4 accent-[var(--color-primary)]" />
+          Reuse the typed username later in this run
+        </label>
+        {cfg.captureUsername ? (
+          <>
+            <label className="flex flex-col gap-1">
+              <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+                Variable name — reference it as <code className="font-mono">{`{${(cfg.usernameVar || "username").trim() || "username"}}`}</code> in any text
+              </span>
+              <input
+                value={cfg.usernameVar}
+                placeholder="username"
+                onChange={(e) => set({ usernameVar: e.target.value.replace(/[^a-zA-Z0-9_]/g, "") })}
+                className={fieldCls}
+              />
+            </label>
+            <label className="flex items-center gap-2 text-[length:var(--text-body)] text-[var(--color-text-primary)]">
+              <input type="checkbox" checked={cfg.showSignedInBar} onChange={(e) => set({ showSignedInBar: e.target.checked })} className="size-4 accent-[var(--color-primary)]" />
+              Show a “signed in” bar on later screens
+            </label>
+            {cfg.showSignedInBar ? (
+              <input
+                value={cfg.signedInTemplate}
+                placeholder="Signed in as {username}"
+                onChange={(e) => set({ signedInTemplate: e.target.value })}
+                className={fieldCls}
+              />
+            ) : null}
+            <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+              Kept only in the participant’s browser for this run — never recorded or exported.
+            </p>
+          </>
+        ) : null}
       </div>
 
       {/* Extras + behaviour */}

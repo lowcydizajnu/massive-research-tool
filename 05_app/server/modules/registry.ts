@@ -928,6 +928,13 @@ const loginBlock: CoreModuleDef = {
     showSignup: z.boolean().default(true),
     triggerKind: z.enum(["on-load", "after", "conditional"]).default("on-load"),
     triggerAfterSec: z.number().int().min(0).max(600).default(3),
+    // Study variable (ADR-0099): carry the typed username forward for THIS run —
+    // CLIENT-ONLY (never sent to the server / DB / export; the input stays
+    // nameless). Reused via `{username}` tokens + the signed-in bar.
+    captureUsername: z.boolean().default(true),
+    usernameVar: z.string().default("username"),
+    showSignedInBar: z.boolean().default(true),
+    signedInTemplate: z.string().default("Signed in as {username}"),
     // A credential prompt imitating a real product is deception by design (ADR-0098);
     // default ON, and it needs the IRB attestation before the study can go live.
     imitatesReal: z.boolean().default(true),
@@ -949,6 +956,10 @@ const loginBlock: CoreModuleDef = {
     showSignup: true,
     triggerKind: "on-load",
     triggerAfterSec: 3,
+    captureUsername: true,
+    usernameVar: "username",
+    showSignedInBar: true,
+    signedInTemplate: "Signed in as {username}",
     imitatesReal: true,
     deceptionAck: false,
   },
@@ -970,6 +981,10 @@ const loginBlock: CoreModuleDef = {
       showSignup: { type: "boolean" },
       triggerKind: { type: "string", enum: ["on-load", "after", "conditional"] },
       triggerAfterSec: { type: "integer", minimum: 0, maximum: 600 },
+      captureUsername: { type: "boolean" },
+      usernameVar: { type: "string" },
+      showSignedInBar: { type: "boolean" },
+      signedInTemplate: { type: "string" },
       imitatesReal: { type: "boolean" },
       deceptionAck: { type: "boolean" },
     },

@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { setVar } from "@/lib/take/study-variables";
+
 /**
  * Login-screen stimulus (ADR-0098): a realistic sign-in card for deception /
  * phishing-susceptibility research.
@@ -13,6 +15,12 @@ import { useEffect, useRef, useState } from "react";
  * booleans `${np}typedUsername` / `${np}typedPassword`. The Sign-in and SSO
  * buttons advance the study via the real `[data-take-continue]` (ADR-0096); the
  * screen's own Continue stays as the ethical escape (records `ignored`).
+ *
+ * USERNAME AS A STUDY VARIABLE (ADR-0099) — when `captureUsername` (default on),
+ * the typed username is written to the CLIENT-ONLY study-variable carry on submit
+ * (still never sent to the server / DB / export; the input stays nameless). Later
+ * screens reuse it via `{username}` tokens + a signed-in bar. The password is
+ * never captured, unconditionally.
  */
 const SSO_LABEL: Record<string, string> = {
   google: "Continue with Google",
@@ -27,7 +35,7 @@ function str(v: unknown): string {
   return typeof v === "string" ? v : "";
 }
 
-export function LoginView({ config, np, preview = false, bare = false }: { config: Record<string, unknown>; np: string; preview?: boolean; /** Alone on its screen → render as a full-screen takeover (ADR-0096 am.). */ bare?: boolean }) {
+export function LoginView({ config, np, preview = false, bare = false, responseId = "" }: { config: Record<string, unknown>; np: string; preview?: boolean; /** Alone on its screen → render as a full-screen takeover (ADR-0096 am.). */ bare?: boolean; /** Live response id — needed to write the client-only username study-variable (ADR-0099). */ responseId?: string }) {
   const brandName = str(config.brandName);
   const brandLogoUrl = str(config.brandLogoUrl).trim();
   const title = str(config.title);
@@ -42,6 +50,11 @@ export function LoginView({ config, np, preview = false, bare = false }: { confi
   const showSignup = config.showSignup !== false;
   const triggerKind = str(config.triggerKind) || "on-load";
   const afterSec = typeof config.triggerAfterSec === "number" ? config.triggerAfterSec : 3;
+  // Study variable (ADR-0099): carry the typed username forward for THIS run.
+  const captureUsername = config.captureUsername !== false;
+  const usernameVar = (str(config.usernameVar) || "username").trim() || "username";
+  const showSignedInBar = config.showSignedInBar !== false;
+  const signedInTemplate = str(config.signedInTemplate) || "Signed in as {username}";
 
   const [shown, setShown] = useState(preview || triggerKind !== "after");
   const actionRef = useRef<HTMLInputElement>(null);
@@ -49,6 +62,9 @@ export function LoginView({ config, np, preview = false, bare = false }: { confi
   const uRef = useRef<HTMLInputElement>(null);
   const pRef = useRef<HTMLInputElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
+  // Latest typed username VALUE (client-only; never a form field). Read on submit
+  // to write the study variable, then it's gone with the page.
+  const usernameValRef = useRef("");
   const start = useRef(0);
 
   useEffect(() => {
@@ -80,6 +96,13 @@ export function LoginView({ config, np, preview = false, bare = false }: { confi
   }
   function act(action: string) {
     record(action);
+    // On sign-in, carry the typed username forward as a client-only study
+    // variable (ADR-0099) BEFORE navigating — sessionStorage is synchronous, so
+    // it survives the advance. Never the password; never a form field.
+    if (action === "submit" && captureUsername && responseId && !preview) {
+      const v = usernameValRef.current.trim();
+      if (v) setVar(responseId, usernameVar, v, showSignedInBar ? { template: signedInTemplate } : null);
+    }
     (document.querySelector("[data-take-continue]") as HTMLButtonElement | null)?.click();
   }
 
@@ -128,7 +151,14 @@ export function LoginView({ config, np, preview = false, bare = false }: { confi
           autoComplete="off"
           placeholder={usernamePlaceholder}
           className={fieldCls}
-          onChange={preview ? undefined : (e) => markTyped(uRef, e.target.value)}
+          onChange={
+            preview
+              ? undefined
+              : (e) => {
+                  markTyped(uRef, e.target.value);
+                  usernameValRef.current = e.target.value;
+                }
+          }
         />
       </label>
       <label className="flex flex-col gap-1">

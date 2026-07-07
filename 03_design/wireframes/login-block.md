@@ -25,6 +25,17 @@ A stimulus block that shows a participant a realistic **login / sign-in screen**
 - **SSO buttons × 0–n** — provider set (google / facebook / apple / microsoft / x / generic) — config; each records `sso:<provider>` and advances.
 - **Forgot / Create-account links** — optional, inert (or a `NavTarget` later) — config.
 - **Deception attestation** (when `imitatesReal`) — static warning + attestation, folded into the freeze hard-gate.
+- **Capture username as a variable** (`captureUsername`, default on) + variable name (`usernameVar`, default `username`) — config. Carries the typed username **client-side only** (ADR-0099) for in-run reuse; **still never recorded/exported** — the input keeps no `name`.
+- **Signed-in bar** (`showSignedInBar`, default on) + template (`signedInTemplate`, default "Signed in as {username}") — config. A slim account bar shown in the top slot on screens after sign-in.
+
+## Study variable (username carry-forward) — ADR-0099
+
+The username the participant types can be reused in the same run for immersion, **without ever being recorded or exported**:
+
+- On Sign in, the client island writes the typed username into the client-only study-variable carry (`sessionStorage`, same-tab, cleared on tab close). The input still has no `name` — the value never reaches the server/DB/export.
+- **Signed-in bar** — after sign-in, later screens show "Signed in as *{username}*" (editable) in the `#take-topbar` slot, under the fake nav.
+- **`{username}` in copy** — the token resolves in any participant-facing text (notification/modal/block prompts) via ADR-0099's client hydrator.
+- **Export stays 1/0** — the "Username" column is the *did-they-type-one* boolean, never the value.
 
 ## States
 
@@ -57,5 +68,5 @@ A stimulus block that shows a participant a realistic **login / sign-in screen**
 
 ## Open questions
 
-- Should the typed **username** ever be recordable (opt-in, encrypted)? Deferred to its own ADR — default is never (ADR-0098 Option C).
+- Should the typed **username** ever be recordable (opt-in, encrypted) *in the export*? Still deferred (ADR-0098 Option C). Note: ADR-0099 now reuses the username **at runtime only** (client-only, never exported) — a separate concern from export recording.
 - Two-step (email → password) login fidelity? Deferred — v1 is a single card.
