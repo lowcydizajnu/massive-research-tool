@@ -74,6 +74,22 @@ Live testing surfaced two gaps in the first `fixed-top` render, and the owner se
 
 New code: `05_app/lib/take/notification-carry.ts` (sessionStorage carry + in-page live registry), `05_app/components/feature/take/persistent-notifications.tsx` (the host), amended `notification-view.tsx` (portal + `carried` mode + carry writes).
 
+## Amendment — 2026-07-07 (a notification is chrome, not a screen — it folds onto the next screen)
+
+The bare-overlay render-only pass (ADR-0096 am.) stripped the study card from a lone-notification screen, but the notification **still occupied its own screen** in the builder and the runtime — a banner with nothing beneath it, then a Continue. The owner rejected this twice, unambiguously: *"still is treated as a separate block on separate screen but it should be displayed along with first block after it in builder, or just with group when grouped."* A notification is chrome layered **over** content; it should never be a destination of its own.
+
+**Decision — fold in `deriveScreens`, not in the renderer.** An earlier design pass had ruled out touching `deriveScreens` as "too invasive" because it feared desyncing the 1-based screen numbering that the CTA screen-picker and `resolveScreenHref` depend on. That fear is misplaced *when the fold happens inside `deriveScreens` itself*: every consumer — runtime (`resolveVisibleScreens`), preview, whiteboard, the CTA screen-picker (`builder-workspace.tsx`), and the flow graph — derives its screen list from that one function, so folding there renumbers **all of them identically**. A newly-picked `targetScreen` stores the folded number and the runtime resolves the folded number; they cannot disagree. Doing the fold in the renderer (the rejected render-only path) is what would have desynced builder vs runtime.
+
+`foldNotifications(screens)` runs as the last step of `deriveScreens`:
+- An **ungrouped lone-notification** screen is buffered and **prepended to the next content screen's block list** (so it banners over that screen's content). Consecutive notifications all fold onto the same next screen.
+- **Login / modal own their screen** (full-screen takeover / overlay), so a buffered notification is **not** absorbed into them — it keeps its own screen in that adjacency (the numbering guard test locks this). This is the one case a notification still stands alone.
+- A **trailing** notification (no content screen after it) attaches to the **last content screen**; a study of only notifications keeps them as their own screens (nothing to fold onto).
+- A **grouped** notification is already a member of its group screen — untouched.
+
+Because the notification now shares the next block's screen, its engagement answer records on that shared screen via the same per-screen form (`recordScreenAnswers` writes every block on the resolved screen, keyed by `block_instance_id`) — no recording change. `persist` carry and the out-of-band beacon (ADR-0097) are unaffected.
+
+Changed code: `05_app/lib/whiteboard/screens.ts` (`foldNotifications` helper + call). Tests: `lib/whiteboard/__tests__/screens.test.ts` (fold / consecutive / trailing / login-modal-own-screen numbering guard). **Render-only, no migration, no seed.**
+
 ## Revisit triggers
 
 - Modal/Toolbar need capabilities the minimal seam doesn't cover (multiple simultaneous overlays, stacking, focus-trap depth) → extend the overlay primitive.

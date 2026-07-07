@@ -115,5 +115,53 @@ export function deriveScreens(blocks: BlockInstance[], groups: StudyGroup[]): Sc
       i += 1;
     }
   }
-  return screens;
+  return foldNotifications(screens);
+}
+
+/**
+ * A notification is CHROME, not a screen (owner 2026-07-07): an ungrouped
+ * notification block is folded onto the NEXT content screen (it banners over that
+ * block), rather than getting a standalone screen with an empty study card. A
+ * GROUPED notification already lives in its group screen, so it's untouched. This
+ * runs inside deriveScreens so the runtime, preview, whiteboard, and the CTA
+ * screen-picker all agree — 1-based screen numbering stays consistent everywhere.
+ *
+ * Edge handling: consecutive notifications fold onto the same next content screen;
+ * a notification whose next screen is an OVERLAY (login/modal — which must own
+ * their screen) is NOT merged into it (that would break the full-screen login /
+ * the modal overlay), so it keeps its own screen; trailing notifications with no
+ * content after fold onto the last content screen; a study of only notifications
+ * keeps them as their own screens.
+ */
+function foldNotifications(screens: Screen[]): Screen[] {
+  const isLoneNotif = (s: Screen) => s.kind === "single" && s.blocks.length === 1 && s.blocks[0].key === "notification";
+  const isOverlay = (s: Screen) => s.blocks.length > 0 && s.blocks.every((b) => b.key === "modal" || b.key === "login" || b.key === "notification");
+
+  const out: Screen[] = [];
+  let buffer: BlockInstance[] = []; // notifications waiting for the next content screen
+  const flushOwn = () => {
+    for (const n of buffer) out.push({ id: n.instanceId, kind: "single", title: null, showIf: n.showIf, blocks: [n] });
+    buffer = [];
+  };
+  for (const s of screens) {
+    if (isLoneNotif(s)) {
+      buffer.push(s.blocks[0]);
+    } else if (isOverlay(s)) {
+      // Login / modal must own their screen — don't absorb a notification into it.
+      flushOwn();
+      out.push(s);
+    } else if (buffer.length) {
+      out.push({ ...s, blocks: [...buffer, ...s.blocks] }); // banner(s) over this screen's content
+      buffer = [];
+    } else {
+      out.push(s);
+    }
+  }
+  if (buffer.length) {
+    // Trailing notifications: attach to the last CONTENT screen if there is one.
+    const lastContent = [...out.keys()].reverse().find((k) => !isOverlay(out[k]));
+    if (lastContent !== undefined) out[lastContent] = { ...out[lastContent], blocks: [...out[lastContent].blocks, ...buffer] };
+    else flushOwn();
+  }
+  return out;
 }

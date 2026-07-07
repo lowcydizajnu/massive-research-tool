@@ -19,12 +19,31 @@ describe("deriveScreens (ADR-0028)", () => {
     expect(s.map((x) => x.id)).toEqual(["a", "b"]);
   });
 
-  it("an imitation surface (modal / notification / login) still gets its OWN screen — numbering is untouched (ADR-0096 am.)", () => {
-    // The bare-overlay fix is render-only: it must NOT filter these out of the
-    // screen list (that would shift every 1-based screen index the CTA picker +
-    // resolveScreenHref depend on). Guards against a regression toward filtering.
-    const s = deriveScreens([blk("intro"), blk("n1", undefined, "notification"), blk("l1", undefined, "login"), blk("q")], []);
-    expect(s.map((x) => x.id)).toEqual(["intro", "n1", "l1", "q"]);
+  it("a lone notification FOLDS onto the next content screen — it's chrome, not its own screen (owner 2026-07-07)", () => {
+    const s = deriveScreens([blk("intro"), blk("n1", undefined, "notification"), blk("q")], []);
+    expect(s).toHaveLength(2); // notification merged into q's screen, not standalone
+    expect(s.map((x) => x.id)).toEqual(["intro", "q"]);
+    expect(s[1].blocks.map((b) => b.instanceId)).toEqual(["n1", "q"]); // banner over q
+  });
+
+  it("consecutive notifications all fold onto the next content screen", () => {
+    const s = deriveScreens([blk("n1", undefined, "notification"), blk("n2", undefined, "notification"), blk("q")], []);
+    expect(s).toHaveLength(1);
+    expect(s[0].blocks.map((b) => b.instanceId)).toEqual(["n1", "n2", "q"]);
+  });
+
+  it("a trailing notification (no content after) folds onto the last content screen", () => {
+    const s = deriveScreens([blk("q"), blk("n1", undefined, "notification")], []);
+    expect(s).toHaveLength(1);
+    expect(s[0].blocks.map((b) => b.instanceId)).toEqual(["q", "n1"]);
+  });
+
+  it("login / modal ALWAYS own their screen; a notification before one keeps its own screen (numbering guard, ADR-0096 am.)", () => {
+    // Login/modal must own their screen (full-screen / overlay), so a notification
+    // isn't absorbed into them. The three still count as separate screens — the
+    // 1-based numbering the CTA picker + resolveScreenHref depend on is preserved.
+    const s = deriveScreens([blk("intro"), blk("n1", undefined, "notification"), blk("l1", undefined, "login"), blk("m1", undefined, "modal")], []);
+    expect(s.map((x) => x.id)).toEqual(["intro", "n1", "l1", "m1"]);
     expect(s).toHaveLength(4);
   });
 
