@@ -1,0 +1,57 @@
+---
+title: Changelog
+description: What's new in My Research Lab.
+---
+
+<Update label="Week of July 6, 2026">
+
+## New features
+
+**Notification and Modal blocks** — Two new blocks let you drop realistic UI interruptions into a study. The **Notification** block renders as an opaque banner under the top nav, records late dismissals, and can gate deception. The **Modal** block overlays a dialog with configurable advance-or-stay actions. See the [Block catalogue](/builder/blocks).
+
+**Push study materials to OSF** — When you preregister, My Research Lab now assembles your uploaded files, a structured JSON, and a generated protocol PDF, and uploads them straight to your OSF project. A dedicated Materials-on-OSF panel appears on both the Study Record and the [Preregister tab](/integrations/osf).
+
+**Meet Researchers directory** — A new Researchers directory (with a personal tab) helps you find and follow other researchers by area, study count, and followers. Full details on [Researcher profiles](/workspace/researcher-profiles).
+
+**Workspaces tab in Settings** — List, rename, create, archive, and restore workspaces from a single Settings tab. Archive is reversible — no destructive delete. See [Team & workspaces](/workspace/team).
+
+**AI persuasion chat starter** — A new starter template built on Claude, using your own Anthropic key. Learn how to connect a key in the [Anthropic integration guide](/integrations/anthropic).
+
+**Start-here checklist on Home** — A pinned onboarding card tracks progress against your newest study and links to a guided tutorial you can re-launch any time. See [Your first study](/getting-started/your-first-study).
+
+**Duplicate and delete from tile menus** — Study tiles and block tiles have a ⋯ menu for quick duplicate and delete, and you can also duplicate a block directly from its Configure panel. See the [Study workspace](/builder/study-workspace).
+
+**Activity and What's-New bells** — Global bells in the top nav group notifications and track per-item read state, so you can see mentions, replies, and platform updates without leaving the page.
+
+**Detailed edit timeline** — Draft studies now record real edit events and surface them on a detailed changelog view — useful when preparing an amendment or reviewing pre-freeze changes.
+
+## Updates
+
+**Between-subjects gating for social posts** — Continue can be gated on interactions (reactions, comments, replies, shares, reports), with a compact chip summary and translatable labels. See [Between-subjects experiments](/methodology/ab-testing) and the Social post entry in the [Block catalogue](/builder/blocks).
+
+**Branch a study on a reaction** — Conditional blocks can branch on a social-post reaction via a dropdown (no free text). See [Conditions](/builder/conditions).
+
+**Social post polish** — One platform selector in Design → Social with defaults from your [Theme](/builder/themes), a single logo toggle across branding tiers, live tappable reactions, an authentic Facebook runtime, comment avatars, likeable comments, and an inline reply composer.
+
+**Edge-to-edge mobile Take** — The participant experience now goes edge-to-edge on mobile, feed-style posts render un-boxed on the social background, and light themes get light native controls.
+
+**Faster navigation** — Instant loading skeletons on section and stage switches remove the perceived lag between Design, Preregister, Recruit, and Results.
+
+**EU compute region** — Platform compute is pinned to Frankfurt (`fra1`). See [Data & security](/trust/data-and-security).
+
+**Export improvements** — The results export now shows the column list while you're still designing the study, records social-post replies (with parent comment) and comment likes, and always includes a stable link column.
+
+**Rebrand to My Research Lab** — The product, marketing site, and app footer are now consistently branded as **My Research Lab**.
+
+## Bug fixes
+
+- **Take** — Back navigation is off by default; modal backdrops render correctly.
+- **Notification block** — Fixed answer recording and toast styling; same-study CTA behaves correctly.
+- **OSF** — Image uploads with a bare R2 key now resolve through the media gateway.
+- **Builder** — The condition allocation badge wraps to fit the left panel.
+- **Explore** — Fixed a crash on the Researchers page when the limit exceeded the max.
+- **Onboarding** — Preview sessions no longer count toward the "opened recruitment" step; the Start-here checklist is now workspace-scoped.
+- **Versions** — Restoring a version now restores the full snapshot and conditions, so drift clears.
+- **Preview** — Closing Preview returns you to the stage you opened it from, and preview sessions no longer pollute study lifecycle, counts, or the changelog.
+
+</Update>
