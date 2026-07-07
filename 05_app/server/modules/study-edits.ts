@@ -68,12 +68,18 @@ export function mergeDetail(existing: string[], incoming: string[]): string[] {
 }
 
 /**
- * Record one edit. Coalesces with the most recent same-(study, actor, kind) row
- * when it is < 2 min old (updates its summary + timestamp, and UNIONS the field
- * detail) so autosave-driven edits don't flood the trail; otherwise appends.
- * Advisory + best-effort: any failure is swallowed so a logging hiccup never
- * breaks the actual save. `detail` (ADR-0086 am.) is the humanized list of fields
- * this edit touched — empty for kinds that don't compute one.
+ * Record one edit. Coalesces with the most recent row for the **same (study,
+ * actor, kind, summary)** when it is < 2 min old (updates its timestamp + UNIONS
+ * the field detail) so autosave-driven bursts of the *same* action don't flood
+ * the trail; otherwise appends. Advisory + best-effort: any failure is swallowed
+ * so a logging hiccup never breaks the actual save.
+ *
+ * The match keys on `summary` (not just `kind`, ADR-0086 am. 2026-07-07): all
+ * block ops share `kind: "blocks"`, so coalescing on kind alone merged e.g. an
+ * "Edited the login block" (with its field detail) into a later "Added a likert
+ * block" — the detail then showed under the wrong summary. Same-summary matching
+ * keeps distinct actions as distinct rows while still collapsing same-action
+ * bursts. `detail` is the humanized list of fields this edit touched.
  */
 export async function recordStudyEdit(
   experimentId: string,
@@ -91,6 +97,7 @@ export async function recordStudyEdit(
           eq(studyEditEvent.experimentId, experimentId),
           actorUserId ? eq(studyEditEvent.actorUserId, actorUserId) : isNull(studyEditEvent.actorUserId),
           eq(studyEditEvent.kind, kind),
+          eq(studyEditEvent.summary, summary),
         ),
       )
       .orderBy(desc(studyEditEvent.createdAt))

@@ -288,6 +288,34 @@ describe("studies block editing", () => {
     expect(detail.blocks).toHaveLength(0);
   });
 
+  it("edit-event detail stays with its own summary — a later add never inherits another block's fields (ADR-0086 am.)", async () => {
+    // Regression: all block ops share kind "blocks", so coalescing on kind alone
+    // merged an "Edited the login block" (with its field detail) into a later
+    // "Added a likert-7 block" — the detail showed under the wrong summary. The
+    // fix coalesces on (kind, summary), so distinct actions stay distinct.
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+
+    const login = await caller.studies.addBlock({ studyId: id, source: "core", key: "login", version: "1.0.0" });
+    await caller.studies.updateBlockConfig({
+      studyId: id,
+      instanceId: login.instanceId,
+      config: { title: "Sign in", captureUsername: false },
+    });
+    // A different block added < 2 min later must NOT absorb the login detail.
+    await caller.studies.addBlock({ studyId: id, source: "core", key: "likert-7", version: "1.0.0" });
+
+    const timeline = await caller.studies.editTimeline({ studyId: id });
+    const likert = timeline.find((e) => e.title === "Added a likert-7 block");
+    const editedLogin = timeline.find((e) => e.title === "Edited the login block");
+    expect(likert).toBeDefined();
+    expect(editedLogin).toBeDefined();
+    expect(likert!.id).not.toBe(editedLogin!.id); // distinct rows, not coalesced
+    expect(likert!.detail).toEqual([]); // the bug: this used to carry the login fields
+    expect(editedLogin!.detail).toEqual(expect.arrayContaining(["Title", "Capture username"]));
+  });
+
   it("duplicates a block: faithful copy right after, fresh id, '(copy)' title, independent config", async () => {
     await seedUserWithWorkspace("ext_a", "Alpha");
     const caller = createCaller({ authUser: authUser("ext_a") });
