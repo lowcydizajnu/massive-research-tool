@@ -1,0 +1,51 @@
+---
+title: Changelog
+description: What shipped in My Research Lab, week by week.
+---
+
+<Update label="Week of July 6, 2026" description="New blocks, OSF materials, and workspace polish">
+
+## New features
+
+**Modal dialog block** — Add a pop-up dialog to any screen with a title, body, optional image, and up to two buttons (advance, stay, external link, or jump to another screen). Great for consent, cookie banners, paywalls, or system-dialog paradigms. Modals that imitate a real product's dialog are gated by an IRB deception attestation. See [Block catalogue → Modal dialog](/builder/blocks).
+
+**Notification block** — Show an in-context banner or toast with a type, optional CTAs, and an optional close, configured in a live preview. Records which action the participant took (dismissed, clicked a CTA, or ignored it) without blocking Continue. Deception attestation applies when it imitates a real notification. See [Block catalogue → Notification](/builder/blocks).
+
+**Upload study materials to OSF** — Push your study's stimulus files, materials JSON, and protocol PDF to your OSF project on demand, from the study's Record **or** from the Preregister tab. Materials go into your editable project (not the frozen registration), inherit its privacy, and never include participant data. See [OSF → Uploading materials](/integrations/osf).
+
+**AI persuasion chat starter** — A new starter template that runs a persuasive-dialogue paradigm powered by your own Anthropic key. Available from Explore. See [Anthropic integration](/integrations/anthropic).
+
+**Meet Researchers directory** — Browse a public directory of researchers on the platform, with richer profile tiles that show stats at a glance and a personal tab for people you follow. See [Researcher profiles](/workspace/researcher-profiles).
+
+**Workspaces tab in Settings** — List, rename, create, archive, and restore workspaces from a single Settings tab. Archiving is reversible — nothing is deleted. Workspace rename is also surfaced directly on the Workspace settings page.
+
+**Start-here checklist on Home** — A pinned getting-started card on the Home screen guides new accounts through their first study. Study-completion steps track your newest study rather than lifetime activity, and a "Take the guided tutorial" button surfaces the walkthrough.
+
+**Duplicate & delete from tile menus** — Study tiles and block tiles now have a ⋯ menu with duplicate and delete. You can also duplicate a block directly from its Configure panel.
+
+**Interaction summary toggle** — On gated screens, show a compact summary of participant interactions with translatable labels and emoji chips.
+
+## Updates
+
+**Social-post stimulus, end-to-end refresh** — Multiple improvements to the social-post block: a dedicated Design → Social tab with a live Facebook-style preview, per-post logo and branding-tier override, configurable reaction picker on the participant view, comment threads with avatars and likeable comments, custom slot editors, and a clearer difference between "inspired by" and "fully branded" layouts. Branding tiers that imitate a real platform are gated by an IRB attestation on freeze. Replies (with parent comment) and comment likes are now included in exports.
+
+**Frankfurt (EU) compute region** — App compute is pinned to Vercel's Frankfurt (fra1) region for EU data residency. Reflected in the [Trust & security](/trust/data-and-security) page.
+
+**Faster section switches** — Instant loading skeletons when switching between app sections, so navigation feels snappier.
+
+**Builder tab navigation** — Arrow shortcuts between Builder tabs, plus a Configure → Design deep link and a post-configuration summary.
+
+**Public landing page** — A public landing at the root URL introduces My Research Lab to new visitors, with a top nav across all landing variants.
+
+**Product rename** — Massive Research Lab is now **My Research Lab**, reflected across the app, footer, and legal v2.
+
+## Bug fixes
+
+- **Notification block** — fixed answer-recording bug, refreshed the toast look, and added a "same-study" CTA option.
+- **OSF media upload** — resolved a bare R2 key from the media-gateway URL so image uploads to OSF succeed.
+- **Builder** — long condition-allocation badges now wrap so they fit inside the left panel.
+- **Explore** — fixed a `/researchers` crash caused by a paging limit exceeding the max.
+- **Take (participant view)** — each question block is now boxed on the social-feed background for readability; light studies get light native controls via a `color-scheme` declaration from the theme.
+- **Onboarding** — the Start-here checklist is a pinned card (not a floating widget); Preview sessions are excluded from the "opened recruitment" step; fixed a redirect leak and scoped the checklist to the current workspace.
+
+</Update>
