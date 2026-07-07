@@ -1279,6 +1279,10 @@ export const studyEditEvent = pgTable(
     actorUserId: uuid("actor_user_id").references(() => user.id, { onDelete: "set null" }),
     kind: text("kind").notNull(), // blocks | theme | social-post | consent | overview | conditions | variants | wording | title | irb
     summary: text("summary").notNull(),
+    // Optional per-event granularity (ADR-0086 am.): humanized names of the fields
+    // that changed (e.g. ["Title", "Capture username"] for a block edit). Merged
+    // (union) across coalesced same-(study,actor,kind) edits. Advisory like summary.
+    detail: jsonb("detail").$type<string[]>().notNull().default([]),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("idx_study_edit_event_study").on(t.experimentId, t.createdAt.desc())],

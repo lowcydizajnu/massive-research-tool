@@ -76,9 +76,18 @@ inserting) keeps autosave-driven edits from flooding the trail.
   versions + snapshots remain authoritative (ADR-0033/0056). The edit log is not a substitute for a
   named version save.
 
+## Amendment — 2026-07-07 (per-event field detail)
+
+Owner asked why the Detailed timeline is uneven: version entries (e.g. "Working draft") expand into a computed snapshot diff, but edit events (e.g. "Edited the login block") were flat one-liners. That was structural — only version entries carried a `detail: string[]`; edit events always returned `detail: []`. Owner chose to give edit events their own detail ("expands to which fields changed"), accepting that it overlaps the version diff.
+
+**Decision:** `study_edit_event` gains a **`detail jsonb` column** (default `'[]'`) holding the humanized names of the fields an edit touched. `recordStudyEdit(…, detail)` stores it and, on coalesce, **unions** it with the existing row's detail (deduped, capped at 15). The **block-config edit** (`updateBlockConfig` → `writeBlocks`) computes it by diffing the old vs validated config (`changedConfigKeys` → `humanizeFieldKey`), so "Edited the login block" now expands to e.g. "Title", "Capture username". `editTimeline` returns the stored `detail`; the changelog component already renders any entry's `detail` sub-list in Detailed mode (and shows a "· N changes" count in Summary). Labels are humanized config keys (camelCase → sentence case), not a curated per-module label map — cheap and maintenance-free for an advisory view.
+
+**Scope:** only block edits populate `detail` today; other kinds (theme, consent, conditions, …) keep `[]` and stay one-liners until they warrant it. Because coalescing keys on `kind` not block instance, editing two blocks inside the 2-min window merges their fields under one row — accepted for an advisory log. Additive migration (`0056`); no behavior change to anything authoritative.
+
 ## Revisit triggers
 
 - The trail becomes noisy despite coalescing → widen the window or coalesce by field.
+- The humanized field labels read poorly for some blocks → introduce a per-module label map, or give other edit kinds their own `detail`.
 - A compliance need requires an authoritative, tamper-evident audit log → revisit storage +
   immutability guarantees (this advisory log is not that).
 - We add real-time multiplayer editing → per-edit attribution may need finer granularity.

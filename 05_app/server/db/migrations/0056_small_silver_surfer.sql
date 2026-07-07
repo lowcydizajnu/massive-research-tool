@@ -1,0 +1,1 @@
+ALTER TABLE "study_edit_event" ADD COLUMN "detail" jsonb DEFAULT '[]'::jsonb NOT NULL;

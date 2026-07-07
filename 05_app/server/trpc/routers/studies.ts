@@ -73,7 +73,7 @@ import {
 } from "@/server/modules/blocks";
 import { cellLabel, pruneBindings, type VariantBinding, type VariantFactor } from "@/lib/variants/factorial";
 import { changelogBetween, initialVersionSummary, DEFAULT_NEW_STUDY_SNAPSHOT } from "@/server/modules/changelog";
-import { recordStudyEdit } from "@/server/modules/study-edits";
+import { blockEditDetail, recordStudyEdit } from "@/server/modules/study-edits";
 import { readConsent, type StudyConsent } from "@/server/modules/consent";
 import { runPreflight, type PreflightCheck } from "@/server/modules/preflight";
 import { BRANDING_GATE_MESSAGE, DECEPTION_GATE_MESSAGE, LOGIN_DECEPTION_GATE_MESSAGE, MODAL_DECEPTION_GATE_MESSAGE, customNotificationsNeedingAck, evaluateBrandingGate, imitationModalsNeedingAck, loginScreensNeedingAck } from "@/server/modules/branding-gate";
@@ -160,8 +160,9 @@ async function writeBlocks(
   studyId: string,
   blocks: ReturnType<typeof readBlocks>,
   // Optional edit-log entry (ADR-0086) — user-facing block mutations pass this so
-  // the change appears in the changelog Detailed timeline; internal rewrites omit it.
-  edit?: { actorUserId: string | null; summary: string },
+  // the change appears in the changelog Detailed timeline; internal rewrites omit
+  // it. `detail` (ADR-0086 am.) lists the fields a config edit touched.
+  edit?: { actorUserId: string | null; summary: string; detail?: string[] },
 ) {
   // Preserve other snapshot keys (e.g. `overview`, V1.12 B1) — only blocks change.
   const [cur] = await db
@@ -175,7 +176,7 @@ async function writeBlocks(
     .set({ definitionSnapshot: { ...prev, blocks }, moduleVersionLocks: locksFromBlocks(blocks) })
     .where(eq(experimentVersion.id, versionId));
   await db.update(experiment).set({ updatedAt: new Date() }).where(eq(experiment.id, studyId));
-  if (edit) await recordStudyEdit(studyId, edit.actorUserId, "blocks", edit.summary);
+  if (edit) await recordStudyEdit(studyId, edit.actorUserId, "blocks", edit.summary, edit.detail ?? []);
 }
 
 /** A condition as the Builder UI consumes it (weight as a number). */
@@ -3126,8 +3127,14 @@ export const studiesRouter = router({
       } catch {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid block config." });
       }
+      // Which fields changed → the changelog Detailed detail (ADR-0086 am.).
+      const detail = blockEditDetail(target.config as Record<string, unknown>, validated);
       blocks[idx] = { ...target, config: validated };
-      await writeBlocks(tip.version.id, input.studyId, blocks, { actorUserId: ctx.dbUser.id, summary: `Edited the ${target.key} block` });
+      await writeBlocks(tip.version.id, input.studyId, blocks, {
+        actorUserId: ctx.dbUser.id,
+        summary: `Edited the ${target.key} block`,
+        detail,
+      });
       return { ok: true };
     }),
 
@@ -4448,6 +4455,7 @@ export const studiesRouter = router({
         .select({
           id: studyEditEvent.id,
           summary: studyEditEvent.summary,
+          detail: studyEditEvent.detail,
           createdAt: studyEditEvent.createdAt,
           actor: user.displayName,
         })
@@ -4462,7 +4470,7 @@ export const studiesRouter = router({
         actor: r.actor ?? null,
         kind: "event" as const,
         title: r.summary,
-        detail: [],
+        detail: r.detail ?? [],
       }));
     }),
 
