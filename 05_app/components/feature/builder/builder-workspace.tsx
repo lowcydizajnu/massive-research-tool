@@ -3,7 +3,7 @@
 import { ChevronDown, ChevronRight, Copy, GripVertical, Plus, Redo2, Trash2, Undo2 } from "lucide-react";
 import Link from "next/link";
 import type { Route } from "next";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { SortableList, type DragHandleProps } from "@/components/feature/whiteboard/sortable-list";
 import { useBlockHistory } from "@/lib/whiteboard/use-block-history";
@@ -456,6 +456,66 @@ export function BuilderWorkspace({
   // Nested reorder inside one group — reorders only that group's members.
   const onMemberReorder = (groupId: string, memberIds: string[]) =>
     commitOrder(reorderGroupMembers(study.blocks, groupId, memberIds));
+  // The DragOverlay clone of the dragged unit — a SOLID, static render of the
+  // whole group (or block) that follows the cursor. Using an overlay is the
+  // canonical dnd-kit fix for the "item flies to the top on release" glitch: the
+  // source row never carries the drag transform (the overlay does), so on drop
+  // there's no stale transform to animate. Rendered at full width to fill the
+  // overlay box; non-interactive.
+  const renderUnitOverlay = (id: string): ReactNode => {
+    if (id.startsWith(GH)) {
+      const gid = id.slice(GH.length);
+      const group = study.groups.find((g) => g.id === gid);
+      const members = study.blocks.filter((b) => b.groupId === gid);
+      return (
+        <div className="flex w-full flex-col overflow-hidden rounded-[var(--radius-md)] shadow-[var(--shadow-lg)]">
+          <div className="flex items-center gap-2 rounded-t-[var(--radius-md)] border-l-2 border-[var(--color-primary)] bg-[var(--color-primary-subtle)] px-2 py-1.5">
+            <GripVertical className="size-4 text-[var(--color-primary-text-on-subtle)]" aria-hidden />
+            <ChevronDown className="size-4 text-[var(--color-primary-text-on-subtle)]" aria-hidden />
+            <span className="text-[length:var(--text-small)] font-medium text-[var(--color-primary-text-on-subtle)]">Group screen</span>
+            <span className="rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-0.5 text-[length:var(--text-small)] text-[var(--color-text-primary)]">
+              {group?.title?.trim() || "Group"}
+            </span>
+          </div>
+          {members.map((m, idx) => (
+            <div
+              key={m.instanceId}
+              className={cn(
+                "flex items-center justify-between gap-2 border-l-2 border-[var(--color-primary)] bg-[var(--color-primary-subtle)] px-3 py-2",
+                idx === members.length - 1 && "rounded-b-[var(--radius-md)]",
+              )}
+            >
+              <div className="min-w-0">
+                <div className="truncate text-[length:var(--text-body)] font-medium text-[var(--color-text-primary)]">
+                  {m.title?.trim() || m.name}
+                </div>
+                <div className="truncate font-mono text-[length:var(--text-mono)] text-[var(--color-text-muted)]">
+                  {m.key} · {m.version}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+    const b = study.blocks.find((x) => x.instanceId === id);
+    if (!b) return null;
+    return (
+      <div className="flex w-full items-stretch gap-1">
+        <span className="flex shrink-0 items-center px-1 text-[var(--color-text-muted)]">
+          <GripVertical className="size-4" aria-hidden />
+        </span>
+        <div className="min-w-0 flex-1 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-3 shadow-[var(--shadow-lg)]">
+          <div className="truncate text-[length:var(--text-body)] font-medium text-[var(--color-text-primary)]">
+            {b.title?.trim() || b.name}
+          </div>
+          <div className="truncate font-mono text-[length:var(--text-mono)] text-[var(--color-text-muted)]">
+            {b.key} · {b.version}
+          </div>
+        </div>
+      </div>
+    );
+  };
   // One block row (a lone block at top level, or a group member in the nested
   // list). `grouped` drives the emerald tint + Ungroup vs Group ↑ action; the
   // last member of a group rounds its bottom so header + members read as one card.
@@ -899,6 +959,7 @@ export function BuilderWorkspace({
                 className="flex flex-col"
                 disabled={!canEdit}
                 nativeDrop={{ active: libraryDragging && canEdit, onDrop: handleLibraryDrop }}
+                renderOverlay={renderUnitOverlay}
               >
                 {(id, handle) => {
                   // Group header row — its grip drags the whole group. Solid tint +
@@ -1093,6 +1154,7 @@ export function BuilderWorkspace({
                           ariaLabel={`${group?.title || "Group"} blocks`}
                           className="flex flex-col"
                           disabled={!canEdit}
+                          renderOverlay={renderUnitOverlay}
                         >
                           {(mid, mHandle) => {
                             const mb = study.blocks.find((x) => x.instanceId === mid);
