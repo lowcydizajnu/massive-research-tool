@@ -613,6 +613,27 @@ export function BuilderWorkspace({
     setGroupsMut.mutate({ studyId: study.id, blocks, groups: study.groups.filter((g) => usedIds.has(g.id)) });
   };
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  // Collapse an expanded group WHILE it's dragged, then re-expand on drop, so the
+  // drag carries a compact header instead of leaving its tall members behind
+  // (owner 2026-07-08 — "just the top part of the group is dragged").
+  const dragCollapsedGid = useRef<string | null>(null);
+  const collapseForDrag = (id: string) => {
+    if (!id.startsWith(GH)) return;
+    const gid = id.slice(GH.length);
+    if (collapsedGroups.has(gid)) return;
+    dragCollapsedGid.current = gid;
+    setCollapsedGroups((prev) => new Set(prev).add(gid));
+  };
+  const restoreAfterDrag = () => {
+    const gid = dragCollapsedGid.current;
+    if (!gid) return;
+    dragCollapsedGid.current = null;
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      next.delete(gid);
+      return next;
+    });
+  };
   const toggleCollapse = (groupId: string) =>
     setCollapsedGroups((prev) => {
       const next = new Set(prev);
@@ -628,6 +649,13 @@ export function BuilderWorkspace({
   const nameOf = (id: string) => {
     const b = study.blocks.find((x) => x.instanceId === id);
     return b ? b.title?.trim() || b.name : id;
+  };
+  // Variant/condition gate names (e.g. "Version A") for a block's showIfCondition
+  // slugs, so the block-card label shows WHICH variant it's gated to (owner 2026-07-08).
+  const condNameOf = (slug: string) => (conditionsQ.data ?? []).find((c) => c.slug === slug)?.name ?? slug;
+  const combineCondLabel = (answer: string | null, variantNames: string[]): string | null => {
+    const parts = [answer, variantNames.length ? variantNames.join(", ") : null].filter(Boolean) as string[];
+    return parts.length ? parts.join(" · ") : null;
   };
   // A drag-reorder also recomputes group membership from drop neighbors + keeps
   // groups contiguous (ADR-0028 #3+#8), then persists blocks + groups together.
@@ -807,7 +835,12 @@ export function BuilderWorkspace({
             ) : (
               <SortableList
                 ids={listIds()}
-                onReorder={onListReorder}
+                onReorder={(ids, moved) => {
+                  onListReorder(ids, moved);
+                  restoreAfterDrag();
+                }}
+                onDragStartId={collapseForDrag}
+                onDragCancel={restoreAfterDrag}
                 ariaLabel="Study blocks and groups"
                 className="flex flex-col"
                 disabled={!canEdit}
@@ -837,7 +870,7 @@ export function BuilderWorkspace({
                           type="button"
                           onClick={() => toggleCollapse(gid)}
                           aria-label={collapsed ? "Expand group" : "Collapse group"}
-                          className="text-[var(--color-primary-text-on-subtle)]"
+                          className="flex items-center rounded-[var(--radius-sm)] p-0.5 text-lg leading-none text-[var(--color-primary-text-on-subtle)] hover:bg-[var(--color-primary-subtle)]"
                         >
                           {collapsed ? "▸" : "▾"}
                         </button>
@@ -1039,13 +1072,16 @@ export function BuilderWorkspace({
                           /* Show the condition on EVERY block, grouped or not: a grouped
                              block's condition now reveals it live within the screen
                              (ADR-0088), so it must be visible in the builder too. */
-                          conditionLabel={summarizeCondition(
-                            conditionWithSources(
-                              b.showIf,
-                              b.branchRules,
-                              new Set(study.blocks.slice(0, i).map((x) => x.instanceId)),
+                          conditionLabel={combineCondLabel(
+                            summarizeCondition(
+                              conditionWithSources(
+                                b.showIf,
+                                b.branchRules,
+                                new Set(study.blocks.slice(0, i).map((x) => x.instanceId)),
+                              ),
+                              nameOf,
                             ),
-                            nameOf,
+                            b.showIfCondition.map((s) => condNameOf(s)),
                           )}
                         />
                       </div>
@@ -1141,7 +1177,7 @@ export function BuilderWorkspace({
       {/* Live participant preview, beside the blocks (ADR-0057). Hidden only on
           genuinely narrow viewports where three columns won't fit (≥lg). */}
       {previewOpen ? (
-        <div className="hidden items-stretch lg:flex">
+        <div className="hidden items-stretch lg:flex lg:sticky lg:top-3 lg:self-start lg:max-h-[calc(100vh-1.5rem)]">
           <PaneHandle pane={previewPane} dir={-1} label="Resize live preview" />
           <LivePreviewPane studyId={study.id} revision={study.lastEditedAt} width={previewPane.width} factors={study.factors} onClose={togglePreview} />
         </div>
@@ -1153,7 +1189,7 @@ export function BuilderWorkspace({
       ) : null}
       <aside
         style={{ width: panelPane.width }}
-        className={`flex shrink-0 flex-col gap-4 self-start rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-panel)] p-4 ${panelSide === "left" ? "order-first" : ""}`}
+        className={`sticky top-3 flex max-h-[calc(100vh-1.5rem)] shrink-0 flex-col gap-4 self-start overflow-y-auto rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-panel)] p-4 ${panelSide === "left" ? "order-first" : ""}`}
       >
         {consentSelected && !selected ? (
           <fieldset disabled={!canEdit} className="contents">

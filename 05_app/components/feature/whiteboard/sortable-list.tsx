@@ -48,6 +48,8 @@ export function SortableList({
   children,
   nativeDrop,
   disabled = false,
+  onDragStartId,
+  onDragCancel,
 }: {
   ids: string[];
   onReorder: (ids: string[], movedId: string) => void;
@@ -57,6 +59,10 @@ export function SortableList({
   nativeDrop?: NativeDrop;
   /** Read-only: render rows with inert handles, no drag, no native drop (T3.5 role gating). */
   disabled?: boolean;
+  /** Fired with the row id when a drag begins (e.g. collapse a group on drag). */
+  onDragStartId?: (id: string) => void;
+  /** Fired when a drag ends WITHOUT a reorder (drop on self / cancelled). */
+  onDragCancel?: () => void;
 }) {
   const [dropHover, setDropHover] = useState<string | null>(null);
   const sensors = useSensors(
@@ -79,10 +85,16 @@ export function SortableList({
 
   const onDragEnd = (e: DragEndEvent) => {
     const { active, over } = e;
-    if (!over || active.id === over.id) return;
+    if (!over || active.id === over.id) {
+      onDragCancel?.(); // dropped on self → no reorder; let the caller undo any drag-time collapse
+      return;
+    }
     const from = ids.indexOf(String(active.id));
     const to = ids.indexOf(String(over.id));
-    if (from === -1 || to === -1) return;
+    if (from === -1 || to === -1) {
+      onDragCancel?.();
+      return;
+    }
     const next = [...ids];
     const [moved] = next.splice(from, 1);
     next.splice(to, 0, moved);
@@ -94,7 +106,9 @@ export function SortableList({
       sensors={sensors}
       collisionDetection={closestCenter}
       modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+      onDragStart={(e) => onDragStartId?.(String(e.active.id))}
       onDragEnd={onDragEnd}
+      onDragCancel={onDragCancel}
     >
       <SortableContext items={ids} strategy={verticalListSortingStrategy}>
         <ul aria-label={ariaLabel} className={className}>

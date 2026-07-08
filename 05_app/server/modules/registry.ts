@@ -784,9 +784,10 @@ const notificationBlock: CoreModuleDef = {
   },
   // Records which action the participant took (dismissed / clicked a CTA /
   // ignored). Never gates Continue — `isAnswerEmpty` is always false, like the
-  // video exposure signal. Not a branch source in v1 (exposure/interaction data).
+  // video exposure signal. A branch source (owner 2026-07-08): other blocks can
+  // gate on whether the participant interacted with the notice ("is answered").
   collectsResponse: true,
-  conditionSource: false,
+  conditionSource: true,
   // `screen` (1-based) — the screen the action happened on. Recorded on the
   // anchor screen via the form and, for a persist notice dismissed later, via the
   // out-of-band beacon (ADR-0097).
@@ -881,7 +882,7 @@ const modalBlock: CoreModuleDef = {
     additionalProperties: false,
   },
   collectsResponse: true,
-  conditionSource: false,
+  conditionSource: true, // branch source (owner 2026-07-08) — gate on modal interaction
   // `screen` (1-based) — the screen the action happened on (ADR-0097).
   responseSchema: z.object({ action: z.string(), atMs: z.number().int().min(0), screen: z.number().int().min(1) }).partial(),
   isAnswerEmpty: () => false,
