@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, GripVertical, Plus, Redo2, Trash2, Undo2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Copy, GripVertical, Plus, Redo2, Trash2, Undo2 } from "lucide-react";
 import Link from "next/link";
 import type { Route } from "next";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -420,11 +420,22 @@ export function BuilderWorkspace({
   // SortableContext → members can be dragged OUT to the top level (regrouped on
   // drop), reordered, or pulled into a group (ADR-0028).
   const GH = "gh:";
+  // While a group header is dragged, hide its members from the sortable list so
+  // the group moves as ONE compact unit and can't be dropped *into itself* (owner
+  // 2026-07-08 — the collapse-on-drag v1 left members visible + droppable-into).
+  // `null` = no group drag in progress. onListReorder rebuilds the members from
+  // study.blocks on drop, so dropping the excluded members back is automatic.
+  const [draggingGid, setDraggingGid] = useState<string | null>(null);
   // Members stay in the list even when collapsed (rendered as thin one-liners),
-  // so they remain draggable + the group bg stays contiguous.
+  // so they remain draggable + the group bg stays contiguous — except the group
+  // currently being dragged, whose members are hidden for the duration.
   const listIds = (): string[] =>
     buildSegments().flatMap((s) =>
-      s.kind === "group" ? [`${GH}${s.id}`, ...s.members.map((m) => m.instanceId)] : [s.block.instanceId],
+      s.kind === "group"
+        ? s.id === draggingGid
+          ? [`${GH}${s.id}`]
+          : [`${GH}${s.id}`, ...s.members.map((m) => m.instanceId)]
+        : [s.block.instanceId],
     );
   // Commit a final block order (each block carries its final groupId) with the
   // broken-condition guard.
@@ -613,27 +624,6 @@ export function BuilderWorkspace({
     setGroupsMut.mutate({ studyId: study.id, blocks, groups: study.groups.filter((g) => usedIds.has(g.id)) });
   };
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
-  // Collapse an expanded group WHILE it's dragged, then re-expand on drop, so the
-  // drag carries a compact header instead of leaving its tall members behind
-  // (owner 2026-07-08 — "just the top part of the group is dragged").
-  const dragCollapsedGid = useRef<string | null>(null);
-  const collapseForDrag = (id: string) => {
-    if (!id.startsWith(GH)) return;
-    const gid = id.slice(GH.length);
-    if (collapsedGroups.has(gid)) return;
-    dragCollapsedGid.current = gid;
-    setCollapsedGroups((prev) => new Set(prev).add(gid));
-  };
-  const restoreAfterDrag = () => {
-    const gid = dragCollapsedGid.current;
-    if (!gid) return;
-    dragCollapsedGid.current = null;
-    setCollapsedGroups((prev) => {
-      const next = new Set(prev);
-      next.delete(gid);
-      return next;
-    });
-  };
   const toggleCollapse = (groupId: string) =>
     setCollapsedGroups((prev) => {
       const next = new Set(prev);
@@ -837,10 +827,12 @@ export function BuilderWorkspace({
                 ids={listIds()}
                 onReorder={(ids, moved) => {
                   onListReorder(ids, moved);
-                  restoreAfterDrag();
+                  setDraggingGid(null);
                 }}
-                onDragStartId={collapseForDrag}
-                onDragCancel={restoreAfterDrag}
+                onDragStartId={(id) => {
+                  if (id.startsWith(GH)) setDraggingGid(id.slice(GH.length));
+                }}
+                onDragCancel={() => setDraggingGid(null)}
                 ariaLabel="Study blocks and groups"
                 className="flex flex-col"
                 disabled={!canEdit}
@@ -870,11 +862,11 @@ export function BuilderWorkspace({
                           type="button"
                           onClick={() => toggleCollapse(gid)}
                           aria-label={collapsed ? "Expand group" : "Collapse group"}
-                          className="flex items-center rounded-[var(--radius-sm)] p-0.5 text-lg leading-none text-[var(--color-primary-text-on-subtle)] hover:bg-[var(--color-primary-subtle)]"
+                          className="flex items-center rounded-[var(--radius-sm)] p-0.5 text-[var(--color-primary-text-on-subtle)] hover:bg-[var(--color-primary-subtle)]"
                         >
-                          {collapsed ? "▸" : "▾"}
+                          {collapsed ? <ChevronRight className="size-4" aria-hidden /> : <ChevronDown className="size-4" aria-hidden />}
                         </button>
-                        <span className="text-[length:var(--text-small)] font-medium text-[var(--color-primary-text-on-subtle)]">⊞ Group screen</span>
+                        <span className="text-[length:var(--text-small)] font-medium text-[var(--color-primary-text-on-subtle)]">Group screen</span>
                         <fieldset disabled={!canEdit} className="contents">
                           <GroupTitleInput value={group?.title ?? ""} onCommit={(t) => renameGroup(gid, t)} />
                         </fieldset>

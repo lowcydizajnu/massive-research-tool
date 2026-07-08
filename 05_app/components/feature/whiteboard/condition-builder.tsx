@@ -52,6 +52,28 @@ function valueOptionsForSource(b: StudyBlock | undefined): { value: string; labe
   // the 7 reactions, never a free-text box. "is answered" (= reacted at all)
   // still needs no value.
   if (b.key === "social-post") return REACTION_OPTIONS;
+  // Notification / Modal (owner 2026-07-08): the recorded `action` is a fixed
+  // set, so offer a dropdown of the actual actions (Dismissed / clicked a
+  // specific button) instead of a free-text box. Values match what the runtime
+  // records: `dismissed` | `ignored` | `advance` | `cta:<i>`.
+  if (b.key === "notification") {
+    const ctas = Array.isArray(cfg.ctas) ? (cfg.ctas as { label?: unknown }[]) : [];
+    return [
+      { value: "dismissed", label: "Dismissed it" },
+      { value: "ignored", label: "Ignored it (continued)" },
+      ...ctas.map((c, i) => ({ value: `cta:${i}`, label: `Clicked "${typeof c?.label === "string" && c.label ? c.label : `Button ${i + 1}`}"` })),
+    ];
+  }
+  if (b.key === "modal") {
+    const ctas = Array.isArray(cfg.ctas) ? (cfg.ctas as { label?: unknown; action?: unknown }[]) : [];
+    return [
+      { value: "ignored", label: "Dismissed / closed" },
+      ...ctas.map((c, i) => ({
+        value: c?.action === "advance" ? "advance" : `cta:${i}`,
+        label: `Clicked "${typeof c?.label === "string" && c.label ? c.label : `Button ${i + 1}`}"`,
+      })),
+    ];
+  }
   return null; // free-text / numeric — keep the text/number input
 }
 
