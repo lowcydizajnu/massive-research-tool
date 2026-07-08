@@ -263,7 +263,10 @@ export function BuilderWorkspace({
     // comes back to the initial position and then moves"). Patch the cache with
     // the new order/grouping before the round-trip; roll back on error.
     onMutate: async (input) => {
-      await utils.studies.get.cancel({ id: study.id });
+      // Patch the cache SYNCHRONOUSLY — before the first `await` — so the dropped
+      // block is already at its new slot in the SAME render where dnd-kit clears
+      // the drag transform. Awaiting cancel() first pushed setData one microtask
+      // later, leaving a 1-frame snap-back to the origin ("jumps on release").
       const prev = utils.studies.get.getData({ id: study.id });
       if (prev) {
         const byId = new Map(prev.blocks.map((b) => [b.instanceId, b]));
@@ -279,6 +282,8 @@ export function BuilderWorkspace({
         const { blocks, groups } = dissolveSmallGroups(merged, input.groups);
         utils.studies.get.setData({ id: study.id }, { ...prev, blocks, groups });
       }
+      // Cancel AFTER the optimistic patch so an in-flight refetch can't clobber it.
+      await utils.studies.get.cancel({ id: study.id });
       return { prev };
     },
     onError: (_err, _input, mctx) => {
