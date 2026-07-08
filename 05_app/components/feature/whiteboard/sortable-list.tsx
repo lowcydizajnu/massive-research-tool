@@ -2,6 +2,7 @@
 
 import {
   DndContext,
+  DragOverlay,
   KeyboardSensor,
   PointerSensor,
   closestCenter,
@@ -50,6 +51,7 @@ export function SortableList({
   disabled = false,
   onDragStartId,
   onDragCancel,
+  renderOverlay,
 }: {
   ids: string[];
   onReorder: (ids: string[], movedId: string) => void;
@@ -63,8 +65,14 @@ export function SortableList({
   onDragStartId?: (id: string) => void;
   /** Fired when a drag ends WITHOUT a reorder (drop on self / cancelled). */
   onDragCancel?: () => void;
+  /** Opt-in DragOverlay: render the dragged id as a floating chip so the drag is
+   *  decoupled from the reflowing list (no pickup jump when rows collapse mid-drag).
+   *  When provided, the source row ghosts in place instead of translating. */
+  renderOverlay?: (id: string) => ReactNode;
 }) {
   const [dropHover, setDropHover] = useState<string | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const overlay = !!renderOverlay;
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -84,6 +92,7 @@ export function SortableList({
   }
 
   const onDragEnd = (e: DragEndEvent) => {
+    setActiveId(null);
     const { active, over } = e;
     if (!over || active.id === over.id) {
       onDragCancel?.(); // dropped on self → no reorder; let the caller undo any drag-time collapse
@@ -106,9 +115,15 @@ export function SortableList({
       sensors={sensors}
       collisionDetection={closestCenter}
       modifiers={[restrictToVerticalAxis, restrictToParentElement]}
-      onDragStart={(e) => onDragStartId?.(String(e.active.id))}
+      onDragStart={(e) => {
+        setActiveId(String(e.active.id));
+        onDragStartId?.(String(e.active.id));
+      }}
       onDragEnd={onDragEnd}
-      onDragCancel={onDragCancel}
+      onDragCancel={() => {
+        setActiveId(null);
+        onDragCancel?.();
+      }}
     >
       <SortableContext items={ids} strategy={verticalListSortingStrategy}>
         <ul aria-label={ariaLabel} className={className}>
@@ -116,6 +131,7 @@ export function SortableList({
             <SortableRow
               key={id}
               id={id}
+              overlay={overlay}
               nativeDrop={nativeDrop?.active ? nativeDrop : undefined}
               dropHover={dropHover === id}
               setDropHover={setDropHover}
@@ -125,6 +141,11 @@ export function SortableList({
           ))}
         </ul>
       </SortableContext>
+      {overlay ? (
+        <DragOverlay modifiers={[restrictToVerticalAxis]} dropAnimation={null}>
+          {activeId ? renderOverlay!(activeId) : null}
+        </DragOverlay>
+      ) : null}
     </DndContext>
   );
 }
@@ -132,12 +153,15 @@ export function SortableList({
 function SortableRow({
   id,
   children,
+  overlay = false,
   nativeDrop,
   dropHover,
   setDropHover,
 }: {
   id: string;
   children: (id: string, handle: DragHandleProps, isDragging: boolean) => ReactNode;
+  /** DragOverlay mode: the active row ghosts in place; the overlay carries motion. */
+  overlay?: boolean;
   nativeDrop?: NativeDrop;
   dropHover?: boolean;
   setDropHover?: (id: string | null) => void;
@@ -147,11 +171,18 @@ function SortableRow({
   // Translate only — never scale. dnd-kit otherwise puts scaleX/scaleY in the
   // transform to morph a dragged item to the size of the one it passes, which
   // vertically stretches a short row (e.g. a group header) over a tall card.
+  // In overlay mode the DragOverlay renders the moving copy, so the source row
+  // stays put (no transform) and just dims to mark its origin.
   const style: CSSProperties = {
-    transform: transform ? `translate3d(${Math.round(transform.x)}px, ${Math.round(transform.y)}px, 0)` : undefined,
+    transform:
+      overlay && isDragging
+        ? undefined
+        : transform
+          ? `translate3d(${Math.round(transform.x)}px, ${Math.round(transform.y)}px, 0)`
+          : undefined,
     transition,
     zIndex: isDragging ? 10 : undefined,
-    opacity: isDragging ? 0.6 : 1,
+    opacity: isDragging ? (overlay ? 0.4 : 0.6) : 1,
     // Insertion indicator: the dragged library block lands AFTER this row.
     boxShadow: dropHover ? "inset 0 -3px 0 var(--color-primary)" : undefined,
   };

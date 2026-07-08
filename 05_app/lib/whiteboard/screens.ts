@@ -75,6 +75,43 @@ export function makeContiguous<T extends { instanceId: string; groupId: string |
   return out;
 }
 
+/**
+ * Reorder blocks by a list of "units" (ADR-0028 group drag). While a group is
+ * dragged the Builder collapses EVERY group to a single header row, so the drag
+ * list is a sequence of unit ids: a group-header id (`${headerPrefix}<gid>`) or
+ * a lone block's instanceId. Expand that unit order back into a flat block order
+ * — a header emits its members in their existing relative order; a lone id emits
+ * that block. Group membership is untouched; only whole groups + lone blocks
+ * move. A grouped member id that leaks into `unitIds` is ignored in place (its
+ * header emits it); any block not covered by a unit is appended in original
+ * order, so a reorder can NEVER drop or duplicate a block. Pure + deterministic.
+ */
+export function reorderByUnits<T extends { instanceId: string; groupId: string | null }>(
+  blocks: T[],
+  unitIds: string[],
+  headerPrefix: string,
+): T[] {
+  const byId = new Map(blocks.map((b) => [b.instanceId, b]));
+  const out: T[] = [];
+  const emitted = new Set<string>();
+  const emit = (b: T) => {
+    if (emitted.has(b.instanceId)) return;
+    out.push(b);
+    emitted.add(b.instanceId);
+  };
+  for (const uid of unitIds) {
+    if (uid.startsWith(headerPrefix)) {
+      const gid = uid.slice(headerPrefix.length);
+      for (const b of blocks) if (b.groupId === gid) emit(b);
+    } else {
+      const b = byId.get(uid);
+      if (b && !b.groupId) emit(b); // grouped members ride their header, not their own id
+    }
+  }
+  for (const b of blocks) emit(b); // safety net: never drop a block
+  return out;
+}
+
 /** Set one block's group to an explicit target (or null to ungroup) — used by
  *  whiteboard drag-into/out-of a container — then re-make groups contiguous so
  *  the joined block sits with its group (ADR-0028 amendment). Pure. */

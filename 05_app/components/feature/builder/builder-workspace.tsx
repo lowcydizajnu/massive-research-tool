@@ -8,7 +8,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { SortableList } from "@/components/feature/whiteboard/sortable-list";
 import { useBlockHistory } from "@/lib/whiteboard/use-block-history";
 import { dissolveSmallGroups } from "@/lib/whiteboard/dissolve-groups";
-import { deriveScreens, regroupAfterMove } from "@/lib/whiteboard/screens";
+import { deriveScreens, regroupAfterMove, reorderByUnits } from "@/lib/whiteboard/screens";
 import { groupToDefinition } from "@/lib/custom-modules";
 import {
   conditionWithSources,
@@ -420,20 +420,21 @@ export function BuilderWorkspace({
   // SortableContext → members can be dragged OUT to the top level (regrouped on
   // drop), reordered, or pulled into a group (ADR-0028).
   const GH = "gh:";
-  // While a group header is dragged, hide its members from the sortable list so
-  // the group moves as ONE compact unit and can't be dropped *into itself* (owner
-  // 2026-07-08 — the collapse-on-drag v1 left members visible + droppable-into).
-  // `null` = no group drag in progress. onListReorder rebuilds the members from
-  // study.blocks on drop, so dropping the excluded members back is automatic.
+  // While ANY group is being dragged, collapse EVERY group to a single header
+  // "unit" so the drag is unit-over-unit (owner 2026-07-08). v1/v2 only hid the
+  // dragged group's members, so the *other* groups still split apart mid-drag
+  // (verticalListSortingStrategy opened a gap between their members) — the
+  // "shattered while dragging" bug. With all groups collapsed the target groups
+  // stay intact and closestCenter can only land the drop at a whole-group edge.
+  // `null` = no group drag in progress. reorderByUnits expands the unit order
+  // back into blocks on drop, so hidden members are restored automatically.
   const [draggingGid, setDraggingGid] = useState<string | null>(null);
-  // Members stay in the list even when collapsed (rendered as thin one-liners),
-  // so they remain draggable + the group bg stays contiguous — except the group
-  // currently being dragged, whose members are hidden for the duration.
+  const groupDragging = draggingGid !== null;
   const listIds = (): string[] =>
     buildSegments().flatMap((s) =>
       s.kind === "group"
-        ? s.id === draggingGid
-          ? [`${GH}${s.id}`]
+        ? groupDragging
+          ? [`${GH}${s.id}`] // every group is one unit for the duration of the drag
           : [`${GH}${s.id}`, ...s.members.map((m) => m.instanceId)]
         : [s.block.instanceId],
     );
@@ -457,25 +458,14 @@ export function BuilderWorkspace({
   };
   const onListReorder = (newIds: string[], movedId: string) => {
     const byId = new Map(study.blocks.map((b) => [b.instanceId, b]));
-    const blockIds = newIds.filter((id) => !id.startsWith(GH));
     if (movedId.startsWith(GH)) {
-      // A group header moved → relocate the whole group's run to the header's spot.
-      const gid = movedId.slice(GH.length);
-      const memberIds = study.blocks.filter((b) => b.groupId === gid).map((b) => b.instanceId);
-      const rest = blockIds.filter((id) => !memberIds.includes(id));
-      const hIdx = newIds.indexOf(movedId);
-      let anchor: string | null = null;
-      for (let k = hIdx - 1; k >= 0; k--) {
-        if (!newIds[k].startsWith(GH)) {
-          anchor = newIds[k];
-          break;
-        }
-      }
-      const at = anchor ? rest.indexOf(anchor) + 1 : 0;
-      const merged = [...rest.slice(0, at), ...memberIds, ...rest.slice(at)];
-      commitOrder(merged.map((id) => byId.get(id)!)); // groupIds unchanged
+      // A group header moved. During a group drag the list is a sequence of
+      // "units" (headers + lone blocks) — expand it back into blocks, each group
+      // emitting its members in order. groupIds unchanged; whole groups move.
+      commitOrder(reorderByUnits(study.blocks, newIds, GH));
     } else {
       // A block moved → recompute its group from drop neighbors (join/leave/reorder).
+      const blockIds = newIds.filter((id) => !id.startsWith(GH));
       const minimal = blockIds.map((id) => ({ instanceId: id, groupId: byId.get(id)?.groupId ?? null }));
       const regrouped = regroupAfterMove(minimal, movedId);
       commitOrder(regrouped.map((r) => ({ ...byId.get(r.instanceId)!, groupId: r.groupId })));
@@ -837,6 +827,28 @@ export function BuilderWorkspace({
                 className="flex flex-col"
                 disabled={!canEdit}
                 nativeDrop={{ active: libraryDragging && canEdit, onDrop: handleLibraryDrop }}
+                renderOverlay={(id) => {
+                  // The dragged unit as a floating chip (decoupled from the list).
+                  if (id.startsWith(GH)) {
+                    const gid = id.slice(GH.length);
+                    const g = study.groups.find((x) => x.id === gid);
+                    const n = study.blocks.filter((x) => x.groupId === gid).length;
+                    return (
+                      <div className="flex items-center gap-2 rounded-[var(--radius-md)] border-l-2 border-[var(--color-primary)] bg-[var(--color-primary-subtle)] px-3 py-1.5 shadow-lg">
+                        <GripVertical className="size-4 text-[var(--color-primary-text-on-subtle)]" aria-hidden />
+                        <span className="text-[length:var(--text-small)] font-medium text-[var(--color-primary-text-on-subtle)]">
+                          {g?.title?.trim() || "Group screen"} · {n} block{n === 1 ? "" : "s"}
+                        </span>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="flex items-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-3 py-2 shadow-lg">
+                      <GripVertical className="size-4 text-[var(--color-text-muted)]" aria-hidden />
+                      <span className="text-[length:var(--text-body)] text-[var(--color-text-primary)]">{nameOf(id)}</span>
+                    </div>
+                  );
+                }}
               >
                 {(id, handle) => {
                   // Group header row — its grip drags the whole group. Solid tint +
@@ -844,11 +856,14 @@ export function BuilderWorkspace({
                   if (id.startsWith(GH)) {
                     const gid = id.slice(GH.length);
                     const group = study.groups.find((g) => g.id === gid);
-                    const collapsed = collapsedGroups.has(gid);
+                    // During a group drag every group collapses to just its header
+                    // (members hidden from listIds) so the drag is unit-over-unit.
+                    const memberCount = study.blocks.filter((x) => x.groupId === gid).length;
+                    const collapsed = collapsedGroups.has(gid) || groupDragging;
                     const groupHasSocialPost = study.blocks.some((b) => b.groupId === gid && b.key === "social-post");
                     return (
                       <div key={`gh-${gid}`} className="flex flex-col">
-                      <div className="mt-2 flex flex-wrap items-center gap-2 rounded-t-[var(--radius-md)] border-l-2 border-[var(--color-primary)] bg-[var(--color-primary-subtle)]/40 px-2 py-1.5">
+                      <div className={cn("mt-2 flex flex-wrap items-center gap-2 rounded-t-[var(--radius-md)] border-l-2 border-[var(--color-primary)] bg-[var(--color-primary-subtle)]/40 px-2 py-1.5", groupDragging && "rounded-b-[var(--radius-md)]")}>
                         <span
                           ref={handle.ref}
                           {...handle.attributes}
@@ -867,6 +882,11 @@ export function BuilderWorkspace({
                           {collapsed ? <ChevronRight className="size-4" aria-hidden /> : <ChevronDown className="size-4" aria-hidden />}
                         </button>
                         <span className="text-[length:var(--text-small)] font-medium text-[var(--color-primary-text-on-subtle)]">Group screen</span>
+                        {groupDragging ? (
+                          <span className="text-[length:var(--text-small)] text-[var(--color-primary-text-on-subtle)] opacity-70">
+                            · {memberCount} block{memberCount === 1 ? "" : "s"}
+                          </span>
+                        ) : null}
                         <fieldset disabled={!canEdit} className="contents">
                           <GroupTitleInput value={group?.title ?? ""} onCommit={(t) => renameGroup(gid, t)} />
                         </fieldset>
