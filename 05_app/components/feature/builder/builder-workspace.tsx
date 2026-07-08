@@ -909,7 +909,7 @@ export function BuilderWorkspace({
                     // it as a solid block. Members reorder in the nested list below.
                     return (
                       <div key={`gh-${gid}`} className="mt-2 flex flex-col">
-                      <div className={cn("flex flex-wrap items-center gap-2 rounded-t-[var(--radius-md)] border-l-2 border-[var(--color-primary)] bg-[var(--color-primary-subtle)]/40 px-2 py-1.5", collapsed && "rounded-b-[var(--radius-md)]")}>
+                      <div className="flex flex-wrap items-center gap-2 rounded-t-[var(--radius-md)] border-l-2 border-[var(--color-primary)] bg-[var(--color-primary-subtle)]/40 px-2 py-1.5">
                         <span
                           ref={handle.ref}
                           {...handle.attributes}
@@ -1065,8 +1065,23 @@ export function BuilderWorkspace({
                         />
                       ) : null}
                       {/* Members reorder inside their OWN nested sortable, so the group
-                          above moves as one solid unit — nothing decouples (ADR-0028). */}
-                      {!collapsed ? (
+                          above moves as one solid unit — nothing decouples (ADR-0028).
+                          Collapsed → a thin read-only summary of the member blocks so you
+                          can still see what's inside without expanding. */}
+                      {collapsed ? (
+                        <div className="flex flex-col rounded-b-[var(--radius-md)] border-l-2 border-[var(--color-primary)] bg-[var(--color-primary-subtle)]/40 px-2 pb-2">
+                          {members.map((m) => (
+                            <button
+                              key={m.instanceId}
+                              type="button"
+                              onClick={() => setSelectedId(m.instanceId)}
+                              className="truncate py-0.5 text-left text-[length:var(--text-small)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+                            >
+                              {m.title?.trim() || m.name}
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
                         <SortableList
                           ids={members.map((m) => m.instanceId)}
                           onReorder={(mIds) => onMemberReorder(gid, mIds)}
@@ -1079,7 +1094,7 @@ export function BuilderWorkspace({
                             return mb ? renderRow(mb, mHandle, true) : null;
                           }}
                         </SortableList>
-                      ) : null}
+                      )}
                       </div>
                     );
                   }
