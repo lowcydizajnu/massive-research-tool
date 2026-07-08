@@ -112,6 +112,46 @@ export function reorderByUnits<T extends { instanceId: string; groupId: string |
   return out;
 }
 
+/**
+ * Reorder the members WITHIN one group, leaving everything else fixed (ADR-0028
+ * — atomic-group drag). The Builder renders each group as one solid sortable
+ * unit with a NESTED sortable for its members; this reorders that nested list.
+ * The group's members are re-emitted, in `newMemberOrder`, at the group's first
+ * occurrence in the flat block list; a member missing from `newMemberOrder` is
+ * appended (safety, preserves order) so a reorder can never drop a block. Blocks
+ * outside the group keep their positions and groupIds. Pure + deterministic.
+ */
+export function reorderGroupMembers<T extends { instanceId: string; groupId: string | null }>(
+  blocks: T[],
+  groupId: string,
+  newMemberOrder: string[],
+): T[] {
+  const byId = new Map(blocks.map((b) => [b.instanceId, b]));
+  const ordered: T[] = [];
+  const seen = new Set<string>();
+  for (const mid of newMemberOrder) {
+    const m = byId.get(mid);
+    if (m && m.groupId === groupId && !seen.has(mid)) {
+      ordered.push(m);
+      seen.add(mid);
+    }
+  }
+  for (const b of blocks) if (b.groupId === groupId && !seen.has(b.instanceId)) ordered.push(b); // safety
+  const out: T[] = [];
+  let injected = false;
+  for (const b of blocks) {
+    if (b.groupId === groupId) {
+      if (!injected) {
+        out.push(...ordered);
+        injected = true;
+      }
+    } else {
+      out.push(b);
+    }
+  }
+  return out;
+}
+
 /** Set one block's group to an explicit target (or null to ungroup) — used by
  *  whiteboard drag-into/out-of a container — then re-make groups contiguous so
  *  the joined block sits with its group (ADR-0028 amendment). Pure. */

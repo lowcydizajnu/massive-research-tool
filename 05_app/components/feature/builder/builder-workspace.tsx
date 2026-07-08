@@ -3,12 +3,12 @@
 import { ChevronDown, ChevronRight, Copy, GripVertical, Plus, Redo2, Trash2, Undo2 } from "lucide-react";
 import Link from "next/link";
 import type { Route } from "next";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-import { SortableList } from "@/components/feature/whiteboard/sortable-list";
+import { SortableList, type DragHandleProps } from "@/components/feature/whiteboard/sortable-list";
 import { useBlockHistory } from "@/lib/whiteboard/use-block-history";
 import { dissolveSmallGroups } from "@/lib/whiteboard/dissolve-groups";
-import { deriveScreens, regroupAfterMove, reorderByUnits } from "@/lib/whiteboard/screens";
+import { deriveScreens, reorderByUnits, reorderGroupMembers } from "@/lib/whiteboard/screens";
 import { groupToDefinition } from "@/lib/custom-modules";
 import {
   conditionWithSources,
@@ -56,11 +56,6 @@ import { BlockProvenance } from "./block-provenance";
 import { ConsentEditor } from "./consent-editor";
 import { BuildDriftBanner } from "./build-drift-banner";
 import { canWriteRole, READ_ONLY_TITLE, ReadOnlyBanner } from "@/components/feature/workspace/role-gate";
-
-// useLayoutEffect on the server logs a warning; this component is SSR'd as a
-// client component, so alias to useEffect there. The scroll pin only matters
-// in the browser anyway.
-const useBrowserLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 /**
  * Builder mode — the interactive three-zone body (build-stage-builder-mode.md).
@@ -420,37 +415,17 @@ export function BuilderWorkspace({
     }
     return segs;
   };
-  // The flat drag list: a header row per group (its grip drags the whole group)
-  // followed by the group's member rows; lone blocks are their own rows. One
-  // SortableContext → members can be dragged OUT to the top level (regrouped on
-  // drop), reordered, or pulled into a group (ADR-0028).
+  // ATOMIC-GROUP drag (owner 2026-07-08, replacing the flat-list approach). The
+  // top-level sortable list is a sequence of UNITS: a lone block's instanceId, or
+  // ONE `gh:<groupId>` id per group. A group renders as a single solid <li>
+  // (header + members) whose grip drags the whole thing — so nothing can decouple
+  // and there's no mid-drag list mutation to jump. Members reorder inside a NESTED
+  // sortable (onMemberReorder). Cross-group moves use the Ungroup / Group ↑ buttons.
+  // The earlier flat list (header + each member as sibling ids) made dnd-kit animate
+  // N+1 independent items — that was the "decoupling/shattering" the owner saw.
   const GH = "gh:";
-  // While ANY group is being dragged, collapse EVERY group to a single header
-  // "unit" so the drag is unit-over-unit (owner 2026-07-08). v1/v2 only hid the
-  // dragged group's members, so the *other* groups still split apart mid-drag
-  // (verticalListSortingStrategy opened a gap between their members) — the
-  // "shattered while dragging" bug. With all groups collapsed the target groups
-  // stay intact and closestCenter can only land the drop at a whole-group edge.
-  // `null` = no group drag in progress. reorderByUnits expands the unit order
-  // back into blocks on drop, so hidden members are restored automatically.
-  const [draggingGid, setDraggingGid] = useState<string | null>(null);
-  const groupDragging = draggingGid !== null;
-  // Collapsing every group to a unit shrinks the list, so the window would jump
-  // (often to the top) the instant you grab a group. Capture the scroll offset
-  // on drag-start and restore it before paint so the surrounding list holds
-  // still under the cursor (owner 2026-07-08).
-  const scrollYOnDragRef = useRef(0);
-  useBrowserLayoutEffect(() => {
-    if (groupDragging) window.scrollTo({ top: scrollYOnDragRef.current });
-  }, [groupDragging]);
   const listIds = (): string[] =>
-    buildSegments().flatMap((s) =>
-      s.kind === "group"
-        ? groupDragging
-          ? [`${GH}${s.id}`] // every group is one unit for the duration of the drag
-          : [`${GH}${s.id}`, ...s.members.map((m) => m.instanceId)]
-        : [s.block.instanceId],
-    );
+    buildSegments().map((s) => (s.kind === "group" ? `${GH}${s.id}` : s.block.instanceId));
   // Commit a final block order (each block carries its final groupId) with the
   // broken-condition guard.
   const commitOrder = (ordered: StudyBlock[]) => {
@@ -469,20 +444,106 @@ export function BuilderWorkspace({
       items: broken.map((b) => `"${nameOf(b.targetId)}": ${summarizeClause(b.clause, nameOf)}`),
     });
   };
-  const onListReorder = (newIds: string[], movedId: string) => {
-    const byId = new Map(study.blocks.map((b) => [b.instanceId, b]));
-    if (movedId.startsWith(GH)) {
-      // A group header moved. During a group drag the list is a sequence of
-      // "units" (headers + lone blocks) — expand it back into blocks, each group
-      // emitting its members in order. groupIds unchanged; whole groups move.
-      commitOrder(reorderByUnits(study.blocks, newIds, GH));
-    } else {
-      // A block moved → recompute its group from drop neighbors (join/leave/reorder).
-      const blockIds = newIds.filter((id) => !id.startsWith(GH));
-      const minimal = blockIds.map((id) => ({ instanceId: id, groupId: byId.get(id)?.groupId ?? null }));
-      const regrouped = regroupAfterMove(minimal, movedId);
-      commitOrder(regrouped.map((r) => ({ ...byId.get(r.instanceId)!, groupId: r.groupId })));
-    }
+  // Top-level reorder: newIds is the unit order (lone-block ids + `gh:` ids).
+  // Expand each unit back into blocks (a group emits its members in order);
+  // groups stay intact — regrouping is via the Ungroup / Group ↑ buttons.
+  const onListReorder = (newIds: string[]) => commitOrder(reorderByUnits(study.blocks, newIds, GH));
+  // Nested reorder inside one group — reorders only that group's members.
+  const onMemberReorder = (groupId: string, memberIds: string[]) =>
+    commitOrder(reorderGroupMembers(study.blocks, groupId, memberIds));
+  // One block row (a lone block at top level, or a group member in the nested
+  // list). `grouped` drives the emerald tint + Ungroup vs Group ↑ action; the
+  // last member of a group rounds its bottom so header + members read as one card.
+  const renderRow = (b: StudyBlock, handle: DragHandleProps, grouped: boolean) => {
+    const i = study.blocks.findIndex((x) => x.instanceId === b.instanceId);
+    const next = study.blocks[i + 1];
+    const isLastMember = grouped && (!next || next.groupId !== b.groupId);
+    const groupCls = grouped
+      ? cn(
+          "border-l-2 border-[var(--color-primary)] bg-[var(--color-primary-subtle)]/40 px-2 py-0.5",
+          isLastMember && "rounded-b-[var(--radius-md)] pb-2",
+        )
+      : "mt-2 border-l-2 border-transparent pl-2";
+    const blockEditors = presenceByBlock.get(b.instanceId) ?? [];
+    return (
+      <div className={cn("relative flex items-stretch gap-1", groupCls)} style={blockOutlineStyle(blockEditors)}>
+        <BlockEditorsBadge users={blockEditors} />
+        <span
+          ref={handle.ref}
+          {...handle.attributes}
+          {...handle.listeners}
+          aria-label="Drag to reorder"
+          className="flex shrink-0 cursor-grab touch-none items-center rounded-[var(--radius-md)] px-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)] active:cursor-grabbing"
+        >
+          <GripVertical className="size-4" aria-hidden />
+        </span>
+        <div className="min-w-0 flex-1">
+          <BlockCard
+            divergence={divergenceBadges[b.instanceId]}
+            block={b}
+            selected={b.instanceId === selectedId}
+            onSelect={() => setSelectedId(b.instanceId)}
+            conditionLabel={combineCondLabel(
+              summarizeCondition(
+                conditionWithSources(
+                  b.showIf,
+                  b.branchRules,
+                  new Set(study.blocks.slice(0, i).map((x) => x.instanceId)),
+                ),
+                nameOf,
+              ),
+              b.showIfCondition.map((s) => condNameOf(s)),
+            )}
+          />
+        </div>
+        <div className="flex shrink-0 items-center justify-end gap-0.5">
+          <button
+            type="button"
+            disabled={!canEdit || duplicateBlock.isPending}
+            onClick={() => duplicateBlock.mutate({ studyId: study.id, instanceId: b.instanceId })}
+            title={canEdit ? "Duplicate block" : READ_ONLY_TITLE}
+            aria-label="Duplicate block"
+            className="rounded-[var(--radius-sm)] p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)] disabled:opacity-40"
+          >
+            <Copy className="size-3.5" aria-hidden />
+          </button>
+          <button
+            type="button"
+            disabled={!canEdit}
+            onClick={() => {
+              if (selectedId === b.instanceId) setSelectedId(null);
+              removeBlock.mutate({ studyId: study.id, instanceId: b.instanceId });
+            }}
+            title={canEdit ? "Delete block" : READ_ONLY_TITLE}
+            aria-label="Delete block"
+            className="rounded-[var(--radius-sm)] p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-danger-subtle)] hover:text-[var(--color-danger-text-on-subtle)] disabled:opacity-40"
+          >
+            <Trash2 className="size-3.5" aria-hidden />
+          </button>
+          {grouped ? (
+            <button
+              type="button"
+              disabled={!canEdit}
+              onClick={() => ungroup(b.instanceId)}
+              title={canEdit ? "Remove from group" : READ_ONLY_TITLE}
+              className="rounded-[var(--radius-sm)] px-1.5 py-1 text-[length:var(--text-small)] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)] disabled:opacity-40"
+            >
+              Ungroup
+            </button>
+          ) : i > 0 ? (
+            <button
+              type="button"
+              disabled={!canEdit}
+              onClick={() => groupWithAbove(i)}
+              title={canEdit ? "Show on the same screen as the block above" : READ_ONLY_TITLE}
+              className="rounded-[var(--radius-sm)] px-1.5 py-1 text-[length:var(--text-small)] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)] disabled:opacity-40"
+            >
+              Group ↑
+            </button>
+          ) : null}
+        </div>
+      </div>
+    );
   };
   // Library drag-to-position (block-library-modal.md): dropping a card on a row
   // inserts AFTER that row's block — or after the whole group for member rows,
@@ -828,43 +889,11 @@ export function BuilderWorkspace({
             ) : (
               <SortableList
                 ids={listIds()}
-                onReorder={(ids, moved) => {
-                  onListReorder(ids, moved);
-                  setDraggingGid(null);
-                }}
-                onDragStartId={(id) => {
-                  if (id.startsWith(GH)) {
-                    scrollYOnDragRef.current = window.scrollY;
-                    setDraggingGid(id.slice(GH.length));
-                  }
-                }}
-                onDragCancel={() => setDraggingGid(null)}
+                onReorder={(ids) => onListReorder(ids)}
                 ariaLabel="Study blocks and groups"
                 className="flex flex-col"
                 disabled={!canEdit}
                 nativeDrop={{ active: libraryDragging && canEdit, onDrop: handleLibraryDrop }}
-                renderOverlay={(id) => {
-                  // The dragged unit as a floating chip (decoupled from the list).
-                  if (id.startsWith(GH)) {
-                    const gid = id.slice(GH.length);
-                    const g = study.groups.find((x) => x.id === gid);
-                    const n = study.blocks.filter((x) => x.groupId === gid).length;
-                    return (
-                      <div className="flex items-center gap-2 rounded-[var(--radius-md)] border-l-2 border-[var(--color-primary)] bg-[var(--color-primary-subtle)] px-3 py-1.5 shadow-lg">
-                        <GripVertical className="size-4 text-[var(--color-primary-text-on-subtle)]" aria-hidden />
-                        <span className="text-[length:var(--text-small)] font-medium text-[var(--color-primary-text-on-subtle)]">
-                          {g?.title?.trim() || "Group screen"} · {n} block{n === 1 ? "" : "s"}
-                        </span>
-                      </div>
-                    );
-                  }
-                  return (
-                    <div className="flex items-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-3 py-2 shadow-lg">
-                      <GripVertical className="size-4 text-[var(--color-text-muted)]" aria-hidden />
-                      <span className="text-[length:var(--text-body)] text-[var(--color-text-primary)]">{nameOf(id)}</span>
-                    </div>
-                  );
-                }}
               >
                 {(id, handle) => {
                   // Group header row — its grip drags the whole group. Solid tint +
@@ -872,14 +901,15 @@ export function BuilderWorkspace({
                   if (id.startsWith(GH)) {
                     const gid = id.slice(GH.length);
                     const group = study.groups.find((g) => g.id === gid);
-                    // During a group drag every group collapses to just its header
-                    // (members hidden from listIds) so the drag is unit-over-unit.
-                    const memberCount = study.blocks.filter((x) => x.groupId === gid).length;
-                    const collapsed = collapsedGroups.has(gid) || groupDragging;
+                    const members = study.blocks.filter((x) => x.groupId === gid);
+                    const memberCount = members.length;
+                    const collapsed = collapsedGroups.has(gid);
                     const groupHasSocialPost = study.blocks.some((b) => b.groupId === gid && b.key === "social-post");
+                    // The whole group is ONE sortable unit (one <li>); this grip drags
+                    // it as a solid block. Members reorder in the nested list below.
                     return (
-                      <div key={`gh-${gid}`} className="flex flex-col">
-                      <div className={cn("mt-2 flex flex-wrap items-center gap-2 rounded-t-[var(--radius-md)] border-l-2 border-[var(--color-primary)] bg-[var(--color-primary-subtle)]/40 px-2 py-1.5", groupDragging && "rounded-b-[var(--radius-md)]")}>
+                      <div key={`gh-${gid}`} className="mt-2 flex flex-col">
+                      <div className={cn("flex flex-wrap items-center gap-2 rounded-t-[var(--radius-md)] border-l-2 border-[var(--color-primary)] bg-[var(--color-primary-subtle)]/40 px-2 py-1.5", collapsed && "rounded-b-[var(--radius-md)]")}>
                         <span
                           ref={handle.ref}
                           {...handle.attributes}
@@ -898,7 +928,7 @@ export function BuilderWorkspace({
                           {collapsed ? <ChevronRight className="size-4" aria-hidden /> : <ChevronDown className="size-4" aria-hidden />}
                         </button>
                         <span className="text-[length:var(--text-small)] font-medium text-[var(--color-primary-text-on-subtle)]">Group screen</span>
-                        {groupDragging ? (
+                        {collapsed ? (
                           <span className="text-[length:var(--text-small)] text-[var(--color-primary-text-on-subtle)] opacity-70">
                             · {memberCount} block{memberCount === 1 ? "" : "s"}
                           </span>
@@ -1034,136 +1064,31 @@ export function BuilderWorkspace({
                           onChange={(patch) => updateGroupGating(gid, patch)}
                         />
                       ) : null}
-                      </div>
-                    );
-                  }
-
-                  // A block row (lone or a group member). Grip drags it; drop it
-                  // outside a group to ungroup, between members to join (ADR-0028).
-                  const i = study.blocks.findIndex((x) => x.instanceId === id);
-                  const b = study.blocks[i];
-                  if (!b) return null;
-                  const grouped = !!b.groupId;
-                  const next = study.blocks[i + 1];
-                  const isLastMember = grouped && (!next || next.groupId !== b.groupId);
-                  const collapsed = grouped && collapsedGroups.has(b.groupId!);
-                  const groupCls = grouped
-                    ? cn("border-l-2 border-[var(--color-primary)] bg-[var(--color-primary-subtle)]/40 px-2", isLastMember && "rounded-b-[var(--radius-md)] pb-2")
-                    : "mt-2 border-l-2 border-transparent pl-2";
-
-                  // Collapsed member → thin one-liner (still draggable).
-                  if (collapsed) {
-                    return (
-                      <div className={cn("flex items-center gap-1 py-0.5", groupCls)}>
-                        <span
-                          ref={handle.ref}
-                          {...handle.attributes}
-                          {...handle.listeners}
-                          aria-label="Drag to reorder"
-                          className="flex shrink-0 cursor-grab touch-none items-center rounded-[var(--radius-md)] px-1 text-[var(--color-text-muted)] active:cursor-grabbing"
-                        >
-                          <GripVertical className="size-3.5" aria-hidden />
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedId(b.instanceId)}
-                          className="truncate text-left text-[length:var(--text-small)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
-                        >
-                          {b.title?.trim() || b.name}
-                        </button>
-                      </div>
-                    );
-                  }
-
-                  const blockEditors = presenceByBlock.get(b.instanceId) ?? [];
-                  return (
-                    <div
-                      className={cn("relative flex items-stretch gap-1", groupCls, grouped && "py-0.5")}
-                      style={blockOutlineStyle(blockEditors)}
-                    >
-                      <BlockEditorsBadge users={blockEditors} />
-                      <span
-                        ref={handle.ref}
-                        {...handle.attributes}
-                        {...handle.listeners}
-                        aria-label="Drag to reorder"
-                        className="flex shrink-0 cursor-grab touch-none items-center rounded-[var(--radius-md)] px-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)] active:cursor-grabbing"
-                      >
-                        <GripVertical className="size-4" aria-hidden />
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <BlockCard
-                          divergence={divergenceBadges[b.instanceId]}
-                          block={b}
-                          selected={b.instanceId === selectedId}
-                          onSelect={() => setSelectedId(b.instanceId)}
-                          /* Show the condition on EVERY block, grouped or not: a grouped
-                             block's condition now reveals it live within the screen
-                             (ADR-0088), so it must be visible in the builder too. */
-                          conditionLabel={combineCondLabel(
-                            summarizeCondition(
-                              conditionWithSources(
-                                b.showIf,
-                                b.branchRules,
-                                new Set(study.blocks.slice(0, i).map((x) => x.instanceId)),
-                              ),
-                              nameOf,
-                            ),
-                            b.showIfCondition.map((s) => condNameOf(s)),
-                          )}
-                        />
-                      </div>
-                      <div className="flex shrink-0 items-center justify-end gap-0.5">
-                        {/* Per-tile Duplicate + Delete (owner 2026-07-03) — the same
-                            actions as the Configure panel, on the tile itself so they
-                            don't depend on which side the settings panel is on. */}
-                        <button
-                          type="button"
-                          disabled={!canEdit || duplicateBlock.isPending}
-                          onClick={() => duplicateBlock.mutate({ studyId: study.id, instanceId: b.instanceId })}
-                          title={canEdit ? "Duplicate block" : READ_ONLY_TITLE}
-                          aria-label="Duplicate block"
-                          className="rounded-[var(--radius-sm)] p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)] disabled:opacity-40"
-                        >
-                          <Copy className="size-3.5" aria-hidden />
-                        </button>
-                        <button
-                          type="button"
+                      {/* Members reorder inside their OWN nested sortable, so the group
+                          above moves as one solid unit — nothing decouples (ADR-0028). */}
+                      {!collapsed ? (
+                        <SortableList
+                          ids={members.map((m) => m.instanceId)}
+                          onReorder={(mIds) => onMemberReorder(gid, mIds)}
+                          ariaLabel={`${group?.title || "Group"} blocks`}
+                          className="flex flex-col"
                           disabled={!canEdit}
-                          onClick={() => {
-                            if (selectedId === b.instanceId) setSelectedId(null);
-                            removeBlock.mutate({ studyId: study.id, instanceId: b.instanceId });
-                          }}
-                          title={canEdit ? "Delete block" : READ_ONLY_TITLE}
-                          aria-label="Delete block"
-                          className="rounded-[var(--radius-sm)] p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-danger-subtle)] hover:text-[var(--color-danger-text-on-subtle)] disabled:opacity-40"
                         >
-                          <Trash2 className="size-3.5" aria-hidden />
-                        </button>
-                        {grouped ? (
-                          <button
-                            type="button"
-                            disabled={!canEdit}
-                            onClick={() => ungroup(b.instanceId)}
-                            title={canEdit ? "Remove from group" : READ_ONLY_TITLE}
-                            className="rounded-[var(--radius-sm)] px-1.5 py-1 text-[length:var(--text-small)] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)] disabled:opacity-40"
-                          >
-                            Ungroup
-                          </button>
-                        ) : i > 0 ? (
-                          <button
-                            type="button"
-                            disabled={!canEdit}
-                            onClick={() => groupWithAbove(i)}
-                            title={canEdit ? "Show on the same screen as the block above" : READ_ONLY_TITLE}
-                            className="rounded-[var(--radius-sm)] px-1.5 py-1 text-[length:var(--text-small)] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)] disabled:opacity-40"
-                          >
-                            Group ↑
-                          </button>
-                        ) : null}
+                          {(mid, mHandle) => {
+                            const mb = study.blocks.find((x) => x.instanceId === mid);
+                            return mb ? renderRow(mb, mHandle, true) : null;
+                          }}
+                        </SortableList>
+                      ) : null}
                       </div>
-                    </div>
-                  );
+                    );
+                  }
+
+                  // A lone (ungrouped) top-level block — grouped blocks render inside
+                  // their group's nested list above, so this only ever sees lone blocks.
+                  const b = study.blocks.find((x) => x.instanceId === id);
+                  if (!b) return null;
+                  return renderRow(b, handle, false);
                 }}
               </SortableList>
             )}

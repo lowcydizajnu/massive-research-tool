@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { reorderByUnits } from "@/lib/whiteboard/screens";
+import { reorderByUnits, reorderGroupMembers } from "@/lib/whiteboard/screens";
 
 // Minimal block shape the reconstruction cares about.
 const b = (instanceId: string, groupId: string | null = null) => ({ instanceId, groupId });
@@ -57,5 +57,28 @@ describe("reorderByUnits (ADR-0028 group drag — collapse to units)", () => {
     const units = [`${GH}B`, "outro", `${GH}A`, "intro"];
     const out = ids(reorderByUnits(study(), units, GH));
     expect([...out].sort()).toEqual(["a1", "a2", "a3", "b1", "b2", "intro", "outro"].sort());
+  });
+});
+
+describe("reorderGroupMembers (ADR-0028 atomic-group — nested member sort)", () => {
+  it("reorders only the target group's members; everything else stays put", () => {
+    const out = ids(reorderGroupMembers(study(), "A", ["a3", "a1", "a2"]));
+    expect(out).toEqual(["intro", "a3", "a1", "a2", "b1", "b2", "outro"]);
+  });
+
+  it("leaves the group's position + the other group untouched", () => {
+    const out = ids(reorderGroupMembers(study(), "B", ["b2", "b1"]));
+    expect(out).toEqual(["intro", "a1", "a2", "a3", "b2", "b1", "outro"]);
+  });
+
+  it("safety: a member missing from the new order is appended, never dropped", () => {
+    const out = ids(reorderGroupMembers(study(), "A", ["a2"]));
+    expect(out).toEqual(["intro", "a2", "a1", "a3", "b1", "b2", "outro"]); // a1,a3 appended in original order
+    expect(out).toHaveLength(7);
+  });
+
+  it("ignores ids that don't belong to the group", () => {
+    const out = ids(reorderGroupMembers(study(), "A", ["a2", "b1", "a1", "a3"]));
+    expect(out).toEqual(["intro", "a2", "a1", "a3", "b1", "b2", "outro"]); // b1 ignored, stays in group B
   });
 });
