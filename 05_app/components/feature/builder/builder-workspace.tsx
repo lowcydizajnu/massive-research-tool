@@ -3,7 +3,7 @@
 import { ChevronDown, ChevronRight, Copy, GripVertical, Plus, Redo2, Trash2, Undo2 } from "lucide-react";
 import Link from "next/link";
 import type { Route } from "next";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { SortableList } from "@/components/feature/whiteboard/sortable-list";
 import { useBlockHistory } from "@/lib/whiteboard/use-block-history";
@@ -56,6 +56,11 @@ import { BlockProvenance } from "./block-provenance";
 import { ConsentEditor } from "./consent-editor";
 import { BuildDriftBanner } from "./build-drift-banner";
 import { canWriteRole, READ_ONLY_TITLE, ReadOnlyBanner } from "@/components/feature/workspace/role-gate";
+
+// useLayoutEffect on the server logs a warning; this component is SSR'd as a
+// client component, so alias to useEffect there. The scroll pin only matters
+// in the browser anyway.
+const useBrowserLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 /**
  * Builder mode — the interactive three-zone body (build-stage-builder-mode.md).
@@ -430,6 +435,14 @@ export function BuilderWorkspace({
   // back into blocks on drop, so hidden members are restored automatically.
   const [draggingGid, setDraggingGid] = useState<string | null>(null);
   const groupDragging = draggingGid !== null;
+  // Collapsing every group to a unit shrinks the list, so the window would jump
+  // (often to the top) the instant you grab a group. Capture the scroll offset
+  // on drag-start and restore it before paint so the surrounding list holds
+  // still under the cursor (owner 2026-07-08).
+  const scrollYOnDragRef = useRef(0);
+  useBrowserLayoutEffect(() => {
+    if (groupDragging) window.scrollTo({ top: scrollYOnDragRef.current });
+  }, [groupDragging]);
   const listIds = (): string[] =>
     buildSegments().flatMap((s) =>
       s.kind === "group"
@@ -820,7 +833,10 @@ export function BuilderWorkspace({
                   setDraggingGid(null);
                 }}
                 onDragStartId={(id) => {
-                  if (id.startsWith(GH)) setDraggingGid(id.slice(GH.length));
+                  if (id.startsWith(GH)) {
+                    scrollYOnDragRef.current = window.scrollY;
+                    setDraggingGid(id.slice(GH.length));
+                  }
                 }}
                 onDragCancel={() => setDraggingGid(null)}
                 ariaLabel="Study blocks and groups"
