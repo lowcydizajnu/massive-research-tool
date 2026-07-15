@@ -4,6 +4,8 @@ import type { Route } from "next";
 import { notFound } from "next/navigation";
 
 import { ProfileFollow } from "@/components/feature/profile/profile-follow";
+import { profileJsonLd } from "@/lib/seo/jsonld";
+import { profileUrl, SITE_URL } from "@/lib/site-url";
 import { getCurrentDbUser } from "@/server/auth/current-db-user";
 import { getServerApi } from "@/server/trpc/server";
 
@@ -22,7 +24,17 @@ export async function generateMetadata({
   const { handle } = await params;
   const api = await getServerApi();
   const p = await api.profile.publicByHandle({ handle }).catch(() => null);
-  return p ? { title: `${p.displayName} — My Research Lab` } : { title: "Not found" };
+  if (!p) return { title: "Not found — My Research Lab", robots: { index: false } };
+  const name = p.fullName || p.displayName;
+  const description = p.bio || (p.affiliation ? `Researcher${p.affiliation ? ` at ${p.affiliation}` : ""}` : undefined) || undefined;
+  const image = p.publicAvatarR2Key ? `${SITE_URL}/api/media/${p.publicAvatarR2Key}` : p.avatarUrl || undefined;
+  return {
+    title: `${name} — My Research Lab`,
+    description,
+    alternates: { canonical: profileUrl(p.handle!) },
+    openGraph: { type: "profile", title: name, description, url: profileUrl(p.handle!), images: image ? [image] : undefined },
+    twitter: { title: name, description },
+  };
 }
 
 function initials(name: string): string {
@@ -42,6 +54,11 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
 
   return (
     <main className="min-h-screen bg-[var(--color-surface-page)] px-4 py-10">
+      {/* schema.org Person structured data (ADR-0055 am.1); `<` escaped. */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(profileJsonLd(profile)).replace(/</g, "\\u003c") }}
+      />
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
         {/* Identity header */}
         <header className="flex flex-col gap-4 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-6 sm:flex-row sm:items-start sm:justify-between">

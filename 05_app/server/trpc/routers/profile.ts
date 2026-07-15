@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { and, eq, ne, sql } from "drizzle-orm";
+import { and, eq, isNotNull, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { handleIssue, normalizeHandle } from "@/lib/profile/handle";
@@ -183,6 +183,16 @@ export const profileRouter = router({
    * Includes their public studies (same discoverability rule as Browse/Explore)
    * + public templates.
    */
+  /** Opted-in public profile handles + mtime for app/sitemap.ts (ADR-0055 am.1).
+   *  Same visibility rule as publicByHandle (publicProfileEnabled + a handle). */
+  publicHandles: publicProcedure.query(async (): Promise<{ handle: string; updatedAt: string }[]> => {
+    const rows = await db
+      .select({ handle: user.handle, updatedAt: user.updatedAt })
+      .from(user)
+      .where(and(eq(user.publicProfileEnabled, true), isNotNull(user.handle)));
+    return rows.filter((r) => r.handle).map((r) => ({ handle: r.handle!, updatedAt: r.updatedAt.toISOString() }));
+  }),
+
   publicByHandle: publicProcedure
     .input(z.object({ handle: z.string() }))
     .query(async ({ input }) => {

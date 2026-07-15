@@ -19,12 +19,18 @@ import "@fontsource/ibm-plex-mono/500.css";
 
 import { ThemeProvider } from "@/components/theme-provider";
 import { CookieBanner } from "@/components/feature/legal/cookie-banner";
+import { SITE_URL } from "@/lib/site-url";
 
 import "./globals.css";
 
 export const metadata: Metadata = {
+  // metadataBase resolves per-page OpenGraph image + canonical URLs to absolute
+  // (ADR-0055 am.1 — public record/profile pages set their own og/canonical).
+  metadataBase: new URL(SITE_URL),
   title: "My Research Lab",
   description: "Build studies. Document everything.",
+  openGraph: { siteName: "My Research Lab", type: "website", locale: "en_US" },
+  twitter: { card: "summary_large_image" },
 };
 
 export default function RootLayout({

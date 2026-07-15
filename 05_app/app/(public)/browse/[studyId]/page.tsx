@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import type { Route } from "next";
 import { notFound } from "next/navigation";
@@ -9,9 +10,36 @@ import { CiteShare } from "@/components/feature/study-record/cite-share";
 import { SaveButton } from "@/components/feature/study-record/save-button";
 import { RecordSections } from "@/components/feature/study-record/record-sections";
 import { StudyScreenPreview } from "@/components/feature/browse/study-screen-preview";
+import { studyRecordJsonLd } from "@/lib/seo/jsonld";
+import { recordUrl } from "@/lib/site-url";
 import { getCurrentDbUser } from "@/server/auth/current-db-user";
 import { getServerApi } from "@/server/trpc/server";
 import type { PublicStudyDetail } from "@/server/trpc/routers/studies";
+
+/** SEO: crawlable title/description + canonical + OpenGraph (ADR-0055 am.1). A
+ *  non-public / not-found study returns robots:noindex so existence isn't leaked. */
+export async function generateMetadata({ params }: { params: Promise<{ studyId: string }> }): Promise<Metadata> {
+  const { studyId } = await params;
+  const api = await getServerApi();
+  const detail = await api.studies.getPublicStudy({ studyId }).catch(() => null);
+  if (!detail) return { title: "Not found — My Research Lab", robots: { index: false } };
+  const description = (detail.record?.abstract || detail.overview.abstract || undefined)?.slice(0, 300);
+  return {
+    title: `${detail.title} — My Research Lab`,
+    description,
+    alternates: { canonical: recordUrl(detail.studyId) },
+    openGraph: {
+      type: "article",
+      title: detail.title,
+      description,
+      url: recordUrl(detail.studyId),
+      publishedTime: detail.record?.publishedAt ?? detail.createdAt,
+      authors: [detail.authorName || "Unknown"],
+      tags: detail.tags,
+    },
+    twitter: { title: detail.title, description },
+  };
+}
 
 /**
  * The Study Record (ADR-0054) — the read-only, citable face of a study, and what
@@ -51,6 +79,12 @@ export default async function StudyRecordPage({
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-4">
+      {/* schema.org structured data for search engines / Google Dataset Search
+          (ADR-0055 am.1). Escape `<` so a value can't break out of the script. */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(studyRecordJsonLd(detail)).replace(/</g, "\\u003c") }}
+      />
       <Link href={"/browse" as Route} className="text-[length:var(--text-small)] font-medium text-[var(--color-primary)] hover:opacity-90">
         ← Back to Browse
       </Link>

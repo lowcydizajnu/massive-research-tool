@@ -1372,6 +1372,25 @@ export const studiesRouter = router({
    * the latest published/preregistered version's blocks read-only. NOT_FOUND if
    * the study isn't public or has no frozen version.
    */
+  /** Every public, crawlable study-record id + mtime for app/sitemap.ts
+   *  (ADR-0055 am.1). Reuses the browsePublic visibility rule (forkable=public,
+   *  not archived, not demo, has a frozen version) so the predicate lives in one
+   *  place. No cursor — the full set, fine at current scale. */
+  publicSitemap: publicProcedure.query(async (): Promise<{ studyId: string; updatedAt: string }[]> => {
+    const rows = await db
+      .select({ id: experiment.id, updatedAt: experiment.updatedAt })
+      .from(experiment)
+      .where(
+        and(
+          eq(experiment.forkableBy, "public"),
+          isNull(experiment.archivedAt),
+          eq(experiment.isDemo, false),
+          sql`exists (select 1 from ${experimentVersion} v where v.experiment_id = ${experiment.id} and v.kind in ('published','preregistered'))`,
+        ),
+      );
+    return rows.map((r) => ({ studyId: r.id, updatedAt: r.updatedAt.toISOString() }));
+  }),
+
   getPublicStudy: publicProcedure
     .input(z.object({ studyId: z.string().uuid() }))
     .query(async ({ input }): Promise<PublicStudyDetail> => {
