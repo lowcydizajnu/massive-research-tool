@@ -64,3 +64,17 @@ PII: country/language are *study eligibility settings*, not participant data —
 - Wireframe: [browse-public-studies](../../03_design/wireframes/browse-public-studies.md) (updated for the new filters + Record landing).
 - Pairs with [ADR-0054](0054-finished-state-and-study-record.md) (the Record this lands on).
 - ADRs: 0018 (Browse + forking visibility), 0017 (tags), 0014 (PII), 0047 (adapter discipline the SearchAdapter mirrors).
+
+## Amendment 1 (2026-07-09) — Public + crawlable records/profiles (GitHub-model)
+
+Prompted by the OSF "Lifecycle Open Science" alignment review (insight [los-alignment-and-templates](../../01_research/insights/los-alignment-and-templates.md), Now #1). The audit found the LOS "findable" promise is defeated today: `/browse` is auth-gated in `middleware.ts`, so a `visibility:'public'` Study Record is reachable only by **logged-in users of other workspaces** — not anonymous readers and not search-engine crawlers — and the app emits **zero** machine-readable metadata. The Cite/Share URL therefore doesn't resolve for the outside world.
+
+**Decision (owner, GitHub-model):** the Study Record (and the already-public `/u` profile) is **fully publicly browsable** — an anonymous visitor sees the whole record *including* the action buttons (Follow / Save / Replicate / Use-as-template); **clicking an action redirects to `/signin?redirect_url=<current>`** rather than firing a protected mutation. Logged-in users behave as today. Only studies the owner already opted into public sharing (`forkable_by = 'public'`, ADR-0018) are exposed, and public data stays aggregate-only (ADR-0014).
+
+**Mechanics:**
+- The record page leaves the authed `(app)` shell (whose layout redirects anon to `/signup`) and renders as a **standalone public page**, mirroring the shipped `/u/[handle]` precedent (top-level, `force-dynamic`, nullable `getCurrentDbUser`; client tRPC islands mount a local `TRPCReactProvider`, as `ProfileFollow` already does).
+- The four action controls become **auth-aware**: for an anonymous viewer they render the same button as a `/signin` link (a small shared sign-in gate) so nothing protected runs on mount.
+- `middleware.ts` stops protecting the record detail route; the in-app **listing** remains the authed discovery surface (records are crawlable via the sitemap regardless).
+- **Machine-readable metadata:** JSON-LD (`schema.org` `Dataset`/`CreativeWork` for records — name, description, author `Person` + ORCID, `datePublished`, `keywords`, `identifier` = registration DOI, `license`; `Person` for profiles), `generateMetadata` OpenGraph, plus `app/sitemap.ts` (public records + opted-in profiles) and `app/robots.ts` (allow `/browse` + `/u`, disallow app-internal).
+
+**Consequences:** records become genuinely findable + citable on the open web (the LOS payoff) and the previously-hidden registration DOI / ORCID / license now reach crawlers; the cost is a public render path that must never call a protected procedure anonymously (guarded by the sign-in gate + the page only rendering authed islands for authed viewers). **Revisit trigger:** if the in-app listing should also be public/crawlable (fuller GitHub parity), extend the same standalone-public treatment to the listing. Final route location + the exact middleware matcher are set by the grounding scout for this change.

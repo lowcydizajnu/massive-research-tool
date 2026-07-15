@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { PendingButton } from "@/components/ui/pending-button";
+import { signInHref } from "@/lib/auth/sign-in-redirect";
 import { api } from "@/lib/trpc/react";
 
 /**
@@ -12,7 +13,7 @@ import { api } from "@/lib/trpc/react";
  * diffing). Opens a small dialog confirming the destination workspace (a picker
  * when the caller has more than one; ADR-0055), so it never silently creates.
  */
-export function UseAsTemplateButton({ studyId, className }: { studyId: string; className?: string }) {
+export function UseAsTemplateButton({ studyId, className, authed = true }: { studyId: string; className?: string; authed?: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [target, setTarget] = useState<string | undefined>(undefined);
@@ -27,7 +28,7 @@ export function UseAsTemplateButton({ studyId, className }: { studyId: string; c
     <>
       <PendingButton
         variant="secondary"
-        onClick={() => setOpen(true)}
+        onClick={() => (authed ? setOpen(true) : router.push(signInHref()))}
         pending={copy.isPending}
         idleLabel="Use as template"
         pendingLabel="Copying…"

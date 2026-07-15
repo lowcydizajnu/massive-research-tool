@@ -1,6 +1,9 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+
 import { Spinner } from "@/components/ui/pending-button";
+import { signInHref } from "@/lib/auth/sign-in-redirect";
 import { api } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
 import type { FollowTargetType } from "@/server/trpc/routers/follows";
@@ -17,15 +20,20 @@ export function FollowButton({
   targetId,
   name,
   className,
+  authed = true,
 }: {
   targetType: FollowTargetType;
   targetId: string;
   /** Human label for the accessible name (tag slug / author / Framework / study title). */
   name?: string;
   className?: string;
+  /** GitHub-model (ADR-0055 am.1): on a public page, anon sees the button but a
+   *  click routes to /signin. false ⇒ skip the protected on-mount query too. */
+  authed?: boolean;
 }) {
+  const router = useRouter();
   const utils = api.useUtils();
-  const { data: mine } = api.follows.myFollows.useQuery();
+  const { data: mine } = api.follows.myFollows.useQuery(undefined, { enabled: authed });
   const following = (mine ?? []).some(
     (f) => f.targetType === targetType && f.targetId === targetId,
   );
@@ -46,9 +54,11 @@ export function FollowButton({
       aria-pressed={following}
       aria-label={following ? `Following ${label} — activate to unfollow` : `Follow ${label}`}
       onClick={() =>
-        following
-          ? unfollow.mutate({ targetType, targetId })
-          : follow.mutate({ targetType, targetId })
+        !authed
+          ? router.push(signInHref())
+          : following
+            ? unfollow.mutate({ targetType, targetId })
+            : follow.mutate({ targetType, targetId })
       }
       className={cn(
         "inline-flex shrink-0 items-center gap-1 rounded-[var(--radius-md)] px-2 py-0.5 text-[length:var(--text-small)] font-medium",

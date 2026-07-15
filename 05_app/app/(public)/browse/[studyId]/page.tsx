@@ -9,6 +9,7 @@ import { CiteShare } from "@/components/feature/study-record/cite-share";
 import { SaveButton } from "@/components/feature/study-record/save-button";
 import { RecordSections } from "@/components/feature/study-record/record-sections";
 import { StudyScreenPreview } from "@/components/feature/browse/study-screen-preview";
+import { getCurrentDbUser } from "@/server/auth/current-db-user";
 import { getServerApi } from "@/server/trpc/server";
 import type { PublicStudyDetail } from "@/server/trpc/routers/studies";
 
@@ -34,6 +35,10 @@ export default async function StudyRecordPage({
   } catch {
     notFound();
   }
+
+  // GitHub-model (ADR-0055 am.1): this page is public. Anonymous visitors see the
+  // whole record + the action buttons; the buttons route to /signin on click.
+  const authed = !!(await getCurrentDbUser());
 
   const finished = !!detail.finishedAt;
   const marker = detail.registrationWithdrawn
@@ -79,7 +84,7 @@ export default async function StudyRecordPage({
                   ORCID {detail.authorOrcid}
                 </a>
               ) : null}
-              <FollowButton targetType="author" targetId={detail.authorId} name={detail.authorName} />
+              <FollowButton targetType="author" targetId={detail.authorId} name={detail.authorName} authed={authed} />
               <span>· {marker}</span>
               {detail.replicationCount > 0 ? (
                 <span>· {detail.replicationCount} replication{detail.replicationCount === 1 ? "" : "s"}</span>
@@ -90,7 +95,7 @@ export default async function StudyRecordPage({
                 {detail.tags.map((t) => (
                   <span key={t} className="flex items-center gap-1">
                     <span className="rounded-full bg-[var(--color-surface-subtle)] px-2 py-0.5 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">#{t}</span>
-                    <FollowButton targetType="tag" targetId={t} name={t} />
+                    <FollowButton targetType="tag" targetId={t} name={t} authed={authed} />
                   </span>
                 ))}
               </div>
@@ -117,9 +122,9 @@ export default async function StudyRecordPage({
         <aside className="flex h-fit flex-col gap-3 lg:sticky lg:top-3">
           <div className="flex flex-col gap-2 rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-4">
             {/* Replicate = finished only (ADR-0054); Template always available. */}
-            {finished ? <ReplicateButton studyId={detail.studyId} className="w-full justify-center px-4 py-2" /> : null}
-            <UseAsTemplateButton studyId={detail.studyId} className="w-full justify-center px-4 py-2" />
-            <SaveButton studyId={detail.studyId} />
+            {finished ? <ReplicateButton studyId={detail.studyId} className="w-full justify-center px-4 py-2" authed={authed} /> : null}
+            <UseAsTemplateButton studyId={detail.studyId} className="w-full justify-center px-4 py-2" authed={authed} />
+            <SaveButton studyId={detail.studyId} authed={authed} />
           </div>
           <div className="rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] p-4">
             <CiteShare

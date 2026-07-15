@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { PendingButton } from "@/components/ui/pending-button";
+import { signInHref } from "@/lib/auth/sign-in-redirect";
 import { api } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
 
@@ -31,7 +32,7 @@ const INTENTS = [
   },
 ];
 
-export function ReplicateButton({ studyId, className }: { studyId: string; className?: string }) {
+export function ReplicateButton({ studyId, className, authed = true }: { studyId: string; className?: string; authed?: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [intent, setIntent] = useState<"direct" | "conceptual" | "extension">("direct");
@@ -52,7 +53,7 @@ export function ReplicateButton({ studyId, className }: { studyId: string; class
         pending={fork.isPending}
         idleLabel="Replicate"
         pendingLabel="Replicating…"
-        onClick={() => setOpen(true)}
+        onClick={() => (authed ? setOpen(true) : router.push(signInHref()))}
         className={className}
       />
       {fork.isError ? (

@@ -19,7 +19,9 @@ const isProtectedRoute = createRouteMatcher([
   "/studies(.*)",
   "/library(.*)",
   "/frameworks(.*)",
-  "/browse(.*)",
+  // /browse (listing + record detail) is PUBLIC + crawlable — GitHub-model,
+  // ADR-0055 am.1. It lives in the app/(public) group (no auth shell) and its
+  // actions bounce anon to /signin on click.
   "/saved(.*)",
   "/settings(.*)",
   "/admin(.*)",

@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import type { Route } from "next";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Bookmark, BookmarkCheck } from "lucide-react";
 
+import { signInHref } from "@/lib/auth/sign-in-redirect";
 import { api } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
 
@@ -16,9 +18,12 @@ const SAVED_INTRO_KEY = "mrt:saved-intro-seen";
  * The FIRST time someone saves anything, a one-time modal explains where saved
  * studies live (item 4); the flag is per-browser (localStorage).
  */
-export function SaveButton({ studyId, className }: { studyId: string; className?: string }) {
+export function SaveButton({ studyId, className, authed = true }: { studyId: string; className?: string; authed?: boolean }) {
+  const router = useRouter();
   const utils = api.useUtils();
-  const saved = api.saved.isSaved.useQuery({ studyId });
+  // GitHub-model (ADR-0055 am.1): skip the protected on-mount query for anon;
+  // the button still renders ("Save") and a click routes to /signin.
+  const saved = api.saved.isSaved.useQuery({ studyId }, { enabled: authed });
   const [intro, setIntro] = useState(false);
   const toggle = api.saved.toggle.useMutation({
     onSuccess: ({ saved: next }) => {
@@ -37,8 +42,8 @@ export function SaveButton({ studyId, className }: { studyId: string; className?
     <>
       <button
         type="button"
-        onClick={() => toggle.mutate({ studyId })}
-        disabled={toggle.isPending || saved.isLoading}
+        onClick={() => (authed ? toggle.mutate({ studyId }) : router.push(signInHref()))}
+        disabled={toggle.isPending || (authed && saved.isLoading)}
         aria-pressed={isSaved}
         className={cn(
           "flex w-full items-center justify-center gap-2 rounded-[var(--radius-md)] border px-4 py-2 text-[length:var(--text-small)] font-medium disabled:opacity-60",

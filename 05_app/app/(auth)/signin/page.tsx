@@ -24,7 +24,7 @@ export default function SigninPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (userLoaded && isSignedIn) router.replace("/studies");
+    if (userLoaded && isSignedIn) router.replace(safeRedirect() as Route);
   }, [userLoaded, isSignedIn, router]);
 
   // A Clerk invitation ticket belongs on /signup (it creates a new account).
@@ -68,7 +68,7 @@ export default function SigninPage() {
       });
       if (res.status === "complete" && res.createdSessionId) {
         await setActive({ session: res.createdSessionId });
-        router.replace("/studies");
+        router.replace(safeRedirect() as Route);
       } else {
         setState("error");
         setError("That link expired before it was used. Send a new one.");
@@ -85,10 +85,10 @@ export default function SigninPage() {
     try {
       await signIn.authenticateWithRedirect({
         strategy: "oauth_google",
-        // Dedicated sign-IN callback (item 5a) — completes to /studies, never
-        // bounces back to the login screen.
+        // Dedicated sign-IN callback (item 5a) — never bounces back to the login
+        // screen; completes to the redirect_url target (GitHub-model return) or /studies.
         redirectUrl: "/sso-callback",
-        redirectUrlComplete: "/studies",
+        redirectUrlComplete: safeRedirect(),
       });
     } catch (err) {
       setState("error");
@@ -182,6 +182,31 @@ export default function SigninPage() {
       )}
     </div>
   );
+}
+
+/**
+ * Where to land after sign-in. Honors `?redirect_url=` (GitHub-model return from
+ * a public record's action button — ADR-0055 am.1) with an open-redirect guard:
+ * accepts only a same-origin path (relative, or an absolute URL on this origin),
+ * never a sign-in/up loop; falls back to /studies. Client-only (reads window).
+ */
+function safeRedirect(): string {
+  if (typeof window === "undefined") return "/studies";
+  const raw = new URLSearchParams(window.location.search).get("redirect_url");
+  if (!raw) return "/studies";
+  let path: string | null = null;
+  if (raw.startsWith("/") && !raw.startsWith("//")) {
+    path = raw; // relative same-origin path (what signInHref sends)
+  } else {
+    try {
+      const u = new URL(raw, window.location.origin); // absolute (what middleware sets)
+      if (u.origin === window.location.origin) path = u.pathname + u.search;
+    } catch {
+      /* not a URL — ignore */
+    }
+  }
+  if (!path || path.startsWith("/signin") || path.startsWith("/signup")) return "/studies";
+  return path;
 }
 
 function messageFrom(err: unknown, fallback: string): string {

@@ -34,7 +34,7 @@ const SORTS: { value: Sort; label: string }[] = [
  * (participant nationality / count, experiment type, affiliations) is gated on
  * the SearchAdapter + participant facets that land with item 1b.
  */
-export function BrowseExplorer() {
+export function BrowseExplorer({ authed = true }: { authed?: boolean }) {
   const [q, setQ] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [authorQuery, setAuthorQuery] = useState("");
@@ -252,7 +252,7 @@ export function BrowseExplorer() {
             <ul className="flex flex-col gap-3">
               {items.map((card) => (
                 <li key={card.studyId}>
-                  <BrowseCard card={card} onAddTag={addTag} />
+                  <BrowseCard card={card} onAddTag={addTag} authed={authed} />
                 </li>
               ))}
             </ul>

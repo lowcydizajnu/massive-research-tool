@@ -17,9 +17,13 @@ import type { BrowseStudyCard } from "@/server/trpc/routers/studies";
 export function BrowseCard({
   card,
   onAddTag,
+  authed = true,
 }: {
   card: BrowseStudyCard;
   onAddTag?: (tag: string) => void;
+  /** GitHub-model (ADR-0055 am.1): on the public listing, anon sees the action
+   *  buttons but a click routes to /signin. */
+  authed?: boolean;
 }) {
   // Replicate is for FINISHED studies (ADR-0054); otherwise offer Template
   // (borrow the design). Both open a destination dialog (ADR-0055) rather than
@@ -51,7 +55,7 @@ export function BrowseCard({
 
       <div className="flex items-center gap-2 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
         <span className="truncate">by {card.authorName || "Unknown"}</span>
-        <FollowButton targetType="author" targetId={card.authorId} name={card.authorName} />
+        <FollowButton targetType="author" targetId={card.authorId} name={card.authorName} authed={authed} />
       </div>
 
       {card.tags.length > 0 ? (
@@ -81,9 +85,9 @@ export function BrowseCard({
           {reps}
         </span>
         {finished ? (
-          <ReplicateButton studyId={card.studyId} className="px-3 py-1.5 text-[length:var(--text-small)]" />
+          <ReplicateButton studyId={card.studyId} className="px-3 py-1.5 text-[length:var(--text-small)]" authed={authed} />
         ) : (
-          <UseAsTemplateButton studyId={card.studyId} className="px-3 py-1.5 text-[length:var(--text-small)]" />
+          <UseAsTemplateButton studyId={card.studyId} className="px-3 py-1.5 text-[length:var(--text-small)]" authed={authed} />
         )}
       </div>
     </article>
