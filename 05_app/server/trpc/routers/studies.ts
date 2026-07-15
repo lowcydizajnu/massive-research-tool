@@ -915,6 +915,14 @@ export type PublicStudyDetail = {
   latestVersionNumber: number;
   /** ADR-0005 am. 3 — true once this study's preregistration was withdrawn/retracted on OSF. */
   registrationWithdrawn: boolean;
+  /**
+   * OSF registration identifiers (LOS "connect the record" — insight
+   * los-alignment-and-templates). Surfaced on the record so the plan↔record
+   * anchor resolves for readers. Null unless the latest frozen version is a
+   * preregistration with a minted DOI / public URL.
+   */
+  registrationDoi: string | null;
+  registrationUrl: string | null;
   replicationCount: number;
   /** Finished (ADR-0054) — Record reads as a finished artifact vs "preliminary". */
   finishedAt: string | null;
@@ -1390,6 +1398,8 @@ export const studiesRouter = router({
           versionNumber: experimentVersion.versionNumber,
           snapshot: experimentVersion.definitionSnapshot,
           withdrawn: experimentVersion.registrationWithdrawn,
+          doi: experimentVersion.externalRegistrationDoi,
+          regUrl: experimentVersion.externalRegistrationUrl,
         })
         .from(experimentVersion)
         .where(
@@ -1446,6 +1456,8 @@ export const studiesRouter = router({
         latestKind: ver.kind as "published" | "preregistered",
         latestVersionNumber: ver.versionNumber,
         registrationWithdrawn: ver.kind === "preregistered" && !!ver.withdrawn,
+        registrationDoi: ver.kind === "preregistered" ? ver.doi ?? null : null,
+        registrationUrl: ver.kind === "preregistered" ? ver.regUrl ?? null : null,
         replicationCount: reps?.c ?? 0,
         finishedAt: exp.finishedAt?.toISOString() ?? null,
         createdAt: exp.createdAt.toISOString(),
@@ -1525,7 +1537,7 @@ export const studiesRouter = router({
       if (!exp) throw new TRPCError({ code: "NOT_FOUND", message: "Study not found." });
 
       const [ver] = await db
-        .select({ id: experimentVersion.id, kind: experimentVersion.kind, versionNumber: experimentVersion.versionNumber, snapshot: experimentVersion.definitionSnapshot, withdrawn: experimentVersion.registrationWithdrawn })
+        .select({ id: experimentVersion.id, kind: experimentVersion.kind, versionNumber: experimentVersion.versionNumber, snapshot: experimentVersion.definitionSnapshot, withdrawn: experimentVersion.registrationWithdrawn, doi: experimentVersion.externalRegistrationDoi, regUrl: experimentVersion.externalRegistrationUrl })
         .from(experimentVersion)
         .where(and(eq(experimentVersion.experimentId, input.studyId), inArray(experimentVersion.kind, ["published", "preregistered"])))
         .orderBy(desc(experimentVersion.versionNumber))
@@ -1563,6 +1575,8 @@ export const studiesRouter = router({
         latestKind: (ver?.kind as "published" | "preregistered") ?? "published",
         latestVersionNumber: ver?.versionNumber ?? 0,
         registrationWithdrawn: ver?.kind === "preregistered" && !!ver?.withdrawn,
+        registrationDoi: ver?.kind === "preregistered" ? ver.doi ?? null : null,
+        registrationUrl: ver?.kind === "preregistered" ? ver.regUrl ?? null : null,
         replicationCount: reps?.c ?? 0,
         finishedAt: exp.finishedAt?.toISOString() ?? null,
         createdAt: exp.createdAt.toISOString(),

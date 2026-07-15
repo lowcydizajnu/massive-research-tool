@@ -116,6 +116,7 @@ export default async function StudyRecordPage({
               authorName={detail.authorName}
               year={year}
               articleDoi={detail.record?.articleDoi ?? null}
+              registrationDoi={detail.registrationDoi}
             />
           </div>
         </aside>

@@ -9,26 +9,31 @@ import { cn } from "@/lib/utils";
  * Cite + Share affordances for the public Study Record sidebar (ADR-0056). Both
  * are pure client-side copy actions — no server round-trip. The citation is
  * built from the record's own metadata (author · year · title · canonical URL),
- * APA-ish; a published article DOI, when present, is appended. Share copies the
- * canonical record URL. "Save" (bookmark) lands with Phase C (`saved_record`).
+ * APA-ish. For the persistent identifier it prefers a published article DOI,
+ * then the OSF registration DOI (the record's own anchor per LOS), then the
+ * canonical URL. Share copies the canonical record URL. "Save" (bookmark) lands
+ * with Phase C (`saved_record`).
  */
 export function CiteShare({
   title,
   authorName,
   year,
   articleDoi,
+  registrationDoi = null,
 }: {
   title: string;
   authorName: string;
   year: number;
   articleDoi: string | null;
+  registrationDoi?: string | null;
 }) {
   const [copied, setCopied] = useState<"cite" | "share" | null>(null);
   const url = typeof window !== "undefined" ? window.location.href : "";
 
+  const doi = articleDoi || registrationDoi;
   const citation =
     `${authorName || "Unknown author"} (${year}). ${title}. My Research Lab.` +
-    (articleDoi ? ` https://doi.org/${articleDoi}` : url ? ` ${url}` : "");
+    (doi ? ` https://doi.org/${doi}` : url ? ` ${url}` : "");
 
   const copy = async (kind: "cite" | "share", text: string) => {
     try {

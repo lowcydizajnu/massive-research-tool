@@ -25,8 +25,55 @@ function DefaultRecord({ detail }: { detail: PublicStudyDetail }) {
         </Section>
       ) : null}
       <MethodSection detail={detail} />
+      {detail.latestKind === "preregistered" || detail.registrationWithdrawn ? (
+        <Section title="Preregistration">
+          <PreregistrationBody detail={detail} />
+        </Section>
+      ) : null}
       <ProtocolSection detail={detail} />
     </>
+  );
+}
+
+/** The preregistration note + OSF identifiers row (registration DOI + link back to
+ *  OSF) — the LOS "connect the record" anchor. Shared by the composed + default
+ *  compositions so the plan↔record link resolves either way (insight
+ *  los-alignment-and-templates). */
+function PreregistrationBody({ detail }: { detail: PublicStudyDetail }) {
+  return (
+    <>
+      {detail.registrationWithdrawn ? (
+        <p className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+          This study&rsquo;s preregistration (v{detail.latestVersionNumber}) was <strong>withdrawn</strong> — its plan is no longer frozen on the registry.
+        </p>
+      ) : (
+        <p className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+          This study was preregistered (v{detail.latestVersionNumber}) — its plan was frozen before data collection.
+        </p>
+      )}
+      <OsfIdentifiers detail={detail} />
+    </>
+  );
+}
+
+/** Registration DOI + "View registration on OSF" link, when the registry has
+ *  minted/returned them (null until OSF approval). */
+function OsfIdentifiers({ detail }: { detail: PublicStudyDetail }) {
+  const href = detail.registrationUrl || (detail.registrationDoi ? `https://doi.org/${detail.registrationDoi}` : null);
+  if (!href && !detail.registrationDoi) return null;
+  return (
+    <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[length:var(--text-small)]">
+      {href ? (
+        <a href={href} target="_blank" rel="noreferrer" className="font-medium text-[var(--color-primary)] hover:opacity-90">
+          View registration on OSF →
+        </a>
+      ) : null}
+      {detail.registrationDoi ? (
+        <span className="text-[var(--color-text-secondary)]">
+          DOI: <span className="font-mono text-[length:var(--text-mono)]">{detail.registrationDoi}</span>
+        </span>
+      ) : null}
+    </p>
   );
 }
 
@@ -67,20 +114,9 @@ function ComposedRecord({ detail }: { detail: PublicStudyDetail }) {
           case "method":
             return <MethodSection key={key} detail={detail} title={title} override={s.content} />;
           case "preregistration":
-            if (detail.registrationWithdrawn) {
-              return (
-                <Section key={key} title={title}>
-                  <p className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
-                    This study&rsquo;s preregistration (v{detail.latestVersionNumber}) was <strong>withdrawn</strong> — its plan is no longer frozen on the registry.
-                  </p>
-                </Section>
-              );
-            }
-            return detail.latestKind === "preregistered" ? (
+            return detail.latestKind === "preregistered" || detail.registrationWithdrawn ? (
               <Section key={key} title={title}>
-                <p className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
-                  This study was preregistered (v{detail.latestVersionNumber}) — its plan was frozen before data collection.
-                </p>
+                <PreregistrationBody detail={detail} />
               </Section>
             ) : null;
           case "replications":
