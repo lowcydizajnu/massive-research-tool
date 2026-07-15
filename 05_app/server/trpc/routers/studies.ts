@@ -910,6 +910,9 @@ export type PublicStudyDetail = {
   title: string;
   authorId: string;
   authorName: string;
+  /** Author ORCID iD (LOS contributor PID) — rendered as a verifiable link on the
+   *  record byline + citation. Null when the author hasn't set one. */
+  authorOrcid: string | null;
   tags: string[];
   latestKind: "published" | "preregistered";
   latestVersionNumber: number;
@@ -1374,6 +1377,7 @@ export const studiesRouter = router({
           title: experiment.title,
           authorId: experiment.ownerId,
           authorName: user.displayName,
+          authorOrcid: user.orcid,
           tags: experiment.tags,
           finishedAt: experiment.finishedAt,
           createdAt: experiment.createdAt,
@@ -1452,6 +1456,7 @@ export const studiesRouter = router({
         title: exp.title,
         authorId: exp.authorId,
         authorName: exp.authorName ?? "",
+        authorOrcid: exp.authorOrcid ?? null,
         tags: exp.tags ?? [],
         latestKind: ver.kind as "published" | "preregistered",
         latestVersionNumber: ver.versionNumber,
@@ -1526,6 +1531,7 @@ export const studiesRouter = router({
           title: experiment.title,
           authorId: experiment.ownerId,
           authorName: user.displayName,
+          authorOrcid: user.orcid,
           tags: experiment.tags,
           finishedAt: experiment.finishedAt,
           createdAt: experiment.createdAt,
@@ -1571,6 +1577,7 @@ export const studiesRouter = router({
         title: exp.title,
         authorId: exp.authorId,
         authorName: exp.authorName ?? "",
+        authorOrcid: exp.authorOrcid ?? null,
         tags: exp.tags ?? [],
         latestKind: (ver?.kind as "published" | "preregistered") ?? "published",
         latestVersionNumber: ver?.versionNumber ?? 0,

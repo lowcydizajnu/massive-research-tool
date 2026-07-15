@@ -68,6 +68,17 @@ export default async function StudyRecordPage({
             <h1 className="font-serif text-[length:var(--text-display)] font-medium text-[var(--color-ink-deep)]">{detail.title}</h1>
             <div className="flex flex-wrap items-center gap-2 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
               <span>by {detail.authorName || "Unknown"}</span>
+              {detail.authorOrcid ? (
+                <a
+                  href={`https://orcid.org/${detail.authorOrcid}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-mono text-[length:var(--text-mono)] text-[var(--color-primary)] hover:opacity-90"
+                  aria-label={`ORCID iD ${detail.authorOrcid}`}
+                >
+                  ORCID {detail.authorOrcid}
+                </a>
+              ) : null}
               <FollowButton targetType="author" targetId={detail.authorId} name={detail.authorName} />
               <span>· {marker}</span>
               {detail.replicationCount > 0 ? (
