@@ -32,6 +32,7 @@ import {
   isFrozenSection,
   sectionType,
 } from "@/lib/study-record/sections";
+import { LICENSES, type LicenseId } from "@/lib/licenses";
 import { api } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
 import type { StudyRecordForEdit } from "@/server/trpc/routers/study-record";
@@ -98,6 +99,7 @@ function Editor({ studyId, data, onSaved }: { studyId: string; data: StudyRecord
   const saveLayout = api.studyRecord.saveLayout.useMutation();
   const saveAuthored = api.studyRecord.saveAuthored.useMutation();
   const setVisibility = api.studyRecord.setVisibility.useMutation();
+  const setLicense = api.studies.setLicense.useMutation({ onSuccess: onSaved });
   const lookupCitation = api.studyRecord.lookupCitation.useMutation();
   const [citeNote, setCiteNote] = useState<string | null>(null);
   const busy = saveLayout.isPending || saveAuthored.isPending || setVisibility.isPending;
@@ -292,13 +294,30 @@ function Editor({ studyId, data, onSaved }: { studyId: string; data: StudyRecord
 
       <div className="fixed inset-x-0 bottom-0 z-20 border-t border-[var(--color-border-subtle)] bg-[var(--color-surface-panel)]/95 backdrop-blur">
         <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3 px-4 py-3">
-          <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-            {data.visibility === "public" ? (
-              <span className="text-[var(--color-success-text-on-subtle)]">Published · public</span>
-            ) : (
-              "Visible to your workspace"
-            )}
-          </span>
+          <div className="flex items-center gap-3 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+            <span>
+              {data.visibility === "public" ? (
+                <span className="text-[var(--color-success-text-on-subtle)]">Published · public</span>
+              ) : (
+                "Visible to your workspace"
+              )}
+            </span>
+            {/* Reuse license (ADR-0100) — set at the publish moment. */}
+            <label className="flex items-center gap-1.5">
+              <span className="text-[var(--color-text-muted)]">License</span>
+              <select
+                value={data.license}
+                onChange={(e) => setLicense.mutate({ studyId, license: e.target.value as LicenseId })}
+                disabled={setLicense.isPending}
+                aria-label="Reuse license"
+                className="rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-1.5 py-0.5 text-[length:var(--text-small)] text-[var(--color-text-primary)]"
+              >
+                {LICENSES.map((l) => (
+                  <option key={l.id} value={l.id}>{l.label}</option>
+                ))}
+              </select>
+            </label>
+          </div>
           <div className="flex items-center gap-2">
             <PendingButton
               variant="secondary"

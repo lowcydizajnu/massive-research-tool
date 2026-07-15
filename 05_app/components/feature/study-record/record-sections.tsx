@@ -1,6 +1,7 @@
 import { HypothesisChips } from "@/components/feature/study-record/hypothesis-chips";
 import { PublicDataTable } from "@/components/feature/study-record/public-data-table";
 import { RecordMarkdown } from "@/components/feature/study-record/record-markdown";
+import { licenseInfo } from "@/lib/licenses";
 import { sectionType } from "@/lib/study-record/sections";
 import type { PublicStudyDetail } from "@/server/trpc/routers/studies";
 
@@ -12,7 +13,30 @@ import type { PublicStudyDetail } from "@/server/trpc/routers/studies";
  * hypotheses + data table render via client islands; this wrapper is server-safe.
  */
 export function RecordSections({ detail }: { detail: PublicStudyDetail }) {
-  return detail.record ? <ComposedRecord detail={detail} /> : <DefaultRecord detail={detail} />;
+  return (
+    <>
+      {detail.record ? <ComposedRecord detail={detail} /> : <DefaultRecord detail={detail} />}
+      <LicenseFooter license={detail.license} />
+    </>
+  );
+}
+
+/** Reuse-terms footer (ADR-0100 — LOS "reusable"). Renders the study license as a
+ *  labelled link (or plain label for all-rights-reserved). */
+function LicenseFooter({ license }: { license: string }) {
+  const info = licenseInfo(license);
+  return (
+    <section className="flex flex-wrap items-center gap-2 border-t border-[var(--color-border-subtle)] pt-4 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+      <span>License:</span>
+      {info.url ? (
+        <a href={info.url} target="_blank" rel="noreferrer" className="font-medium text-[var(--color-primary)] hover:opacity-90">
+          {info.label}
+        </a>
+      ) : (
+        <span className="text-[var(--color-text-secondary)]">{info.label}</span>
+      )}
+    </section>
+  );
 }
 
 /** Default bound composition (Slice 1) — shown until the owner publishes a composed record. */

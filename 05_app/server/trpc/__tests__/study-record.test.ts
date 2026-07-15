@@ -364,10 +364,11 @@ describe("studyRecord.pushToOsf (ADR-0056 E4b)", () => {
 
     await a.studyRecord.saveAuthored({ studyId: id, abstract: "Key finding.", articleDoi: "10.1/x" });
 
-    // Workspace-private record: abstract + DOI itemized, but NOT the /browse link (would 404).
+    // Workspace-private record: abstract + DOI + license itemized (ADR-0100), but
+    // NOT the /browse link (would 404 while private).
     let rec = await a.studyRecord.getForEdit({ studyId: id });
     expect(rec.osfNodeId).toBe("NODE-1");
-    expect(rec.osfSummaryItems.map((i) => i.label)).toEqual(["Abstract", "Article DOI"]);
+    expect(rec.osfSummaryItems.map((i) => i.label)).toEqual(["Abstract", "Article DOI", "License"]);
     expect(rec.osfUpToDate).toBe(false);
     expect(rec.osfPushedAt).toBeNull();
 

@@ -24,6 +24,7 @@ import {
   sanitizeLayout,
 } from "@/lib/study-record/sections";
 import { extractMaterials } from "@/lib/study-record/materials";
+import { licenseInfo } from "@/lib/licenses";
 import { readBlocks } from "@/server/modules/blocks";
 import { writeProcedure, router } from "@/server/trpc/trpc";
 
@@ -65,6 +66,8 @@ export type StudyRecordForEdit = {
   studyId: string;
   finishedAt: string | null;
   visibility: "workspace" | "public";
+  /** Reuse license (ADR-0100) — SPDX-style id; the composer's license selector. */
+  license: string;
   abstract: string | null;
   articleUrl: string | null;
   articleDoi: string | null;
@@ -95,6 +98,7 @@ async function requireOwnStudy(studyId: string, workspaceId: string) {
       id: experiment.id,
       forkableBy: experiment.forkableBy,
       finishedAt: experiment.finishedAt,
+      license: experiment.license,
     })
     .from(experiment)
     .where(and(eq(experiment.id, studyId), eq(experiment.tenantId, workspaceId)))
@@ -237,7 +241,7 @@ export type OsfMaterialsUploadResult = {
  */
 function osfRecordSummary(
   rec: { abstract: string | null; articleUrl: string | null; articleDoi: string | null },
-  opts: { studyId: string; recordPublic: boolean },
+  opts: { studyId: string; recordPublic: boolean; license?: string | null },
 ): { items: OsfPushItem[]; text: string; hash: string } {
   const appBase = process.env.NEXT_PUBLIC_APP_URL ?? "https://myresearchlab.app";
   const items: OsfPushItem[] = [];
@@ -245,6 +249,12 @@ function osfRecordSummary(
   if (rec.articleDoi?.trim()) items.push({ label: "Article DOI", value: `https://doi.org/${rec.articleDoi.trim()}` });
   else if (rec.articleUrl?.trim()) items.push({ label: "Article link", value: rec.articleUrl.trim() });
   if (opts.recordPublic) items.push({ label: "Public record link", value: `${appBase}/browse/${opts.studyId}` });
+  // License (ADR-0100) — text on the OSF node description; the structured
+  // node_license relationship is deferred with the other verified-API OSF work.
+  if (opts.license) {
+    const lic = licenseInfo(opts.license);
+    items.push({ label: "License", value: lic.url ? `${lic.label} (${lic.url})` : lic.label });
+  }
   const text = items
     .map((i) => (i.label === "Abstract" ? i.value : `${i.label}: ${i.value}`))
     .join("\n\n")
@@ -262,11 +272,12 @@ export const studyRecordRouter = router({
       const rec = await ensureRecord(input.studyId);
       const availability = await boundAvailability(input.studyId);
       const recordPublic = rec.visibility === "public";
-      const summary = osfRecordSummary(rec, { studyId: input.studyId, recordPublic });
+      const summary = osfRecordSummary(rec, { studyId: input.studyId, recordPublic, license: exp.license });
       return {
         studyId: input.studyId,
         finishedAt: exp.finishedAt?.toISOString() ?? null,
         visibility: recordPublic ? "public" : "workspace",
+        license: exp.license,
         abstract: rec.abstract,
         articleUrl: rec.articleUrl,
         articleDoi: rec.articleDoi,
@@ -294,7 +305,7 @@ export const studyRecordRouter = router({
   pushToOsf: writeProcedure
     .input(z.object({ studyId: z.string().uuid() }))
     .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
-      await requireOwnStudy(input.studyId, ctx.workspace.id);
+      const exp = await requireOwnStudy(input.studyId, ctx.workspace.id);
       const rec = await ensureRecord(input.studyId);
       const nodeId = await osfProjectNode(input.studyId);
       if (!nodeId) {
@@ -311,6 +322,7 @@ export const studyRecordRouter = router({
       const summary = osfRecordSummary(rec, {
         studyId: input.studyId,
         recordPublic: rec.visibility === "public",
+        license: exp.license,
       });
       if (!summary.text.trim()) {
         throw new TRPCError({

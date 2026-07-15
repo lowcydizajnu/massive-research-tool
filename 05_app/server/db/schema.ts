@@ -336,6 +336,10 @@ export const experiment = pgTable(
     description: text("description").notNull().default(""),
     /** Research-area tag slugs (ADR-0017) — the tag follow target's source; copied into activity_event.related_tag_slugs on emit. */
     tags: text("tags").array(),
+    /** Reuse terms (ADR-0100 — LOS "reusable"): SPDX-style id from lib/licenses.ts.
+     *  Study-level (travels with the study, not the frozen version). Defaults to
+     *  CC-BY-4.0; rendered on the record + emitted as schema.org license. */
+    license: text("license").notNull().default("CC-BY-4.0"),
     /** The working tip. Nullable until the first version is written (resolves the experiment<->version circular FK). */
     currentVersionId: uuid("current_version_id").references(
       (): AnyPgColumn => experimentVersion.id,

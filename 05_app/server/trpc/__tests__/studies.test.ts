@@ -2933,3 +2933,36 @@ describe("studies.duplicate (same-workspace clean copy, ADR-0018)", () => {
     await expect(b.studies.duplicate({ studyId: id })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });
+
+describe("studies.setLicense (ADR-0100 — reusable metadata)", () => {
+  it("defaults a new study to CC-BY-4.0 and updates on setLicense", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const a = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await a.studies.create({ kind: "blank", title: "Lic" });
+
+    const [before] = await db.select().from(experiment).where(eq(experiment.id, id));
+    expect(before.license).toBe("CC-BY-4.0");
+
+    const res = await a.studies.setLicense({ studyId: id, license: "CC0-1.0" });
+    expect(res.license).toBe("CC0-1.0");
+    const [after] = await db.select().from(experiment).where(eq(experiment.id, id));
+    expect(after.license).toBe("CC0-1.0");
+  });
+
+  it("rejects an unknown license id (controlled list)", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const a = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await a.studies.create({ kind: "blank" });
+    // @ts-expect-error — invalid enum value is rejected at the input boundary.
+    await expect(a.studies.setLicense({ studyId: id, license: "WTFPL" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("does not leak across workspaces (tenant scoping)", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const a = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await a.studies.create({ kind: "blank" });
+    await seedUserWithWorkspace("ext_b", "Beta");
+    const b = createCaller({ authUser: authUser("ext_b") });
+    await expect(b.studies.setLicense({ studyId: id, license: "MIT" })).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+});

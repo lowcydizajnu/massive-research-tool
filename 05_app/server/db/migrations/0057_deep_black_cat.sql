@@ -1,0 +1,1 @@
+ALTER TABLE "experiment" ADD COLUMN "license" text DEFAULT 'CC-BY-4.0' NOT NULL;

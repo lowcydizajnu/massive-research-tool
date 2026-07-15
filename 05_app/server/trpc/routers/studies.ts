@@ -45,6 +45,7 @@ import {
 } from "@/server/db/schema";
 import { sanitizeLayout as sanitizeRecordLayout } from "@/lib/study-record/sections";
 import { extractMaterials } from "@/lib/study-record/materials";
+import { LICENSE_IDS } from "@/lib/licenses";
 import {
   type CustomModuleDefinition,
   definitionToBlocks,
@@ -913,6 +914,9 @@ export type PublicStudyDetail = {
   /** Author ORCID iD (LOS contributor PID) — rendered as a verifiable link on the
    *  record byline + citation. Null when the author hasn't set one. */
   authorOrcid: string | null;
+  /** Reuse terms (ADR-0100 — LOS "reusable") — SPDX-style license id; render
+   *  label + URL via lib/licenses. Defaults to CC-BY-4.0. */
+  license: string;
   tags: string[];
   latestKind: "published" | "preregistered";
   latestVersionNumber: number;
@@ -1379,6 +1383,7 @@ export const studiesRouter = router({
           authorName: user.displayName,
           authorOrcid: user.orcid,
           tags: experiment.tags,
+          license: experiment.license,
           finishedAt: experiment.finishedAt,
           createdAt: experiment.createdAt,
         })
@@ -1457,6 +1462,7 @@ export const studiesRouter = router({
         authorId: exp.authorId,
         authorName: exp.authorName ?? "",
         authorOrcid: exp.authorOrcid ?? null,
+        license: exp.license ?? "CC-BY-4.0",
         tags: exp.tags ?? [],
         latestKind: ver.kind as "published" | "preregistered",
         latestVersionNumber: ver.versionNumber,
@@ -1533,6 +1539,7 @@ export const studiesRouter = router({
           authorName: user.displayName,
           authorOrcid: user.orcid,
           tags: experiment.tags,
+          license: experiment.license,
           finishedAt: experiment.finishedAt,
           createdAt: experiment.createdAt,
         })
@@ -1578,6 +1585,7 @@ export const studiesRouter = router({
         authorId: exp.authorId,
         authorName: exp.authorName ?? "",
         authorOrcid: exp.authorOrcid ?? null,
+        license: exp.license ?? "CC-BY-4.0",
         tags: exp.tags ?? [],
         latestKind: (ver?.kind as "published" | "preregistered") ?? "published",
         latestVersionNumber: ver?.versionNumber ?? 0,
@@ -6206,6 +6214,21 @@ export const studiesRouter = router({
       return { ok: true };
     }),
 
+
+  /** Set the study's reuse license (ADR-0100). Study-level metadata, member-role
+   *  enforced like other study writes; rendered on the record + emitted as
+   *  schema.org license. */
+  setLicense: writeProcedure
+    .input(z.object({ studyId: z.string().uuid(), license: z.enum(LICENSE_IDS) }))
+    .mutation(async ({ ctx, input }): Promise<{ license: string }> => {
+      const [row] = await db
+        .update(experiment)
+        .set({ license: input.license, updatedAt: new Date() })
+        .where(and(eq(experiment.id, input.studyId), eq(experiment.tenantId, ctx.workspace.id)))
+        .returning({ license: experiment.license });
+      if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+      return { license: row.license };
+    }),
 
   setForkable: writeProcedure
     .input(
