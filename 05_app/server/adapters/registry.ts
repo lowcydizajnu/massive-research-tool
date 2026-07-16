@@ -55,9 +55,12 @@ export type PushResult = {
   registrationId: string;
   /** Public registration URL (OSF: https://osf.io/{guid}/). Available immediately. */
   url: string;
-  /** DOI — NULL at push time on OSF: a freshly-registered registration enters
-   *  pending-approval and OSF mints the DOI only on approval. Backfilled later
-   *  by polling the registration's identifiers (ADR-0005 amendment 2026-06-03). */
+  /** DOI, read from the registration's identifiers at push time. Usually
+   *  present: verified live 2026-07-16 that OSF mints a registration's DOI at
+   *  registration time, not on approval — 8/8 registrations on the test account
+   *  had one, including a private and two withdrawn ones. Still nullable, since
+   *  the read is best-effort and must never lose an accepted registration;
+   *  `runOsfWatch` backfills a null (ADR-0005 amendment 2026-06-03). */
   doi: string | null;
   /** The project node registered from — stored so amendments reuse it. */
   nodeId: string | null;

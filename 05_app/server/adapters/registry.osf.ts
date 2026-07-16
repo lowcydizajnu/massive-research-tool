@@ -146,6 +146,23 @@ async function osfApi(
   return (await res.json()) as { data: { id?: string } };
 }
 
+/** Read a registration's DOI off `/registrations/{id}/identifiers/` (category
+ *  "doi"). Best-effort by contract: returns null rather than throwing, because
+ *  both callers have a registration in hand that must not be lost over a failed
+ *  identifier read — `runOsfWatch` backfills whatever this misses. */
+async function fetchRegistrationDoi(token: string, registrationId: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${osfConfig().apiBase}/registrations/${registrationId}/identifiers/`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: JSON_API },
+    });
+    if (!res.ok) return null;
+    const ids = (await res.json()) as { data?: Array<{ attributes?: { category?: string; value?: string } }> };
+    return ids.data?.find((i) => i.attributes?.category === "doi")?.attributes?.value ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** Resolve the registration-schema id by name (e.g. "Open-Ended Registration").
  *  OSF does NOT support filter[name] on this collection (returns 400), so we
  *  page through the list and match on attributes.name client-side. */
@@ -427,8 +444,8 @@ export const osfRegistry: RegistryAdapter = {
   // Flow verified against OSF's APIv2 swagger + api/registrations/serializers.py
   // (RegistrationCreateSerializer): node -> draft_registration -> PATCH
   // registration_responses -> register (registration_choice "immediate").
-  // NOTE: OSF then calls require_approval() — the registration is pending and
-  // the DOI is minted on approval, so `doi` is null at push time (backfilled).
+  // NOTE: OSF then calls require_approval(). Approval gates the registration
+  // going public — NOT the DOI, which is minted at registration time (step 6).
   async pushRegistration(userId, payload): Promise<PushResult> {
     const token = await osfAccessToken(userId);
 
@@ -519,7 +536,17 @@ export const osfRegistry: RegistryAdapter = {
     const url =
       (reg.data.links?.html as string | undefined) ?? `https://osf.io/${registrationId}/`;
 
-    return { registrationId, url, doi: null, nodeId };
+    // 6. Ask for the DOI now. Verified live 2026-07-16: every registration on
+    //    the account (8/8, including a private one and two withdrawn ones) had
+    //    a DOI on /identifiers/ within seconds of registering — so the DOI is
+    //    normally available here and the caller's gates resolve immediately.
+    //    Best-effort: a pending-approval registration may not have one yet
+    //    (unobserved but possible), and a transient failure must never lose a
+    //    registration that OSF has already accepted. Either way `runOsfWatch`
+    //    backfills it, which is what kept these DOIs missing until now.
+    const doi = await fetchRegistrationDoi(token, registrationId);
+
+    return { registrationId, url, doi, nodeId };
   },
 
   /** An amendment is a NEW registration on the SAME project node; the job
@@ -545,14 +572,8 @@ export const osfRegistry: RegistryAdapter = {
     const reg = (await regRes.json()) as {
       data: { attributes: { pending_registration_approval?: boolean; withdrawn?: boolean; public?: boolean } };
     };
-    const idsRes = await fetch(`${cfg.apiBase}/registrations/${registrationId}/identifiers/`, { headers });
-    let doi: string | null = null;
-    if (idsRes.ok) {
-      const ids = (await idsRes.json()) as { data: Array<{ attributes: { category: string; value: string } }> };
-      doi = ids.data.find((i) => i.attributes.category === "doi")?.attributes.value ?? null;
-    }
     return {
-      doi,
+      doi: await fetchRegistrationDoi(token, registrationId),
       pendingApproval: !!reg.data.attributes.pending_registration_approval,
       withdrawn: !!reg.data.attributes.withdrawn,
       public: !!reg.data.attributes.public,
