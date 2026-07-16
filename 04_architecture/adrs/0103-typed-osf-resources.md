@@ -1,6 +1,6 @@
 # ADR 0103 — Typed OSF resources (outputs as DOIs)
 
-- **Status:** accepted — **amended 2026-07-16 by [ADR-0104](0104-doi-ownership.md)** (see Amendment 1)
+- **Status:** accepted
 - **Date:** 2026-07-16
 - **Deciders:** Paweł Rosner
 - **Tags:** integration, osf, data-model, record
