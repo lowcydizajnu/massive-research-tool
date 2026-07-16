@@ -50,3 +50,22 @@ The first cut gated on **recruitment ever having been opened**. The owner asked 
 - But opening recruitment and closing it again with **zero takers** leaves the plan demonstrably pre-data, and the first cut would still have permanently burned preregistration.
 
 **Reworked (owner direction):** the threshold is now a recorded **participant response** (`response.mode = 'run'`), excluding the researcher's own **preview** runs. The chip therefore reports on *data*, not recruitment — "Not started" while recruitment is open and empty is **correct, not a bug**. Blocking copy softened from `danger` to `warning` and reworded: anyone who reaches it got there legitimately, so it states the constraint and names the alternatives (a Saved version, a published Record) instead of implying fault. ADR-0101 + `data-model/09` + both wireframes reconciled; +2 tests.
+
+## Revision 2 — the template picker was a visual no-op (2026-07-15, owner caught it live)
+
+The owner signed in, used the Overview stage, and reported: *"switching between open-ended and replication recipe change nothing."* Correct, and it is exactly the kind of defect the tests I had could not catch — every assertion was about stored values and OSF mapping; none asserted that **choosing a template changes what the researcher sees**.
+
+**Root cause: I under-built the ADR.** ADR-0101's decision text says each template entry declares "its exposed typed field-set". My catalogue only carried `{key, label, description}` and the editor rendered every typed field unconditionally. The picker *did* drive the OSF `schemaName` at push time — a real effect, but one invisible until you preregistered. A control that appears inert is indistinguishable from a broken one.
+
+**The deeper hole it exposed:** the Replication recipe was **half-built**. Its own three verified OSF questions — `77-12` original study, `77-2` target effect, `77-73` differences — existed only as sections auto-seeded onto **forks** (`injectReplicationRecipe`). A non-fork study choosing the Recipe had *nowhere to answer them at all*, and would have filed a registration missing three of its five answers.
+
+**Fixed:**
+- `PREREG_TEMPLATES[].fields` declares each template's typed field set; `templateAsks()` gates rendering. Open-ended asks 4 fields; the Recipe asks those 4 **plus its own 3**.
+- New typed fields `originalStudy` / `targetEffect` / `differences`, defaulted in `readOverview` like the rest — still **zero migrations**.
+- Mapped with the same dual read: typed wins, legacy seeded section is the fallback; a fork with no typed `originalStudy` still falls back to its source study, so nothing already out there re-files differently.
+- Fields stay additive on one overview object and `setOverview` sends all of them regardless of the active template, so switching hides a field without destroying its value.
+- **+11 tests**, including one that asserts the two templates declare *distinct* field sets — a direct regression guard for "the picker does nothing".
+
+**Verification of this revision — stated plainly:** tsc 0, lint 0, `npm run build` 27/27, **1063 tests** green, `validate.py` clean (281). **The live click-through was again NOT completed:** the Claude-in-Chrome tab group would not carry the owner's `localhost:3000` session (it kept redirecting to `/signin` despite the owner being signed in — apparently a different window/profile), and the app's dev pages never reach `document_idle`, which blocks the screenshot/read tooling. There is no component-test harness in the repo (vitest is `environment: "node"`, `*.test.ts` only, no testing-library), and adding jsdom + testing-library is infra that warrants its own decision rather than being slipped into a bug fix. **So the field-set logic is proven by tests; the rendering swap itself is unconfirmed by observation and needs an owner eyeball on refresh.**
+
+**Process lesson worth keeping:** the first cut passed 1052 tests and a clean build while shipping a control that did nothing. Server-shaped tests cannot see a dead UI. Either a component-test harness or a mandatory human visual pass belongs in the gate for any interactive surface — the current gate has a real hole here.
