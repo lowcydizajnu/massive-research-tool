@@ -6,16 +6,25 @@ import { ulid } from "ulid";
 import { z } from "zod";
 
 import { citation } from "@/server/adapters/citation";
-import { registry } from "@/server/adapters/registry";
+import { registry, type RegistryResourceType } from "@/server/adapters/registry";
+import { osfIdFromDoi } from "@/server/adapters/registry.osf";
 import { db } from "@/server/db/client";
-import { experiment, experimentVersion, osfMaterialUpload, registryPush, response, studyRecord } from "@/server/db/schema";
+import {
+  experiment,
+  experimentVersion,
+  osfMaterialUpload,
+  osfResourceLink,
+  registryPush,
+  response,
+  studyRecord,
+} from "@/server/db/schema";
 import {
   OSF_MATERIALS_FOLDER,
   assembleOsfMaterialFiles,
   planOsfArtifacts,
 } from "@/server/osf/materials-bundle";
 import { buildStudyPdfData } from "@/server/study/pdf-data";
-import { bindingResolves, preregChain } from "@/server/study/prereg-chain";
+import { bindingResolves, newestPrereg, preregChain } from "@/server/study/prereg-chain";
 import {
   DEFAULT_LAYOUT,
   SECTION_TYPES,
@@ -110,6 +119,38 @@ export type StudyRecordForEdit = {
   sectionTypes: typeof SECTION_TYPES;
 };
 
+/** The five slots, in the order the panel renders them (wireframe: linked-outputs). */
+export const LINKED_OUTPUT_TYPES = ["papers", "data", "analytic_code", "materials", "supplements"] as const;
+
+/** Why the whole panel can't act, if it can't. Exactly one, most-blocking first. */
+export type LinkedOutputsGate =
+  | "not_connected"
+  | "not_preregistered"
+  | "awaiting_registration_doi"
+  | null;
+
+export type LinkedOutputSlot = {
+  resourceType: RegistryResourceType;
+  state: "not_linked" | "linked" | "failed";
+  /** The DOI, bare. Null until linked. */
+  pid: string | null;
+  source: "minted" | "article_doi" | "external" | null;
+  error: string | null;
+  /**
+   * The automatic path available for this slot right now, or null. `null` means
+   * external-DOI only — and the panel must SAY so rather than render a control
+   * that cannot act (the item-5 picker / item-6 chip lesson).
+   */
+  auto: "article_doi" | "mint_project" | null;
+  /** If there is an automatic path in principle but not yet, why not. */
+  autoBlocked: string | null;
+};
+
+export type LinkedOutputsView = {
+  gate: LinkedOutputsGate;
+  slots: LinkedOutputSlot[];
+};
+
 /** Resolve + tenant-check the study, or NOT_FOUND. Returns its forkable + finished state. */
 async function requireOwnStudy(studyId: string, workspaceId: string) {
   const [exp] = await db
@@ -183,6 +224,109 @@ async function boundAvailability(studyId: string): Promise<Record<string, boolea
     replications: Number(reps) > 0,
     materials: hasMaterials,
   };
+}
+
+/**
+ * The OSF registration GUID for this study's newest preregistration, or null.
+ * Resources hang off the REGISTRATION (not the project node materials use), and
+ * OSF refuses them entirely until that registration has its own DOI — a 409
+ * ("Cannot add Resources to a Registration that does not have a DOI"). Our DOI
+ * arrives asynchronously via the OSF poll, so "preregistered but no DOI yet" is a
+ * normal, temporary state we gate on rather than discover as an error (D4).
+ */
+async function osfRegistrationTarget(studyId: string): Promise<{ hasPrereg: boolean; registrationId: string | null }> {
+  const chain = await preregChain(studyId);
+  const newest = newestPrereg(chain);
+  if (!newest) return { hasPrereg: false, registrationId: null };
+  const doi = newest.doi;
+  return { hasPrereg: true, registrationId: doi ? osfIdFromDoi(doi) : null };
+}
+
+/** The registration a resource must hang off, or the named reason it can't yet (D4). */
+async function requireRegistrationTarget(studyId: string): Promise<string> {
+  const { hasPrereg, registrationId } = await osfRegistrationTarget(studyId);
+  if (!hasPrereg) {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: "Preregister this study on OSF first — outputs are linked to its registration.",
+    });
+  }
+  if (!registrationId) {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: "OSF is still minting this registration's DOI. Outputs can be linked once it arrives.",
+    });
+  }
+  return registrationId;
+}
+
+/**
+ * Link on OSF, then record what we did. Order matters: OSF first, our row second,
+ * so a row never claims a link that doesn't exist remotely. A failure is
+ * PERSISTED rather than swallowed — the panel's Failed chip + Try again need a
+ * reason to show, and a silent catch would leave a slot looking untouched.
+ */
+async function linkAndRecord(
+  userId: string,
+  input: {
+    studyId: string;
+    registrationId: string;
+    resourceType: RegistryResourceType;
+    pid: string;
+    description?: string;
+    source: "minted" | "article_doi" | "external";
+  },
+): Promise<{ ok: true; pid: string }> {
+  const base = {
+    experimentId: input.studyId,
+    resourceType: input.resourceType,
+    pid: input.pid,
+    description: input.description ?? null,
+    source: input.source,
+  };
+  try {
+    const linked = await registry.linkResource(userId, {
+      registrationId: input.registrationId,
+      resourceType: input.resourceType,
+      pid: input.pid,
+      description: input.description,
+    });
+    await db
+      .insert(osfResourceLink)
+      .values({
+        id: ulid(),
+        ...base,
+        pid: linked.pid,
+        osfResourceId: linked.registryResourceId,
+        finalized: linked.finalized,
+        state: "linked",
+        errorText: null,
+      })
+      .onConflictDoUpdate({
+        target: [osfResourceLink.experimentId, osfResourceLink.resourceType],
+        set: {
+          pid: linked.pid,
+          description: base.description,
+          source: base.source,
+          osfResourceId: linked.registryResourceId,
+          finalized: linked.finalized,
+          state: "linked",
+          errorText: null,
+          updatedAt: new Date(),
+        },
+      });
+    return { ok: true, pid: linked.pid };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    await db
+      .insert(osfResourceLink)
+      .values({ id: ulid(), ...base, state: "failed", errorText: message })
+      .onConflictDoUpdate({
+        target: [osfResourceLink.experimentId, osfResourceLink.resourceType],
+        set: { state: "failed", errorText: message, source: base.source, pid: base.pid, updatedAt: new Date() },
+      });
+    throw e;
+  }
 }
 
 /** The OSF project node id from this study's push history (E4b), or null. */
@@ -696,6 +840,158 @@ export const studyRecordRouter = router({
         .update(studyRecord)
         .set({ dataPublished: false, dataTable: null, updatedAt: new Date() })
         .where(eq(studyRecord.experimentId, input.studyId));
+      return { ok: true };
+    }),
+
+  /**
+   * The Linked outputs panel's state (ADR-0103, wireframe linked-outputs).
+   * Owner-only: this never reaches the public record — the badges live on OSF's
+   * registration, which is already public, and our record links to that rather
+   * than mirroring it.
+   */
+  getLinkedOutputs: writeProcedure
+    .input(z.object({ studyId: z.string().uuid() }))
+    .query(async ({ ctx, input }): Promise<LinkedOutputsView> => {
+      await requireOwnStudy(input.studyId, ctx.workspace.id);
+      const [conn, target, rows, rec, nodeId] = await Promise.all([
+        registry.getConnection(ctx.dbUser.id),
+        osfRegistrationTarget(input.studyId),
+        db.select().from(osfResourceLink).where(eq(osfResourceLink.experimentId, input.studyId)),
+        db
+          .select({ articleDoi: studyRecord.articleDoi })
+          .from(studyRecord)
+          .where(eq(studyRecord.experimentId, input.studyId))
+          .limit(1),
+        osfProjectNode(input.studyId),
+      ]);
+
+      // One reason, most-blocking first. Each is a normal state with a name, not
+      // a failure: a study is unpreregistered before it is preregistered, and its
+      // DOI lands seconds-to-minutes after that.
+      const gate: LinkedOutputsGate = !conn.connected
+        ? "not_connected"
+        : !target.hasPrereg
+          ? "not_preregistered"
+          : !target.registrationId
+            ? "awaiting_registration_doi"
+            : null;
+
+      const byType = new Map(rows.map((r) => [r.resourceType, r]));
+      const articleDoi = rec[0]?.articleDoi?.trim() || null;
+
+      const slots: LinkedOutputSlot[] = LINKED_OUTPUT_TYPES.map((t) => {
+        const r = byType.get(t);
+        // What could fill this slot WITHOUT the researcher finding a DOI. Only
+        // two of the five have one, and the other three must say so plainly
+        // rather than offer a button that cannot act.
+        let auto: LinkedOutputSlot["auto"] = null;
+        let autoBlocked: string | null = null;
+        if (t === "papers") {
+          if (articleDoi) auto = "article_doi";
+          else autoBlocked = "Add your article's DOI to the Abstract section and it can be linked from there.";
+        } else if (t === "materials") {
+          if (nodeId) auto = "mint_project";
+          else autoBlocked = "Upload your materials to OSF first — there's no OSF project to make citable yet.";
+        }
+        return {
+          resourceType: t,
+          state: r ? (r.state === "linked" && r.finalized ? "linked" : r.state === "pending" ? "not_linked" : "failed") : "not_linked",
+          pid: r?.state === "linked" ? r.pid : null,
+          source: r?.state === "linked" ? r.source : null,
+          error: r?.errorText ?? null,
+          auto,
+          autoBlocked,
+        };
+      });
+
+      return { gate, slots };
+    }),
+
+  /**
+   * Link a DOI the researcher already has (ADR-0103 D2 / ADR-0104 D4) — the
+   * escape hatch for anything deposited elsewhere (Zenodo, Dryad, DANDI). Never
+   * required; it exists because a researcher who already did the work shouldn't
+   * have to redo it here.
+   */
+  linkExternalOutput: writeProcedure
+    .input(
+      z.object({
+        studyId: z.string().uuid(),
+        resourceType: z.enum(LINKED_OUTPUT_TYPES),
+        pid: z.string().min(1).max(300),
+        description: z.string().max(500).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }): Promise<{ ok: true; pid: string }> => {
+      await requireOwnStudy(input.studyId, ctx.workspace.id);
+      const registrationId = await requireRegistrationTarget(input.studyId);
+      return await linkAndRecord(ctx.dbUser.id, {
+        studyId: input.studyId,
+        registrationId,
+        resourceType: input.resourceType,
+        pid: input.pid,
+        description: input.description,
+        source: "external",
+      });
+    }),
+
+  /**
+   * Make an output citable by asking OSF to mint the DOI of a node we already
+   * push to, then linking it (ADR-0104 D3, ADR-0103 Amendment 1).
+   *
+   * IRREVERSIBLE on two axes — it makes the researcher's OSF node public, and a
+   * minted DOI has no delete route — so the caller must have shown both
+   * consequences and taken a confirmation. The server cannot verify consent, but
+   * it can refuse to be a side-effect: this is its own mutation, never folded
+   * into the upload.
+   *
+   * `materials` only for now. `data` needs a child component + an answer to what
+   * a RE-deposit does to a DOI that already points at it (wireframe open
+   * question) — shipping it before that would risk silently changing what a
+   * citation resolves to.
+   */
+  makeOutputCitable: writeProcedure
+    .input(z.object({ studyId: z.string().uuid(), resourceType: z.literal("materials") }))
+    .mutation(async ({ ctx, input }): Promise<{ ok: true; pid: string }> => {
+      await requireOwnStudy(input.studyId, ctx.workspace.id);
+      const registrationId = await requireRegistrationTarget(input.studyId);
+      const nodeId = await osfProjectNode(input.studyId);
+      if (!nodeId) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Upload your materials to OSF first — there's no OSF project to make citable yet.",
+        });
+      }
+      const { doi } = await registry.mintNodeDoi(ctx.dbUser.id, nodeId);
+      return await linkAndRecord(ctx.dbUser.id, {
+        studyId: input.studyId,
+        registrationId,
+        resourceType: "materials",
+        pid: doi,
+        source: "minted",
+      });
+    }),
+
+  /**
+   * Unlink an output. On OSF a finalized resource soft-deletes and the removal is
+   * logged on the registration's PUBLIC history; a draft hard-deletes. Neither
+   * retracts the DOI — that was never ours to retract (ADR-0105 D6), and the UI
+   * must not imply otherwise.
+   */
+  unlinkOutput: writeProcedure
+    .input(z.object({ studyId: z.string().uuid(), resourceType: z.enum(LINKED_OUTPUT_TYPES) }))
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      await requireOwnStudy(input.studyId, ctx.workspace.id);
+      const [row] = await db
+        .select()
+        .from(osfResourceLink)
+        .where(and(eq(osfResourceLink.experimentId, input.studyId), eq(osfResourceLink.resourceType, input.resourceType)))
+        .limit(1);
+      if (!row) return { ok: true }; // already gone; removing nothing is not an error
+      if (row.osfResourceId) {
+        await registry.unlinkResource(ctx.dbUser.id, row.osfResourceId);
+      }
+      await db.delete(osfResourceLink).where(eq(osfResourceLink.id, row.id));
       return { ok: true };
     }),
 });

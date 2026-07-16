@@ -32,6 +32,16 @@ vi.mock("@/server/adapters/registry", () => ({
         osfUrl: "https://osf.io/NODE-1/files/osfstorage",
       })),
     ),
+    listResources: vi.fn(async () => []),
+    linkResource: vi.fn(async (_u: string, i: { resourceType: string; pid: string }) => ({
+      registryResourceId: "osf-res-1",
+      resourceType: i.resourceType,
+      pid: i.pid,
+      description: null,
+      finalized: true,
+    })),
+    unlinkResource: vi.fn(async () => undefined),
+    mintNodeDoi: vi.fn(async () => ({ doi: "10.17605/OSF.IO/MINTED" })),
   },
 }));
 // The protocol PDF + byte assembly are unit-tested directly; here we stub them so
@@ -66,6 +76,7 @@ import {
   mention,
   notification,
   osfMaterialUpload,
+  osfResourceLink,
   recruitmentSession,
   registry,
   registryConnection,
@@ -118,6 +129,7 @@ beforeEach(async () => {
   await db.delete(recruitmentSession);
   await db.delete(condition);
   await db.delete(savedRecord);
+  await db.delete(osfResourceLink);
   await db.delete(osfMaterialUpload);
   await db.delete(studyRecord);
   await db.delete(registryPush);
@@ -698,5 +710,129 @@ describe("studyRecord.saveLayout — claim bindings (ADR-0102)", () => {
     expect(rec.layout[0].content).toBe("We dropped the second wave — funding ended.");
     // Palette-only: it must NOT be in the default layout (owner 2026-07-15).
     expect(rec.sectionTypes.find((t) => t.key === "deviations")?.defaultOn).toBe(false);
+  });
+});
+
+/**
+ * Linked outputs (ADR-0103/0104/0105, items 7/8).
+ *
+ * These test the PANEL's view, not just the rows — the lesson from item 6, where
+ * every claim test stopped at the owner's read and passed while the reader got
+ * nothing. What a slot can DO is the thing that has been wrong three times now.
+ */
+describe("studyRecord.getLinkedOutputs", () => {
+  it("gates on OSF connection, then on a preregistration, then on its DOI — one named reason at a time", async () => {
+    await seed("hanna", "Hanna Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const { id } = await a.studies.create({ kind: "blank", title: "Outputs" });
+    const { registry: reg } = await import("@/server/adapters/registry");
+
+    (reg.getConnection as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ connected: false });
+    expect((await a.studyRecord.getLinkedOutputs({ studyId: id })).gate).toBe("not_connected");
+
+    // Connected, but nothing to hang a resource off yet.
+    expect((await a.studyRecord.getLinkedOutputs({ studyId: id })).gate).toBe("not_preregistered");
+
+    // Preregistered, but OSF hasn't returned the registration's DOI yet. This is
+    // a normal, temporary state — not an error — and it is exactly the 409 OSF
+    // would throw if we let the researcher click through (ADR-0103 D4).
+    await a.studies.preregister({ studyId: id });
+    expect((await a.studyRecord.getLinkedOutputs({ studyId: id })).gate).toBe("awaiting_registration_doi");
+  });
+
+  it("says which slots have NO automatic source instead of offering a control that cannot act", async () => {
+    await seed("hanna", "Hanna Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const { id } = await a.studies.create({ kind: "blank", title: "Outputs" });
+    const view = await a.studyRecord.getLinkedOutputs({ studyId: id });
+
+    const slot = (t: string) => view.slots.find((s) => s.resourceType === t)!;
+    // We host no code and no supplements with a DOI, and never will by minting —
+    // so these are external-only, permanently. Not "blocked": absent.
+    expect(slot("analytic_code").auto).toBeNull();
+    expect(slot("analytic_code").autoBlocked).toBeNull();
+    expect(slot("supplements").auto).toBeNull();
+    // Papers and Materials COULD be automatic but aren't yet — and each says why.
+    expect(slot("papers").auto).toBeNull();
+    expect(slot("papers").autoBlocked).toMatch(/article's DOI/i);
+    expect(slot("materials").autoBlocked).toMatch(/Upload your materials/i);
+    // All five slots always render; the panel is never empty.
+    expect(view.slots).toHaveLength(5);
+  });
+
+  it("offers the article DOI for Papers once the record carries one", async () => {
+    await seed("hanna", "Hanna Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const { id } = await a.studies.create({ kind: "blank", title: "Outputs" });
+    await a.studyRecord.saveAuthored({ studyId: id, articleDoi: "10.1037/xge0001234" });
+
+    const view = await a.studyRecord.getLinkedOutputs({ studyId: id });
+    const papers = view.slots.find((s) => s.resourceType === "papers")!;
+    expect(papers.auto).toBe("article_doi");
+    expect(papers.autoBlocked).toBeNull();
+  });
+});
+
+describe("studyRecord.linkExternalOutput", () => {
+  it("refuses before there is a registration to hang the DOI off", async () => {
+    await seed("hanna", "Hanna Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const { id } = await a.studies.create({ kind: "blank", title: "Outputs" });
+
+    await expect(
+      a.studyRecord.linkExternalOutput({ studyId: id, resourceType: "data", pid: "10.5281/zenodo.1" }),
+    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+  });
+
+  it("PERSISTS a failure so the panel can show a reason and a retry", async () => {
+    // The alternative — swallowing it — leaves the slot looking untouched, which
+    // is the "looks fine, did nothing" state this codebase keeps producing.
+    await seed("hanna", "Hanna Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const { id } = await a.studies.create({ kind: "blank", title: "Outputs" });
+    await a.studies.preregister({ studyId: id });
+    // Give the prereg a DOI so the gate opens.
+    await db
+      .update(experimentVersion)
+      .set({ externalRegistrationDoi: "10.17605/OSF.IO/ABCDE" })
+      .where(and(eq(experimentVersion.experimentId, id), eq(experimentVersion.kind, "preregistered")));
+
+    const { registry: reg } = await import("@/server/adapters/registry");
+    (reg.linkResource as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("OSF said no"));
+
+    await expect(
+      a.studyRecord.linkExternalOutput({ studyId: id, resourceType: "data", pid: "10.5281/zenodo.1" }),
+    ).rejects.toThrow(/OSF said no/);
+
+    const [row] = await db.select().from(osfResourceLink).where(eq(osfResourceLink.experimentId, id));
+    expect(row.state).toBe("failed");
+    expect(row.errorText).toMatch(/OSF said no/);
+
+    // And the panel reports it as Failed, with the reason — not as Not linked.
+    const view = await a.studyRecord.getLinkedOutputs({ studyId: id });
+    const data = view.slots.find((s) => s.resourceType === "data")!;
+    expect(data.state).toBe("failed");
+    expect(data.error).toMatch(/OSF said no/);
+  });
+
+  it("records a successful link with its source, and the panel shows the DOI", async () => {
+    await seed("hanna", "Hanna Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const { id } = await a.studies.create({ kind: "blank", title: "Outputs" });
+    await a.studies.preregister({ studyId: id });
+    await db
+      .update(experimentVersion)
+      .set({ externalRegistrationDoi: "10.17605/OSF.IO/ABCDE" })
+      .where(and(eq(experimentVersion.experimentId, id), eq(experimentVersion.kind, "preregistered")));
+
+    await a.studyRecord.linkExternalOutput({ studyId: id, resourceType: "data", pid: "10.5281/zenodo.99" });
+
+    const view = await a.studyRecord.getLinkedOutputs({ studyId: id });
+    const data = view.slots.find((s) => s.resourceType === "data")!;
+    expect(data.state).toBe("linked");
+    expect(data.pid).toBe("10.5281/zenodo.99");
+    // Provenance is stored, not guessed: the panel must be able to say WHO
+    // claimed this DOI (ADR-0102's referent-line principle).
+    expect(data.source).toBe("external");
   });
 });
