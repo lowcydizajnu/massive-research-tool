@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Route } from "next";
 import { notFound } from "next/navigation";
 
 import { PreflightChecklist } from "@/components/feature/run/preflight-checklist";
@@ -11,7 +12,9 @@ import { PushStatusPoller } from "@/components/feature/preregister/push-status-p
 import { RetryPushButton } from "@/components/feature/preregister/retry-push-button";
 import { WithdrawRegistration } from "@/components/feature/preregister/withdraw-registration";
 import { ReadOnlyBanner } from "@/components/feature/workspace/role-gate";
+import { preregTemplate } from "@/lib/prereg-templates";
 import { canWriteRole } from "@/lib/workspace/roles";
+import { planTemplateKey } from "@/server/modules/blocks";
 import { registry } from "@/server/adapters/registry";
 import { getCurrentDbUser } from "@/server/auth/current-db-user";
 import { getServerApi } from "@/server/trpc/server";
@@ -143,9 +146,49 @@ export default async function PreregisterStagePage({
               This saves an immutable, timestamped snapshot of your current design. You can keep
               editing your working draft afterwards.
             </p>
-            <PreflightChecklist studyId={study.id} mode="preregister">
-              <PreregisterButton studyId={study.id} />
-            </PreflightChecklist>
+            {/* Which OSF registration form this plan will be filed under — chosen on
+                the Overview stage (ADR-0101). Shown so the researcher is never
+                surprised; it used to be picked invisibly from replication intent. */}
+            <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+              Filing as{" "}
+              <span className="font-medium text-[var(--color-text-secondary)]">
+                {preregTemplate(planTemplateKey(study.overview)).label}
+              </span>
+              {" · "}
+              <Link href={`/studies/${study.id}/overview` as Route} className="text-[var(--color-primary)] hover:underline">
+                Change in Overview →
+              </Link>
+            </p>
+            {study.dataCollectionStatus === "not-started" ? (
+              <PreflightChecklist studyId={study.id} mode="preregister">
+                <PreregisterButton studyId={study.id} />
+              </PreflightChecklist>
+            ) : (
+              /* Plan-before-data gate (ADR-0101). Enforced server-side in the
+                 preregister mutation; the button is ABSENT rather than disabled,
+                 because there is no override and offering it would be a lie.
+                 Warning tone, not danger: whoever sees this got here legitimately
+                 (they published rather than preregistered, then ran the study). */
+              <div
+                role="status"
+                className="flex max-w-prose flex-col gap-1 rounded-[var(--radius-md)] bg-[var(--color-warning-subtle)] p-3"
+              >
+                <span className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-warning-text-on-subtle)]">
+                  {study.dataCollectionStatus === "finished"
+                    ? "This study has already finished collecting data."
+                    : "This study has already recorded participant responses."}
+                </span>
+                <span className="text-[length:var(--text-small)] text-[var(--color-warning-text-on-subtle)]">
+                  A preregistration is a plan made <em>before</em> the data exist — that&rsquo;s the guarantee it
+                  carries, so it can&rsquo;t be added now. Your design is still fully shareable: save a version, or
+                  publish a{" "}
+                  <Link href={`/studies/${study.id}/record` as Route} className="underline">
+                    Record
+                  </Link>
+                  .
+                </span>
+              </div>
+            )}
           </section>
         ) : (
           <section className="flex flex-col gap-3 border-t border-[var(--color-border-subtle)] pt-4">

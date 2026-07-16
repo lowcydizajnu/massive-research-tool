@@ -4,11 +4,46 @@ import { GripVertical, Plus, X } from "lucide-react";
 import { useState } from "react";
 
 import { PendingButton } from "@/components/ui/pending-button";
+import { PREREG_TEMPLATES, defaultTemplateKey, type PreregTemplateKey } from "@/lib/prereg-templates";
 import { api } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
-import type { OverviewSection, StudyOverview } from "@/server/modules/blocks";
+import type {
+  ExpectedOutcome,
+  OverviewSection,
+  PlanVariable,
+  StudyOverview,
+  VariableRole,
+} from "@/server/modules/blocks";
+import type { DataCollectionStatus } from "@/server/trpc/routers/studies";
 
-const SUGGESTED = ["Background", "Methods", "Analysis plan", "Ethics / IRB", "References"];
+/** "Analysis plan" is deliberately absent — it is a typed field now (ADR-0101),
+ *  and offering a free-markdown section of the same name would create two homes
+ *  for one concept. */
+const SUGGESTED = ["Background", "Methods", "Ethics / IRB", "References"];
+
+const ROLES: { value: VariableRole; label: string }[] = [
+  { value: "iv", label: "Independent" },
+  { value: "dv", label: "Dependent" },
+  { value: "covariate", label: "Covariate" },
+  { value: "exclusion", label: "Exclusion" },
+];
+
+const COLLECTION_CHIP: Record<DataCollectionStatus, { label: string; cls: string }> = {
+  "not-started": {
+    label: "Not started",
+    cls: "bg-[var(--color-success-subtle)] text-[var(--color-success-text-on-subtle)]",
+  },
+  collecting: {
+    label: "Collecting",
+    cls: "bg-[var(--color-warning-subtle)] text-[var(--color-warning-text-on-subtle)]",
+  },
+  finished: {
+    label: "Finished",
+    cls: "bg-[var(--color-warning-subtle)] text-[var(--color-warning-text-on-subtle)]",
+  },
+};
+
+const labelCls = "text-[length:var(--text-label)] uppercase tracking-wide text-[var(--color-text-muted)]";
 
 const fieldCls =
   "w-full rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-3 py-2 text-[length:var(--text-body)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]";
@@ -24,15 +59,30 @@ export function OverviewEditor({
   studyId,
   initial,
   isReplication = false,
+  dataCollection = "not-started",
+  measures = [],
 }: {
   studyId: string;
   initial: StudyOverview;
   isReplication?: boolean;
+  /** Server-derived (ADR-0101); read-only here — drives the chip, never sent back. */
+  dataCollection?: DataCollectionStatus;
+  /** Response-collecting blocks a plan variable can be measured by. */
+  measures?: { instanceId: string; name: string }[];
 }) {
   const [abstract, setAbstract] = useState(initial.abstract);
   const [hypotheses, setHypotheses] = useState<string[]>(initial.hypotheses);
   const [sections, setSections] = useState<OverviewSection[]>(initial.sections);
   const [replicationNotes, setReplicationNotes] = useState(initial.replicationNotes);
+  // The stored key is only the EXPLICIT choice; fall back to the derived default
+  // so the radio reflects what would actually be filed (ADR-0101).
+  const [templateKey, setTemplateKey] = useState<PreregTemplateKey>(
+    initial.templateKey ?? defaultTemplateKey(initial.replicationIntent),
+  );
+  const [samplingPlan, setSamplingPlan] = useState(initial.samplingPlan.text);
+  const [analysisPlan, setAnalysisPlan] = useState(initial.analysisPlan.text);
+  const [variables, setVariables] = useState<PlanVariable[]>(initial.variables);
+  const [expectedOutcomes, setExpectedOutcomes] = useState<ExpectedOutcome[]>(initial.expectedOutcomes);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
 
   const save = api.studies.setOverview.useMutation({
@@ -89,14 +139,99 @@ export function OverviewEditor({
     dirty();
   };
 
+  // --- Typed plan fields (ADR-0101) ---
+  const addVariable = () => {
+    setVariables((v) => [
+      ...v,
+      { id: crypto.randomUUID(), name: "", role: "iv", instanceId: null, notes: "", source: "researcher" },
+    ]);
+    dirty();
+  };
+  const updateVariable = (id: string, patch: Partial<PlanVariable>) => {
+    setVariables((v) => v.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+    dirty();
+  };
+  const removeVariable = (id: string) => {
+    setVariables((v) => v.filter((x) => x.id !== id));
+    dirty();
+  };
+  const moveVariable = (id: string, dir: -1 | 1) => {
+    setVariables((v) => {
+      const i = v.findIndex((x) => x.id === id);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= v.length) return v;
+      const c = [...v];
+      [c[i], c[j]] = [c[j], c[i]];
+      return c;
+    });
+    dirty();
+  };
+
+  const addOutcome = () => {
+    setExpectedOutcomes((o) => [
+      ...o,
+      { id: crypto.randomUUID(), hypothesisIndex: null, prediction: "", source: "researcher" },
+    ]);
+    dirty();
+  };
+  const updateOutcome = (id: string, patch: Partial<ExpectedOutcome>) => {
+    setExpectedOutcomes((o) => o.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+    dirty();
+  };
+  const removeOutcome = (id: string) => {
+    setExpectedOutcomes((o) => o.filter((x) => x.id !== id));
+    dirty();
+  };
+
   const usedHeadings = new Set(sections.map((s) => s.heading));
+  const chip = COLLECTION_CHIP[dataCollection];
 
   return (
     <div className="flex max-w-[760px] flex-col gap-5">
+      {/* Preregistration template (ADR-0101). Governs which typed fields show and
+          which OSF registration form the plan is filed under. NOT a starter study
+          (`workspace_template`) and not the retired Framework — see the Vocabulary
+          table in design-rules. */}
+      <fieldset className="flex flex-col gap-2">
+        <legend className={cn(labelCls, "mb-2")}>Preregistration template</legend>
+        <div role="radiogroup" aria-label="Preregistration template" className="flex flex-col gap-2">
+          {PREREG_TEMPLATES.map((t) => (
+            <label
+              key={t.key}
+              className={cn(
+                "flex cursor-pointer items-start gap-3 rounded-[var(--radius-md)] border p-3",
+                templateKey === t.key
+                  ? "border-[var(--color-primary)] bg-[var(--color-primary-subtle)]"
+                  : "border-[var(--color-border-subtle)] hover:bg-[var(--color-surface-subtle)]",
+              )}
+            >
+              <input
+                type="radio"
+                name="prereg-template"
+                value={t.key}
+                checked={templateKey === t.key}
+                aria-describedby={`tpl-${t.key}-desc`}
+                onChange={() => {
+                  setTemplateKey(t.key);
+                  dirty();
+                }}
+                className="mt-1"
+              />
+              <span className="flex flex-col gap-0.5">
+                <span className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">
+                  {t.label}
+                </span>
+                <span id={`tpl-${t.key}-desc`} className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                  {t.description}
+                </span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
       <label className="flex flex-col gap-1">
-        <span className="text-[length:var(--text-label)] uppercase tracking-wide text-[var(--color-text-muted)]">
-          Abstract
-        </span>
+        <span className={labelCls}>Abstract</span>
         <textarea
           className={cn(fieldCls, "min-h-[88px] resize-y")}
           placeholder="A short summary of the study (what, why, who)."
@@ -175,6 +310,193 @@ export function OverviewEditor({
         </button>
       </div>
 
+      {/* --- Typed plan fields (ADR-0101) --------------------------------- */}
+      <label className="flex flex-col gap-1">
+        <span className={labelCls}>Sampling plan</span>
+        <textarea
+          className={cn(fieldCls, "min-h-[72px] resize-y")}
+          placeholder="Target N and the power analysis that produced it."
+          value={samplingPlan}
+          maxLength={2000}
+          onChange={(e) => {
+            setSamplingPlan(e.target.value);
+            dirty();
+          }}
+        />
+      </label>
+
+      <label className="flex flex-col gap-1">
+        <span className={labelCls}>Analysis plan</span>
+        <textarea
+          className={cn(fieldCls, "min-h-[96px] resize-y")}
+          placeholder="The analysis you commit to running. Markdown supported."
+          value={analysisPlan}
+          maxLength={20000}
+          onChange={(e) => {
+            setAnalysisPlan(e.target.value);
+            dirty();
+          }}
+        />
+      </label>
+
+      <div className="flex flex-col gap-2">
+        <span className={labelCls}>Variables</span>
+        {variables.length === 0 ? (
+          <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+            Name what you manipulate and what you measure — they&rsquo;re frozen into the preregistration.
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {variables.map((v, i) => (
+              <li key={v.id} className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-3">
+                <div className="flex items-start gap-2">
+                  <span className="flex flex-col pt-2 text-[var(--color-text-muted)]">
+                    <button type="button" aria-label="Move up" disabled={i === 0} onClick={() => moveVariable(v.id, -1)} className="leading-none disabled:opacity-30">▴</button>
+                    <button type="button" aria-label="Move down" disabled={i === variables.length - 1} onClick={() => moveVariable(v.id, 1)} className="leading-none disabled:opacity-30">▾</button>
+                  </span>
+                  <input
+                    className={cn(fieldCls, "flex-1")}
+                    placeholder="Variable name (e.g. Warning label)"
+                    value={v.name}
+                    maxLength={200}
+                    aria-label={`Variable ${i + 1} name`}
+                    onChange={(e) => updateVariable(v.id, { name: e.target.value })}
+                  />
+                  <button
+                    type="button"
+                    aria-label={`Remove variable ${i + 1}`}
+                    onClick={() => removeVariable(v.id)}
+                    className="mt-1.5 shrink-0 rounded-[var(--radius-sm)] p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)] hover:text-[var(--color-danger-text-on-subtle)]"
+                  >
+                    <X className="size-4" aria-hidden />
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2 pl-6">
+                  <label className="flex flex-col gap-0.5">
+                    <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">Role</span>
+                    <select
+                      className={cn(fieldCls, "w-auto")}
+                      value={v.role}
+                      onChange={(e) => updateVariable(v.id, { role: e.target.value as VariableRole })}
+                    >
+                      {ROLES.map((r) => (
+                        <option key={r.value} value={r.value}>{r.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-0.5">
+                    <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">Measured by</span>
+                    <select
+                      className={cn(fieldCls, "w-auto")}
+                      value={v.instanceId ?? ""}
+                      onChange={(e) => updateVariable(v.id, { instanceId: e.target.value || null })}
+                    >
+                      <option value="">— not linked —</option>
+                      {measures.map((m) => (
+                        <option key={m.instanceId} value={m.instanceId}>{m.name}</option>
+                      ))}
+                      {/* A linked block that has since been deleted keeps the row honest. */}
+                      {v.instanceId && !measures.some((m) => m.instanceId === v.instanceId) ? (
+                        <option value={v.instanceId}>(removed block)</option>
+                      ) : null}
+                    </select>
+                  </label>
+                  <label className="flex flex-1 flex-col gap-0.5">
+                    <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">Notes</span>
+                    <input
+                      className={fieldCls}
+                      placeholder="e.g. present / absent"
+                      value={v.notes}
+                      maxLength={1000}
+                      onChange={(e) => updateVariable(v.id, { notes: e.target.value })}
+                    />
+                  </label>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+        <button
+          type="button"
+          onClick={addVariable}
+          className="inline-flex items-center gap-1 self-start rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-1.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
+        >
+          <Plus className="size-4" aria-hidden />
+          Add variable
+        </button>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <span className={labelCls}>Expected outcomes</span>
+        {expectedOutcomes.length === 0 ? (
+          <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+            What do you predict will happen? Tie a prediction to a hypothesis where it has one.
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {expectedOutcomes.map((o, i) => (
+              <li key={o.id} className="flex items-start gap-2">
+                <select
+                  className={cn(fieldCls, "mt-0 w-auto shrink-0")}
+                  value={o.hypothesisIndex ?? ""}
+                  aria-label={`Expected outcome ${i + 1} hypothesis`}
+                  onChange={(e) =>
+                    updateOutcome(o.id, { hypothesisIndex: e.target.value ? Number(e.target.value) : null })
+                  }
+                >
+                  <option value="">—</option>
+                  {hypotheses.map((_, hi) => (
+                    <option key={hi} value={hi + 1}>H{hi + 1}</option>
+                  ))}
+                  {/* Hypotheses renumber on delete; keep a now-missing ref visible. */}
+                  {o.hypothesisIndex && o.hypothesisIndex > hypotheses.length ? (
+                    <option value={o.hypothesisIndex}>H{o.hypothesisIndex} (removed)</option>
+                  ) : null}
+                </select>
+                <textarea
+                  className={cn(fieldCls, "min-h-[44px] resize-y")}
+                  placeholder="e.g. Labelled headlines are rated less accurate."
+                  value={o.prediction}
+                  maxLength={1000}
+                  aria-label={`Expected outcome ${i + 1} prediction`}
+                  onChange={(e) => updateOutcome(o.id, { prediction: e.target.value })}
+                />
+                <button
+                  type="button"
+                  aria-label={`Remove expected outcome ${i + 1}`}
+                  onClick={() => removeOutcome(o.id)}
+                  className="mt-1.5 shrink-0 rounded-[var(--radius-sm)] p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)] hover:text-[var(--color-danger-text-on-subtle)]"
+                >
+                  <X className="size-4" aria-hidden />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <button
+          type="button"
+          onClick={addOutcome}
+          className="inline-flex items-center gap-1 self-start rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-1.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
+        >
+          <Plus className="size-4" aria-hidden />
+          Add expected outcome
+        </button>
+      </div>
+
+      {/* Derived, read-only (ADR-0101). Reports on DATA, not recruitment: "Not
+          started" while recruitment is open and nobody has taken it is correct. */}
+      <div className="flex flex-col gap-1">
+        <span className={labelCls}>Data collection</span>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={cn("rounded-[var(--radius-sm)] px-2 py-0.5 text-[length:var(--text-small)] font-medium", chip.cls)}>
+            {chip.label}
+          </span>
+          <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+            You can only preregister before your first participant response.
+          </span>
+        </div>
+      </div>
+
       <div className="flex flex-col gap-3">
         {sections.map((sec, i) => (
           <div
@@ -248,6 +570,14 @@ export function OverviewEditor({
                 hypotheses: hypotheses.filter((h) => h.trim() !== ""),
                 replicationNotes,
                 sections,
+                // Typed plan fields (ADR-0101). `dataCollectionStatus` is never
+                // sent — it is derived server-side. Anything omitted here keeps
+                // its stored value (setOverview merges).
+                templateKey,
+                samplingPlan: { text: samplingPlan, source: "researcher" },
+                analysisPlan: { text: analysisPlan, source: "researcher" },
+                variables: variables.filter((v) => v.name.trim() !== ""),
+                expectedOutcomes: expectedOutcomes.filter((o) => o.prediction.trim() !== ""),
               },
             })
           }

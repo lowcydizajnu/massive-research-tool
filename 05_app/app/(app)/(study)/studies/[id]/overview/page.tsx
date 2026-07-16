@@ -54,7 +54,15 @@ export default async function OverviewPage({ params }: { params: Promise<{ id: s
           </a>
         </div>
         {parent ? <ReplicationProvenance parent={parent} studyId={study.id} /> : null}
-        <OverviewEditor studyId={study.id} initial={study.overview} isReplication={study.isReplication} />
+        <OverviewEditor
+          studyId={study.id}
+          initial={study.overview}
+          isReplication={study.isReplication}
+          dataCollection={study.dataCollectionStatus}
+          measures={study.blocks
+            .filter((b) => b.collectsResponse)
+            .map((b) => ({ instanceId: b.instanceId, name: b.title || b.name }))}
+        />
         {study.isReplication ? <DivergenceSummary studyId={study.id} /> : null}
       </div>
     </main>

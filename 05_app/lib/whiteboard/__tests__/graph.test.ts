@@ -14,6 +14,7 @@ function block(partial: Partial<StudyBlock> & { instanceId: string }): StudyBloc
     ref: "core/likert-7@1.0.0",
     config: {},
     complete: true,
+    collectsResponse: true,
     showIfCondition: [],
     branchRules: [],
     showIf: null,

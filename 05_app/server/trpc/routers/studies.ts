@@ -618,6 +618,9 @@ export type StudyBlock = {
   ref: string;
   config: Record<string, unknown>;
   complete: boolean;
+  /** Whether this block records an answer — the set a plan variable can be
+   *  measured by (ADR-0101), and what item ⑨ will derive variables from. */
+  collectsResponse: boolean;
   /** Condition slugs this block is gated to; empty = shown to everyone. */
   showIfCondition: string[];
   /** Legacy equality branch rules (ADR-0021, superseded by `showIf`). */
@@ -1862,6 +1865,7 @@ export const studiesRouter = router({
           ref: d.ref,
           config: def ? { ...def.defaultConfig, ...b.config } : b.config,
           complete: d.complete,
+          collectsResponse: !!def?.collectsResponse,
           showIfCondition: b.visibility?.showIfCondition ?? [],
           branchRules: b.branchRules ?? [],
           showIf: b.showIf ?? null,
