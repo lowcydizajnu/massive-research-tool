@@ -591,4 +591,43 @@ describe("osfRegistry.mintNodeDoi", () => {
     expect(posted).toEqual({ data: { type: "identifiers", attributes: { category: "doi" } } });
     expect(out.doi).toBe("10.17605/OSF.IO/NEW01");
   });
+
+  /**
+   * We create every project private, and OSF's `EditIfPublic` returns
+   * `obj.is_public` for any write to /identifiers/ — so without this PATCH the
+   * mint is refused `403 "You do not have permission to perform this action."`
+   * and the Make-citable button can never succeed. Verified live 2026-07-16.
+   * The consent already promises "This makes your OSF project public"; this
+   * asserts the promise has code behind it, and that it lands BEFORE the mint.
+   */
+  it("makes the node public BEFORE minting — the mint is refused on a private node", async () => {
+    const calls: Array<{ method: string; url: string; body: unknown }> = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const method = init?.method ?? "GET";
+      calls.push({ method, url: String(input), body: init?.body ? JSON.parse(String(init.body)) : null });
+      if (method === "GET") return json({ data: [] });
+      if (method === "PATCH") return json({ data: { id: "node1", attributes: { public: true } } });
+      return json({ data: { id: "i3", attributes: { category: "doi", value: "10.17605/OSF.IO/NEW02" } } });
+    });
+
+    await osfRegistry.mintNodeDoi("u1", "node1");
+
+    const patch = calls.find((c) => c.method === "PATCH");
+    expect(patch).toBeDefined();
+    expect(patch!.url).toContain("/nodes/node1/");
+    expect(patch!.body).toEqual({ data: { id: "node1", type: "nodes", attributes: { public: true } } });
+    // Order is the whole point: publishing after the mint would be too late.
+    expect(calls.findIndex((c) => c.method === "PATCH")).toBeLessThan(calls.findIndex((c) => c.method === "POST"));
+  });
+
+  it("does NOT publish a node when the DOI already exists — no needless exposure", async () => {
+    const methods: string[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      methods.push(init?.method ?? "GET");
+      return json({ data: [{ id: "i1", attributes: { category: "doi", value: "10.17605/OSF.IO/ABCDE" } }] });
+    });
+
+    await osfRegistry.mintNodeDoi("u1", "node1");
+    expect(methods).toEqual(["GET"]); // no PATCH: already minted means already public
+  });
 });

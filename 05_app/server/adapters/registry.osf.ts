@@ -803,10 +803,30 @@ export const osfRegistry: RegistryAdapter = {
     const existing = (found?.attributes as { value?: unknown } | undefined)?.value;
     if (typeof existing === "string" && existing) return { doi: normalizeDoi(existing) };
 
+    // Make the node public FIRST — the mint requires it, and without this the
+    // whole path is dead. OSF's IdentifierList carries `EditIfPublic`, which for
+    // any non-safe method returns `obj.is_public` outright:
+    //
+    //   if request.method not in permissions.SAFE_METHODS: return obj.is_public
+    //
+    // We create every project private (`pushRegistration` step 2), so a mint on
+    // an untouched node is refused — and refused as a bare
+    // `403 "You do not have permission to perform this action."`, which names
+    // neither public-ness nor the fix. Verified live 2026-07-16 against a node
+    // this account owns as ADMIN. The token is not the problem: `osf.full_write`
+    // composes FULL_WRITE → NODE_ALL_WRITE → NODE_METADATA_WRITE → IDENTIFIERS_WRITE.
+    //
+    // This is exactly what the consent already promises ("This makes your OSF
+    // project public") — the promise simply had no code behind it. Doing it here
+    // keeps the two inseparable: no caller can mint without publishing, and no
+    // caller reaches here without consent (ADR-0104 D3).
+    await osfApi(token, "PATCH", `/nodes/${nodeId}/`, {
+      data: { id: nodeId, type: "nodes", attributes: { public: true } },
+    });
+
     // Mint. `category` is the only writeable field — OSF assigns the value; we
-    // cannot supply our own (ADR-0104: OSF is the registrant, not us). Requires
-    // the node PUBLIC and the caller ADMIN, and there is NO delete route, so
-    // this is only ever reached behind explicit consent (ADR-0104 D3).
+    // cannot supply our own (ADR-0104: OSF is the registrant, not us). There is
+    // NO delete route, so this is only ever reached behind explicit consent.
     const res = await osfApi(token, "POST", `/nodes/${nodeId}/identifiers/`, {
       data: { type: "identifiers", attributes: { category: "doi" } },
     });

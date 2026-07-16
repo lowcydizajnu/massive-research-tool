@@ -38,6 +38,12 @@ const SOURCE_LINE: Record<string, string> = {
  *  mutation must give the same reason, since a stale gate routes the researcher
  *  from one to the other. Only `awaiting_registration_doi` asks for patience;
  *  the rest name the action, because for them no amount of waiting helps. */
+/** The slots we can ask OSF to mint a DOI for. Mirrors `makeOutputCitable`'s
+ *  input; item ⑧ widens both together or neither. */
+const MINTABLE = ["materials"] as const;
+type MintableType = (typeof MINTABLE)[number];
+const isMintable = (t: string): t is MintableType => (MINTABLE as readonly string[]).includes(t);
+
 const GATE_COPY: Record<Exclude<LinkedOutputsGate, null>, { text: string; connect?: true }> = {
   not_connected: { text: "in Settings · Connections to link outputs.", connect: true },
   not_preregistered: { text: "Link outputs once this study is preregistered." },
@@ -59,7 +65,11 @@ export function LinkedOutputsPanel({ studyId }: { studyId: string }) {
   const [pasting, setPasting] = useState(false);
   const [pasteType, setPasteType] = useState("data");
   const [pasteDoi, setPasteDoi] = useState("");
-  const [confirming, setConfirming] = useState<string | null>(null);
+  // Which slot's mint dialog is open. Typed to the slots that HAVE a mint path
+  // (server: `makeOutputCitable`'s input), not to any string — so widening one
+  // without the other is a compile error rather than a dialog that mints the
+  // wrong artifact and says it worked.
+  const [confirming, setConfirming] = useState<MintableType | null>(null);
 
   const link = api.studyRecord.linkExternalOutput.useMutation();
   const mint = api.studyRecord.makeOutputCitable.useMutation();
@@ -117,7 +127,9 @@ export function LinkedOutputsPanel({ studyId }: { studyId: string }) {
                 slot={s}
                 studyId={studyId}
                 busy={mint.isPending || unlink.isPending}
-                onMakeCitable={() => setConfirming(s.resourceType)}
+                onMakeCitable={() => {
+                  if (isMintable(s.resourceType)) setConfirming(s.resourceType);
+                }}
                 onRemove={() => run(() => unlink.mutateAsync({ studyId, resourceType: s.resourceType }), "Removed.")}
               />
             ))}
@@ -193,10 +205,15 @@ export function LinkedOutputsPanel({ studyId }: { studyId: string }) {
           pending={mint.isPending}
           onCancel={() => setConfirming(null)}
           onConfirm={() =>
+            // Mint what the researcher actually confirmed. This read `"materials"`
+            // hardcoded, which was invisible only because materials is the one
+            // slot with a mint path — the moment a second slot gets one, that
+            // dialog would mint materials whatever row you clicked, and report
+            // success. Drive both the call and the note off `confirming`.
             run(async () => {
-              await mint.mutateAsync({ studyId, resourceType: "materials" });
+              await mint.mutateAsync({ studyId, resourceType: confirming });
               setConfirming(null);
-            }, "Linked — your materials now have a DOI.")
+            }, `Linked — your ${(LABEL[confirming] ?? confirming).toLowerCase()} now has a DOI.`)
           }
         />
       ) : null}
