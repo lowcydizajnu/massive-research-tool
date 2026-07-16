@@ -6,11 +6,13 @@ import { registry as registryTable, registryConnection } from "@/server/db/schem
 import { decryptSecret, encryptSecret } from "@/server/crypto/tokens";
 
 import type {
+  LinkedResource,
   MaterialUploadResult,
   PushResult,
   RegistrationPayload,
   RegistryAdapter,
   RegistryConnectionInfo,
+  RegistryResourceType,
 } from "./registry";
 
 /**
@@ -696,7 +698,169 @@ export const osfRegistry: RegistryAdapter = {
     }
     return results;
   },
+
+  async listResources(userId, registrationId): Promise<LinkedResource[]> {
+    const token = await osfAccessToken(userId);
+    // The read route is nested under the registration; the WRITE routes are not
+    // (see linkResource). GET /v2/resources/ — the bare collection — is 405.
+    const rows = await osfApiList(token, `/registrations/${registrationId}/resources/`);
+    return rows.map(toLinkedResource);
+  },
+
+  async linkResource(userId, { registrationId, resourceType, pid, description }): Promise<LinkedResource> {
+    const token = await osfAccessToken(userId);
+    const doi = normalizeDoi(pid);
+    if (!doi) throw new Error("A DOI is required to link an output.");
+
+    // 1. RECONCILE FIRST. `POST /v2/resources/` ignores every attribute and
+    //    returns an empty draft, so a retry that blindly POSTs strands another
+    //    invisible draft on the researcher's registration every time it runs
+    //    (ADR-0103 D7). Adopt our own half-finished work instead.
+    const existing = await osfApiList(token, `/registrations/${registrationId}/resources/`);
+    const mine = existing
+      .map(toLinkedResource)
+      .find((r) => (r.pid === doi && r.resourceType === resourceType) || (r.pid === "" && !r.finalized));
+
+    let resourceId = mine?.registryResourceId ?? "";
+
+    if (!resourceId) {
+      // 2. CREATE. The registration is named by a relationship, not an attribute:
+      //    OSF's ResourceList reads `request.data['registration']` and 409s
+      //    ("Cannot add Resources to a Registration that does not have a DOI") if
+      //    the registration has no DOI of its own. Callers gate on that (D4).
+      const created = await osfApi(token, "POST", "/resources/", {
+        data: {
+          type: "resources",
+          relationships: { registration: { data: { id: registrationId, type: "registrations" } } },
+        },
+      });
+      resourceId = String(created.data?.id ?? "");
+      if (!resourceId) throw new Error("OSF created a resource without returning its id.");
+    }
+
+    // 3. CONTENT. Everything the POST discarded goes here.
+    await osfApi(token, "PATCH", `/resources/${resourceId}/`, {
+      data: {
+        id: resourceId,
+        type: "resources",
+        attributes: {
+          resource_type: resourceType,
+          pid: doi,
+          ...(description ? { description } : {}),
+        },
+      },
+    });
+
+    // 4. FINALIZE. Until this lands the resource exists but shows no badge, so it
+    //    is NOT done. One-way: PATCHing finalized back to false is a 409.
+    const done = await osfApi(token, "PATCH", `/resources/${resourceId}/`, {
+      data: { id: resourceId, type: "resources", attributes: { finalized: true } },
+    });
+
+    const result = toLinkedResource(done.data as OsfResourceRow);
+    // Trust OSF's echo over our intent, but don't report success on a resource it
+    // says isn't finalized — that would be the "looks linked, shows no badge"
+    // failure this sequence exists to prevent.
+    if (!result.finalized) throw new Error("OSF accepted the output but did not finalize it — it will show no badge.");
+    return { ...result, registryResourceId: resourceId, pid: result.pid || doi, resourceType: result.resourceType ?? resourceType };
+  },
+
+  async unlinkResource(userId, registryResourceId): Promise<void> {
+    const token = await osfAccessToken(userId);
+    await osfApi(token, "DELETE", `/resources/${registryResourceId}/`);
+  },
+
+  async mintNodeDoi(userId, nodeId): Promise<{ doi: string }> {
+    const token = await osfAccessToken(userId);
+
+    // Already minted? Return it. OSF raises "A DOI already exists for this
+    // resource." on a second attempt, but that state is exactly what we wanted,
+    // so it is a success, not an error (ADR-0103 D7's reconcile-don't-retry).
+    const found = (await osfApiList(token, `/nodes/${nodeId}/identifiers/`)).find(
+      (r) => (r.attributes as { category?: unknown } | undefined)?.category === "doi",
+    );
+    const existing = (found?.attributes as { value?: unknown } | undefined)?.value;
+    if (typeof existing === "string" && existing) return { doi: normalizeDoi(existing) };
+
+    // Mint. `category` is the only writeable field — OSF assigns the value; we
+    // cannot supply our own (ADR-0104: OSF is the registrant, not us). Requires
+    // the node PUBLIC and the caller ADMIN, and there is NO delete route, so
+    // this is only ever reached behind explicit consent (ADR-0104 D3).
+    const res = await osfApi(token, "POST", `/nodes/${nodeId}/identifiers/`, {
+      data: { type: "identifiers", attributes: { category: "doi" } },
+    });
+    const value = (res.data?.attributes as { value?: unknown } | undefined)?.value;
+    if (typeof value !== "string" || !value) throw new Error("OSF minted a DOI but did not return its value.");
+    return { doi: normalizeDoi(value) };
+  },
 };
+
+/**
+ * OSF's five public resource types. `ArtifactTypes.public_types()` in
+ * osf/utils/outcomes.py, and the wire format is the enum member name lowercased
+ * (api/base/serializers.py EnumField: `to_representation` → `.name.lower()`).
+ * Verified against live data 2026-07-16: registration `pbu8x` carries
+ * `resource_type: "data"` and `"analytic_code"`. OSF's UNDEFINED/PRIMARY are
+ * internal and never appear here.
+ */
+const OSF_PUBLIC_RESOURCE_TYPES: readonly RegistryResourceType[] = [
+  "data",
+  "analytic_code",
+  "materials",
+  "papers",
+  "supplements",
+];
+
+function asResourceType(v: unknown): RegistryResourceType | null {
+  return typeof v === "string" && (OSF_PUBLIC_RESOURCE_TYPES as readonly string[]).includes(v)
+    ? (v as RegistryResourceType)
+    : null;
+}
+
+/** OSF normalises a DOI down to the bare value; mirror it so what we store and
+ *  what we send agree, and a pasted `https://doi.org/10.x/y` doesn't round-trip
+ *  as a different string than OSF holds. */
+export function normalizeDoi(raw: string): string {
+  return raw
+    .trim()
+    .replace(/^https?:\/\/(dx\.)?doi\.org\//i, "")
+    .replace(/^doi:/i, "")
+    .trim();
+}
+
+type OsfResourceRow = {
+  id?: string;
+  attributes?: { resource_type?: unknown; pid?: unknown; description?: unknown; finalized?: unknown };
+};
+
+function toLinkedResource(row: OsfResourceRow): LinkedResource {
+  const a = row.attributes ?? {};
+  return {
+    registryResourceId: String(row.id ?? ""),
+    resourceType: asResourceType(a.resource_type),
+    pid: typeof a.pid === "string" ? a.pid : "",
+    description: typeof a.description === "string" && a.description !== "" ? a.description : null,
+    finalized: a.finalized === true,
+  };
+}
+
+/** GET a JSON:API *collection*. `osfApi` is typed for a single resource; the
+ *  resources + identifiers endpoints return arrays. */
+async function osfApiList(token: string, path: string): Promise<OsfResourceRow[]> {
+  const cfg = osfConfig();
+  const res = await fetch(`${cfg.apiBase}${path}`, {
+    method: "GET",
+    headers: { Authorization: `Bearer ${token}`, Accept: JSON_API },
+  });
+  if (res.status === 401) {
+    throw new OsfNotConnectedError(
+      "OSF rejected the stored token (it may have been revoked or regenerated) — reconnect in Settings · Connections.",
+    );
+  }
+  if (!res.ok) throw new Error(`OSF GET ${path} failed: ${res.status} ${await res.text()}`);
+  const body = (await res.json()) as { data?: OsfResourceRow[] };
+  return body.data ?? [];
+}
 
 /** Derive the OSF registration GUID from a DOI like "10.17605/OSF.IO/RXZQA" (or a bare guid). */
 export function osfIdFromDoi(doi: string): string | null {

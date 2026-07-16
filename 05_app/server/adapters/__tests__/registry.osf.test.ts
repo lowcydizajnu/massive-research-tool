@@ -450,3 +450,145 @@ describe("osfRegistry.withdraw (ADR-0005 am. 3)", () => {
     await expect(osfRegistry.withdraw("u1", "10.17605/OSF.IO/RXZQA", "x")).rejects.toThrow(/OSF withdrawal failed: 400/);
   });
 });
+
+/**
+ * Typed OSF resources (ADR-0103) + the node-DOI mint (ADR-0104).
+ *
+ * These pin the three things OSF's API does that a reasonable person would guess
+ * wrong, each verified against its source before being built:
+ *  1. POST /v2/resources/ IGNORES every attribute and returns an empty draft.
+ *  2. `finalized` is a separate PATCH, and until it lands the resource shows no badge.
+ *  3. A node that already has a DOI rejects a second mint — which is success, not failure.
+ */
+describe("osfRegistry.linkResource — the three-call dance", () => {
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/vnd.api+json" } });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it("reconciles, creates, sets content, then finalizes — and reports the finalized resource", async () => {
+    const calls: { method: string; url: string; body: unknown }[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      calls.push({ method, url, body: init?.body ? JSON.parse(String(init.body)) : undefined });
+      if (method === "GET") return json({ data: [] }); // nothing to reconcile against
+      if (method === "POST") return json({ data: { id: "res-1", attributes: {} } });
+      // Both PATCHes echo; the second is the finalize.
+      const b = JSON.parse(String(init?.body)) as { data: { attributes: Record<string, unknown> } };
+      return json({
+        data: {
+          id: "res-1",
+          attributes: b.data.attributes.finalized
+            ? { resource_type: "data", pid: "10.5281/zenodo.1", finalized: true }
+            : { ...b.data.attributes, finalized: false },
+        },
+      });
+    });
+
+    const out = await osfRegistry.linkResource("u1", {
+      registrationId: "abc12",
+      resourceType: "data",
+      pid: "10.5281/zenodo.1",
+    });
+
+    expect(calls.map((c) => c.method)).toEqual(["GET", "POST", "PATCH", "PATCH"]);
+    // The registration rides a RELATIONSHIP, not an attribute — OSF reads
+    // request.data['registration'].
+    expect(calls[1]!.body).toMatchObject({
+      data: { type: "resources", relationships: { registration: { data: { id: "abc12", type: "registrations" } } } },
+    });
+    // Content goes in the follow-up, because the POST discarded it.
+    expect(calls[2]!.body).toMatchObject({ data: { attributes: { resource_type: "data", pid: "10.5281/zenodo.1" } } });
+    expect(calls[3]!.body).toMatchObject({ data: { attributes: { finalized: true } } });
+    expect(out).toMatchObject({ registryResourceId: "res-1", resourceType: "data", finalized: true });
+  });
+
+  it("adopts its own half-finished draft instead of stranding another", async () => {
+    // The failure this prevents: a retry after a POST-succeeded/PATCH-failed run.
+    // Blindly POSTing again leaves an invisible empty draft on the researcher's
+    // registration every single retry.
+    const methods: string[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const method = init?.method ?? "GET";
+      methods.push(method);
+      if (method === "GET") return json({ data: [{ id: "orphan-1", attributes: { pid: "", finalized: false } }] });
+      const b = JSON.parse(String(init?.body)) as { data: { attributes: Record<string, unknown> } };
+      return json({
+        data: {
+          id: "orphan-1",
+          attributes: b.data.attributes.finalized ? { resource_type: "papers", pid: "10.1/x", finalized: true } : {},
+        },
+      });
+    });
+
+    const out = await osfRegistry.linkResource("u1", { registrationId: "abc12", resourceType: "papers", pid: "10.1/x" });
+
+    expect(methods).toEqual(["GET", "PATCH", "PATCH"]); // no POST — the orphan was adopted
+    expect(out.registryResourceId).toBe("orphan-1");
+  });
+
+  it("REFUSES to report success when OSF doesn't finalize — an unfinalized resource shows no badge", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const method = init?.method ?? "GET";
+      if (method === "GET") return json({ data: [] });
+      if (method === "POST") return json({ data: { id: "res-9", attributes: {} } });
+      return json({ data: { id: "res-9", attributes: { resource_type: "data", pid: "10.5281/z", finalized: false } } });
+    });
+
+    await expect(
+      osfRegistry.linkResource("u1", { registrationId: "abc12", resourceType: "data", pid: "10.5281/z" }),
+    ).rejects.toThrow(/did not finalize/);
+  });
+
+  it("normalises a pasted doi.org URL to the bare DOI OSF actually stores", async () => {
+    let patched: unknown;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const method = init?.method ?? "GET";
+      if (method === "GET") return json({ data: [] });
+      if (method === "POST") return json({ data: { id: "r", attributes: {} } });
+      const b = JSON.parse(String(init?.body)) as { data: { attributes: Record<string, unknown> } };
+      if (b.data.attributes.pid) patched = b.data.attributes.pid;
+      return json({ data: { id: "r", attributes: { resource_type: "papers", pid: "10.1/abc", finalized: true } } });
+    });
+
+    await osfRegistry.linkResource("u1", {
+      registrationId: "abc12",
+      resourceType: "papers",
+      pid: "  https://doi.org/10.1/abc  ",
+    });
+    expect(patched).toBe("10.1/abc");
+  });
+});
+
+describe("osfRegistry.mintNodeDoi", () => {
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/vnd.api+json" } });
+  afterEach(() => vi.restoreAllMocks());
+
+  it("returns the existing DOI without minting again — 'already exists' is the state we wanted", async () => {
+    const methods: string[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      methods.push(init?.method ?? "GET");
+      return json({ data: [{ id: "i1", attributes: { category: "doi", value: "10.17605/OSF.IO/ABCDE" } }] });
+    });
+
+    const out = await osfRegistry.mintNodeDoi("u1", "node1");
+    expect(out.doi).toBe("10.17605/OSF.IO/ABCDE");
+    expect(methods).toEqual(["GET"]); // never POSTed — no second, irreversible mint
+  });
+
+  it("mints with category=doi only, and never supplies a value (OSF is the registrant, not us)", async () => {
+    let posted: unknown;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const method = init?.method ?? "GET";
+      if (method === "GET") return json({ data: [] });
+      posted = JSON.parse(String(init?.body));
+      return json({ data: { id: "i2", attributes: { category: "doi", value: "10.17605/OSF.IO/NEW01" } } });
+    });
+
+    const out = await osfRegistry.mintNodeDoi("u1", "node1");
+    expect(posted).toEqual({ data: { type: "identifiers", attributes: { category: "doi" } } });
+    expect(out.doi).toBe("10.17605/OSF.IO/NEW01");
+  });
+});

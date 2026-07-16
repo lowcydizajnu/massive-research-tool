@@ -99,6 +99,28 @@ export type MaterialUploadResult = {
   error?: string;
 };
 
+/**
+ * OSF's five public resource types (ADR-0103), spelled exactly as the API spells
+ * them — `ArtifactTypes.public_types()` lowercased, so `analytic_code` keeps its
+ * underscore. Kept verbatim across the seam so the mapping stays checkable; the
+ * researcher-facing labels live in the Vocabulary map, never here.
+ */
+export type RegistryResourceType = "data" | "analytic_code" | "materials" | "papers" | "supplements";
+
+/** A typed resource already on the registration, as the registry reports it. */
+export type LinkedResource = {
+  /** The registry's own id — what a retry needs to adopt its own half-finished draft. */
+  registryResourceId: string;
+  /** Null when the registry reports a type outside the five public ones (its
+   *  internal UNDEFINED/PRIMARY), which we neither create nor touch. */
+  resourceType: RegistryResourceType | null;
+  /** The DOI, bare. The registry normalises a `https://doi.org/…` prefix away. */
+  pid: string;
+  description: string | null;
+  /** False = the resource exists but shows no badge. Not done. */
+  finalized: boolean;
+};
+
 export interface RegistryAdapter {
   /** OAuth: the URL a user visits to authorize their registry account. The
    *  redirect URI is adapter config (must match the registered app), not a
@@ -150,6 +172,51 @@ export interface RegistryAdapter {
     userId: string,
     input: { nodeId: string; folderName: string; files: MaterialFile[] },
   ): Promise<MaterialUploadResult[]>;
+  /**
+   * List the typed resources already on a registration (ADR-0103). We read this
+   * rather than trusting our own rows: the registry is the source of truth for
+   * what *is*, and a researcher can remove a resource in its UI without telling
+   * us. Every write reconciles against this first (ADR-0103 D7).
+   */
+  listResources(userId: string, registrationId: string): Promise<LinkedResource[]>;
+  /**
+   * Link a DOI to a registration as a typed resource (ADR-0103).
+   *
+   * Not one call. The registry's create IGNORES every attribute and returns an
+   * empty, unfinalized draft; content and finalization are separate follow-ups.
+   * So this reconciles → creates-or-adopts → sets content → finalizes, and only
+   * reports success once the resource is finalized — an unfinalized resource
+   * shows no badge, so calling it linked would be a lie.
+   *
+   * The registration must already have its own DOI or the registry refuses
+   * (409): callers gate on that rather than surfacing it as an error.
+   */
+  linkResource(
+    userId: string,
+    input: {
+      registrationId: string;
+      resourceType: RegistryResourceType;
+      pid: string;
+      description?: string;
+    },
+  ): Promise<LinkedResource>;
+  /**
+   * Remove a resource. A finalized one soft-deletes and is logged publicly on the
+   * registration; an unfinalized draft is hard-deleted. Neither removes the DOI
+   * itself — that is not ours to retract (ADR-0105 D6).
+   */
+  unlinkResource(userId: string, registryResourceId: string): Promise<void>;
+  /**
+   * Ask the registry to mint the DOI for a node we push to (ADR-0104).
+   *
+   * Preconditions the caller must have met: the node is PUBLIC and the user is
+   * ADMIN on it. **Irreversible** — there is no delete route for a minted DOI, so
+   * this is only ever reached through explicit consent (ADR-0104 D3).
+   *
+   * Idempotent by design: a node that already has a DOI returns the existing one
+   * rather than erroring, because "it already exists" is the state we wanted.
+   */
+  mintNodeDoi(userId: string, nodeId: string): Promise<{ doi: string }>;
 }
 
 // Active implementation. Switching registries is a one-line change here.
