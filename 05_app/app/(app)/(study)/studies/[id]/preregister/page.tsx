@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 
 import { PreflightChecklist } from "@/components/feature/run/preflight-checklist";
 import { AmendButton } from "@/components/feature/preregister/amend-button";
+import { LinkedOutputsPanel } from "@/components/feature/study-record/linked-outputs-panel";
 import { OsfMaterialsPanel } from "@/components/feature/study-record/osf-materials-panel";
 import { PushToOsfButton } from "@/components/feature/study-record/push-to-osf-button";
 import { PreregisterButton } from "@/components/feature/preregister/preregister-button";
@@ -278,6 +279,7 @@ export default async function PreregisterStagePage({
             {!pre.withdrawn ? (
               <div className="border-t border-[var(--color-border-subtle)] pt-3">
                 <OsfMaterialsPanel studyId={study.id} />
+                <LinkedOutputsPanel studyId={study.id} />
               </div>
             ) : null}
 
