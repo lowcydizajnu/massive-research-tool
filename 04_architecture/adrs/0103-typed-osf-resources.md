@@ -130,6 +130,24 @@ The scoring in Context ("0 of 5") stands and remains correct: today we register 
 
 ---
 
+## Amendment 2 — 2026-07-16 — verified against a connected OSF account
+
+Everything above was read off OSF's source and its public API. With the owner's OSF account connected, the whole contract was exercised live against `api.osf.io` on the account's own test registration `5zmfa`. Each resource created was deleted afterwards; the registration ends at `resources: []`.
+
+**Confirmed, not inferred:**
+
+- **The three-call dance is mandatory.** `POST /v2/resources/` → `201` and ignores every attribute (the draft comes back `resource_type: "undefined"`, `pid` absent). `PATCH` content → `200`. `PATCH finalized: true` → `200`. Finalizing a draft with no content is refused: `409 — "Cannot PATCH 'finalized: true' … until the following required fields are populated ['pid', 'resource_type']"`.
+- **D1's core fact holds.** Assigning the registration's own DOI is refused: `400 — "Cannot assign 10.17605/OSF.IO/5ZMFA as a Resource DOI, as it represents the Registration itself"` (`IsPrimaryArtifactPIDError`). This is the fact that inverts the roadmap's plan for item ⑦, and it is now observed rather than deduced.
+- **The type enum is exactly `OSF_PUBLIC_RESOURCE_TYPES`.** OSF names its own valid options in the error: `['undefined', 'data', 'analytic_code', 'materials', 'papers', 'supplements', 'primary']`. Our five are the middle five; `undefined` and `primary` are correctly excluded.
+- **`unlinkResource`'s route is real.** `DELETE /v2/resources/{id}/` → `204`, and the resource leaves the registration's list. Un-linking was a guess in the adapter; it works.
+- **`GET /v2/registrations/{id}/resources/` reads back** what the dance wrote, finalized flag included.
+
+**Corrected by the live pass — the registration DOI is minted at registration time, not on approval.** The adapter claimed the opposite in a comment and returned `doi: null` from `pushRegistration`, leaving the DOI to be backfilled by the `runOsfWatch` cron. All 8 registrations on the account had a DOI on `/identifiers/` — including a **private** one and two **withdrawn** ones — and the two our app had pushed had carried theirs on OSF since 2026-06-03 while our own rows held `null`, because the cron never ran in dev. `pushRegistration` now reads the identifier at push time (step 6, best-effort); the watch backfill stays as the fallback. A pending-approval registration lacking a DOI remains **unobserved** — the account has no pending registration to test — so the nullable stays and `awaiting_registration_doi` stays with it.
+
+**Consequence for D4's copy.** "OSF is still minting this registration's DOI" blamed OSF for what was our own lag, and it fired for *every* DOI-less state — including plans that were never sent to OSF at all, where no DOI is ever coming and waiting is futile. The gate now reads `registryPushStatus` and distinguishes `awaiting_registration_doi` (a push is genuinely in flight) from `prereg_not_on_osf` and `prereg_push_failed` (name the action instead). Copy states the fact, never a guessed cause.
+
+---
+
 ## References
 
 - [ADR-0104 — DOI ownership](0104-doi-ownership.md) — amends this ADR; settles who mints.
