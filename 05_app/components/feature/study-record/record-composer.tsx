@@ -27,6 +27,7 @@ import { PushToOsfButton } from "@/components/feature/study-record/push-to-osf-b
 import { RecordSections } from "@/components/feature/study-record/record-sections";
 import { PendingButton } from "@/components/ui/pending-button";
 import {
+  type ClaimBinding,
   type HypothesisFields,
   type SectionType,
   isFrozenSection,
@@ -37,7 +38,104 @@ import { api } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
 import type { StudyRecordForEdit } from "@/server/trpc/routers/study-record";
 
-type Instance = { id: string; type: string; title: string; content: string; hidden: boolean; fields: HypothesisFields };
+type Instance = {
+  id: string;
+  type: string;
+  title: string;
+  content: string;
+  hidden: boolean;
+  fields: HypothesisFields;
+  /** Plan↔report binding (ADR-0102); undefined = unbound = Exploratory. */
+  claim?: ClaimBinding;
+};
+
+type PreregPlanOption = { versionId: string; versionNumber: number; filedAt: string; hypotheses: string[] };
+
+/** Shared field styling — module-scope so ClaimBinder and SortableSection agree. */
+const inputCls =
+  "w-full rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2.5 py-1.5 text-[length:var(--text-small)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]";
+
+/**
+ * Bind a reported claim to a preregistered hypothesis (ADR-0102).
+ *
+ * This select is the ONLY path to the word "Preregistered". There is deliberately
+ * no control that marks a claim preregistered directly: you point at a frozen
+ * hypothesis, or you don't get to say it. The downgrade checkbox is the only
+ * override, and it only ever weakens the claim — a plan-matching hypothesis
+ * analysed a way the plan didn't specify is a real and honest case.
+ *
+ * Absent entirely when the study has no preregistration: there is nothing to
+ * point at, so a disabled control with a tooltip would just be noise.
+ */
+function ClaimBinder({
+  claim,
+  plans,
+  onPatch,
+}: {
+  claim?: ClaimBinding;
+  plans: PreregPlanOption[];
+  onPatch: (p: Partial<Instance>) => void;
+}) {
+  if (!plans.length) return null;
+  // Bind against the NEWEST filing — the operative plan.
+  const plan = plans[plans.length - 1];
+  const bound = claim?.planVersionId === plan.versionId ? claim : undefined;
+  // A binding to an older filing still resolves; surface it rather than hide it.
+  const older = claim && claim.planVersionId !== plan.versionId
+    ? plans.find((p) => p.versionId === claim.planVersionId)
+    : undefined;
+
+  return (
+    <div className="flex flex-col gap-1.5 rounded-[var(--radius-md)] bg-[var(--color-surface-subtle)] p-2.5">
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="flex flex-col gap-0.5">
+          <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">Tests</span>
+          <select
+            className={inputCls}
+            aria-label="Which preregistered hypothesis this claim tests"
+            value={older ? "" : bound ? String(bound.hypothesisIndex) : ""}
+            onChange={(e) => {
+              const v = e.target.value;
+              onPatch({
+                claim: v
+                  ? { planVersionId: plan.versionId, hypothesisIndex: Number(v), exploratoryOverride: claim?.exploratoryOverride }
+                  : undefined,
+              });
+            }}
+          >
+            <option value="">— not preregistered —</option>
+            {plan.hypotheses.map((h, i) => (
+              <option key={i} value={i + 1}>
+                H{i + 1} — {h.length > 60 ? `${h.slice(0, 60)}…` : h}
+              </option>
+            ))}
+          </select>
+        </label>
+        {claim ? (
+          <label className="flex items-center gap-1.5 pb-2">
+            <input
+              type="checkbox"
+              checked={!!claim.exploratoryOverride}
+              onChange={(e) => onPatch({ claim: { ...claim, exploratoryOverride: e.target.checked || undefined } })}
+            />
+            <span className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+              Report as exploratory anyway
+            </span>
+          </label>
+        ) : null}
+      </div>
+      <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+        {older
+          ? `Bound to H${claim!.hypothesisIndex} of the earlier preregistration v${older.versionNumber} — still valid; re-pick to bind to v${plan.versionNumber}.`
+          : claim?.exploratoryOverride
+            ? "Reported as exploratory — the record won't claim this was preregistered."
+            : bound
+              ? `The record will show "Preregistered" and cite H${bound.hypothesisIndex} of v${plan.versionNumber}.`
+              : "Unbound claims are reported as exploratory — that's the honest default, not a penalty."}
+      </p>
+    </div>
+  );
+}
 
 const HYPO_FIELDS: { key: keyof HypothesisFields; label: string; placeholder: string }[] = [
   { key: "effectType", label: "Effect", placeholder: "difference / correlation / interaction" },
@@ -80,6 +178,7 @@ function Editor({ studyId, data, onSaved }: { studyId: string; data: StudyRecord
       content: s.content ?? "",
       hidden: !!s.hidden,
       fields: s.fields ?? {},
+      claim: s.claim,
     })),
   );
   const [abstract, setAbstract] = useState(data.abstract ?? "");
@@ -161,6 +260,7 @@ function Editor({ studyId, data, onSaved }: { studyId: string; data: StudyRecord
         content: s.content || undefined,
         hidden: s.hidden,
         fields: s.type === "hypotheses" ? s.fields : undefined,
+        claim: s.type === "hypotheses" ? s.claim : undefined,
       })),
     });
     onSaved();
@@ -238,6 +338,7 @@ function Editor({ studyId, data, onSaved }: { studyId: string; data: StudyRecord
                   onImportDoi={importDoi}
                   importPending={lookupCitation.isPending}
                   citeNote={citeNote}
+                  preregPlans={data.preregPlans}
                   onPatch={(p) => patch(s.id, p)}
                   onToggleHidden={() => patch(s.id, { hidden: !s.hidden })}
                   onRemove={() => setSections((arr) => arr.filter((x) => x.id !== s.id))}
@@ -273,7 +374,7 @@ function Editor({ studyId, data, onSaved }: { studyId: string; data: StudyRecord
                         type="button"
                         title={t.description}
                         onClick={() =>
-                          setSections((arr) => [...arr, { id: ulid(), type: t.key, title: "", content: "", hidden: false, fields: {} }])
+                          setSections((arr) => [...arr, { id: ulid(), type: t.key, title: "", content: "", hidden: false, fields: {}, claim: undefined }])
                         }
                         className="flex items-center gap-1 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2 py-1 text-[length:var(--text-small)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
                       >
@@ -345,6 +446,7 @@ function SortableSection({
   instance, type, available, frozen, first, last, studyId, dataState,
   abstract, articleUrl, articleDoi, onAbstract, onArticleUrl, onArticleDoi,
   onImportDoi, importPending, citeNote,
+  preregPlans,
   onPatch, onToggleHidden, onRemove, onMove,
 }: {
   instance: Instance;
@@ -364,6 +466,7 @@ function SortableSection({
   onImportDoi?: () => void;
   importPending?: boolean;
   citeNote?: string | null;
+  preregPlans: PreregPlanOption[];
   onPatch: (p: Partial<Instance>) => void;
   onToggleHidden: () => void;
   onRemove: () => void;
@@ -373,8 +476,6 @@ function SortableSection({
   const style: CSSProperties = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.6 : 1 };
   const label = type?.label ?? instance.type;
   const isBound = type?.group === "bound";
-  const inputCls =
-    "w-full rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2.5 py-1.5 text-[length:var(--text-small)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]";
 
   return (
     <li
@@ -433,6 +534,7 @@ function SortableSection({
           </div>
         ) : instance.type === "hypotheses" ? (
           <div className="flex flex-col gap-2">
+            <ClaimBinder claim={instance.claim} plans={preregPlans} onPatch={onPatch} />
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
               {HYPO_FIELDS.map((f) => (
                 <label key={f.key} className="flex flex-col gap-0.5">

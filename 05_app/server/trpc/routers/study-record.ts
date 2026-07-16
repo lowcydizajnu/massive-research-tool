@@ -93,6 +93,13 @@ export type StudyRecordForEdit = {
   availability: Record<string, boolean>;
   /** Whether this study is preregistered — frozes the preregistration section (ADR-0056). */
   hasPreregistration: boolean;
+  /**
+   * The frozen preregistrations a claim may bind to (ADR-0102) — the ONLY source
+   * of "Preregistered". Empty = the study has no preregistration, so the binding
+   * control is absent (there is nothing to point at) and every claim is
+   * Exploratory. The composer offers the NEWEST filing's hypotheses.
+   */
+  preregPlans: { versionId: string; versionNumber: number; filedAt: string; hypotheses: string[] }[];
   /** OSF project node from the push history — present = "Push update to OSF" available (E4b). */
   osfNodeId: string | null;
   /** Exactly what a push would write to the OSF project node, itemized (item 2). */
@@ -300,6 +307,14 @@ export const studyRecordRouter = router({
         layout: sanitizeLayout((rec.layout as RecordSection[]) ?? []),
         availability,
         hasPreregistration: availability.preregistration,
+        // ADR-0102: same chain helper the public producers use, so what the
+        // composer offers to bind is exactly what the record will resolve.
+        preregPlans: (await preregChain(input.studyId)).map((p) => ({
+          versionId: p.id,
+          versionNumber: p.versionNumber,
+          filedAt: p.createdAt.toISOString(),
+          hypotheses: p.hypotheses,
+        })),
         osfNodeId: await osfProjectNode(input.studyId),
         osfSummaryItems: summary.items,
         osfPushedAt: rec.osfPushedAt?.toISOString() ?? null,
