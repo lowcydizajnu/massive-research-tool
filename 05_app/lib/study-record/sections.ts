@@ -33,6 +33,32 @@ export type HypothesisFields = {
   analysis?: string; // e.g. t-test / ANOVA / regression
 };
 
+/**
+ * A claim's binding back to the preregistered plan (ADR-0102).
+ *
+ * This is what makes the word "Preregistered" mean something: the researcher
+ * declares one VERIFIABLE fact — "this claim tests H2 of the preregistration
+ * filed as v3" — and the label is then derived by set membership, never typed.
+ * There is deliberately no `preregistered: boolean` here to forge.
+ *
+ * `planVersionId` pins a specific FROZEN version. That is why a bare index is
+ * safe: frozen snapshots are append-only (ADR-0002), so a specific version's
+ * `hypotheses[]` can never renumber — unlike the working tip, where exactly this
+ * renumber-on-delete bit `ExpectedOutcome.hypothesisIndex` in item ⑤.
+ *
+ * Kept OUT of `HypothesisFields` on purpose: `fields` is `Record<string,string>`
+ * and `saveLayout` filters it with `v?.trim()`, so a numeric index would throw
+ * and `0` would be silently dropped.
+ */
+export type ClaimBinding = {
+  /** A frozen `kind='preregistered'` experiment_version id. */
+  planVersionId: string;
+  /** 1-based index into that version's `definition_snapshot.overview.hypotheses[]`. */
+  hypothesisIndex: number;
+  /** Report a bound claim as exploratory anyway. There is no upgrade counterpart. */
+  exploratoryOverride?: boolean;
+};
+
 /** A section instance as stored in `study_record.layout` (jsonb — no migration to extend). */
 export type RecordSection = {
   type: string;
@@ -43,6 +69,8 @@ export type RecordSection = {
   hidden?: boolean;
   /** Hypothesis structured fields. */
   fields?: HypothesisFields;
+  /** Plan↔report binding on a `hypotheses` section (ADR-0102). */
+  claim?: ClaimBinding;
 };
 
 export const SECTION_TYPES: SectionType[] = [
@@ -55,6 +83,13 @@ export const SECTION_TYPES: SectionType[] = [
   { key: "replications", label: "Replications", group: "bound", defaultOn: true, description: "Studies replicated from this one." },
   { key: "materials", label: "Materials", group: "bound", defaultOn: false, description: "Stimuli and uploaded materials." },
   { key: "narrative", label: "Results narrative", group: "authored", defaultOn: false, description: "Your prose interpretation of the findings." },
+  // ADR-0102. `defaultOn: false` on purpose: DEFAULT_LAYOUT seeds only at
+  // ensureRecord() first-compose, so `true` would reach new records only and
+  // quietly skip every existing one. Palette-only, no backfill (owner 2026-07-15).
+  // NOT the same thing as an Amendment: a deviation is an execution/analysis
+  // departure reported after the fact; an amendment is a plan-side change filed
+  // via Preregister. Conflating them makes both meaningless.
+  { key: "deviations", label: "Deviations", group: "authored", defaultOn: false, description: "What departed from your preregistered plan while running or analysing the study, and why." },
   { key: "custom", label: "Custom section", group: "authored", defaultOn: false, repeatable: true, description: "A free-form section you write yourself." },
 ];
 
@@ -69,7 +104,27 @@ export const BOUND_KEYS = SECTION_TYPES.filter((s) => s.group === "bound").map((
 
 /** Authored types carry `content`/`fields`; the abstract also carries the article link. */
 export function carriesAuthoredContent(type: string): boolean {
-  return ["abstract", "hypotheses", "narrative", "custom"].includes(type);
+  return ["abstract", "hypotheses", "narrative", "deviations", "custom"].includes(type);
+}
+
+/**
+ * Derive a claim's public label (ADR-0102). "Preregistered" is EARNED by a
+ * binding that resolves to a real hypothesis in a real frozen preregistered
+ * version — it is never stored and never typed. Anything else is "Exploratory",
+ * which is the honest default rather than a penalty.
+ *
+ * `resolvesToHypothesis` is the caller's set-membership check (does
+ * `planVersionId` name a frozen preregistered version of THIS study, and does
+ * `hypothesisIndex` exist in its hypotheses?) — passed in so this stays pure and
+ * client-safe. A dangling binding degrades to Exploratory rather than throwing:
+ * we cannot evidence it, so we must not claim it.
+ */
+export function claimLabel(
+  claim: ClaimBinding | undefined,
+  resolvesToHypothesis: boolean,
+): "preregistered" | "exploratory" {
+  if (!claim || claim.exploratoryOverride) return "exploratory";
+  return resolvesToHypothesis ? "preregistered" : "exploratory";
 }
 
 /**

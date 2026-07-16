@@ -15,6 +15,7 @@ import {
   planOsfArtifacts,
 } from "@/server/osf/materials-bundle";
 import { buildStudyPdfData } from "@/server/study/pdf-data";
+import { bindingResolves, preregChain } from "@/server/study/prereg-chain";
 import {
   DEFAULT_LAYOUT,
   SECTION_TYPES,
@@ -25,7 +26,7 @@ import {
 } from "@/lib/study-record/sections";
 import { extractMaterials } from "@/lib/study-record/materials";
 import { licenseInfo } from "@/lib/licenses";
-import { readBlocks } from "@/server/modules/blocks";
+import { readBlocks, readOverview } from "@/server/modules/blocks";
 import { writeProcedure, router } from "@/server/trpc/trpc";
 
 /**
@@ -50,6 +51,16 @@ const hypothesisFields = z
   })
   .optional();
 
+/** A claim's binding back to a frozen preregistered hypothesis (ADR-0102). */
+const claimBinding = z
+  .object({
+    planVersionId: z.string().uuid(),
+    hypothesisIndex: z.number().int().positive(),
+    exploratoryOverride: z.boolean().optional(),
+  })
+  .optional();
+
+
 const layoutInput = z
   .array(
     z.object({
@@ -58,6 +69,7 @@ const layoutInput = z
       content: z.string().max(20_000).optional(),
       hidden: z.boolean().optional(),
       fields: hypothesisFields,
+      claim: claimBinding,
     }),
   )
   .max(60);
@@ -525,6 +537,8 @@ export const studyRecordRouter = router({
       await requireOwnStudy(input.studyId, ctx.workspace.id);
       await ensureRecord(input.studyId);
       const { preregistration: hasPrereg } = await boundAvailability(input.studyId);
+      // ADR-0102: the set a claim is allowed to bind to. Fetched once.
+      const plans = input.layout.some((e) => e.claim) ? await preregChain(input.studyId) : [];
       const clean: RecordSection[] = sanitizeLayout(input.layout).map((e) => {
         const out: RecordSection = { type: e.type };
         if (e.hidden) out.hidden = true;
@@ -537,6 +551,24 @@ export const studyRecordRouter = router({
         if (e.type === "hypotheses" && e.fields) {
           const f = Object.fromEntries(Object.entries(e.fields).filter(([, v]) => v?.trim()));
           if (Object.keys(f).length) out.fields = f;
+        }
+        // ADR-0102 claim binding. REJECT rather than silently drop a binding that
+        // doesn't resolve: the client sends a bare uuid, so an unvalidated one
+        // could cite another study's preregistration and forge "Preregistered".
+        // Refusing loudly is the only honest option — dropping it would quietly
+        // downgrade a claim the researcher believes they bound.
+        if (e.type === "hypotheses" && e.claim) {
+          if (!bindingResolves(e.claim, plans)) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: "That claim points at a hypothesis this study never preregistered.",
+            });
+          }
+          out.claim = {
+            planVersionId: e.claim.planVersionId,
+            hypothesisIndex: e.claim.hypothesisIndex,
+            ...(e.claim.exploratoryOverride ? { exploratoryOverride: true } : {}),
+          };
         }
         return out;
       });
