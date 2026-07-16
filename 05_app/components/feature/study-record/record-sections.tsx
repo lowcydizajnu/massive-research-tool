@@ -141,6 +141,12 @@ function ComposedRecord({ detail }: { detail: PublicStudyDetail }) {
           case "hypotheses":
             return (
               <Section key={key} title={title}>
+                {/* ADR-0102 — the claim's status and its referent. This is the only
+                    place the record says "Preregistered", and it says it because
+                    the binding resolves, never because anyone typed it. Hypotheses
+                    exist solely as an authored section, so DefaultRecord has no
+                    counterpart to keep in step. */}
+                <ClaimChip claim={s.claim} plans={detail.preregistrations} />
                 <HypothesisChips fields={s.fields ?? {}} />
                 {s.content ? <RecordMarkdown md={s.content} /> : null}
               </Section>

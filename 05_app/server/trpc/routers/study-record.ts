@@ -26,7 +26,7 @@ import {
 } from "@/lib/study-record/sections";
 import { extractMaterials } from "@/lib/study-record/materials";
 import { licenseInfo } from "@/lib/licenses";
-import { readBlocks, readOverview } from "@/server/modules/blocks";
+import { readBlocks } from "@/server/modules/blocks";
 import { writeProcedure, router } from "@/server/trpc/trpc";
 
 /**

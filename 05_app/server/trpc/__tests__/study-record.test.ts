@@ -645,6 +645,46 @@ describe("studyRecord.saveLayout — claim bindings (ADR-0102)", () => {
     expect(rec.layout[0].claim).toBeUndefined();
   });
 
+  // The tests above stop at getForEdit — the OWNER's view. That is exactly how the
+  // record shipped unable to say "Preregistered": the binding was stored and read
+  // back perfectly, while the public producers dropped it. `PublicStudyDetail`
+  // typed `layout` as a structural copy of `RecordSection` that never grew
+  // `claim`, and `ComposedRecord` imported `ClaimChip` without ever rendering it.
+  // Everything the owner does is worthless if the public record doesn't carry it,
+  // so assert the claim on the surface a READER gets — both producers, since
+  // "preview === published" (ADR-0056 C) is only true if both are checked.
+  it("the claim reaches the public record and its preview, not just the composer", async () => {
+    await seed("hanna", "Hanna Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const { id, planVersionId } = await preregisteredStudy(a);
+    await a.studyRecord.saveLayout({
+      studyId: id,
+      layout: [{ type: "hypotheses", content: "We found it.", claim: { planVersionId, hypothesisIndex: 2 } }],
+    });
+    // Publish for real. This also freezes a *published* version on top of the
+    // preregistration — the ADR-0102 D4 shape, where the newest version is no
+    // longer the preregistered one.
+    await a.studies.publish({ studyId: id });
+    await a.studies.setForkable({ studyId: id, forkableBy: "public" });
+    await a.studyRecord.saveAuthored({ studyId: id, abstract: "A clear summary." });
+    await a.studyRecord.setVisibility({ studyId: id, visibility: "public" });
+
+    const preview = await a.studies.getRecordPreview({ studyId: id });
+    const published = await createCaller({ authUser: null }).studies.getPublicStudy({ studyId: id });
+
+    for (const detail of [preview, published]) {
+      const hyp = detail.record!.layout.find((s) => s.type === "hypotheses");
+      // The binding itself...
+      expect(hyp?.claim).toEqual({ planVersionId, hypothesisIndex: 2 });
+      // ...and the chain it resolves against. ClaimChip needs BOTH: without the
+      // plans it renders nothing at all, which is the failure that looks like success.
+      expect(detail.preregistrations.map((p) => p.versionId)).toContain(planVersionId);
+      expect(detail.preregistrations.find((p) => p.versionId === planVersionId)!.hypotheses[1]).toBe(
+        "The effect is larger for older adults.",
+      );
+    }
+  });
+
   it("Deviations is a registered authored section and round-trips its Markdown", async () => {
     await seed("hanna", "Hanna Lab");
     const a = createCaller({ authUser: authUser("hanna") });

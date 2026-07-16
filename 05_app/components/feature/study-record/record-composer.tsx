@@ -85,6 +85,22 @@ function ClaimBinder({
     ? plans.find((p) => p.versionId === claim.planVersionId)
     : undefined;
 
+  // A filing that states no hypotheses gives the select nothing to offer. Render
+  // the reason instead of a dropdown whose only option is "not preregistered" —
+  // that reads as a choice the author declined to make, when in fact the plan
+  // never named anything to point at. The plan is frozen, so the only honest
+  // route to a binding is to state hypotheses and file an amendment; say that
+  // rather than implying the record is withholding a shortcut.
+  if (!older && !plan.hypotheses.length) {
+    return (
+      <p className="rounded-[var(--radius-md)] bg-[var(--color-surface-subtle)] p-2.5 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+        Preregistration v{plan.versionNumber} states no hypotheses, so there is nothing to bind to and this claim
+        reports as exploratory. Hypotheses are written in Overview and freeze when you preregister — to bind a claim,
+        state them there and file an amendment.
+      </p>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-1.5 rounded-[var(--radius-md)] bg-[var(--color-surface-subtle)] p-2.5">
       <div className="flex flex-wrap items-end gap-3">

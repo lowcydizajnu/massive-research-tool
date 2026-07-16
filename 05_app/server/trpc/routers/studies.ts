@@ -43,7 +43,7 @@ import {
   user,
   workspaceTemplate,
 } from "@/server/db/schema";
-import { sanitizeLayout as sanitizeRecordLayout } from "@/lib/study-record/sections";
+import { type RecordSection, sanitizeLayout as sanitizeRecordLayout } from "@/lib/study-record/sections";
 import { extractMaterials } from "@/lib/study-record/materials";
 import { LICENSE_IDS } from "@/lib/licenses";
 import { PREREG_TEMPLATE_KEYS } from "@/lib/prereg-templates";
@@ -1031,13 +1031,15 @@ export type PublicStudyDetail = {
     publishedAt: string | null;
     /** Researcher-published dataset snapshot (ADR-0056 E2) — null unless opted in. */
     dataTable: { headers: string[]; rows: string[][] } | null;
-    layout: {
-      type: string;
-      title?: string;
-      content?: string;
-      hidden?: boolean;
-      fields?: Record<string, string>;
-    }[];
+    /**
+     * The composed layout, typed as the real `RecordSection` rather than a
+     * structural copy. The copy that used to live here silently fell behind
+     * `RecordSection` — it never grew ADR-0102's `claim`, so the record could
+     * not name what a claim was bound to even though `sanitizeLayout` had been
+     * passing the field through all along. Reference the source of truth so the
+     * next field added to a section reaches the public record for free.
+     */
+    layout: RecordSection[];
   } | null;
 };
 
