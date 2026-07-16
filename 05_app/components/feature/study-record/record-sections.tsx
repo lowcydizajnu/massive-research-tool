@@ -73,11 +73,25 @@ function PreregistrationBody({ detail }: { detail: PublicStudyDetail }) {
   // published one for any finished study.
   const newest = detail.preregistrations.at(-1);
   const n = newest?.versionNumber ?? detail.latestVersionNumber;
+  // "Frozen before data collection" is true of the ORIGINAL filing only — that is
+  // the claim the plan-before-data gate (ADR-0101) actually enforces. An amendment
+  // is by definition filed later, often mid-collection, so asserting it of the
+  // newest filing states something false about every amended study on a public,
+  // citable page. Cite the original for the guarantee, name the current plan
+  // separately, and let the amendment history below carry the detail.
+  const first = detail.preregistrations[0];
+  const firstN = first?.versionNumber ?? n;
+  const amended = detail.preregistrations.length > 1;
   return (
     <>
       {detail.registrationWithdrawn ? (
         <p className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
           This study&rsquo;s preregistration (v{n}) was <strong>withdrawn</strong> — its plan is no longer frozen on the registry.
+        </p>
+      ) : amended ? (
+        <p className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+          This study was preregistered (v{firstN}) — its plan was frozen before data collection — and amended since. v{n} is
+          the current plan.
         </p>
       ) : (
         <p className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">

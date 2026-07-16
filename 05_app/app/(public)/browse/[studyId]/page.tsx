@@ -69,10 +69,18 @@ export default async function StudyRecordPage({
   const authed = !!(await getCurrentDbUser());
 
   const finished = !!detail.finishedAt;
-  const marker = detail.registrationWithdrawn
-    ? `Preregistration v${detail.latestVersionNumber} (withdrawn)`
-    : detail.latestKind === "preregistered"
-      ? `Preregistration v${detail.latestVersionNumber}`
+  // The marker names the study's CURRENT state, so it is keyed off `latestKind`.
+  // `registrationWithdrawn` must NOT lead here: ADR-0102 D4 re-derived that flag
+  // from the newest *preregistered* version, which is no longer necessarily the
+  // latest frozen one. Leading with it printed "Preregistration v8 (withdrawn)" for
+  // a study preregistered at v3 and published at v8 — a version number that is not
+  // a preregistration, on a study that is not withdrawn, contradicting the
+  // Preregistration section directly below it (which cites v3, correctly). A
+  // withdrawal is a fact about the plan, not about the study's state; the
+  // Preregistration section is where it belongs and where it already renders.
+  const marker =
+    detail.latestKind === "preregistered"
+      ? `Preregistration v${detail.latestVersionNumber}${detail.registrationWithdrawn ? " (withdrawn)" : ""}`
       : `Published v${detail.latestVersionNumber}`;
 
   const year = new Date(detail.record?.publishedAt ?? detail.createdAt).getFullYear();

@@ -72,7 +72,11 @@ export function BrowseExplorer({ authed = true }: { authed?: boolean }) {
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-3">
-      <PersonalTabs />
+      {/* /browse is public now (ADR-0055 am.1), but these tabs all point at
+          authed-only routes that bounce an anonymous visitor to /signin. The
+          action buttons already respect `authed`; the nav around them has to as
+          well, or the first thing a visitor sees is a row of dead ends. */}
+      {authed ? <PersonalTabs /> : null}
       {/* Sticky toolbar (ADR-0055): Search first, then filter dropdowns, Sort
           kept separate on the right. Stays put while the list scrolls. */}
       <div

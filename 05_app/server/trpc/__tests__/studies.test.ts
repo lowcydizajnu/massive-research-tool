@@ -3174,6 +3174,44 @@ describe("studies — preregistration chain + D4 registration fields (ADR-0102)"
     expect(asPublished.preregistrations).toHaveLength(1);
   });
 
+  // D4 re-derived `registrationWithdrawn` from the newest PREREGISTERED version,
+  // which silently broke the invariant its consumers relied on: it used to be
+  // `ver.kind === "preregistered" && ver.withdrawn`, so it could only ever be true
+  // when the latest frozen version WAS the preregistration, and callers therefore
+  // paired it with `latestVersionNumber`. After D4 those two describe different
+  // rows. The public record header still paired them and printed "Preregistration
+  // v8 (withdrawn)" for a study published at v8 — a version that is not a
+  // preregistration, on a study that is not withdrawn. Pin the decoupling here so
+  // the next consumer to pair them has to argue with a red test.
+  it("a withdrawn preregistration under a published version keeps the two facts on their own rows", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    await caller.studies.preregister({ studyId: id });
+    await caller.studies.setForkable({ studyId: id, forkableBy: "public" });
+
+    const [pre] = await db
+      .select({ id: experimentVersion.id, versionNumber: experimentVersion.versionNumber })
+      .from(experimentVersion)
+      .where(and(eq(experimentVersion.experimentId, id), eq(experimentVersion.kind, "preregistered")))
+      .limit(1);
+    await db
+      .update(experimentVersion)
+      .set({ registrationWithdrawn: true })
+      .where(eq(experimentVersion.id, pre!.id));
+
+    await caller.studies.publish({ studyId: id });
+    const d = await caller.studies.getPublicStudy({ studyId: id });
+
+    expect(d.registrationWithdrawn).toBe(true);
+    expect(d.latestKind).toBe("published");
+    // The withdrawal belongs to the PREREGISTRATION's version, never to the
+    // latest frozen one — a header that interpolates latestVersionNumber next to
+    // the withdrawn flag is naming the wrong artifact.
+    expect(d.preregistrations.at(-1)!.versionNumber).toBe(pre!.versionNumber);
+    expect(d.latestVersionNumber).not.toBe(pre!.versionNumber);
+  });
+
   it("never-preregistered studies expose an empty chain and null identifiers", async () => {
     await seedUserWithWorkspace("ext_a", "Alpha");
     const caller = createCaller({ authUser: authUser("ext_a") });

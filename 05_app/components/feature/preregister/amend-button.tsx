@@ -58,8 +58,11 @@ export function AmendButton({ studyId }: { studyId: string }) {
   return (
     <div className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-3">
       <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-        Freezes your current draft as a new preregistered version that supersedes v
-        {/* the page shows the current version above */}the live one, and re-files it on OSF as an amendment.
+        {/* The page shows the current version above, so this doesn't repeat it. The
+            stray "v" left behind when that interpolation was removed rendered as
+            "supersedes vthe live one" — JSX drops whitespace around a comment. */}
+        Freezes your current draft as a new preregistered version that supersedes the live one, and re-files it on OSF
+        as an amendment. Your summary below becomes part of the public record.
       </p>
       <label className="flex flex-col gap-1 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
         What changed, and why? (required)

@@ -51,6 +51,10 @@ type Instance = {
 
 type PreregPlanOption = { versionId: string; versionNumber: number; filedAt: string; hypotheses: string[] };
 
+/** Sentinel for "the claim's existing binding to an earlier filing" — not a real
+ *  hypothesis index, and never written to a claim. */
+const OLDER_BINDING = "__older";
+
 /** Shared field styling — module-scope so ClaimBinder and SortableSection agree. */
 const inputCls =
   "w-full rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-2.5 py-1.5 text-[length:var(--text-small)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]";
@@ -109,9 +113,17 @@ function ClaimBinder({
           <select
             className={inputCls}
             aria-label="Which preregistered hypothesis this claim tests"
-            value={older ? "" : bound ? String(bound.hypothesisIndex) : ""}
+            // A binding to an earlier filing must show as itself. Falling back to
+            // the empty option displayed "not preregistered" as the CURRENT choice
+            // while the record published "Preregistered" for that very claim — the
+            // composer contradicting the record it previews.
+            value={older ? OLDER_BINDING : bound ? String(bound.hypothesisIndex) : ""}
             onChange={(e) => {
               const v = e.target.value;
+              // Re-picking the existing older binding is a no-op, not a re-bind:
+              // the version is pinned (ADR-0102 D2) and silently re-pointing it at
+              // the newest plan would change what the claim cites.
+              if (v === OLDER_BINDING) return;
               onPatch({
                 claim: v
                   ? { planVersionId: plan.versionId, hypothesisIndex: Number(v), exploratoryOverride: claim?.exploratoryOverride }
@@ -119,7 +131,15 @@ function ClaimBinder({
               });
             }}
           >
-            <option value="">— not preregistered —</option>
+            {/* Names the outcome the record actually renders. "Not preregistered"
+                is a state the product never displays, and the Vocabulary table
+                rejects framing the honest default as a lack. */}
+            <option value="">Exploratory — not bound to a hypothesis</option>
+            {older ? (
+              <option value={OLDER_BINDING}>
+                H{claim!.hypothesisIndex} of v{older.versionNumber} (earlier filing)
+              </option>
+            ) : null}
             {plan.hypotheses.map((h, i) => (
               <option key={i} value={i + 1}>
                 H{i + 1} — {h.length > 60 ? `${h.slice(0, 60)}…` : h}

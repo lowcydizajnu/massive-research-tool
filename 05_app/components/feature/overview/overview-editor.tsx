@@ -79,11 +79,16 @@ export function OverviewEditor({
   const [hypotheses, setHypotheses] = useState<string[]>(initial.hypotheses);
   const [sections, setSections] = useState<OverviewSection[]>(initial.sections);
   const [replicationNotes, setReplicationNotes] = useState(initial.replicationNotes);
-  // The stored key is only the EXPLICIT choice; fall back to the derived default
-  // so the radio reflects what would actually be filed (ADR-0101).
-  const [templateKey, setTemplateKey] = useState<PreregTemplateKey>(
-    initial.templateKey ?? defaultTemplateKey(initial.replicationIntent),
-  );
+  // The stored key is only the EXPLICIT choice. Keep that distinction on THIS side
+  // of the wire too: seeding one state with the derived default and sending it on
+  // every save would persist the default as a choice the researcher never made —
+  // the exact round-trip hazard `readOverview` refuses to commit server-side, and
+  // it would then beat the derivation forever (declare a replication intent later
+  // and the plan would still file as Open-ended). So: hold the explicit choice,
+  // which stays undefined until the researcher actually picks; resolve the derived
+  // default only for display.
+  const [explicitTemplateKey, setExplicitTemplateKey] = useState<PreregTemplateKey | undefined>(initial.templateKey);
+  const templateKey: PreregTemplateKey = explicitTemplateKey ?? defaultTemplateKey(initial.replicationIntent);
   const [samplingPlan, setSamplingPlan] = useState(initial.samplingPlan.text);
   const [analysisPlan, setAnalysisPlan] = useState(initial.analysisPlan.text);
   const [variables, setVariables] = useState<PlanVariable[]>(initial.variables);
@@ -221,7 +226,7 @@ export function OverviewEditor({
                 checked={templateKey === t.key}
                 aria-describedby={`tpl-${t.key}-desc`}
                 onChange={() => {
-                  setTemplateKey(t.key);
+                  setExplicitTemplateKey(t.key);
                   dirty();
                 }}
                 className="mt-1"
@@ -649,7 +654,10 @@ export function OverviewEditor({
                 // Typed plan fields (ADR-0101). `dataCollectionStatus` is never
                 // sent — it is derived server-side. Anything omitted here keeps
                 // its stored value (setOverview merges).
-                templateKey,
+                // Only ever the explicit choice — undefined is omitted by the Zod
+                // schema and setOverview's merge keeps whatever is stored, so an
+                // untouched picker never manufactures a decision.
+                templateKey: explicitTemplateKey,
                 samplingPlan: { text: samplingPlan, source: "researcher" },
                 analysisPlan: { text: analysisPlan, source: "researcher" },
                 variables: variables.filter((v) => v.name.trim() !== ""),

@@ -108,7 +108,8 @@ export function runPreflight(opts: {
   const hCount = overview.hypotheses.filter((h) => h.trim()).length;
   out.push(
     hCount > 0
-      ? { id: "hypotheses", status: "pass", title: `${hCount} hypothesis${hCount === 1 ? "" : "es"} in the Overview` }
+      // "hypothesis" + "es" spells "hypothesises"; the plural stem changes.
+      ? { id: "hypotheses", status: "pass", title: `${hCount} ${hCount === 1 ? "hypothesis" : "hypotheses"} in the Overview` }
       : {
           id: "hypotheses",
           status: mode === "preregister" ? "fail" : "warn",
