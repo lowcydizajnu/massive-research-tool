@@ -5,7 +5,7 @@
 - **Auditor:** Claude (agent), at the owner's direction. Owner decisions locked via AskUserQuestion 2026-07-15: truth model = **"Bind-to-verify, downgrade only"**; legacy records = **palette-only (opt in)**. Owner chose **"Finish item ⑥ first, then deploy"** so the D4 DOI bug ships in the same release.
 - **Scope:** A researcher-declared, machine-verifiable binding from a reported claim to a hypothesis inside a frozen preregistration; the derived Preregistered/Exploratory chip and its referent line; the public amendment history; a Deviations section; and the D4 fix that restores the Preregistration section + DOI to published records.
 - **Gates honored:** **ADR-0102 written and committed before any code** (`a7f4214`), then the flow + wireframe + data-model + Vocabulary entries (`bcbf609`), then code. Vocabulary checked against design-rules.
-- **Verdict:** done — **1075 vitest green**, tsc/lint/build (27/27) clean. **CODE-ONLY for item ⑥: no migration.** Not pushed. **Verified live on localhost** (see Verification).
+- **Verdict:** done — **1076 vitest green**, tsc/lint/build (27/27) clean. **CODE-ONLY for item ⑥: no migration.** **DEPLOYED 2026-07-16** (`95449be`) after a pre-ship adversarial review; verified on localhost and again on production (see Verification and Deploy).
 
 ## What changed
 
@@ -35,21 +35,24 @@ This is the second time in two items that a control passed the entire gate while
 
 **The test that should have existed.** Every claim test stopped at `getForEdit` — the **owner's** view. All of them passed while readers got nothing. The new test asserts the binding *and* the resolvable chain on **both public producers**, after a real publish (which also puts a published version on top of the preregistration — the D4 shape). It was verified to bite: stripping `claim` in transit fails it.
 
-## Tests (+1 new, 1075 total)
+## Tests (+2 new, 1076 total)
 
+- `server/trpc/__tests__/studies.test.ts` — a withdrawn preregistration under a published version keeps the two facts on their own rows. This pins the invariant D4 broke: `registrationWithdrawn` used to be `ver.kind === "preregistered" && ver.withdrawn`, so it could only be true when the latest frozen version WAS the preregistration, and callers therefore paired it with `latestVersionNumber`. After D4 they describe different rows.
 - `server/trpc/__tests__/study-record.test.ts` — the claim reaches the public record and its preview, not just the composer. Plus the pre-existing item-⑥ suite: the save→read round-trip; the exploratory downgrade persists while an absent one is not stored; a binding to a hypothesis index the plan lacks is refused; **a binding to another study's preregistration is refused** (the forgery test — the ratchet proven, not asserted); a claim is ignored on a non-hypotheses section.
 
 ## Verification — VERIFIED LIVE
 
-- `npx tsc --noEmit` → **0**. `next lint` → clean. `npx vitest run` → **0, 1075 tests**. `npm run build` → **0, 27/27**.
+- `npx tsc --noEmit` → **0**. `next lint` → clean. `npx vitest run` → **0, 1076 tests**. `npm run build` → **0, 27/27**.
 - **Driven live in the browser against the signed-in dev app**, on a real preregistration created for the purpose (study `ca0996cb`, "Trust in AI-generated news"): stated H1+H2 in Overview → preregistered (froze **with** both hypotheses, confirming the snapshot-extension pattern gives freeze-for-free) → bound the claim to **H2** in the composer → the record renders the **Preregistered** chip and *"Tests H2 of the preregistration filed 2026-07-16 (v1)"* with the hypothesis quoted. Re-confirmed after a full `.next` + `node_modules/.cache` clear, so no stale Turbopack cache is flattering the result.
 - Confirmed in passing: item ⑤'s **preview-response exemption** is real — the study had 8 `preview` responses and 0 `run` responses, and the Preregister stage read "All clear" rather than blocking.
 - The binder correctly **hides entirely** on a study with no preregistration ("Do warning labels…", which has none), rather than offering a control with nothing to point at.
 
-## Deploy state (as of this audit)
+## Deploy — DONE 2026-07-16 (`ce281b1` → `95449be`)
 
 - **Item ⑥ carries no migration.** But the **pending push is 26 commits** (all of LOS Round 1 + items ⑤/⑥) and **does** carry `0057_deep_black_cat.sql` (`experiment.license`, from Round-1 `e8a33ad`).
-- **Verified against prod (read-only, EU `mrt-production`, region-guarded):** `experiment.license` is **MISSING**; live prod runs `ce281b1`. Therefore **`npm run db:migrate:prod` MUST run before `git push`** — pushing first is exactly the sequence that 500'd the whole site on 2026-06-26. The migration is additive with a default, so it is safe to apply ahead of the code.
+- **Verified against prod (read-only, EU `mrt-production`, region-guarded):** `experiment.license` was **MISSING** and live prod ran `ce281b1`, so **`db:migrate:prod` ran BEFORE `git push`** — the reverse is what 500'd the whole site on 2026-06-26.
+- **Executed in order:** migrate → re-verify the column (`experiment.license` NOT NULL default `'CC-BY-4.0'`, **45 rows / 0 nulls**, so every existing study was backfilled) → push 28 commits → poll `/api/health` until it flipped to `95449be` (~160s).
+- **Live smoke test, anonymous:** `/` 200, `/browse` **200 (public for the first time)**, `/sitemap.xml` 200 (11 entries, public records only), `/robots.txt` 200. A public record renders **200** with the marker `Published v3` (the fixed marker — not the bogus withdrawn label), its `CC BY` licence (the column the migration added), and JSON-LD.
 
 ## A pre-existing bug found while testing this item (out of scope, logged)
 
@@ -69,3 +72,37 @@ Filing an amendment on a legacy study **500s**. `nextVersionNumber` (`server/trp
 
 - `"…supersedes vthe live one"` — a literal typo in the amendment panel's user-visible copy.
 - `"2 hypothesises in the Overview"` — the readiness check's pluralization.
+
+---
+
+## Pre-ship adversarial review (2026-07-16, before the push)
+
+Given that this feature had already shipped dead twice, the 28-commit deploy was reviewed by 39 agents across six
+independent lenses — **ratchet** (can "Preregistered" be forged?), **wiring** (is any new surface unreachable?),
+**tenancy**, **migration**, **snapshot**, and **copy** — with every finding then faced by three skeptics instructed to
+default to "refuted".
+
+**The three lenses that could have blocked the deploy came back clean.** No path forges "Preregistered" without a
+resolving binding; no tenancy or exposure defect; the migration plan was sound. **11 findings confirmed, all fixed
+before the push.** The two that mattered:
+
+1. **A regression the D4 fix itself introduced — public-facing.** Re-deriving `registrationWithdrawn` from the newest
+   *preregistered* version decoupled it from `latestVersionNumber`, but the record header still paired them. A study
+   preregistered at v3 and published at v8 whose registration is later withdrawn rendered **"Preregistration v8
+   (withdrawn)"** on a public, crawlable, citable page — a version number that is not a preregistration, on a study
+   that is not withdrawn, contradicting the Preregistration section directly below it. The marker now keys off
+   `latestKind`; a regression test pins the decoupling.
+2. **The `templateKey` bug fixed server-side was still happening client-side.** The Overview editor seeded state with
+   the derived default and sent it on every save, persisting a default as a choice the researcher never made — which
+   would then beat the derivation forever. `readOverview` refuses to materialize it; the editor did it anyway, one
+   layer up. **A fix at one layer is not a fix.**
+
+Also fixed: the binder displayed "— not preregistered —" as *selected* for a claim bound to an earlier filing while
+the record published "Preregistered" for it (the composer contradicting the record it previews); the unbound option
+named a state the product never renders; the newly-public `/browse` showed anonymous visitors a nav of authed-only
+dead ends; the amend form didn't say the summary becomes public; and both literal typos.
+
+**Honest caveat about the method: 0 of 11 findings were refuted**, despite the skeptics being told to default to
+refuted. Either the finders were unusually disciplined or the verification prompt did not bite — the pass never
+demonstrated it *can* kill a finding, so its 11/11 confirmation rate should not be read as 11/11 precision. Three of
+the 11 were the same header bug reported by different lenses; the two typos had already been found by hand.
