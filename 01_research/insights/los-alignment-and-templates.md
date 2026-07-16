@@ -24,7 +24,7 @@ We are **strongly aligned on the *spine*** of LOS and **thin on the *connective 
 | LOS dimension | Where we are | Verdict |
 |---|---|---|
 | **PLAN** — preregistration | Immutable, time-stamped, amendable *design snapshot* (ADR-0002/0004). But it's *freeze-the-design*, not *fill-a-schema*: only abstract + `hypotheses[]` are typed; sampling/analysis/variables/expected-outcomes are optional free-markdown. **No template picker.** OSF schema auto-chosen (Open-Ended default; Replication Recipe if replication intent); field-by-field OSF mapping deferred (ADR-0005). | Strong core, thin structure |
-| **PRODUCE** — outputs | Of OSF's 5 resource-link badges, only **Materials** reach OSF (ADR-0094, WaterButler). Data = client-side download only; analytic code = auto SPSS/Stata companions (local); article DOI pasted as *prose* into the node description; no preprint/supplement linking. | Partial (1 of 5) |
+| **PRODUCE** — outputs | **Corrected 2026-07-16 (ADR-0103): 0 of 5, not 1 of 5.** Materials reach OSF as *files* via WaterButler (ADR-0094) — a different host and API surface that yields no DOI, and therefore **not** a typed resource. An OSF resource is a typed **DOI** (`data`/`analytic_code`/`materials`/`papers`/`supplements`), so we register none. Data = client-side download only; analytic code = auto SPSS/Stata companions (local); article DOI pasted as *prose* into the node description; no preprint/supplement linking. | None (0 of 5) |
 | **REPORT** — outcomes | Excellent citable **Study Record** (ADR-0054/0056). But **outcomes don't link back to the plan** (prereg section is a one-liner), **no planned-vs-exploratory / deviations** reporting, amendments invisible publicly, public Results = owner prose only. | Great surface, missing the link-back |
 | **CONNECT** — OSF + PIDs | Real OAuth/PAT push: 4-call registration, DOI backfill, amendments, withdrawal, contributors, materials — verified vs live OSF API. But only the **registration DOI** is consumed; **ORCID stored, never sent**; no ROR / DataCite resource type / Crossref funder; outputs not registered as typed OSF resources. | Solid pipe, missing the PIDs |
 | **FINDABILITY** — metadata | Title, Description, Abstract, free-form Tags, profile ORCID present. **Missing:** license, ROR, funder, controlled Subjects, DataCite type, per-study language, **any** machine-readable metadata; **and the public record is auth-gated**. | Weakest — blocks the whole LOS payoff |
@@ -39,7 +39,7 @@ We are **strongly aligned on the *spine*** of LOS and **thin on the *connective 
 3. Surface the author **ORCID** on the record (OSF-side push stays the deferred OSF-5 registered-contributor path). — **done**
 4. Add a **License** selector (default CC-BY-4.0) → record + OSF text (ADR-0100). — **done**
 
-**Next (structural, ADR-first):** ⑤ **preregistration template picker + typed OSF-standard fields** (sampling plan, data-collection-status as a hard gate, analysis plan, variables, expected outcomes) — the biggest Plan gap, unblocks the deferred field-by-field OSF push; ⑥ **plan↔report link-back** (preregistered/exploratory chips + a Deviations section + public amendment lineage); ⑦ register outputs as **typed OSF resources** pointing at the registration DOI; ⑧ opt-in **publish dataset to OSF** (aggregate/de-identified).
+**Next (structural, ADR-first):** ⑤ **preregistration template picker + typed OSF-standard fields** (sampling plan, data-collection-status as a hard gate, analysis plan, variables, expected outcomes) — the biggest Plan gap, unblocks the deferred field-by-field OSF push; ⑥ **plan↔report link-back** (preregistered/exploratory chips + a Deviations section + public amendment lineage); ⑦ register outputs as **typed OSF resources** — each pointing at **that output's own DOI** (*corrected 2026-07-16: NOT the registration DOI, which OSF rejects as `IsPrimaryArtifactPIDError`*; see ADR-0103); ⑧ opt-in **publish dataset to OSF** (aggregate/de-identified).
 
 **Later:** ⑨ domain/method-derived templates; ⑩ remaining PIDs (ROR, funder, Subjects, DataCite type, language).
 
@@ -55,3 +55,14 @@ We are **strongly aligned on the *spine*** of LOS and **thin on the *connective 
 - OSF/COS "Lifecycle Open Science" newsletter (July 2026) — linked by the project owner; cos.io/los; OSF registrations help (`help.osf.io/article/330`); the Eye-Tracking Preregistration Template Q&A (cos.io/blog).
 - Internal 5-dimension codebase audit (2026-07-09), grounded in `05_app` + ADR-0002/0004/0005/0054/0055/0056/0094.
 - Related insight: [finished-studies-and-comparable-discovery](finished-studies-and-comparable-discovery.md).
+
+---
+
+## Correction — 2026-07-16 (item ⑦ grounding, ADR-0103)
+
+Two claims above were wrong and are corrected in place. Both were caught by grounding item ⑦ against the live `api.osf.io` and the `CenterForOpenScience/osf.io` source **before** any code was written — which is the whole reason the never-invent rule exists.
+
+1. **"pointing at the registration DOI" was inverted.** An OSF resource points at the DOI of the *output* (a Zenodo/Dryad/DANDI deposit, a paper). The registration is named by a JSON:API relationship, and attaching the registration's *own* DOI raises `IsPrimaryArtifactPIDError`. Live registration `pbu8x` shows the real pattern: `resource_type: "data"` → `10.48324/dandi.001075/0.240930.1859`.
+2. **"Partial (1 of 5)" was wrong; it is 0 of 5.** ADR-0094's Materials push writes bytes to `files.osf.io/v1` on the mutable project node. It produces no DOI and creates no `OutcomeArtifact`. Materials-on-OSF and a `materials` resource are different facts.
+
+The consequence, which the roadmap did not anticipate: **a resource requires a DOI per output, and we mint none.** That makes item ⑦ depend on the "DOI ownership" question this insight already parked as unanswered (below). Resolved for now by ADR-0103 without prejudging it: `papers` registers automatically from the article DOI, the rest accept a researcher-supplied DOI, and we mint nothing.
