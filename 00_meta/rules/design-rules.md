@@ -70,6 +70,13 @@ The rule:
 | Module | Question · Item · Artifact · "Block element" (depending on slot) |
 | Module schema | (don't expose — implementation detail) |
 | Theme overlay | Workspace · "Misinformation workspace" · "Custom workspace" |
+| OSF registration schema (ADR-0101) | **Preregistration template** — mirrors OSF's own "registration templates". Never "schema". **Not** `workspace_template` (that's a starter *study*, user-facing "Template"), and **not** the retired "Framework" (which templated the design — the wrong layer). |
+| `overview.templateKey` field-set (ADR-0101) | (don't expose — the researcher sees the fields the template asks for, never the key) |
+| Claim bound to a frozen hypothesis (ADR-0102) | **Preregistered** — and always name the referent: "H2 of the preregistration filed 2026-05-01 (v3)". The referent is what makes the word checkable rather than asserted; never print the chip bare. |
+| Unbound claim (ADR-0102) | **Exploratory** — the honest default, not a penalty. Never "unverified", never "unregistered". |
+| `study_record` deviations section (ADR-0102) | **Deviations** · "What changed while running it" — an *execution/analysis* departure reported after the fact. Distinct from an **Amendment** (a *plan-side* change filed via Preregister). Never conflate the two. |
+| `experiment_version.supersedes_version_id` chain (ADR-0102) | **Amendment history** · "Amends v3" · "Superseded by v5". Never "diff", "commit chain", or "lineage" on this surface (Lineage is already taken by replication provenance, above). |
+| `amendment_classification` (ADR-0102) | The author's own labels (Typo / wording · Methodological correction · Clarification · Scope change · Other), always attributed — "classified by the author". It is a self-report; attribute it, don't launder it. |
 | Module registry | Library · "What you can add" |
 | Pull from upstream (V2+) | "Adopt updates from the original" · "Sync with the original study" |
 | Merge (V2+) | "Combine with…" · "Suggest a change to [Author]" |
