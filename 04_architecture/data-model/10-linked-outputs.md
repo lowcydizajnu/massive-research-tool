@@ -54,12 +54,26 @@ The automatic paths mint a DOI for a node we already push to, then link it:
 
 Both require the node **public** and the caller **admin** on it, and neither is reversible — there is no DELETE route for a minted DOI. Hence ADR-0104 D3: always explicit, always consented, never a side-effect of an upload.
 
-**Where the component guid lives:** materials reuse `osf_material_upload`'s existing project reference. The dataset component needs its own pointer — add `osf_dataset_component_guid` (text, nullable) to `study_record` rather than a new table: it is one nullable string, one per record, with no lifecycle of its own beyond "does it exist yet".
+**Where the component guid lives — `dataset_deposit`, one row per deposit.** This doc originally chose `study_record.osf_dataset_component_guid`: "one nullable string, one per record, with no lifecycle of its own beyond 'does it exist yet'". [ADR-0105](../adrs/0105-dataset-to-osf.md) Amendment 1 (D7/D8) gives it a lifecycle. A re-deposit — a legitimate act, e.g. collecting more responses to reach a target effect size — must never overwrite: each deposit gets its **own** component and its **own** DOI, so a citation to deposit 1 keeps meaning what it meant. One column cannot hold a sequence, and deposit 2 would orphan deposit 1's component, losing the very sequence the rule exists to show.
+
+| Column | Why |
+|---|---|
+| `experiment_id` | the study, FK, cascade |
+| `ordinal` | deposit 1, 2, 3… unique with `experiment_id`; the sequence *is* the point |
+| `component_guid` | the OSF child component this deposit lives in |
+| `doi` | the DOI OSF minted for that component — permanent, keeps resolving |
+| `row_count` | N at deposit time. Nothing else records it: `dataTable` is a one-shot overwrite and its row count is derived at read |
+| `deposited_at` | when. There is no dataset-publish timestamp anywhere else — `updated_at` and `published_at` both mean other things |
+| `resource_link_id` | the `osf_resource_link` row registering this DOI on the registration |
+
+`osf_resource_link_study_type_uq` becomes **partial**, excluding `data`: one row per slot is right for the four one-artifact slots and wrong for a slot that accumulates. Materials still reuse `osf_material_upload`'s project reference and stay one-per-study.
+
+Verified live 2026-07-16: OSF accepts multiple finalized `data` resources with different DOIs on one registration, and returns them all. The one-per-type constraint was ours, not OSF's.
 
 ## Boundaries this model does not cross
 
 - **No DOIs of our own.** `pid` is always someone else's identifier — OSF's, Zenodo's, a publisher's ([ADR-0104](../adrs/0104-doi-ownership.md)).
-- **No participant identifier in a deposited dataset.** [ADR-0105](../adrs/0105-dataset-to-osf.md) D2 refuses the deposit when `study_record.dataTable` carries the `externalPid` column. Enforced in the mutation, not the UI — the UI already warns, and a warning cannot un-mint a DOI.
+- **No participant identifier in a deposited dataset.** [ADR-0105](../adrs/0105-dataset-to-osf.md) D2 refuses the deposit when `study_record.dataTable.headers` carries the literal **`external_pid`** — the header `buildMatrix` emits (`ExportColumn.label`), *not* the internal key `externalPid`, which never reaches the stored table. Enforced in the mutation, not the UI — the UI already warns, and a warning cannot un-mint a DOI.
 - **Nothing public here.** `osf_resource_link` never reaches `PublicStudyDetail`. The badges live on OSF's registration, which is already public; our record links to the registration, not to a mirror of its badges.
 
 ## Migration

@@ -1114,10 +1114,55 @@ export const osfResourceLink = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    // One link per slot. OSF treats (pid, resource_type) as the natural key on its
-    // side; per study, the slot is the key on ours.
-    uniqueIndex("osf_resource_link_study_type_uq").on(t.experimentId, t.resourceType),
+    // One link per slot — for the four slots that hold ONE artifact. `data` is
+    // excluded: a re-deposit is a new artifact with its own DOI (ADR-0105 am. 1
+    // D7), and OSF itself accepts several finalized `data` resources on one
+    // registration (verified live 2026-07-16). The constraint here was ours.
+    uniqueIndex("osf_resource_link_study_type_uq")
+      .on(t.experimentId, t.resourceType)
+      .where(sql`${t.resourceType} <> 'data'`),
   ],
+);
+
+/**
+ * One deposit of a study's published dataset into its own OSF component
+ * (ADR-0105 am. 1 D7/D8).
+ *
+ * A row per deposit, never an update. Re-depositing after collecting more
+ * responses is legitimate research — the owner's case was "collecting more
+ * responses to reach the effect size" — but it is indistinguishable from
+ * outside from optional stopping, and overwriting is what makes optional
+ * stopping invisible. So each deposit is its own component with its own DOI:
+ * deposit 1's citation keeps resolving to deposit 1's data, forever, and the
+ * sequence of (ordinal, rowCount, depositedAt) IS the transparency (D9).
+ *
+ * `rowCount` and `depositedAt` are stored because nothing else records them:
+ * `dataTable` is a one-shot overwrite whose row count is derived at read, and
+ * no dataset-publish timestamp exists anywhere (`updatedAt`/`publishedAt` both
+ * mean other things).
+ */
+export const datasetDeposit = pgTable(
+  "dataset_deposit",
+  {
+    id: text("id").primaryKey(), // ULID
+    experimentId: uuid("experiment_id")
+      .notNull()
+      .references(() => experiment.id, { onDelete: "cascade" }),
+    /** 1, 2, 3… The sequence is the point; never renumbered. */
+    ordinal: integer("ordinal").notNull(),
+    /** The OSF child component this deposit lives in. Its own, never reused. */
+    componentGuid: text("component_guid").notNull(),
+    /** The DOI OSF minted for that component. Permanent; outlives this row. */
+    doi: text("doi").notNull(),
+    /** N at deposit time — the number the next deposit is compared against. */
+    rowCount: integer("row_count").notNull(),
+    /** The `osf_resource_link` row registering this DOI on the registration. */
+    resourceLinkId: text("resource_link_id").references(() => osfResourceLink.id, {
+      onDelete: "set null",
+    }),
+    depositedAt: timestamp("deposited_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("dataset_deposit_study_ordinal_uq").on(t.experimentId, t.ordinal)],
 );
 
 /* ---------- V1.7: notifications, comments, activity (ADR-0015) ----------
@@ -1623,10 +1668,9 @@ export const studyRecord = pgTable("study_record", {
   // vs "changes to push" instead of pushing blind every click.
   osfPushedHash: text("osf_pushed_hash"),
   osfPushedAt: timestamp("osf_pushed_at", { withTimezone: true }),
-  // The OSF child component holding the deposited dataset (ADR-0105 D3), once
-  // one exists. One nullable string with no lifecycle of its own beyond "does it
-  // exist yet", so it rides here rather than earning a table (data-model/10).
-  osfDatasetComponentGuid: text("osf_dataset_component_guid"),
+  // (`osf_dataset_component_guid` lived here. ADR-0105 am. 1 D8: a re-deposit is
+  // a NEW component with a NEW DOI, so the guid has a sequence and one column
+  // cannot hold it — see `datasetDeposit`. Dropped in 0059, never written.)
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

@@ -52,7 +52,11 @@ Precondition: `dataPublished = true`. If it is not public on their record, there
 
 ### D2 — A participant identifier in `dataTable` is a hard refusal
 
-If `dataTable.headers` contains the `externalPid` column, `PRECONDITION_FAILED` naming the column and the reason. The researcher removes it from the record's published set and retries.
+If `dataTable.headers` contains **the literal string `external_pid`**, `PRECONDITION_FAILED` naming the column and the reason. The researcher removes it from the record's published set and retries.
+
+**The literal matters, and this ADR originally got it wrong.** It said `externalPid`. That is the internal `ExportColumn.key` (`lib/export/dataset.ts:28`), but `buildMatrix` emits `headers: visible.map((c) => c.label)` (`dataset.ts:237`) — the **label**, `external_pid`. A refusal written against `externalPid` matches nothing, never fires, and hands a permanent DOI to a dataset carrying worker IDs: the precise harm this ADR exists to prevent, defeated by a camelCase/snake_case mismatch. Test the refusal against a `dataTable` built by the real export path, never a hand-written fixture — a fixture would agree with whichever spelling the code used.
+
+**This check must live on the server, not the picker.** `publishDataset` validates shape and ownership only; the `external_pid` default-exclusion and the anonymity checkbox are both in `data-publish-control.tsx`, so a `dataTable` already in the database may contain PIDs (the researcher can re-add the `⚠︎`-marked column, and ADR-0056 E2 deliberately lets them, because the record is reversible). The deposit is where reversibility ends, so the deposit is where the check binds.
 
 **Rejected:** stripping it silently at deposit. Then the record and the DOI would disagree about what "the data" is, and we would have edited a researcher's dataset without telling them.
 
@@ -72,6 +76,40 @@ Before the click: **this makes an OSF component public**, and **the DOI cannot b
 
 `unpublishDataset` clears our record's copy. It does **not** retract the OSF component or its DOI. The UI must not imply otherwise: once deposited, "remove from the record" and "remove from the scholarly record" are different acts, and we can only do the first.
 
+## Amendment 1 — 2026-07-16 — re-deposit: never overwrite, and D3's single column is wrong
+
+This ADR was written without an answer to the question that had blocked the `data` slot all along, named in `makeOutputCitable`'s own docblock: *"what a RE-deposit does to a DOI that already points at it."* Project-owner direction, 2026-07-16: **"we need to avoid ambiguity and make it transparent but not block"** — and the motivating case, in the owner's words: *"it might be case of collecting more responses to reach the effect size."*
+
+That case is legitimate research, and refusing it would be the wrong call. But it is also indistinguishable, from the outside, from optional stopping — and the silent-overwrite path is precisely the one that makes optional stopping invisible. So: never block, never hide.
+
+### D7 — A re-deposit is a new artifact, never an overwrite
+
+Each deposit gets **its own child component, its own DOI, and its own `data` resource on the registration**. Earlier deposits are untouched: their DOIs keep resolving, their components stay up. A citation to deposit 1 continues to mean what it meant on the day it was made.
+
+**Verified live 2026-07-16:** OSF accepts two finalized `data` resources with different DOIs on one registration; both are returned by `GET /v2/registrations/{id}/resources/`. The constraint was never OSF's — it is ours.
+
+**Rejected:** re-uploading into the same component. `uploadMaterials` new-versions a file in place and the DOI is per-node, so the same DOI would silently start resolving to different data. That is the one outcome the docblock refused to ship, and it is what the code does today by default.
+
+### D8 — D3's single column cannot express this; supersede it
+
+D3 and `data-model/10-linked-outputs.md` both chose `study_record.osf_dataset_component_guid` — one nullable column, "no lifecycle of its own beyond 'does it exist yet'". D7 gives it a lifecycle: N deposits, ordered, each with its own guid, DOI, and N. One column cannot hold a sequence, and deposit 2 would orphan deposit 1's component — losing exactly the sequence D7 exists to show.
+
+- **Drop** `study_record.osf_dataset_component_guid` (migrated in 0058, never written by anything, never deployed).
+- **Add** `dataset_deposit`: `experimentId`, `ordinal`, `componentGuid`, `doi`, `rowCount`, `depositedAt`, and the `osfResourceLink` row it registered as. Unique on `(experimentId, ordinal)`.
+- **Relax** `osf_resource_link_study_type_uq`. Unique on `(experimentId, resourceType)` is right for the four one-artifact slots and wrong for `data`; make it partial, excluding `data`.
+
+**Why a table and not more columns:** the deposit is the thing with identity here — it has an ordinal, a moment, a size, and a DOI that outlives our row. That is a row, not a field.
+
+### D9 — Transparency is deposit-to-deposit, not deposit-versus-plan
+
+Deposit 2 states what changed since deposit 1 — *"N went 200 → 400 since deposit 1 on 3 June"* — and prompts for a Deviations entry. It does **not** block.
+
+**Why not compare against the preregistered plan:** `samplingPlan` is a `PlanField` — free text up to 2000 chars (`blocks.ts:158`). There is no stored target number, and parsing *"N=400, 95% power"* out of prose is a guess this project does not get to make. `recruitment_session.target_n` is a real integer but lives outside the frozen snapshot and can be edited after preregistration, so treating it as the plan would assert a rigour we cannot back.
+
+Deposit-to-deposit is also the **better** check, not merely the available one. Optional stopping is not "N ≠ the planned N" — a study can miss its target for a dozen innocent reasons. It is **N grew after the researcher saw the data**, and two dated deposits are exactly that evidence. We show the frozen `samplingPlan` text beside the delta and let the researcher — and the reader — judge against the plan themselves. `rowCount` is stored per deposit because nothing else records it: `dataTable` is a one-shot overwrite and its row count is derived at read time.
+
+**Rejected:** adding a typed numeric `targetN` to the plan. Honest and checkable, but it changes item ⑤'s template contract and helps only studies preregistered after it ships — a fix for later, not a dependency now (added to Revisit triggers).
+
 ## Consequences
 
 - **What becomes easier:** the `data` badge becomes automatic for anyone who published a dataset; the one-click deposit replaces export → Zenodo → account → upload → metadata → mint → copy → paste.
@@ -83,6 +121,7 @@ Before the click: **this makes an OSF component public**, and **the DOI cannot b
 ## Revisit triggers
 
 - A researcher presents a legitimate case for a public PID (IRB-approved, already-public panel data) that the hard block wrongly prevents. Evidence, not speculation — then D2 becomes a consented override.
+- A typed numeric `targetN` lands in the preregistration template (item ⑤'s contract), at which point D9 can compare deposit N against the *frozen plan* as well as against the prior deposit.
 - ADR-0014's PII boundary changes (e.g. `external_pid` stops being stored, or new identifying columns appear — each would need adding to D2's refusal set).
 - OSF gains a retraction path for minted DOIs, which would weaken the asymmetry this ADR turns on.
 - We add a second deposit target (Zenodo) — D1/D2 should generalise, D3/D4 are OSF-specific.
