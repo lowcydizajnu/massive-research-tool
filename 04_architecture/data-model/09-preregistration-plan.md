@@ -46,15 +46,20 @@ The cost we accept: plan fields are not independently SQL-queryable (you read th
 
 ## `dataCollectionStatus` — derived, never stored
 
-Not a `StudyOverview` field. Computed server-side from live `experiment.finishedAt` + the study's `recruitment_session` rows:
+Not a `StudyOverview` field. Computed server-side from live `experiment.finishedAt` + the study's `response` rows:
 
 | Value | Condition |
 | --- | --- |
 | `"finished"` | `experiment.finished_at` is set. |
-| `"collecting"` | a `recruitment_session` exists for any version of the study (recruitment has ever been opened). |
-| `"not-started"` | otherwise. |
+| `"collecting"` | a `response` with `mode = 'run'` exists for any version of the study. |
+| `"not-started"` | otherwise — **including while recruitment is open but nobody has taken the study yet.** |
 
-It exists only to render the Overview stage's read-only chip and to drive the hard gate. It is **not** stored because it would buy nothing and could go stale: the gate refuses to create a preregistration unless the status is `not-started`, so **every preregistration that exists was necessarily filed before data collection — by construction**. The guarantee is carried by the gate, not by a field a client could forge.
+Two threshold decisions, both deliberate:
+
+- **A recorded participant response, not "recruitment was opened"** (owner direction 2026-07-15). Opening recruitment and closing it again with zero takers leaves the plan demonstrably pre-data, so it must not burn the researcher's right to preregister. The chip therefore reports on *data*, not on recruitment state — "Not started" while recruitment is open and empty is correct, not a bug.
+- **`mode = 'run'` only.** Preview responses are the researcher's own test-runs of their draft (`response_mode` enum is `run | preview`). Counting them would mean previewing your own study locks you out of preregistering it.
+
+It exists only to render the Overview stage's read-only chip and to drive the hard gate. It is **not** stored because it would buy nothing and could go stale: the gate refuses to create a preregistration unless the status is `not-started`, so **every preregistration that exists was necessarily filed before the data existed — by construction**. The guarantee is carried by the gate, not by a field a client could forge.
 
 ## Preregistration-template registry
 

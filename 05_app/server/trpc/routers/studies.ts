@@ -123,14 +123,20 @@ const planFieldSchema = (max: number) =>
 export type DataCollectionStatus = "not-started" | "collecting" | "finished";
 
 export const PLAN_BEFORE_DATA_MESSAGE =
-  "You can't preregister a study that has already started collecting data. A preregistration is a plan made before data exists — that's the guarantee it carries. You can still save a version or publish a record.";
+  "You can't preregister a study that has already recorded participant responses. A preregistration is a plan made before the data exist — that's the guarantee it carries. You can still save a version or publish a record.";
 
 /**
  * Derive whether data collection has started (ADR-0101). Never stored on the
  * plan: it is live state, and a stored copy could only go stale or be forged.
- * "collecting" the moment recruitment has EVER been opened for any version of
- * the study — not when the first response lands — because once the doors opened
- * the plan is no longer demonstrably pre-data.
+ *
+ * The threshold is a recorded PARTICIPANT response — not merely "recruitment was
+ * opened" (project-owner direction 2026-07-15). Opening recruitment and closing
+ * it again with nobody having taken the study leaves the plan demonstrably
+ * pre-data, so it must not burn the researcher's ability to preregister.
+ *
+ * `mode: "preview"` responses are excluded: those are the researcher's own
+ * test-runs of their draft. Counting them would mean previewing your own study
+ * locks you out of preregistering it.
  */
 async function deriveDataCollectionStatus(
   studyId: string,
@@ -138,20 +144,20 @@ async function deriveDataCollectionStatus(
 ): Promise<DataCollectionStatus> {
   if (finishedAt) return "finished";
   const [row] = await db
-    .select({ id: recruitmentSession.id })
-    .from(recruitmentSession)
-    .innerJoin(experimentVersion, eq(recruitmentSession.experimentVersionId, experimentVersion.id))
-    .where(eq(experimentVersion.experimentId, studyId))
+    .select({ id: responseTable.id })
+    .from(responseTable)
+    .innerJoin(experimentVersion, eq(responseTable.experimentVersionId, experimentVersion.id))
+    .where(and(eq(experimentVersion.experimentId, studyId), eq(responseTable.mode, "run")))
     .limit(1);
   return row ? "collecting" : "not-started";
 }
 
 /**
  * ADR-0101 hard gate ("plan before data"). Refuse to PREREGISTER once the study
- * has started collecting. Deliberately the one exception to the pre-flight's
- * advisory-with-friction stance (`preflight.ts`), because what it protects is the
- * meaning of the word: a plan filed after the data exist is not a *pre*
- * registration, and researcher intent can't make it one. No override.
+ * has recorded a participant response. Deliberately the one exception to the
+ * pre-flight's advisory-with-friction stance (`preflight.ts`), because what it
+ * protects is the meaning of the word: a plan filed after the data exist is not a
+ * *pre*registration, and researcher intent can't make it one. No override.
  *
  * Scope, on purpose: `amend` is EXEMPT — documenting a mid-flight change is
  * exactly what ADR-0004 amendments are for — and `publish`/`saveAsNamed` are

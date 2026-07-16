@@ -4,7 +4,7 @@
  * The router is exercised through a directly-constructed caller (no HTTP) over
  * a real migrated PGlite DB. Deterministic, no network.
  */
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/server/db/client", async () => {
@@ -3039,27 +3039,82 @@ describe("studies — typed plan fields + preregistration template (ADR-0101)", 
     expect(planTemplateKey(ov)).toBe("replication-recipe");
   });
 
-  it("get() derives dataCollectionStatus from live recruitment state", async () => {
+  /** Record a participant response on the study's live version (the gate's trigger). */
+  async function recordResponse(studyId: string, mode: "run" | "preview" = "run") {
+    const [ver] = await db
+      .select({ id: experimentVersion.id })
+      .from(experimentVersion)
+      .where(eq(experimentVersion.experimentId, studyId))
+      .orderBy(desc(experimentVersion.versionNumber))
+      .limit(1);
+    const [sess] = await db
+      .select({ id: recruitmentSession.id })
+      .from(recruitmentSession)
+      .where(eq(recruitmentSession.experimentVersionId, ver!.id))
+      .limit(1);
+    const [cond] = await db
+      .select({ id: condition.id })
+      .from(condition)
+      .where(eq(condition.experimentVersionId, ver!.id))
+      .limit(1);
+    await db.insert(response).values({
+      id: ulid(),
+      recruitmentSessionId: sess!.id,
+      experimentVersionId: ver!.id,
+      conditionId: cond!.id,
+      mode,
+    });
+  }
+
+  it("get() derives dataCollectionStatus from recorded responses, not from recruitment", async () => {
     await seedUserWithWorkspace("ext_a", "Alpha");
     const caller = createCaller({ authUser: authUser("ext_a") });
     const { id } = await caller.studies.create({ kind: "blank", title: "S" });
     expect((await caller.studies.get({ id })).dataCollectionStatus).toBe("not-started");
 
+    // Recruitment open but nobody has taken it yet → still pre-data.
     await caller.studies.publish({ studyId: id });
     await caller.studies.openRecruitment({ studyId: id });
+    expect((await caller.studies.get({ id })).dataCollectionStatus).toBe("not-started");
+
+    await recordResponse(id);
     expect((await caller.studies.get({ id })).dataCollectionStatus).toBe("collecting");
   });
 
-  it("HARD GATE: refuses to preregister once recruitment has opened", async () => {
+  it("HARD GATE: refuses to preregister once a participant response exists", async () => {
     await seedUserWithWorkspace("ext_a", "Alpha");
     const caller = createCaller({ authUser: authUser("ext_a") });
     const { id } = await caller.studies.create({ kind: "blank", title: "S" });
     await caller.studies.publish({ studyId: id });
     await caller.studies.openRecruitment({ studyId: id });
+    await recordResponse(id);
 
     await expect(caller.studies.preregister({ studyId: id })).rejects.toMatchObject({
       code: "PRECONDITION_FAILED",
     });
+  });
+
+  it("opening recruitment with zero responses does NOT burn preregistration", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    // Published + recruited + closed again, but nobody took it: still pre-data, so
+    // the researcher keeps the right to preregister (owner direction 2026-07-15).
+    await caller.studies.publish({ studyId: id });
+    await caller.studies.openRecruitment({ studyId: id });
+    await expect(caller.studies.preregister({ studyId: id })).resolves.toBeTruthy();
+  });
+
+  it("a PREVIEW response is the researcher's own test-run and must not trip the gate", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    await caller.studies.publish({ studyId: id });
+    await caller.studies.openRecruitment({ studyId: id });
+    await recordResponse(id, "preview");
+
+    expect((await caller.studies.get({ id })).dataCollectionStatus).toBe("not-started");
+    await expect(caller.studies.preregister({ studyId: id })).resolves.toBeTruthy();
   });
 
   it("HARD GATE is scoped: amend stays available after collection starts", async () => {
@@ -3068,6 +3123,7 @@ describe("studies — typed plan fields + preregistration template (ADR-0101)", 
     const { id } = await caller.studies.create({ kind: "blank", title: "S" });
     await caller.studies.preregister({ studyId: id });
     await caller.studies.openRecruitment({ studyId: id });
+    await recordResponse(id);
 
     // Documenting a mid-flight change is exactly what amendments are for (ADR-0004),
     // so the plan-before-data gate must NOT apply to them.
