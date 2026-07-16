@@ -7,7 +7,9 @@
 
 ## Purpose
 
-Let a researcher freeze the current design as an immutable, citable **Preregistration** and (if they've connected a registry) push it to the OSF — turning "I should preregister" into one button, with honest status about where the record lives. Implements ADR-0005 (push) + ADR-0002/0012 (immutable snapshot). Speaks researcher-native vocabulary: the surface says **Preregister / Preregistration / Saved version**, never "freeze a version" or "commit".
+Let a researcher freeze the current design as an immutable, citable **Preregistration** and (if they've connected a registry) push it to the OSF — turning "I should preregister" into one button, with honest status about where the record lives. Implements ADR-0005 (push) + ADR-0002/0012 (immutable snapshot) + [ADR-0101](../../04_architecture/adrs/0101-preregistration-templates-typed-fields.md) (which registration template is filed, and the plan-before-data gate). Speaks researcher-native vocabulary: the surface says **Preregister / Preregistration / Saved version**, never "freeze a version" or "commit".
+
+The **plan itself is authored on the [Overview stage](overview-stage.md)** — template choice + typed fields. This stage only freezes and files it.
 
 ## Layout
 
@@ -24,7 +26,9 @@ The Build-stage shell, reused (faithful to `build-stage-builder-mode.md`): the f
 - **Connection chip** — computed from `registry.getConnection`: "OSF connected" (`success` tone) or "OSF not connected" (`warning` tone).
 - **Connect prompt** — static, shown only when disconnected: "Connect your OSF account in Settings · Connections to push automatically." → link to `/settings/account`.
 - **Preregister explainer** — static: "This saves an immutable, timestamped snapshot of your current design. You can still keep editing your working draft afterwards."
-- **Preregister button** — primary action; label "Preregister".
+- **Template line** (ADR-0101) — a quiet line stating which registration template will be filed: "Filing as: **Open-ended**" / "Filing as: **Replication recipe**" + a "Change in Overview →" link. Read-only here; the choice lives on the Overview stage. This exists so the researcher is never surprised by which OSF form their plan lands in — it used to be chosen invisibly from replication intent.
+- **Plan-before-data gate** (ADR-0101) — when data collection has started or the study is finished, the action zone shows a `danger`-tone blocking notice **in place of** the Preregister button: "You can't preregister a study that has already started collecting data." + detail "A preregistration is a plan made *before* data exists — that's the guarantee it carries. You can still save a version and publish a record." + a link to the Run stage. The button is **absent**, not merely disabled (there is no override — see Edge cases).
+- **Preregister button** — primary action; label "Preregister". Shown only when the plan-before-data gate passes.
 - **Preregistration receipt** (once a `preregistered` version exists): **version label** (`Preregistration v{n}`, from server), **push-status banner** (see States), **OSF registration link** (`external_registration_url`, when present), **DOI line** ("DOI: pending approval" or the DOI when backfilled).
 - **Amendment affordance** (audit step 4, ADR-0004 — shipped): on the receipt (a preregistered version exists), a **"File an amendment"** action opens an inline form — a required **change-summary** textarea + an optional **classification** select (typo / methodological-correction / clarification / scope-change / other) + **File amendment** / **Cancel**. It freezes the current working draft as a new preregistered version that **supersedes** the latest, and re-pushes to OSF as an amendment on the same project node. Gated by the same pre-flight checklist as Preregister. A **lineage line** ("Amends v{n} — {change summary}") shows when the current preregistration is itself an amendment.
 
@@ -32,6 +36,7 @@ The Build-stage shell, reused (faithful to `build-stage-builder-mode.md`): the f
 
 - **Default — not yet preregistered, connected:** explainer + enabled **Preregister** button. Connection chip = "OSF connected".
 - **Default — not yet preregistered, disconnected:** same, plus the connect prompt; the **Preregister** button stays enabled (preregistering still freezes a citable version locally; it parks as "not pushed — connect OSF to push").
+- **Blocked — data collection already started/finished (ADR-0101):** the `danger` blocking notice replaces the Preregister button (no override). Reached when recruitment has ever been opened for the study, or the study is finished. Everything else on the stage still renders (the researcher can read their plan and the template line).
 - **Submitting:** button shows a busy state, disabled, `aria-busy`.
 - **Preregistered · pending (`pending`):** banner (`info` tone) "Preregistered — pushing to OSF…". Shown immediately after submit while the background job runs.
 - **Preregistered · pushed (`pushed`):** banner (`success` tone) "Submitted to OSF — pending your approval there to finalize." + the OSF link + a DOI line "minted by OSF once you approve the registration there". `pushed` means *submitted* (OSF's `require_approval()` leaves it pending), NOT approved/public — ADR-0005 amendment 2026-06-03. Communication is one-way (push only) in V1.5: approval/DOI/withdrawal on OSF are not reflected back until DOI-backfill polling lands (V1.6). The DOI line updates once backfilled.
@@ -55,6 +60,10 @@ The Build-stage shell, reused (faithful to `build-stage-builder-mode.md`): the f
 - **Very long title:** truncates in the header; full title available via `title` attribute.
 - **Push pending for a long time / job lag:** banner stays `pending`; the page reflects whatever `registry_push_status` currently is on reload (no live polling in V1.5).
 - **Permissions:** a viewer cannot preregister — the button is absent (write-gated, mirrors the mutation's `writeProcedure` FORBIDDEN).
+- **Plan-before-data gate is hard, with no override (ADR-0101).** Unlike the rest of the pre-flight checklist — which is deliberately advisory-with-friction on the principle of researcher autonomy — this one cannot be proceeded past, because the thing it protects *is* the meaning of the word: a plan filed after the data exist is not a *pre*registration, and no amount of researcher intent makes it one. Enforced server-side in the `preregister` mutation (`PRECONDITION_FAILED`), mirroring how the ADR-0084 branding/IRB gate is advisory on the checklist and enforced in the freeze mutations. The UI must never render an enabled Preregister button in this state — the server would reject it anyway, and offering it would be a lie.
+- **Opening recruitment is therefore a one-way door for preregistration.** A study whose recruitment was opened — even briefly, even with zero responses — can no longer be preregistered. This is intended and is the strict reading of "plan before data". The honest alternatives stay open and are named in the blocking copy: save a Saved version (still immutable + citable) or publish a Record.
+- **Amendments are exempt.** Filing an amendment *after* collection starts is legitimate and stays available — documenting a mid-flight change is precisely what ADR-0004 amendments exist for. The gate applies to the first preregistration only; `amend` is not gated by it.
+- **Already-preregistered studies are unaffected.** The gate is evaluated when creating a preregistration, so an existing preregistration + its receipt render normally once the study starts running.
 
 ## Accessibility notes
 
