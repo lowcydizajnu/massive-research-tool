@@ -69,6 +69,9 @@ The rule:
 | Lineage / parent | Origin · "Adapted from [Author]'s study" · "Based on [Framework]" |
 | Module | Question · Item · Artifact · "Block element" (depending on slot) |
 | Module schema | (don't expose — implementation detail) |
+| OSF resource / OutcomeArtifact (ADR-0103) | **Linked output** — "Make citable". Never "resource" (OSF's word, and ambiguous in English); never "artifact" (OSF's internal model name, meaningless to a researcher). |
+| `data` · `analytic_code` · `materials` · `papers` · `supplements` (OSF wire values) | **Data · Analysis code · Materials · Paper · Supplements.** The wire values keep their underscores in code and in the DB so the mapping stays checkable; they never reach the screen. |
+| DOI | **DOI** — already researcher-native, do not translate. But say what it *does*: "a permanent link others can cite", not "a persistent identifier". |
 | Theme overlay | Workspace · "Misinformation workspace" · "Custom workspace" |
 | OSF registration schema (ADR-0101) | **Preregistration template** — mirrors OSF's own "registration templates". Never "schema". **Not** `workspace_template` (that's a starter *study*, user-facing "Template"), and **not** the retired "Framework" (which templated the design — the wrong layer). |
 | `overview.templateKey` field-set (ADR-0101) | (don't expose — the researcher sees the fields the template asks for, never the key) |
