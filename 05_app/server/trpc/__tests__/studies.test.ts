@@ -24,6 +24,7 @@ vi.mock("@/server/adapters/jobs", () => ({ jobs: { enqueue: vi.fn() } }));
 import { ulid } from "ulid";
 
 import type { AuthUser } from "@/server/adapters/auth";
+import { planTemplateKey } from "@/server/modules/blocks";
 import { jobs } from "@/server/adapters/jobs";
 import { registry as osfRegistryAdapter } from "@/server/adapters/registry";
 import { db } from "@/server/db/client";
@@ -2964,5 +2965,121 @@ describe("studies.setLicense (ADR-0100 — reusable metadata)", () => {
     await seedUserWithWorkspace("ext_b", "Beta");
     const b = createCaller({ authUser: authUser("ext_b") });
     await expect(b.studies.setLicense({ studyId: id, license: "MIT" })).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+});
+
+/** Typed preregistration plan + the plan-before-data gate (ADR-0101, item ⑤). */
+describe("studies — typed plan fields + preregistration template (ADR-0101)", () => {
+  const emptyPlan = { abstract: "", hypotheses: [], replicationNotes: "", sections: [] };
+
+  it("setOverview persists the typed plan fields + templateKey", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+
+    await caller.studies.setOverview({
+      studyId: id,
+      overview: {
+        ...emptyPlan,
+        abstract: "A study.",
+        templateKey: "replication-recipe",
+        samplingPlan: { text: "N=400, 95% power.", source: "researcher" },
+        analysisPlan: { text: "Two-sided t-test.", source: "researcher" },
+        variables: [
+          { id: "v1", name: "Label", role: "iv", instanceId: null, notes: "on/off", source: "researcher" },
+        ],
+        expectedOutcomes: [
+          { id: "o1", hypothesisIndex: 1, prediction: "Lower credibility.", source: "researcher" },
+        ],
+      },
+    });
+
+    const ov = (await caller.studies.get({ id })).overview;
+    expect(ov.templateKey).toBe("replication-recipe");
+    expect(ov.samplingPlan).toEqual({ text: "N=400, 95% power.", source: "researcher" });
+    expect(ov.analysisPlan.text).toBe("Two-sided t-test.");
+    expect(ov.variables).toHaveLength(1);
+    expect(ov.variables[0]).toMatchObject({ name: "Label", role: "iv" });
+    expect(ov.expectedOutcomes[0]).toMatchObject({ hypothesisIndex: 1, prediction: "Lower credibility." });
+  });
+
+  it("setOverview MERGES — omitted fields keep their stored value (never silently reset)", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+
+    await caller.studies.setOverview({
+      studyId: id,
+      overview: { ...emptyPlan, samplingPlan: { text: "N=400.", source: "researcher" }, templateKey: "replication-recipe" },
+    });
+    // A save that doesn't mention the typed fields at all (e.g. an older client).
+    await caller.studies.setOverview({ studyId: id, overview: { ...emptyPlan, abstract: "Edited." } });
+
+    const ov = (await caller.studies.get({ id })).overview;
+    expect(ov.abstract).toBe("Edited.");
+    expect(ov.samplingPlan.text).toBe("N=400."); // preserved, not reset
+    expect(ov.templateKey).toBe("replication-recipe");
+  });
+
+  it("setOverview no longer wipes replicationIntent (regression — it used to)", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    await caller.studies.setReplicationIntent({ studyId: id, intent: "direct" });
+
+    // The editor sends only the fields it edits; a wholesale write dropped the
+    // intent, which silently re-filed the study under the wrong OSF schema.
+    await caller.studies.setOverview({ studyId: id, overview: { ...emptyPlan, abstract: "Edited." } });
+
+    const ov = (await caller.studies.get({ id })).overview;
+    expect(ov.replicationIntent).toBe("direct");
+    // The template was never explicitly chosen, so it stays derived (absent) —
+    // and derives to Recipe off the surviving intent.
+    expect(ov.templateKey).toBeUndefined();
+    expect(planTemplateKey(ov)).toBe("replication-recipe");
+  });
+
+  it("get() derives dataCollectionStatus from live recruitment state", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    expect((await caller.studies.get({ id })).dataCollectionStatus).toBe("not-started");
+
+    await caller.studies.publish({ studyId: id });
+    await caller.studies.openRecruitment({ studyId: id });
+    expect((await caller.studies.get({ id })).dataCollectionStatus).toBe("collecting");
+  });
+
+  it("HARD GATE: refuses to preregister once recruitment has opened", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    await caller.studies.publish({ studyId: id });
+    await caller.studies.openRecruitment({ studyId: id });
+
+    await expect(caller.studies.preregister({ studyId: id })).rejects.toMatchObject({
+      code: "PRECONDITION_FAILED",
+    });
+  });
+
+  it("HARD GATE is scoped: amend stays available after collection starts", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    await caller.studies.preregister({ studyId: id });
+    await caller.studies.openRecruitment({ studyId: id });
+
+    // Documenting a mid-flight change is exactly what amendments are for (ADR-0004),
+    // so the plan-before-data gate must NOT apply to them.
+    await expect(
+      caller.studies.amend({ studyId: id, changeSummary: "Tightened the exclusion rule." }),
+    ).resolves.toBeTruthy();
+  });
+
+  it("preregister still works before any data collection", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    await expect(caller.studies.preregister({ studyId: id })).resolves.toMatchObject({ versionNumber: 1 });
   });
 });

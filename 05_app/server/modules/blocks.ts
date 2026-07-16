@@ -1,3 +1,5 @@
+import { defaultTemplateKey, isPreregTemplateKey, type PreregTemplateKey } from "@/lib/prereg-templates";
+
 import { getModuleDef } from "./registry";
 
 /**
@@ -96,6 +98,40 @@ export function readVariantBindings(snapshot: unknown): import("@/lib/variants/f
 
 /** Researcher-authored study documentation (V1.12 B1), stored in the snapshot. */
 export type OverviewSection = { id: string; heading: string; contentMd: string };
+
+/** Where a typed plan field's content came from (ADR-0101). Item ⑨ (auto-derive
+ *  the plan from the built study) will write "derived"; v1 only ever writes
+ *  "researcher". The slot exists now so derivation can populate a field later
+ *  without clobbering researcher-authored prose. */
+export type FieldSource = "researcher" | "derived";
+
+/** A typed plan text field + its provenance. */
+export type PlanField = { text: string; source: FieldSource };
+
+export type VariableRole = "iv" | "dv" | "covariate" | "exclusion";
+
+/** A declared variable, keyed to the block that measures it. Structured rather
+ *  than prose because the design spans two mechanisms (the `condition` table for
+ *  between-subjects arms; snapshot factors/variantBindings for factorial cells).
+ *  The data type is DERIVED from the linked block's responseSchema, never stored. */
+export type PlanVariable = {
+  id: string;
+  name: string;
+  role: VariableRole;
+  /** instanceId of the block measuring this variable; null = not linked. */
+  instanceId: string | null;
+  notes: string;
+  source: FieldSource;
+};
+
+/** A prediction, optionally bound to a hypothesis by 1-based index. */
+export type ExpectedOutcome = {
+  id: string;
+  hypothesisIndex: number | null;
+  prediction: string;
+  source: FieldSource;
+};
+
 export type StudyOverview = {
   abstract: string;
   /** Numbered hypotheses (H1, H2, …) — first-class for preregistration. */
@@ -106,14 +142,105 @@ export type StudyOverview = {
   replicationNotes: string;
   /** Declared replication kind (ADR-0039) — judged by the readiness checks. */
   replicationIntent?: "direct" | "conceptual" | "extension";
+  // --- Typed plan fields (ADR-0101) ------------------------------------------
+  /**
+   * The researcher's EXPLICIT template choice. Absent = never chosen; derive it
+   * with `planTemplateKey()` instead of reading this directly.
+   *
+   * Deliberately optional and NEVER materialized by `readOverview`: several call
+   * sites round-trip a plan (`{...readOverview(snap), someField}` — e.g.
+   * `setReplicationIntent`, `injectReplicationRecipe`), so a materialized default
+   * would be written back as though the researcher had picked it. That would
+   * freeze "open-ended" into a study *before* its replication intent was declared
+   * and then beat the derivation forever.
+   */
+  templateKey?: PreregTemplateKey;
+  samplingPlan: PlanField;
+  analysisPlan: PlanField;
+  variables: PlanVariable[];
+  expectedOutcomes: ExpectedOutcome[];
 };
 
-/** Read the overview out of a definition_snapshot; empty default if absent. */
+const VARIABLE_ROLES: readonly VariableRole[] = ["iv", "dv", "covariate", "exclusion"];
+
+/**
+ * Which preregistration template a plan uses (ADR-0101): the researcher's
+ * explicit choice, else derived from replication intent. Always read the template
+ * through this — `overview.templateKey` alone is only the explicit part.
+ */
+export function planTemplateKey(overview: StudyOverview): PreregTemplateKey {
+  return overview.templateKey ?? defaultTemplateKey(overview.replicationIntent);
+}
+
+const emptyField = (): PlanField => ({ text: "", source: "researcher" });
+
+const readSource = (v: unknown): FieldSource => (v === "derived" ? "derived" : "researcher");
+
+function readPlanField(v: unknown): PlanField {
+  if (typeof v === "string") return { text: v, source: "researcher" }; // defensive
+  if (v && typeof v === "object") {
+    const f = v as Partial<PlanField>;
+    return { text: typeof f.text === "string" ? f.text : "", source: readSource(f.source) };
+  }
+  return emptyField();
+}
+
+function readVariables(v: unknown): PlanVariable[] {
+  if (!Array.isArray(v)) return [];
+  return v.flatMap((x, i) => {
+    if (!x || typeof x !== "object") return [];
+    const r = x as Partial<PlanVariable>;
+    return [
+      {
+        // Deterministic id fallback — readOverview runs on every read, so it must
+        // never mint a fresh random id (that would churn React keys + diffs).
+        id: typeof r.id === "string" && r.id ? r.id : `v${i}`,
+        name: typeof r.name === "string" ? r.name : "",
+        role: VARIABLE_ROLES.includes(r.role as VariableRole) ? (r.role as VariableRole) : "iv",
+        instanceId: typeof r.instanceId === "string" ? r.instanceId : null,
+        notes: typeof r.notes === "string" ? r.notes : "",
+        source: readSource(r.source),
+      },
+    ];
+  });
+}
+
+function readExpectedOutcomes(v: unknown): ExpectedOutcome[] {
+  if (!Array.isArray(v)) return [];
+  return v.flatMap((x, i) => {
+    if (!x || typeof x !== "object") return [];
+    const r = x as Partial<ExpectedOutcome>;
+    return [
+      {
+        id: typeof r.id === "string" && r.id ? r.id : `o${i}`,
+        hypothesisIndex:
+          typeof r.hypothesisIndex === "number" && Number.isInteger(r.hypothesisIndex) && r.hypothesisIndex > 0
+            ? r.hypothesisIndex
+            : null,
+        prediction: typeof r.prediction === "string" ? r.prediction : "",
+        source: readSource(r.source),
+      },
+    ];
+  });
+}
+
+/**
+ * Read the overview out of a definition_snapshot; empty default if absent.
+ *
+ * TOLERANT BY CONTRACT (ADR-0101): every field must have a default here, because
+ * this reads immutable snapshots frozen long before the field existed — including
+ * preregistrations we can never rewrite. Adding a field to StudyOverview without
+ * defaulting it here breaks every historical version.
+ */
 export function readOverview(snapshot: unknown): StudyOverview {
   if (snapshot && typeof snapshot === "object" && "overview" in snapshot) {
     const o = (snapshot as { overview?: unknown }).overview;
     if (o && typeof o === "object") {
       const ov = o as Partial<StudyOverview>;
+      const replicationIntent =
+        ov.replicationIntent === "direct" || ov.replicationIntent === "conceptual" || ov.replicationIntent === "extension"
+          ? ov.replicationIntent
+          : undefined;
       return {
         abstract: typeof ov.abstract === "string" ? ov.abstract : "",
         hypotheses: Array.isArray(ov.hypotheses)
@@ -121,13 +248,27 @@ export function readOverview(snapshot: unknown): StudyOverview {
           : [],
         sections: Array.isArray(ov.sections) ? (ov.sections as OverviewSection[]) : [],
         replicationNotes: typeof ov.replicationNotes === "string" ? ov.replicationNotes : "",
-        ...(ov.replicationIntent === "direct" || ov.replicationIntent === "conceptual" || ov.replicationIntent === "extension"
-          ? { replicationIntent: ov.replicationIntent }
-          : {}),
+        ...(replicationIntent ? { replicationIntent } : {}),
+        // Pass through only an EXPLICIT choice — never materialize the derived
+        // default (see the templateKey docstring). Use planTemplateKey() to read.
+        ...(isPreregTemplateKey(ov.templateKey) ? { templateKey: ov.templateKey } : {}),
+        samplingPlan: readPlanField(ov.samplingPlan),
+        analysisPlan: readPlanField(ov.analysisPlan),
+        variables: readVariables(ov.variables),
+        expectedOutcomes: readExpectedOutcomes(ov.expectedOutcomes),
       };
     }
   }
-  return { abstract: "", hypotheses: [], sections: [], replicationNotes: "" };
+  return {
+    abstract: "",
+    hypotheses: [],
+    sections: [],
+    replicationNotes: "",
+    samplingPlan: emptyField(),
+    analysisPlan: emptyField(),
+    variables: [],
+    expectedOutcomes: [],
+  };
 }
 
 /** Read the block array out of a (possibly empty/unknown) definition_snapshot. */

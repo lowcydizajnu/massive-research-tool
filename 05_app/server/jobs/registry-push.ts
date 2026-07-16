@@ -7,7 +7,7 @@ import { OsfNotConnectedError } from "@/server/adapters/registry.osf";
 import type { RegistrationPayload } from "@/server/adapters/registry";
 import { db } from "@/server/db/client";
 import { changelogBetween } from "@/server/modules/changelog";
-import { readOverview } from "@/server/modules/blocks";
+import { planTemplateKey, readOverview } from "@/server/modules/blocks";
 import { buildOpenEndedBody, buildRecipeResponses, RECIPE_SCHEMA_NAME } from "@/server/modules/osf-recipe";
 import { emit } from "@/server/events/emit";
 import {
@@ -67,9 +67,14 @@ export async function runRegistryPush(data: JobCatalog["registry.push"]): Promis
     .where(eq(experiment.id, version.experimentId))
     .limit(1);
 
-  // Declared replications file under the Replication Recipe schema (ADR-0005
-  // am. 3) — keys verified live; every field optional, so partial filing is safe.
-  const isRecipe = !!readOverview(version.definitionSnapshot).replicationIntent;
+  // Which OSF registration schema to file under is now the researcher's explicit
+  // choice: `overview.templateKey` (ADR-0101), picked on the Overview stage. This
+  // supersedes the old implicit rule (any declared replication intent ⇒ Recipe),
+  // which chose invisibly and silently changed if the intent was cleared. Both
+  // exposed schemas have every field optional, so partial filing stays safe.
+  // Back-compat: a plan with no explicit templateKey resolves via planTemplateKey
+  // to exactly the old rule, so nothing already out there re-files elsewhere.
+  const isRecipe = planTemplateKey(readOverview(version.definitionSnapshot)) === "replication-recipe";
   let sourceTitle: string | null = null;
   if (exp?.forkOfExperimentId) {
     const [src] = await db

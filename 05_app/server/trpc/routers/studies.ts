@@ -46,6 +46,7 @@ import {
 import { sanitizeLayout as sanitizeRecordLayout } from "@/lib/study-record/sections";
 import { extractMaterials } from "@/lib/study-record/materials";
 import { LICENSE_IDS } from "@/lib/licenses";
+import { PREREG_TEMPLATE_KEYS } from "@/lib/prereg-templates";
 import {
   type CustomModuleDefinition,
   definitionToBlocks,
@@ -71,6 +72,7 @@ import {
   readVariantBindings,
   summarizeConfigDiff,
   validateConfig,
+  type StudyOverview,
 } from "@/server/modules/blocks";
 import { cellLabel, pruneBindings, type VariantBinding, type VariantFactor } from "@/lib/variants/factorial";
 import { changelogBetween, initialVersionSummary, DEFAULT_NEW_STUDY_SNAPSHOT } from "@/server/modules/changelog";
@@ -110,6 +112,56 @@ function normalizeTags(raw: string[]): string[] {
     )
     .filter((t) => t.length > 0 && t.length <= 40);
   return [...new Set(slugs)].slice(0, 20);
+}
+
+/** A typed plan field + its provenance (ADR-0101). `source` is "researcher" for
+ *  everything v1 writes; item ⑨ will write "derived". */
+const planFieldSchema = (max: number) =>
+  z.object({ text: z.string().max(max), source: z.enum(["researcher", "derived"]) });
+
+/** Whether a study has started collecting data (ADR-0101). Derived, never stored. */
+export type DataCollectionStatus = "not-started" | "collecting" | "finished";
+
+export const PLAN_BEFORE_DATA_MESSAGE =
+  "You can't preregister a study that has already started collecting data. A preregistration is a plan made before data exists — that's the guarantee it carries. You can still save a version or publish a record.";
+
+/**
+ * Derive whether data collection has started (ADR-0101). Never stored on the
+ * plan: it is live state, and a stored copy could only go stale or be forged.
+ * "collecting" the moment recruitment has EVER been opened for any version of
+ * the study — not when the first response lands — because once the doors opened
+ * the plan is no longer demonstrably pre-data.
+ */
+async function deriveDataCollectionStatus(
+  studyId: string,
+  finishedAt: Date | null,
+): Promise<DataCollectionStatus> {
+  if (finishedAt) return "finished";
+  const [row] = await db
+    .select({ id: recruitmentSession.id })
+    .from(recruitmentSession)
+    .innerJoin(experimentVersion, eq(recruitmentSession.experimentVersionId, experimentVersion.id))
+    .where(eq(experimentVersion.experimentId, studyId))
+    .limit(1);
+  return row ? "collecting" : "not-started";
+}
+
+/**
+ * ADR-0101 hard gate ("plan before data"). Refuse to PREREGISTER once the study
+ * has started collecting. Deliberately the one exception to the pre-flight's
+ * advisory-with-friction stance (`preflight.ts`), because what it protects is the
+ * meaning of the word: a plan filed after the data exist is not a *pre*
+ * registration, and researcher intent can't make it one. No override.
+ *
+ * Scope, on purpose: `amend` is EXEMPT — documenting a mid-flight change is
+ * exactly what ADR-0004 amendments are for — and `publish`/`saveAsNamed` are
+ * untouched. Advisory row on the preflight; ENFORCED here, mirroring
+ * `assertBrandingGate` (ADR-0084).
+ */
+async function assertPlanBeforeData(studyId: string, finishedAt: Date | null): Promise<void> {
+  if ((await deriveDataCollectionStatus(studyId, finishedAt)) !== "not-started") {
+    throw new TRPCError({ code: "PRECONDITION_FAILED", message: PLAN_BEFORE_DATA_MESSAGE });
+  }
 }
 
 /**
@@ -586,6 +638,9 @@ export type StudyDetail = {
   whiteboardViewport: WhiteboardViewport;
   /** Researcher-authored study documentation (V1.12 B1). */
   overview: import("@/server/modules/blocks").StudyOverview;
+  /** Derived, never stored (ADR-0101) — drives the Overview chip + the
+   *  plan-before-data gate on the Preregister stage. */
+  dataCollectionStatus: DataCollectionStatus;
   /** Consent screen config (ADR-0035) — defaults merged on read. */
   consent: StudyConsent;
   /** Set when archived (ADR-0037 reversible path) — drives Unarchive in the ⋯ menu. */
@@ -1822,6 +1877,10 @@ export const studiesRouter = router({
         blocks,
         whiteboardViewport: (row.version?.whiteboardViewport as WhiteboardViewport | null) ?? {},
         overview: readOverview(row.version?.definitionSnapshot),
+        dataCollectionStatus: await deriveDataCollectionStatus(
+          row.experiment.id,
+          row.experiment.finishedAt,
+        ),
         consent: readConsent(row.version?.definitionSnapshot),
         archivedAt: row.experiment.archivedAt?.toISOString() ?? null,
         groups: readGroups(row.version?.definitionSnapshot),
@@ -3082,6 +3141,37 @@ export const studiesRouter = router({
               }),
             )
             .max(30),
+          // Typed plan fields (ADR-0101). Optional so a client that predates them
+          // (or a stale bundle mid-deploy) still saves; omitted fields keep their
+          // stored value via the merge below. `dataCollectionStatus` is
+          // deliberately absent — it is derived server-side, never client-supplied.
+          templateKey: z.enum(PREREG_TEMPLATE_KEYS).optional(),
+          samplingPlan: planFieldSchema(2000).optional(),
+          analysisPlan: planFieldSchema(20000).optional(),
+          variables: z
+            .array(
+              z.object({
+                id: z.string(),
+                name: z.string().max(200),
+                role: z.enum(["iv", "dv", "covariate", "exclusion"]),
+                instanceId: z.string().nullable(),
+                notes: z.string().max(1000),
+                source: z.enum(["researcher", "derived"]),
+              }),
+            )
+            .max(50)
+            .optional(),
+          expectedOutcomes: z
+            .array(
+              z.object({
+                id: z.string(),
+                hypothesisIndex: z.number().int().positive().nullable(),
+                prediction: z.string().max(1000),
+                source: z.enum(["researcher", "derived"]),
+              }),
+            )
+            .max(50)
+            .optional(),
         }),
       }),
     )
@@ -3091,9 +3181,29 @@ export const studiesRouter = router({
         tip.version.definitionSnapshot && typeof tip.version.definitionSnapshot === "object"
           ? (tip.version.definitionSnapshot as Record<string, unknown>)
           : {};
+      // MERGE onto the stored plan — never replace it. The editor sends only the
+      // fields it edits, so a wholesale write silently drops the rest: that is how
+      // `replicationIntent` was being wiped on every overview save (fixed here),
+      // which in turn would flip `templateKey`'s derived default for replications
+      // and revert their OSF filing from the Recipe schema to Open-Ended.
+      const current = readOverview(tip.version.definitionSnapshot);
+      const o = input.overview;
+      const overview: StudyOverview = {
+        ...current,
+        abstract: o.abstract,
+        hypotheses: o.hypotheses,
+        sections: o.sections,
+        replicationNotes: o.replicationNotes,
+        ...(o.replicationIntent ? { replicationIntent: o.replicationIntent } : {}),
+        ...(o.templateKey ? { templateKey: o.templateKey } : {}),
+        ...(o.samplingPlan ? { samplingPlan: o.samplingPlan } : {}),
+        ...(o.analysisPlan ? { analysisPlan: o.analysisPlan } : {}),
+        ...(o.variables ? { variables: o.variables } : {}),
+        ...(o.expectedOutcomes ? { expectedOutcomes: o.expectedOutcomes } : {}),
+      };
       await db
         .update(experimentVersion)
-        .set({ definitionSnapshot: { ...snap, overview: input.overview } })
+        .set({ definitionSnapshot: { ...snap, overview } })
         .where(eq(experimentVersion.id, tip.version.id));
       await db.update(experiment).set({ updatedAt: new Date() }).where(eq(experiment.id, input.studyId));
       await recordStudyEdit(input.studyId, ctx.dbUser.id, "overview", "Edited the overview");
@@ -3784,6 +3894,9 @@ export const studiesRouter = router({
       }): Promise<{ versionNumber: number; pushStatus: "pending" | "no_credentials" }> => {
         const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
         assertBrandingGate(tip.version.definitionSnapshot);
+        // ADR-0101: a plan filed after the data exist is not a preregistration.
+        // Preregister only — `amend` is exempt by design.
+        await assertPlanBeforeData(input.studyId, tip.experiment.finishedAt);
 
         const nextNumber = await nextVersionNumber(input.studyId);
 
