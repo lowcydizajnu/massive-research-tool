@@ -24,7 +24,12 @@ import {
   planOsfArtifacts,
 } from "@/server/osf/materials-bundle";
 import { buildStudyPdfData } from "@/server/study/pdf-data";
-import { bindingResolves, newestPrereg, preregChain } from "@/server/study/prereg-chain";
+import {
+  bindingResolves,
+  newestPrereg,
+  preregChain,
+  type RegistryPushStatus,
+} from "@/server/study/prereg-chain";
 import {
   DEFAULT_LAYOUT,
   SECTION_TYPES,
@@ -122,10 +127,18 @@ export type StudyRecordForEdit = {
 /** The five slots, in the order the panel renders them (wireframe: linked-outputs). */
 export const LINKED_OUTPUT_TYPES = ["papers", "data", "analytic_code", "materials", "supplements"] as const;
 
-/** Why the whole panel can't act, if it can't. Exactly one, most-blocking first. */
+/** Why the whole panel can't act, if it can't. Exactly one, most-blocking first.
+ *
+ *  A DOI-less preregistration has two very different causes, and collapsing them
+ *  is a lie in one direction: `awaiting_registration_doi` promises the DOI is
+ *  coming, which is true only while a push is pending/pushed. When the plan was
+ *  never sent to OSF (no_credentials / opted_out / not_pushed) or the push
+ *  failed, waiting is futile and the researcher needs the action, not patience. */
 export type LinkedOutputsGate =
   | "not_connected"
   | "not_preregistered"
+  | "prereg_not_on_osf"
+  | "prereg_push_failed"
   | "awaiting_registration_doi"
   | null;
 
@@ -234,28 +247,69 @@ async function boundAvailability(studyId: string): Promise<Record<string, boolea
  * arrives asynchronously via the OSF poll, so "preregistered but no DOI yet" is a
  * normal, temporary state we gate on rather than discover as an error (D4).
  */
-async function osfRegistrationTarget(studyId: string): Promise<{ hasPrereg: boolean; registrationId: string | null }> {
+/**
+ * The OSF registration a resource hangs off: the DOI of the NEWEST
+ * preregistration, per ADR-0102's ratchet — the newest filing is the operative
+ * plan. Deliberately not "the newest filing that happens to have a DOI": a study
+ * whose current plan never reached OSF would then silently attach its data to a
+ * superseded registration, which reads as though the outputs belong to a plan
+ * they don't. Better to name the gap and let the researcher push the real plan.
+ */
+async function osfRegistrationTarget(studyId: string): Promise<{
+  hasPrereg: boolean;
+  registrationId: string | null;
+  pushStatus: RegistryPushStatus | null;
+}> {
   const chain = await preregChain(studyId);
   const newest = newestPrereg(chain);
-  if (!newest) return { hasPrereg: false, registrationId: null };
+  if (!newest) return { hasPrereg: false, registrationId: null, pushStatus: null };
   const doi = newest.doi;
-  return { hasPrereg: true, registrationId: doi ? osfIdFromDoi(doi) : null };
+  return {
+    hasPrereg: true,
+    registrationId: doi ? osfIdFromDoi(doi) : null,
+    pushStatus: newest.pushStatus,
+  };
 }
 
-/** The registration a resource must hang off, or the named reason it can't yet (D4). */
+/** Why a preregistration has no usable registration DOI — never a bare "wait".
+ *  Always a reason: no DOI is always explained by one of these three. */
+function doilessGate(
+  pushStatus: RegistryPushStatus | null,
+): "awaiting_registration_doi" | "prereg_push_failed" | "prereg_not_on_osf" {
+  switch (pushStatus) {
+    case "pending":
+    case "pushed":
+      // In flight, or landed and awaiting the identifier read / watch backfill.
+      return "awaiting_registration_doi";
+    case "failed":
+      return "prereg_push_failed";
+    default:
+      // not_pushed | no_credentials | opted_out | null — never sent to OSF.
+      return "prereg_not_on_osf";
+  }
+}
+
+/** The reason, in words, for each blocked gate. The mutation path reaches these
+ *  only when the panel's gate was stale at click time, so they must say the same
+ *  thing the panel does rather than a second, vaguer story. */
+const GATE_MESSAGE: Record<Exclude<LinkedOutputsGate, null>, string> = {
+  not_connected: "Connect OSF first — outputs are linked to your OSF registration.",
+  not_preregistered: "Preregister this study on OSF first — outputs are linked to its registration.",
+  prereg_not_on_osf:
+    "This study's current preregistration isn't on OSF, so there's no registration to link outputs to. Push it to OSF from the Preregister stage.",
+  prereg_push_failed:
+    "This preregistration's push to OSF didn't complete, so there's no registration to link outputs to. Retry it from the Preregister stage.",
+  awaiting_registration_doi: "This registration's DOI hasn't reached us yet. Outputs can be linked once it does.",
+};
+
+/** The registration a resource must hang off, or the named reason it can't (D4). */
 async function requireRegistrationTarget(studyId: string): Promise<string> {
-  const { hasPrereg, registrationId } = await osfRegistrationTarget(studyId);
+  const { hasPrereg, registrationId, pushStatus } = await osfRegistrationTarget(studyId);
   if (!hasPrereg) {
-    throw new TRPCError({
-      code: "PRECONDITION_FAILED",
-      message: "Preregister this study on OSF first — outputs are linked to its registration.",
-    });
+    throw new TRPCError({ code: "PRECONDITION_FAILED", message: GATE_MESSAGE.not_preregistered });
   }
   if (!registrationId) {
-    throw new TRPCError({
-      code: "PRECONDITION_FAILED",
-      message: "OSF is still minting this registration's DOI. Outputs can be linked once it arrives.",
-    });
+    throw new TRPCError({ code: "PRECONDITION_FAILED", message: GATE_MESSAGE[doilessGate(pushStatus)] });
   }
   return registrationId;
 }
@@ -873,7 +927,7 @@ export const studyRecordRouter = router({
         : !target.hasPrereg
           ? "not_preregistered"
           : !target.registrationId
-            ? "awaiting_registration_doi"
+            ? doilessGate(target.pushStatus)
             : null;
 
       const byType = new Map(rows.map((r) => [r.resourceType, r]));

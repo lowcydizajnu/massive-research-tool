@@ -60,7 +60,7 @@ Mirror the Materials panel's vocabulary exactly (`osf-materials-panel.tsx`: Uplo
 - **Gated (whole panel)** — body replaced by one reason:
   - not connected → "Connect OSF in Settings · Connections to link outputs." (mirror the Materials panel's existing link)
   - not preregistered → "Link outputs once this study is preregistered."
-  - preregistered but no DOI yet → "OSF is still minting this registration's DOI. Outputs can be linked once it arrives." (ADR-0103 D4 — a predictable state, named, rather than a 409 surfaced as an error)
+  - preregistered but no DOI yet → "This registration's DOI hasn't reached us yet. Outputs can be linked once it does." (ADR-0103 D4 — a predictable state, named, rather than a 409 surfaced as an error). Copy states the fact, not a cause: verified live 2026-07-16 that OSF mints the DOI at registration time, so this state is now the rare tail (a failed identifier read awaiting the `runOsfWatch` backfill), not the norm — blaming OSF's minting would be a guess, and usually a wrong one.
   - not admin on the node → "Only an admin of the OSF project can link outputs."
 - **Loading** — skeleton rows; not a spinner in place of the panel.
 

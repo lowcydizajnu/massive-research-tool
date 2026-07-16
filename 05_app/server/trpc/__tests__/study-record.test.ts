@@ -4,7 +4,7 @@
  * publish (visibility=public) gate, bound-section availability, tenant scoping.
  * Real migrated PGlite, no network.
  */
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/server/db/client", async () => {
@@ -834,5 +834,79 @@ describe("studyRecord.linkExternalOutput", () => {
     // Provenance is stored, not guessed: the panel must be able to say WHO
     // claimed this DOI (ADR-0102's referent-line principle).
     expect(data.source).toBe("external");
+  });
+
+  /**
+   * A DOI-less preregistration is not one state but two, and the gate used to
+   * call them all "awaiting_registration_doi" — telling a researcher whose plan
+   * never reached OSF to wait for a DOI that was never coming. Found live
+   * (2026-07-16), not by these tests, because everything here mocks the push.
+   */
+  describe("a DOI-less preregistration names WHY, not just that it's blocked", () => {
+    /** A preregistered study with no DOI and the push parked in `pushStatus`. */
+    const gateFor = async (pushStatus: "pending" | "failed" | "no_credentials" | "opted_out" | "not_pushed") => {
+      const a = createCaller({ authUser: authUser("hanna") });
+      const { id } = await a.studies.create({ kind: "blank", title: `Outputs ${pushStatus}` });
+      await a.studies.preregister({ studyId: id });
+      await db
+        .update(experimentVersion)
+        .set({ externalRegistrationDoi: null, registryPushStatus: pushStatus })
+        .where(and(eq(experimentVersion.experimentId, id), eq(experimentVersion.kind, "preregistered")));
+      return (await a.studyRecord.getLinkedOutputs({ studyId: id })).gate;
+    };
+
+    it("says 'awaiting' ONLY while a push is actually in flight", async () => {
+      await seed("hanna", "Hanna Lab");
+      expect(await gateFor("pending")).toBe("awaiting_registration_doi");
+    });
+
+    it("says the plan isn't on OSF when it was never sent — waiting would be futile", async () => {
+      await seed("hanna", "Hanna Lab");
+      expect(await gateFor("no_credentials")).toBe("prereg_not_on_osf");
+      expect(await gateFor("opted_out")).toBe("prereg_not_on_osf");
+      expect(await gateFor("not_pushed")).toBe("prereg_not_on_osf");
+    });
+
+    it("says the push failed when it failed, so the action is retry", async () => {
+      await seed("hanna", "Hanna Lab");
+      expect(await gateFor("failed")).toBe("prereg_push_failed");
+    });
+  });
+
+  /**
+   * The ratchet (ADR-0102) says the NEWEST filing is the operative plan. If a
+   * later plan never reached OSF, outputs must NOT silently attach to the older
+   * registration that happens to still have a DOI — that would file this study's
+   * data against a superseded plan.
+   */
+  it("targets the newest preregistration, never an older one that still has a DOI", async () => {
+    await seed("hanna", "Hanna Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const { id } = await a.studies.create({ kind: "blank", title: "Outputs" });
+
+    await a.studies.preregister({ studyId: id });
+    await db
+      .update(experimentVersion)
+      .set({ externalRegistrationDoi: "10.17605/OSF.IO/OLDER", registryPushStatus: "pushed" })
+      .where(and(eq(experimentVersion.experimentId, id), eq(experimentVersion.kind, "preregistered")));
+
+    // A newer plan that never made it to OSF.
+    await a.studies.amend({ studyId: id, changeSummary: "Newer plan, never pushed", classification: "clarification" });
+    const [newest] = await db
+      .select()
+      .from(experimentVersion)
+      .where(and(eq(experimentVersion.experimentId, id), eq(experimentVersion.kind, "preregistered")))
+      .orderBy(desc(experimentVersion.versionNumber))
+      .limit(1);
+    await db
+      .update(experimentVersion)
+      .set({ externalRegistrationDoi: null, registryPushStatus: "no_credentials" })
+      .where(eq(experimentVersion.id, newest.id));
+
+    // Blocked on the NEWEST plan's absence — not quietly linked to OLDER.
+    expect((await a.studyRecord.getLinkedOutputs({ studyId: id })).gate).toBe("prereg_not_on_osf");
+    await expect(
+      a.studyRecord.linkExternalOutput({ studyId: id, resourceType: "data", pid: "10.5281/zenodo.1" }),
+    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
   });
 });

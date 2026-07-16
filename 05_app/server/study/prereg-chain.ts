@@ -26,7 +26,22 @@ export type PreregPlan = {
   registrationUrl: string | null;
   withdrawn: boolean;
   hypotheses: string[];
+  /** Where this filing stands with OSF. Distinguishes "the DOI is still coming"
+   *  (pending/pushed) from "it is never coming" (no_credentials/opted_out/
+   *  failed) — a difference no DOI-less row can otherwise express, and one the
+   *  Linked outputs gate must not paper over (ADR-0103 D4). NOT projected into
+   *  `PublicPrereg`: our push plumbing is not part of the public record. */
+  pushStatus: RegistryPushStatus;
 };
+
+/** Mirrors the `registry_push_status` pgEnum. */
+export type RegistryPushStatus =
+  | "not_pushed"
+  | "pending"
+  | "pushed"
+  | "failed"
+  | "no_credentials"
+  | "opted_out";
 
 /** One link of the public amendment history (ADR-0004 §69 — bidirectional). */
 export type PublicPrereg = {
@@ -69,6 +84,7 @@ export async function preregChain(studyId: string): Promise<PreregPlan[]> {
       doi: experimentVersion.externalRegistrationDoi,
       registrationUrl: experimentVersion.externalRegistrationUrl,
       withdrawn: experimentVersion.registrationWithdrawn,
+      pushStatus: experimentVersion.registryPushStatus,
     })
     .from(experimentVersion)
     .where(and(eq(experimentVersion.experimentId, studyId), eq(experimentVersion.kind, "preregistered")))
@@ -85,6 +101,7 @@ export async function preregChain(studyId: string): Promise<PreregPlan[]> {
     registrationUrl: r.registrationUrl,
     withdrawn: !!r.withdrawn,
     hypotheses: readOverview(r.snapshot).hypotheses,
+    pushStatus: r.pushStatus ?? "not_pushed",
   }));
 }
 

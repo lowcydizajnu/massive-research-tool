@@ -34,11 +34,21 @@ const SOURCE_LINE: Record<string, string> = {
   external: "Added by you",
 };
 
+/** Keep in step with `GATE_MESSAGE` in the studyRecord router — the panel and the
+ *  mutation must give the same reason, since a stale gate routes the researcher
+ *  from one to the other. Only `awaiting_registration_doi` asks for patience;
+ *  the rest name the action, because for them no amount of waiting helps. */
 const GATE_COPY: Record<Exclude<LinkedOutputsGate, null>, { text: string; connect?: true }> = {
   not_connected: { text: "in Settings · Connections to link outputs.", connect: true },
   not_preregistered: { text: "Link outputs once this study is preregistered." },
+  prereg_not_on_osf: {
+    text: "This study's current preregistration isn't on OSF, so there's no registration to link outputs to. Push it to OSF from the Preregister stage.",
+  },
+  prereg_push_failed: {
+    text: "This preregistration's push to OSF didn't complete, so there's no registration to link outputs to. Retry it from the Preregister stage.",
+  },
   awaiting_registration_doi: {
-    text: "OSF is still minting this registration's DOI. Outputs can be linked once it arrives.",
+    text: "This registration's DOI hasn't reached us yet. Outputs can be linked once it does.",
   },
 };
 
