@@ -1014,6 +1014,32 @@ export const osfMaterialUploadKind = pgEnum("osf_material_upload_kind", [
   "protocol-pdf",
 ]);
 
+/**
+ * OSF's five public resource types (ADR-0103), spelled EXACTLY as its API spells
+ * them: `ArtifactTypes.public_types()` lowercased, so `analytic_code` keeps its
+ * underscore. Never translate these in the DB — the user-facing labels (Data ·
+ * Analysis code · Materials · Paper · Supplements) live in the Vocabulary map, and
+ * keeping the wire values verbatim here is what makes the mapping checkable.
+ * OSF's UNDEFINED and PRIMARY values are internal-only and deliberately absent.
+ */
+export const osfResourceType = pgEnum("osf_resource_type", [
+  "data",
+  "analytic_code",
+  "materials",
+  "papers",
+  "supplements",
+]);
+
+/** Why this DOI is here. Stored, never derived — a reader of the panel must be
+ *  able to tell whether WE claimed it or the researcher did (data-model/10). */
+export const osfResourceSource = pgEnum("osf_resource_source", [
+  "minted", // we asked OSF to mint the DOI of a node we push to
+  "article_doi", // lifted from study_record.article_doi
+  "external", // the researcher pasted a DOI they got elsewhere
+]);
+
+export const osfResourceLinkState = pgEnum("osf_resource_link_state", ["pending", "linked", "failed"]);
+
 export const osfMaterialUpload = pgTable(
   "osf_material_upload",
   {
@@ -1046,6 +1072,51 @@ export const osfMaterialUpload = pgTable(
   (t) => [
     // One row per artifact per study — a re-push upserts on this key.
     uniqueIndex("osf_material_upload_study_artifact_uq").on(t.experimentId, t.artifactKey),
+  ],
+);
+
+/**
+ * A typed OSF resource: a DOI for one of the study's outputs, linked to its
+ * registration (ADR-0103). This is NOT a file — `osf_material_upload` above
+ * pushes bytes to WaterButler and yields no DOI; the two are unrelated surfaces.
+ *
+ * Our record of what WE did. OSF is the source of truth for what IS: a researcher
+ * can delete a resource in OSF's own UI and we would not know until we look, so
+ * writes reconcile against `GET /registrations/{id}/resources/` rather than
+ * trusting these rows (ADR-0103 D7). That matters because `POST /v2/resources/`
+ * creates an EMPTY draft and ignores every attribute — a blind retry strands
+ * invisible drafts on the researcher's registration.
+ *
+ * Tenancy rides `experiment.tenant_id`, as everywhere: no tenant column here.
+ */
+export const osfResourceLink = pgTable(
+  "osf_resource_link",
+  {
+    id: text("id").primaryKey(), // ULID
+    experimentId: uuid("experiment_id")
+      .notNull()
+      .references(() => experiment.id, { onDelete: "cascade" }),
+    resourceType: osfResourceType("resource_type").notNull(),
+    /** The DOI, bare (`10.5281/zenodo.21378393`). OSF normalises a
+     *  `https://doi.org/…` prefix away, so we store what OSF stores. */
+    pid: text("pid").notNull(),
+    description: text("description"),
+    /** OSF's own id for the resource. Null until the POST succeeds — this is what
+     *  makes a retry able to find its own half-finished draft. */
+    osfResourceId: text("osf_resource_id"),
+    /** Mirrors OSF's `finalized`. A row with false is NOT done: an unfinalized
+     *  resource shows no badge on OSF, so the UI must call it Failed, not Linked. */
+    finalized: boolean("finalized").notNull().default(false),
+    source: osfResourceSource("source").notNull(),
+    state: osfResourceLinkState("state").notNull().default("pending"),
+    errorText: text("error_text"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    // One link per slot. OSF treats (pid, resource_type) as the natural key on its
+    // side; per study, the slot is the key on ours.
+    uniqueIndex("osf_resource_link_study_type_uq").on(t.experimentId, t.resourceType),
   ],
 );
 
@@ -1552,6 +1623,10 @@ export const studyRecord = pgTable("study_record", {
   // vs "changes to push" instead of pushing blind every click.
   osfPushedHash: text("osf_pushed_hash"),
   osfPushedAt: timestamp("osf_pushed_at", { withTimezone: true }),
+  // The OSF child component holding the deposited dataset (ADR-0105 D3), once
+  // one exists. One nullable string with no lifecycle of its own beyond "does it
+  // exist yet", so it rides here rather than earning a table (data-model/10).
+  osfDatasetComponentGuid: text("osf_dataset_component_guid"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

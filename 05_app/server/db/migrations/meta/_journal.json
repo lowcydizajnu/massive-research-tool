@@ -407,6 +407,13 @@
       "when": 1784103752385,
       "tag": "0057_deep_black_cat",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1784231553313,
+      "tag": "0058_happy_the_fury",
+      "breakpoints": true
     }
   ]
 }
