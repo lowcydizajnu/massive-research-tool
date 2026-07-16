@@ -530,3 +530,133 @@ describe("studyRecord OSF materials (ADR-0094)", () => {
     expect(after.lastUploadedAt).not.toBeNull();
   });
 });
+
+/**
+ * Claim bindings + Deviations (ADR-0102). The round-trip test exists because FOUR
+ * independent gates strip an unrecognised key before it reaches the DB (the
+ * composer's persist mapper, the Zod layoutInput, saveLayout's whitelist rebuild,
+ * and sanitizeLayout) — a new slot that silently never persists is the single
+ * most likely way this ships broken, and nothing else would fail.
+ */
+describe("studyRecord.saveLayout — claim bindings (ADR-0102)", () => {
+  async function preregisteredStudy(caller: ReturnType<typeof createCaller>) {
+    const { id } = await caller.studies.create({ kind: "blank", title: "Bound" });
+    await caller.studies.setOverview({
+      studyId: id,
+      overview: {
+        abstract: "",
+        hypotheses: ["Warnings reduce belief.", "The effect is larger for older adults."],
+        replicationNotes: "",
+        sections: [],
+      },
+    });
+    await caller.studies.preregister({ studyId: id });
+    const [pre] = await db
+      .select({ id: experimentVersion.id })
+      .from(experimentVersion)
+      .where(and(eq(experimentVersion.experimentId, id), eq(experimentVersion.kind, "preregistered")))
+      .limit(1);
+    return { id, planVersionId: pre!.id };
+  }
+
+  it("a claim binding survives the save→read round-trip", async () => {
+    await seed("hanna", "Hanna Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const { id, planVersionId } = await preregisteredStudy(a);
+
+    await a.studyRecord.saveLayout({
+      studyId: id,
+      layout: [{ type: "hypotheses", content: "We found it.", claim: { planVersionId, hypothesisIndex: 2 } }],
+    });
+
+    const rec = await a.studyRecord.getForEdit({ studyId: id });
+    expect(rec.layout[0].claim).toEqual({ planVersionId, hypothesisIndex: 2 });
+  });
+
+  it("the exploratory downgrade persists; an absent one is not stored", async () => {
+    await seed("hanna", "Hanna Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const { id, planVersionId } = await preregisteredStudy(a);
+
+    await a.studyRecord.saveLayout({
+      studyId: id,
+      layout: [
+        { type: "hypotheses", claim: { planVersionId, hypothesisIndex: 1, exploratoryOverride: true } },
+        { type: "hypotheses", claim: { planVersionId, hypothesisIndex: 2, exploratoryOverride: false } },
+      ],
+    });
+
+    const rec = await a.studyRecord.getForEdit({ studyId: id });
+    expect(rec.layout[0].claim?.exploratoryOverride).toBe(true);
+    expect(rec.layout[1].claim?.exploratoryOverride).toBeUndefined(); // false isn't persisted
+  });
+
+  it("REJECTS a binding to a hypothesis index the plan doesn't have", async () => {
+    await seed("hanna", "Hanna Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const { id, planVersionId } = await preregisteredStudy(a);
+
+    await expect(
+      a.studyRecord.saveLayout({
+        studyId: id,
+        layout: [{ type: "hypotheses", claim: { planVersionId, hypothesisIndex: 99 } }],
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("REJECTS a binding to ANOTHER study's preregistration — the forgery the ratchet must stop", async () => {
+    await seed("hanna", "Hanna Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const mine = await preregisteredStudy(a);
+    const theirs = await preregisteredStudy(a); // a different study, also preregistered
+
+    // Point my record's claim at the OTHER study's frozen hypothesis. Without the
+    // server check this would render "Preregistered" citing a plan that has
+    // nothing to do with this study.
+    await expect(
+      a.studyRecord.saveLayout({
+        studyId: mine.id,
+        layout: [{ type: "hypotheses", claim: { planVersionId: theirs.planVersionId, hypothesisIndex: 1 } }],
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("a claim on a study with no preregistration is refused (nothing to bind to)", async () => {
+    await seed("hanna", "Hanna Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const { id } = await a.studies.create({ kind: "blank", title: "No prereg" });
+    await expect(
+      a.studyRecord.saveLayout({
+        studyId: id,
+        layout: [{ type: "hypotheses", claim: { planVersionId: crypto.randomUUID(), hypothesisIndex: 1 } }],
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("a claim is ignored on a non-hypotheses section", async () => {
+    await seed("hanna", "Hanna Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const { id, planVersionId } = await preregisteredStudy(a);
+    await a.studyRecord.saveLayout({
+      studyId: id,
+      layout: [{ type: "narrative", content: "x", claim: { planVersionId, hypothesisIndex: 1 } }],
+    });
+    const rec = await a.studyRecord.getForEdit({ studyId: id });
+    expect(rec.layout[0].claim).toBeUndefined();
+  });
+
+  it("Deviations is a registered authored section and round-trips its Markdown", async () => {
+    await seed("hanna", "Hanna Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const { id } = await a.studies.create({ kind: "blank", title: "Dev" });
+    await a.studyRecord.saveLayout({
+      studyId: id,
+      layout: [{ type: "deviations", content: "We dropped the second wave — funding ended." }],
+    });
+    const rec = await a.studyRecord.getForEdit({ studyId: id });
+    expect(rec.layout[0].type).toBe("deviations"); // not stripped by sanitizeLayout
+    expect(rec.layout[0].content).toBe("We dropped the second wave — funding ended.");
+    // Palette-only: it must NOT be in the default layout (owner 2026-07-15).
+    expect(rec.sectionTypes.find((t) => t.key === "deviations")?.defaultOn).toBe(false);
+  });
+});

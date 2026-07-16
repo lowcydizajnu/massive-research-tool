@@ -1,3 +1,5 @@
+import { AmendmentHistory } from "@/components/feature/study-record/amendment-history";
+import { ClaimChip } from "@/components/feature/study-record/claim-chip";
 import { HypothesisChips } from "@/components/feature/study-record/hypothesis-chips";
 import { PublicDataTable } from "@/components/feature/study-record/public-data-table";
 import { RecordMarkdown } from "@/components/feature/study-record/record-markdown";
@@ -49,7 +51,9 @@ function DefaultRecord({ detail }: { detail: PublicStudyDetail }) {
         </Section>
       ) : null}
       <MethodSection detail={detail} />
-      {detail.latestKind === "preregistered" || detail.registrationWithdrawn ? (
+      {/* ADR-0102 D4: gate on "has ≥1 preregistered version", not on the latest
+          frozen version being one — a published study's plan must still show. */}
+      {detail.preregistrations.length > 0 ? (
         <Section title="Preregistration">
           <PreregistrationBody detail={detail} />
         </Section>
@@ -64,18 +68,24 @@ function DefaultRecord({ detail }: { detail: PublicStudyDetail }) {
  *  compositions so the plan↔record link resolves either way (insight
  *  los-alignment-and-templates). */
 function PreregistrationBody({ detail }: { detail: PublicStudyDetail }) {
+  // ADR-0102: the operative plan is the NEWEST preregistration — not
+  // `latestVersionNumber`, which is the latest *frozen* version and is the
+  // published one for any finished study.
+  const newest = detail.preregistrations.at(-1);
+  const n = newest?.versionNumber ?? detail.latestVersionNumber;
   return (
     <>
       {detail.registrationWithdrawn ? (
         <p className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
-          This study&rsquo;s preregistration (v{detail.latestVersionNumber}) was <strong>withdrawn</strong> — its plan is no longer frozen on the registry.
+          This study&rsquo;s preregistration (v{n}) was <strong>withdrawn</strong> — its plan is no longer frozen on the registry.
         </p>
       ) : (
         <p className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
-          This study was preregistered (v{detail.latestVersionNumber}) — its plan was frozen before data collection.
+          This study was preregistered (v{n}) — its plan was frozen before data collection.
         </p>
       )}
       <OsfIdentifiers detail={detail} />
+      <AmendmentHistory plans={detail.preregistrations} />
     </>
   );
 }
@@ -138,7 +148,8 @@ function ComposedRecord({ detail }: { detail: PublicStudyDetail }) {
           case "method":
             return <MethodSection key={key} detail={detail} title={title} override={s.content} />;
           case "preregistration":
-            return detail.latestKind === "preregistered" || detail.registrationWithdrawn ? (
+            // ADR-0102 D4 — see DefaultRecord.
+            return detail.preregistrations.length > 0 ? (
               <Section key={key} title={title}>
                 <PreregistrationBody detail={detail} />
               </Section>

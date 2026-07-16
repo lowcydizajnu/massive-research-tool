@@ -30,8 +30,13 @@ export type PreregPlan = {
 
 /** One link of the public amendment history (ADR-0004 §69 — bidirectional). */
 export type PublicPrereg = {
+  /** Matches `claim.planVersionId`. Public-safe: a preregistration is a public
+   *  artifact, and the record already exposes the study id. */
+  versionId: string;
   versionNumber: number;
   filedAt: string;
+  /** The frozen plan's hypotheses — the referent a bound claim names. */
+  hypotheses: string[];
   /** The version this one amends, resolved in memory; null = the original filing. */
   amendsVersionNumber: number | null;
   changeSummary: string | null;
@@ -91,8 +96,10 @@ export async function preregChain(studyId: string): Promise<PreregPlan[]> {
 export function publicPreregs(chain: PreregPlan[]): PublicPrereg[] {
   const byId = new Map(chain.map((p) => [p.id, p.versionNumber]));
   return chain.map((p) => ({
+    versionId: p.id,
     versionNumber: p.versionNumber,
     filedAt: p.createdAt.toISOString(),
+    hypotheses: p.hypotheses,
     amendsVersionNumber: p.supersedesVersionId ? byId.get(p.supersedesVersionId) ?? null : null,
     changeSummary: p.changeSummary,
     // An amendment is identified by supersedesVersionId, NEVER by a non-null
