@@ -1,6 +1,6 @@
 # ADR 0103 — Typed OSF resources (outputs as DOIs)
 
-- **Status:** accepted
+- **Status:** accepted — **amended 2026-07-16 by [ADR-0104](0104-doi-ownership.md)** (see Amendment 1)
 - **Date:** 2026-07-16
 - **Deciders:** Paweł Rosner
 - **Tags:** integration, osf, data-model, record
@@ -109,8 +109,30 @@ Reads need `read_registration_resources`, writes `write_registration_resources`;
 - OSF adds a sixth `ArtifactTypes` public value.
 - OSF's DOI validation against the registration agency is confirmed ON in production (currently **unverified**) — then a syntactically valid but nonexistent DOI would be rejected at create time and we must surface that specifically.
 
+---
+
+## Amendment 1 — 2026-07-16 — D1's rejection was wrong; `materials` can be automatic
+
+Prompted by the owner asking the obvious question this ADR had stopped asking: *"does it make our app and its functionalities like uploading material to osf redundant, and make us just a link collectors?"*
+
+**D1 rejected deriving a `materials` resource from the ADR-0094 upload on the grounds that "there is nothing to point at." That is false.** OSF will mint a DOI for a public project or component: `POST /v2/nodes/{node_id}/identifiers/` with `category: "doi"`. We already push the materials to that project. So there *is* something to point at — we simply never thought to ask OSF to mint it.
+
+What changes:
+
+- **`materials` becomes automatic**, not paste-only: upload (we already do) → the researcher consents to make the project public → we ask OSF to mint its DOI → we register that DOI as a `materials` resource. This makes ADR-0094's upload **more** valuable, not redundant: it is what turns a file copy into a citable deposit.
+- **The item-⑧ question in the Revisit triggers is answered.** A child component can be minted independently of its parent, so item ⑧ can put a dataset in its own component and mint a DOI for just that dataset. `data` becomes automatic on that path.
+- **The paste field is demoted to an escape hatch** (owner's steer: *"for sure for public record we can have custom fields for external doi if someone want to add them"*). It stays optional and is never required. It exists for researchers who already deposited elsewhere.
+- **Nothing is forced** (owner: *"but of course not forced researcher"*). Minting requires making the researcher's own OSF project public and cannot be undone — so it is always explicit and consented, never a side-effect of upload. See ADR-0104 D3.
+
+**We still do not mint DOIs ourselves** — ADR-0104 settles that. OSF is the registrant. The Decision above ("we will not mint DOIs") stands; what changes is that *asking OSF to mint* was never considered and is not the same thing.
+
+The scoring in Context ("0 of 5") stands and remains correct: today we register none.
+
+---
+
 ## References
 
+- [ADR-0104 — DOI ownership](0104-doi-ownership.md) — amends this ADR; settles who mints.
 - OSF source, fetched 2026-07-16: [`osf/utils/outcomes.py`](https://raw.githubusercontent.com/CenterForOpenScience/osf.io/develop/osf/utils/outcomes.py) (`ArtifactTypes`, `public_types()`); [`api/resources/serializers.py`](https://raw.githubusercontent.com/CenterForOpenScience/osf.io/develop/api/resources/serializers.py) (`ResourceSerializer`, `create()`); [`osf/models/outcome_artifacts.py`](https://raw.githubusercontent.com/CenterForOpenScience/osf.io/develop/osf/models/outcome_artifacts.py) (`_update_identifier`, `finalize`, `IsPrimaryArtifactPIDError`); [`api/resources/urls.py`](https://raw.githubusercontent.com/CenterForOpenScience/osf.io/develop/api/resources/urls.py).
 - Live API, fetched 2026-07-16, unauthenticated: `GET https://api.osf.io/v2/registrations/pbu8x/resources/` → 200 with populated `data` / `analytic_code` / `papers` resources carrying Zenodo + DANDI DOIs. `GET https://api.osf.io/v2/resources/` → 405 (POST-only).
 - [ADR-0094 — OSF materials upload](0094-osf-materials-upload.md) — the *different* surface (WaterButler bytes, no DOI).
