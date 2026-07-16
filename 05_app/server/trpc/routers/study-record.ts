@@ -10,6 +10,7 @@ import { registry, type RegistryResourceType } from "@/server/adapters/registry"
 import { osfIdFromDoi } from "@/server/adapters/registry.osf";
 import { db } from "@/server/db/client";
 import {
+  datasetDeposit,
   experiment,
   experimentVersion,
   osfMaterialUpload,
@@ -40,7 +41,8 @@ import {
 } from "@/lib/study-record/sections";
 import { extractMaterials } from "@/lib/study-record/materials";
 import { licenseInfo } from "@/lib/licenses";
-import { readBlocks } from "@/server/modules/blocks";
+import { PID_COLUMN_LABEL } from "@/lib/export/dataset";
+import { readBlocks, readOverview } from "@/server/modules/blocks";
 import { writeProcedure, router } from "@/server/trpc/trpc";
 
 /**
@@ -126,6 +128,51 @@ export type StudyRecordForEdit = {
 
 /** The five slots, in the order the panel renders them (wireframe: linked-outputs). */
 export const LINKED_OUTPUT_TYPES = ["papers", "data", "analytic_code", "materials", "supplements"] as const;
+
+/**
+ * The participant-identifier column, as it appears in `study_record.dataTable`
+ * (ADR-0105 D2). Imported from the export, never re-typed here: `buildMatrix`
+ * emits `ExportColumn.label`, so the stored header is `external_pid` and never
+ * the internal key `externalPid` that ADR-0105 originally named. A second
+ * literal would let the refusal drift from the data and silently stop firing.
+ */
+const PID_HEADER = PID_COLUMN_LABEL;
+
+/** Folder the deposited dataset lands in, inside its own component. */
+const OSF_DATASET_FOLDER = "dataset";
+
+/** One deposit, as the panel shows it. */
+export type DatasetDepositRow = {
+  ordinal: number;
+  doi: string;
+  rowCount: number;
+  depositedAt: string;
+};
+
+export type DatasetDepositView = {
+  /** Oldest → newest. The sequence IS the transparency (ADR-0105 am. 1 D9). */
+  deposits: DatasetDepositRow[];
+  /** N a deposit would carry right now; null when nothing is published. */
+  currentRowCount: number | null;
+  /** The published table carries a participant ID — deposit is refused (D2). */
+  pidBlocked: boolean;
+  /** The frozen plan's own words, for the researcher to judge against. */
+  samplingPlan: string | null;
+};
+
+/** RFC4180-ish: quote every field and double any embedded quote. Uniform
+ *  quoting beats conditional quoting — no cell can smuggle a delimiter. */
+function toCsv(table: { headers: string[]; rows: string[][] }): string {
+  const cell = (v: string) => `"${v.replace(/"/g, '""')}"`;
+  return [table.headers, ...table.rows].map((r) => r.map(cell).join(",")).join("\r\n");
+}
+
+/** The study's title, for naming the component on the researcher's OSF account
+ *  — it shows up there, so it says what it is rather than a bare guid. */
+async function studyTitle(studyId: string): Promise<string> {
+  const [row] = await db.select({ title: experiment.title }).from(experiment).where(eq(experiment.id, studyId)).limit(1);
+  return row?.title?.trim() || "Untitled study";
+}
 
 /** Why the whole panel can't act, if it can't. Exactly one, most-blocking first.
  *
@@ -338,6 +385,31 @@ async function linkAndRecord(
     description: input.description ?? null,
     source: input.source,
   };
+
+  /**
+   * The row this link replaces, if any — and the whole difference between the
+   * two slot shapes lives here.
+   *
+   * The four single-artifact slots hold ONE thing: a new `materials` DOI
+   * replaces the old row. `data` ACCUMULATES (ADR-0105 am. 1 D7): each deposit
+   * is its own artifact with its own DOI, so a new DOI is a new row and only
+   * the SAME DOI re-linked updates in place. This used to be an ON CONFLICT on
+   * `(experimentId, resourceType)`; that constraint is now partial and excludes
+   * `data`, so the choice is made here, where it can be read.
+   */
+  const findExisting = async () => {
+    const where =
+      input.resourceType === "data"
+        ? and(
+            eq(osfResourceLink.experimentId, input.studyId),
+            eq(osfResourceLink.resourceType, input.resourceType),
+            eq(osfResourceLink.pid, input.pid),
+          )
+        : and(eq(osfResourceLink.experimentId, input.studyId), eq(osfResourceLink.resourceType, input.resourceType));
+    const [row] = await db.select({ id: osfResourceLink.id }).from(osfResourceLink).where(where).limit(1);
+    return row?.id ?? null;
+  };
+
   try {
     const linked = await registry.linkResource(userId, {
       registrationId: input.registrationId,
@@ -345,40 +417,36 @@ async function linkAndRecord(
       pid: input.pid,
       description: input.description,
     });
-    await db
-      .insert(osfResourceLink)
-      .values({
-        id: ulid(),
-        ...base,
-        pid: linked.pid,
-        osfResourceId: linked.registryResourceId,
-        finalized: linked.finalized,
-        state: "linked",
-        errorText: null,
-      })
-      .onConflictDoUpdate({
-        target: [osfResourceLink.experimentId, osfResourceLink.resourceType],
-        set: {
-          pid: linked.pid,
-          description: base.description,
-          source: base.source,
-          osfResourceId: linked.registryResourceId,
-          finalized: linked.finalized,
-          state: "linked",
-          errorText: null,
-          updatedAt: new Date(),
-        },
-      });
+    const existingId = await findExisting();
+    const values = {
+      pid: linked.pid,
+      description: base.description,
+      source: base.source,
+      osfResourceId: linked.registryResourceId,
+      finalized: linked.finalized,
+      state: "linked" as const,
+      errorText: null,
+    };
+    if (existingId) {
+      await db
+        .update(osfResourceLink)
+        .set({ ...values, updatedAt: new Date() })
+        .where(eq(osfResourceLink.id, existingId));
+    } else {
+      await db.insert(osfResourceLink).values({ id: ulid(), ...base, ...values });
+    }
     return { ok: true, pid: linked.pid };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
-    await db
-      .insert(osfResourceLink)
-      .values({ id: ulid(), ...base, state: "failed", errorText: message })
-      .onConflictDoUpdate({
-        target: [osfResourceLink.experimentId, osfResourceLink.resourceType],
-        set: { state: "failed", errorText: message, source: base.source, pid: base.pid, updatedAt: new Date() },
-      });
+    const existingId = await findExisting();
+    if (existingId) {
+      await db
+        .update(osfResourceLink)
+        .set({ state: "failed", errorText: message, source: base.source, pid: base.pid, updatedAt: new Date() })
+        .where(eq(osfResourceLink.id, existingId));
+    } else {
+      await db.insert(osfResourceLink).values({ id: ulid(), ...base, state: "failed", errorText: message });
+    }
     throw e;
   }
 }
@@ -1004,6 +1072,173 @@ export const studyRecordRouter = router({
    * question) — shipping it before that would risk silently changing what a
    * citation resolves to.
    */
+  /**
+   * The deposit history (ADR-0105 am. 1 D9). Oldest → newest; the sequence is
+   * the transparency, so it is never collapsed to "the latest one".
+   */
+  getDatasetDeposits: writeProcedure
+    .input(z.object({ studyId: z.string().uuid() }))
+    .query(async ({ ctx, input }): Promise<DatasetDepositView> => {
+      await requireOwnStudy(input.studyId, ctx.workspace.id);
+      const [rows, rec, planSnapshot] = await Promise.all([
+        db
+          .select()
+          .from(datasetDeposit)
+          .where(eq(datasetDeposit.experimentId, input.studyId))
+          .orderBy(datasetDeposit.ordinal),
+        db
+          .select({ dataPublished: studyRecord.dataPublished, dataTable: studyRecord.dataTable })
+          .from(studyRecord)
+          .where(eq(studyRecord.experimentId, input.studyId))
+          .limit(1),
+        // The newest FROZEN plan's snapshot. `preregChain` projects hypotheses
+        // out of it and drops the rest, so the sampling plan is read here.
+        db
+          .select({ snapshot: experimentVersion.definitionSnapshot })
+          .from(experimentVersion)
+          .where(
+            and(eq(experimentVersion.experimentId, input.studyId), eq(experimentVersion.kind, "preregistered")),
+          )
+          .orderBy(desc(experimentVersion.versionNumber))
+          .limit(1),
+      ]);
+      const table = rec[0]?.dataTable ?? null;
+      return {
+        deposits: rows.map((r) => ({
+          ordinal: r.ordinal,
+          doi: r.doi,
+          rowCount: r.rowCount,
+          depositedAt: r.depositedAt.toISOString(),
+        })),
+        // What a deposit right now would carry — the other half of the delta.
+        currentRowCount: rec[0]?.dataPublished && table ? table.rows.length : null,
+        pidBlocked: table ? table.headers.includes(PID_HEADER) : false,
+        // The frozen plan's own words, shown beside the delta. Free text by
+        // design (ADR-0105 am. 1 D9) — we never parse an N out of it.
+        samplingPlan: planSnapshot[0] ? readOverview(planSnapshot[0].snapshot).samplingPlan.text || null : null,
+      };
+    }),
+
+  /**
+   * Deposit the published dataset into its own OSF component, mint that
+   * component's DOI, and register it as a `data` resource (ADR-0105).
+   *
+   * Every deposit is a NEW component with a NEW DOI (am. 1 D7) — never an
+   * overwrite. Re-depositing after collecting more responses is legitimate and
+   * is not blocked; it is recorded, so the sequence of Ns and dates is on the
+   * record instead of being silently lost.
+   */
+  depositDataset: writeProcedure
+    .input(z.object({ studyId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }): Promise<{ ok: true; doi: string; ordinal: number }> => {
+      await requireOwnStudy(input.studyId, ctx.workspace.id);
+      const registrationId = await requireRegistrationTarget(input.studyId);
+
+      const [rec] = await db
+        .select({ dataPublished: studyRecord.dataPublished, dataTable: studyRecord.dataTable })
+        .from(studyRecord)
+        .where(eq(studyRecord.experimentId, input.studyId))
+        .limit(1);
+
+      // D1: the deposit source is the dataset they already published. If it is
+      // not public on their own record, there is nothing to deposit — one
+      // dataset, one curation, one consent.
+      const table = rec?.dataPublished ? rec.dataTable : null;
+      if (!table || table.rows.length === 0) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Publish your dataset on this record first — the deposit sends exactly that table.",
+        });
+      }
+
+      // D2: a participant identifier is a HARD refusal, not a warning. The
+      // record's warning is survivable because the record is reversible; a DOI
+      // is not, and the person exposed by it never agreed to permanence.
+      if (table.headers.includes(PID_HEADER)) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: `Your published dataset includes the "${PID_HEADER}" column, which can identify participants through the panel that recruited them. A DOI can't be withdrawn, so we won't deposit it. Remove that column from the published set and try again.`,
+        });
+      }
+
+      const parentNodeId = await osfProjectNode(input.studyId);
+      if (!parentNodeId) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "This study has no OSF project yet — push its preregistration to OSF first.",
+        });
+      }
+
+      const prior = await db
+        .select({ ordinal: datasetDeposit.ordinal })
+        .from(datasetDeposit)
+        .where(eq(datasetDeposit.experimentId, input.studyId))
+        .orderBy(desc(datasetDeposit.ordinal))
+        .limit(1);
+      const ordinal = (prior[0]?.ordinal ?? 0) + 1;
+
+      // OSF first, our rows second — a row must never claim a deposit that does
+      // not exist remotely. A failure after this point leaves a PRIVATE, unminted
+      // component behind; harmless, and the retry makes its own (D7: never reuse).
+      const { nodeId } = await registry.createComponent(ctx.dbUser.id, parentNodeId, {
+        title: `${await studyTitle(input.studyId)} — dataset (deposit ${ordinal})`,
+        category: "data",
+      });
+
+      const [upload] = await registry.uploadMaterials(ctx.dbUser.id, {
+        nodeId,
+        folderName: OSF_DATASET_FOLDER,
+        files: [
+          {
+            artifactKey: `dataset:${ordinal}`,
+            fileName: `dataset-deposit-${ordinal}.csv`,
+            bytes: new TextEncoder().encode(toCsv(table)),
+            contentType: "text/csv",
+          },
+        ],
+      });
+      if (!upload || upload.status === "failed") {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: upload?.error ?? "OSF rejected the dataset upload.",
+        });
+      }
+
+      // Publishes the component, then mints. Both irreversible, both consented.
+      const { doi } = await registry.mintNodeDoi(ctx.dbUser.id, nodeId);
+      const linked = await linkAndRecord(ctx.dbUser.id, {
+        studyId: input.studyId,
+        registrationId,
+        resourceType: "data",
+        pid: doi,
+        description: `Dataset, deposit ${ordinal} (N=${table.rows.length})`,
+        source: "minted",
+      });
+
+      const [link] = await db
+        .select({ id: osfResourceLink.id })
+        .from(osfResourceLink)
+        .where(and(eq(osfResourceLink.experimentId, input.studyId), eq(osfResourceLink.pid, linked.pid)))
+        .limit(1);
+
+      await db.insert(datasetDeposit).values({
+        id: ulid(),
+        experimentId: input.studyId,
+        ordinal,
+        componentGuid: nodeId,
+        doi,
+        rowCount: table.rows.length,
+        resourceLinkId: link?.id ?? null,
+      });
+
+      // Deliberately NOT writing a Deviations entry ourselves. Why N changed is
+      // the researcher's claim to make in their own words, and editing their
+      // prose is the same overreach D2 refuses when it declines to silently
+      // strip a column. The panel shows the delta and asks; the asking is the
+      // transparency, and the answer stays theirs.
+      return { ok: true, doi, ordinal };
+    }),
+
   makeOutputCitable: writeProcedure
     .input(z.object({ studyId: z.string().uuid(), resourceType: z.literal("materials") }))
     .mutation(async ({ ctx, input }): Promise<{ ok: true; pid: string }> => {

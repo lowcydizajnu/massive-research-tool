@@ -5,6 +5,7 @@
  * Real migrated PGlite, no network.
  */
 import { and, desc, eq } from "drizzle-orm";
+import { ulid } from "ulid";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/server/db/client", async () => {
@@ -42,6 +43,7 @@ vi.mock("@/server/adapters/registry", () => ({
     })),
     unlinkResource: vi.fn(async () => undefined),
     mintNodeDoi: vi.fn(async () => ({ doi: "10.17605/OSF.IO/MINTED" })),
+    createComponent: vi.fn(async () => ({ nodeId: "cmp1" })),
   },
 }));
 // The protocol PDF + byte assembly are unit-tested directly; here we stub them so
@@ -69,6 +71,7 @@ import {
   changeProposal,
   condition,
   customModule,
+  datasetDeposit,
   experiment,
   experimentVersion,
   follow,
@@ -834,6 +837,149 @@ describe("studyRecord.linkExternalOutput", () => {
     // Provenance is stored, not guessed: the panel must be able to say WHO
     // claimed this DOI (ADR-0102's referent-line principle).
     expect(data.source).toBe("external");
+  });
+
+  /**
+   * Item ⑧ — depositing the published dataset into its own OSF component
+   * (ADR-0105 + am. 1).
+   */
+  describe("studyRecord.depositDataset", () => {
+    /** A study preregistered, pushed, DOI in hand — the gate open. */
+    const readyStudy = async (a: ReturnType<typeof createCaller>) => {
+      const { id } = await a.studies.create({ kind: "blank", title: "Deposit me" });
+      await a.studies.preregister({ studyId: id });
+      await db
+        .update(experimentVersion)
+        .set({ externalRegistrationDoi: "10.17605/OSF.IO/ABCDE", registryPushStatus: "pushed" })
+        .where(and(eq(experimentVersion.experimentId, id), eq(experimentVersion.kind, "preregistered")));
+      // An OSF project to parent the component off — osfProjectNode reads it
+      // out of the push response, same as the real flow.
+      const [ver] = await db
+        .select({ id: experimentVersion.id })
+        .from(experimentVersion)
+        .where(and(eq(experimentVersion.experimentId, id), eq(experimentVersion.kind, "preregistered")))
+        .limit(1);
+      const registryId = ulid();
+      await db.insert(registry).values({ id: registryId, key: "osf", name: "OSF", oauthConfig: {}, pushConfig: {} });
+      await db.insert(registryPush).values({
+        id: ulid(),
+        experimentVersionId: ver.id,
+        registryId,
+        status: "pushed",
+        requestPayload: {},
+        responsePayload: { nodeId: "proj1" },
+      });
+      return id;
+    };
+
+    /**
+     * ADR-0105 D2's refusal is only as good as the literal it matches, and the
+     * ADR named the wrong one (`externalPid`, the internal key). Bind the check
+     * to the REAL export column definition — a hand-written fixture would agree
+     * with whichever spelling the code happened to use, which is exactly how
+     * this hole stayed open.
+     */
+    it("refuses a dataset carrying the participant ID — matched against the real export column", async () => {
+      // Not a hand-written "external_pid": the SAME constant the export emits,
+      // so the refusal cannot drift from the data it is supposed to catch.
+      const { PID_COLUMN_LABEL } = await import("@/lib/export/dataset");
+
+      await seed("hanna", "Hanna Lab");
+      const a = createCaller({ authUser: authUser("hanna") });
+      const id = await readyStudy(a);
+      await a.studyRecord.publishDataset({
+        studyId: id,
+        headers: ["response_id", PID_COLUMN_LABEL, "q1"],
+        rows: [["r1", "PROLIFIC_9f2", "4"]],
+      });
+
+      await expect(a.studyRecord.depositDataset({ studyId: id })).rejects.toMatchObject({
+        code: "PRECONDITION_FAILED",
+      });
+      // And nothing reached OSF: no component, no mint, no permanent anything.
+      const { registry: reg } = await import("@/server/adapters/registry");
+      expect(reg.createComponent).not.toHaveBeenCalled();
+      expect(reg.mintNodeDoi).not.toHaveBeenCalled();
+      expect(await db.select().from(datasetDeposit).where(eq(datasetDeposit.experimentId, id))).toHaveLength(0);
+    });
+
+    it("refuses when nothing is published — one dataset, one curation (D1)", async () => {
+      await seed("hanna", "Hanna Lab");
+      const a = createCaller({ authUser: authUser("hanna") });
+      const id = await readyStudy(a);
+      await expect(a.studyRecord.depositDataset({ studyId: id })).rejects.toMatchObject({
+        code: "PRECONDITION_FAILED",
+      });
+    });
+
+    it("records the deposit with its N, and reports the DOI", async () => {
+      await seed("hanna", "Hanna Lab");
+      const a = createCaller({ authUser: authUser("hanna") });
+      const id = await readyStudy(a);
+      await a.studyRecord.publishDataset({ studyId: id, headers: ["response_id"], rows: [["r1"], ["r2"]] });
+
+      const out = await a.studyRecord.depositDataset({ studyId: id });
+      expect(out).toMatchObject({ ok: true, ordinal: 1, doi: "10.17605/OSF.IO/MINTED" });
+
+      const [dep] = await db.select().from(datasetDeposit).where(eq(datasetDeposit.experimentId, id));
+      expect(dep).toMatchObject({ ordinal: 1, rowCount: 2, componentGuid: "cmp1", doi: "10.17605/OSF.IO/MINTED" });
+      expect(dep.resourceLinkId).toBeTruthy(); // joined to the registration resource
+    });
+
+    /**
+     * The heart of am. 1 D7. Re-depositing after collecting more responses is
+     * legitimate and must not be blocked — but deposit 1's DOI must keep
+     * resolving to deposit 1's data, and the sequence must survive.
+     */
+    it("a re-deposit ADDS a deposit — it never overwrites the first one's DOI", async () => {
+      await seed("hanna", "Hanna Lab");
+      const a = createCaller({ authUser: authUser("hanna") });
+      const id = await readyStudy(a);
+      const { registry: reg } = await import("@/server/adapters/registry");
+
+      await a.studyRecord.publishDataset({ studyId: id, headers: ["response_id"], rows: [["r1"], ["r2"]] });
+      (reg.createComponent as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ nodeId: "cmpA" });
+      (reg.mintNodeDoi as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ doi: "10.17605/OSF.IO/DEP1" });
+      await a.studyRecord.depositDataset({ studyId: id });
+
+      // More responses arrive; the researcher re-publishes and deposits again.
+      await a.studyRecord.publishDataset({
+        studyId: id,
+        headers: ["response_id"],
+        rows: [["r1"], ["r2"], ["r3"], ["r4"]],
+      });
+      (reg.createComponent as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ nodeId: "cmpB" });
+      (reg.mintNodeDoi as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ doi: "10.17605/OSF.IO/DEP2" });
+      const second = await a.studyRecord.depositDataset({ studyId: id });
+      expect(second.ordinal).toBe(2);
+
+      // Two deposits, each its own component and DOI, each with the N it carried.
+      const deps = await db
+        .select()
+        .from(datasetDeposit)
+        .where(eq(datasetDeposit.experimentId, id))
+        .orderBy(datasetDeposit.ordinal);
+      expect(deps.map((d) => [d.ordinal, d.rowCount, d.doi, d.componentGuid])).toEqual([
+        [1, 2, "10.17605/OSF.IO/DEP1", "cmpA"],
+        [2, 4, "10.17605/OSF.IO/DEP2", "cmpB"],
+      ]);
+
+      // BOTH data resources are on the registration — deposit 1 was not replaced.
+      // (OSF accepts several finalized `data` resources; verified live.)
+      const links = await db
+        .select()
+        .from(osfResourceLink)
+        .where(and(eq(osfResourceLink.experimentId, id), eq(osfResourceLink.resourceType, "data")));
+      expect(links.map((l) => l.pid).sort()).toEqual(["10.17605/OSF.IO/DEP1", "10.17605/OSF.IO/DEP2"]);
+
+      // And the panel can state the delta without parsing anyone's prose.
+      const view = await a.studyRecord.getDatasetDeposits({ studyId: id });
+      expect(view.deposits.map((d) => [d.ordinal, d.rowCount])).toEqual([
+        [1, 2],
+        [2, 4],
+      ]);
+      expect(view.currentRowCount).toBe(4);
+    });
   });
 
   /**

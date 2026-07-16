@@ -834,6 +834,29 @@ export const osfRegistry: RegistryAdapter = {
     if (typeof value !== "string" || !value) throw new Error("OSF minted a DOI but did not return its value.");
     return { doi: normalizeDoi(value) };
   },
+
+  /** Verified live 2026-07-16: `POST /v2/nodes/{parent}/children/` → 201 with the
+   *  new guid, `category: "data"` accepted, and the `parent` relationship set to
+   *  the parent. `GET /v2/nodes/{parent}/children/` lists it, and
+   *  `DELETE /v2/nodes/{child}/` → 204 removes it cleanly — so an abandoned
+   *  component is recoverable, unlike the DOI that may later name it. */
+  async createComponent(userId, parentNodeId, input): Promise<{ nodeId: string }> {
+    const token = await osfAccessToken(userId);
+    const res = await osfApi(token, "POST", `/nodes/${parentNodeId}/children/`, {
+      data: {
+        type: "nodes",
+        attributes: {
+          title: input.title,
+          category: input.category ?? "data",
+          // Private at birth. `mintNodeDoi` publishes, and only behind consent.
+          public: false,
+        },
+      },
+    });
+    const nodeId = res.data?.id;
+    if (!nodeId) throw new Error("OSF created a component but did not return its id.");
+    return { nodeId };
+  },
 };
 
 /**

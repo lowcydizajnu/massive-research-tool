@@ -19,13 +19,23 @@ export type ExportColumn = {
 
 type Row = ResultsSummary["rows"][number];
 
+/**
+ * The header the participant-identifier column lands under. Exported because
+ * ADR-0105 D2's deposit refusal must match the header we actually emit, and it
+ * is `buildMatrix` that decides that (`headers: visible.map(c => c.label)`).
+ * ADR-0105 originally named the internal key `externalPid` — a refusal written
+ * against that spelling matches nothing and hands a permanent DOI to a dataset
+ * carrying worker IDs. One constant, imported by both, so the two cannot drift.
+ */
+export const PID_COLUMN_LABEL = "external_pid";
+
 const META: { key: string; source: string; label: string }[] = [
   { key: "responseId", source: "Response ID", label: "response_id" },
   { key: "conditionSlug", source: "Condition", label: "condition" },
   // Which runnable version each respondent took (ADR-0044) — disambiguates a
   // pooled multi-version dataset so no version's rows are silently merged.
   { key: "versionNumber", source: "Version", label: "version" },
-  { key: "externalPid", source: "External PID", label: "external_pid" },
+  { key: "externalPid", source: "External PID", label: PID_COLUMN_LABEL },
   { key: "startedAt", source: "Started", label: "started_at" },
   { key: "completedAt", source: "Completed", label: "completed_at" },
 ];

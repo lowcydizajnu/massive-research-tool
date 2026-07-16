@@ -220,6 +220,22 @@ export interface RegistryAdapter {
    * rather than erroring, because "it already exists" is the state we wanted.
    */
   mintNodeDoi(userId: string, nodeId: string): Promise<{ doi: string }>;
+  /**
+   * Create a child component under a node we own, to hold one deposit
+   * (ADR-0105 D3 + am. 1 D7).
+   *
+   * A *new* component every time, never reused: each deposit carries its own
+   * DOI, and a DOI is per-node — so re-depositing into the same component would
+   * make one DOI resolve to changing data, which is the outcome D7 forbids.
+   *
+   * Created PRIVATE. It becomes public only if the researcher consents to the
+   * mint (`mintNodeDoi` publishes), so an abandoned deposit exposes nothing.
+   */
+  createComponent(
+    userId: string,
+    parentNodeId: string,
+    input: { title: string; category?: string },
+  ): Promise<{ nodeId: string }>;
 }
 
 // Active implementation. Switching registries is a one-line change here.
