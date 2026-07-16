@@ -143,7 +143,8 @@ export function buildRecipeResponses(opts: {
   const overview = readOverview(snapshot);
   const out: Record<string, string> = {};
 
-  const target = section(snapshot, "recipe-target-effect");
+  // Typed field wins, legacy seeded section is the fallback (ADR-0101 dual read).
+  const target = overview.targetEffect.text.trim() || section(snapshot, "recipe-target-effect");
   const protocol = protocolText(snapshot).join("\n");
   // Variables + expected outcomes have no verified Recipe response key, so they
   // ride in the description rather than being invented into one (ADR-0101).
@@ -161,7 +162,12 @@ export function buildRecipeResponses(opts: {
     .filter(Boolean)
     .join("\n\n");
 
-  if (sourceTitle) {
+  // The researcher's typed answer wins; a fork falls back to its source study.
+  // A non-fork picking the Recipe previously had no way to answer this at all.
+  const typedOriginal = overview.originalStudy.text.trim();
+  if (typedOriginal) {
+    out[KEYS.originalStudy] = typedOriginal;
+  } else if (sourceTitle) {
     out[KEYS.originalStudy] = `${sourceTitle}${sourceAuthor ? ` (${sourceAuthor})` : ""}`;
   }
 
@@ -172,8 +178,8 @@ export function buildRecipeResponses(opts: {
   const notes = readBlocks(snapshot)
     .filter((b) => typeof b.divergenceNote === "string" && b.divergenceNote.trim())
     .map((b) => `- ${(typeof b.title === "string" && b.title.trim()) || b.key}: ${b.divergenceNote!.trim()}`);
-  const diffSection = section(snapshot, "recipe-differences");
-  const differences = [diffSection, ...notes].filter(Boolean).join("\n");
+  const diffText = overview.differences.text.trim() || section(snapshot, "recipe-differences");
+  const differences = [diffText, ...notes].filter(Boolean).join("\n");
   if (differences) out[KEYS.differences] = differences;
 
   const analysis = analysisPlanText(overview);

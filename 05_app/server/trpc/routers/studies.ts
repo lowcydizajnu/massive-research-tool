@@ -3158,6 +3158,9 @@ export const studiesRouter = router({
           templateKey: z.enum(PREREG_TEMPLATE_KEYS).optional(),
           samplingPlan: planFieldSchema(2000).optional(),
           analysisPlan: planFieldSchema(20000).optional(),
+          originalStudy: planFieldSchema(2000).optional(),
+          targetEffect: planFieldSchema(2000).optional(),
+          differences: planFieldSchema(20000).optional(),
           variables: z
             .array(
               z.object({
@@ -3210,6 +3213,9 @@ export const studiesRouter = router({
         ...(o.analysisPlan ? { analysisPlan: o.analysisPlan } : {}),
         ...(o.variables ? { variables: o.variables } : {}),
         ...(o.expectedOutcomes ? { expectedOutcomes: o.expectedOutcomes } : {}),
+        ...(o.originalStudy ? { originalStudy: o.originalStudy } : {}),
+        ...(o.targetEffect ? { targetEffect: o.targetEffect } : {}),
+        ...(o.differences ? { differences: o.differences } : {}),
       };
       await db
         .update(experimentVersion)

@@ -13,6 +13,9 @@ const EMPTY = {
   analysisPlan: { text: "", source: "researcher" },
   variables: [],
   expectedOutcomes: [],
+  originalStudy: { text: "", source: "researcher" },
+  targetEffect: { text: "", source: "researcher" },
+  differences: { text: "", source: "researcher" },
 };
 
 describe("readOverview (V1.12 B1)", () => {

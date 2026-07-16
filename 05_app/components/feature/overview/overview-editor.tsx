@@ -4,7 +4,12 @@ import { GripVertical, Plus, X } from "lucide-react";
 import { useState } from "react";
 
 import { PendingButton } from "@/components/ui/pending-button";
-import { PREREG_TEMPLATES, defaultTemplateKey, type PreregTemplateKey } from "@/lib/prereg-templates";
+import {
+  PREREG_TEMPLATES,
+  defaultTemplateKey,
+  templateAsks,
+  type PreregTemplateKey,
+} from "@/lib/prereg-templates";
 import { api } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
 import type {
@@ -83,6 +88,10 @@ export function OverviewEditor({
   const [analysisPlan, setAnalysisPlan] = useState(initial.analysisPlan.text);
   const [variables, setVariables] = useState<PlanVariable[]>(initial.variables);
   const [expectedOutcomes, setExpectedOutcomes] = useState<ExpectedOutcome[]>(initial.expectedOutcomes);
+  // Replication-recipe-only fields (the Recipe's own OSF questions).
+  const [originalStudy, setOriginalStudy] = useState(initial.originalStudy.text);
+  const [targetEffect, setTargetEffect] = useState(initial.targetEffect.text);
+  const [differences, setDifferences] = useState(initial.differences.text);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
 
   const save = api.studies.setOverview.useMutation({
@@ -310,35 +319,99 @@ export function OverviewEditor({
         </button>
       </div>
 
-      {/* --- Typed plan fields (ADR-0101) --------------------------------- */}
-      <label className="flex flex-col gap-1">
-        <span className={labelCls}>Sampling plan</span>
-        <textarea
-          className={cn(fieldCls, "min-h-[72px] resize-y")}
-          placeholder="Target N and the power analysis that produced it."
-          value={samplingPlan}
-          maxLength={2000}
-          onChange={(e) => {
-            setSamplingPlan(e.target.value);
-            dirty();
-          }}
-        />
-      </label>
+      {/* --- Typed plan fields (ADR-0101) ---------------------------------
+          Which fields appear is declared by the chosen template's `fields` set —
+          that is what makes the picker mean something. Hiding a field never
+          destroys its stored value; the plan is one object, not per-template. */}
+      {templateAsks(templateKey, "originalStudy") ? (
+        <label className="flex flex-col gap-1">
+          <span className={labelCls}>Original study</span>
+          <textarea
+            className={cn(fieldCls, "min-h-[56px] resize-y")}
+            placeholder="The study you're replicating — citation, and its OSF/DOI link if it has one."
+            value={originalStudy}
+            maxLength={2000}
+            onChange={(e) => {
+              setOriginalStudy(e.target.value);
+              dirty();
+            }}
+          />
+          <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+            {isReplication
+              ? "Leave blank to use the study you replicated from."
+              : "Filed as the Replication recipe's “original study” answer."}
+          </span>
+        </label>
+      ) : null}
 
-      <label className="flex flex-col gap-1">
-        <span className={labelCls}>Analysis plan</span>
-        <textarea
-          className={cn(fieldCls, "min-h-[96px] resize-y")}
-          placeholder="The analysis you commit to running. Markdown supported."
-          value={analysisPlan}
-          maxLength={20000}
-          onChange={(e) => {
-            setAnalysisPlan(e.target.value);
-            dirty();
-          }}
-        />
-      </label>
+      {templateAsks(templateKey, "targetEffect") ? (
+        <label className="flex flex-col gap-1">
+          <span className={labelCls}>Target effect</span>
+          <textarea
+            className={cn(fieldCls, "min-h-[72px] resize-y")}
+            placeholder="The effect you're replicating, with the original's key statistics (e.g. d = .40, N = 120)."
+            value={targetEffect}
+            maxLength={2000}
+            onChange={(e) => {
+              setTargetEffect(e.target.value);
+              dirty();
+            }}
+          />
+        </label>
+      ) : null}
 
+      {templateAsks(templateKey, "samplingPlan") ? (
+        <label className="flex flex-col gap-1">
+          <span className={labelCls}>Sampling plan</span>
+          <textarea
+            className={cn(fieldCls, "min-h-[72px] resize-y")}
+            placeholder="Target N and the power analysis that produced it."
+            value={samplingPlan}
+            maxLength={2000}
+            onChange={(e) => {
+              setSamplingPlan(e.target.value);
+              dirty();
+            }}
+          />
+        </label>
+      ) : null}
+
+      {templateAsks(templateKey, "analysisPlan") ? (
+        <label className="flex flex-col gap-1">
+          <span className={labelCls}>Analysis plan</span>
+          <textarea
+            className={cn(fieldCls, "min-h-[96px] resize-y")}
+            placeholder="The analysis you commit to running. Markdown supported."
+            value={analysisPlan}
+            maxLength={20000}
+            onChange={(e) => {
+              setAnalysisPlan(e.target.value);
+              dirty();
+            }}
+          />
+        </label>
+      ) : null}
+
+      {templateAsks(templateKey, "differences") ? (
+        <label className="flex flex-col gap-1">
+          <span className={labelCls}>Differences from the original</span>
+          <textarea
+            className={cn(fieldCls, "min-h-[72px] resize-y")}
+            placeholder="Anything protocol-wide that differs from the original."
+            value={differences}
+            maxLength={20000}
+            onChange={(e) => {
+              setDifferences(e.target.value);
+              dirty();
+            }}
+          />
+          <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+            Per-block differences are documented on each block in Build and are filed alongside this.
+          </span>
+        </label>
+      ) : null}
+
+      {templateAsks(templateKey, "variables") ? (
       <div className="flex flex-col gap-2">
         <span className={labelCls}>Variables</span>
         {variables.length === 0 ? (
@@ -425,7 +498,9 @@ export function OverviewEditor({
           Add variable
         </button>
       </div>
+      ) : null}
 
+      {templateAsks(templateKey, "expectedOutcomes") ? (
       <div className="flex flex-col gap-2">
         <span className={labelCls}>Expected outcomes</span>
         {expectedOutcomes.length === 0 ? (
@@ -482,6 +557,7 @@ export function OverviewEditor({
           Add expected outcome
         </button>
       </div>
+      ) : null}
 
       {/* Derived, read-only (ADR-0101). Reports on DATA, not recruitment: "Not
           started" while recruitment is open and nobody has taken it is correct. */}
@@ -578,6 +654,11 @@ export function OverviewEditor({
                 analysisPlan: { text: analysisPlan, source: "researcher" },
                 variables: variables.filter((v) => v.name.trim() !== ""),
                 expectedOutcomes: expectedOutcomes.filter((o) => o.prediction.trim() !== ""),
+                // Sent regardless of the current template: a field hidden by a
+                // template switch keeps its stored value rather than being wiped.
+                originalStudy: { text: originalStudy, source: "researcher" },
+                targetEffect: { text: targetEffect, source: "researcher" },
+                differences: { text: differences, source: "researcher" },
               },
             })
           }

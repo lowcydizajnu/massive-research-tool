@@ -105,6 +105,75 @@ describe("buildRecipeResponses — typed plan fields (ADR-0101)", () => {
     const r = buildRecipeResponses({ snapshot });
     for (const k of Object.keys(r)) expect(["77-2", "77-12", "77-33", "77-73", "77-80"]).toContain(k);
   });
+
+  /**
+   * The Recipe's own three questions. Before these were typed they existed only as
+   * sections auto-seeded onto FORKS, so a non-fork picking the Recipe had no way
+   * to answer them at all (owner caught the picker being a visual no-op, which is
+   * what exposed the half-built template).
+   */
+  describe("recipe-only typed fields", () => {
+    const recipeTyped = {
+      blocks: snapshot.blocks,
+      overview: {
+        abstract: "A",
+        hypotheses: [],
+        sections: [],
+        replicationNotes: "",
+        templateKey: "replication-recipe",
+        originalStudy: { text: "Pennycook & Rand (2019), Cognition.", source: "researcher" },
+        targetEffect: { text: "Accuracy nudge, d = .21.", source: "researcher" },
+        differences: { text: "Ran online instead of lab.", source: "researcher" },
+      },
+    };
+
+    it("a NON-fork can now answer original study / target effect / differences", () => {
+      // No sourceTitle passed — this is not a fork.
+      const r = buildRecipeResponses({ snapshot: recipeTyped });
+      expect(r["77-12"]).toBe("Pennycook & Rand (2019), Cognition.");
+      expect(r["77-2"]).toContain("Accuracy nudge, d = .21.");
+      expect(r["77-73"]).toContain("Ran online instead of lab.");
+    });
+
+    it("a typed original study wins over the fork's source title", () => {
+      const r = buildRecipeResponses({
+        snapshot: recipeTyped,
+        sourceTitle: "Source cues",
+        sourceAuthor: "Hanna",
+      });
+      expect(r["77-12"]).toBe("Pennycook & Rand (2019), Cognition.");
+    });
+
+    it("a fork with no typed answer still falls back to its source study", () => {
+      const r = buildRecipeResponses({ snapshot, sourceTitle: "Source cues", sourceAuthor: "Hanna" });
+      expect(r["77-12"]).toBe("Source cues (Hanna)");
+    });
+
+    it("typed targetEffect/differences win the slot over the legacy seeded sections", () => {
+      const withBoth = {
+        ...snapshot,
+        overview: { ...snapshot.overview, ...recipeTyped.overview, sections: snapshot.overview.sections },
+      };
+      const r = buildRecipeResponses({ snapshot: withBoth });
+      // The typed answer LEADS the description — it took the target-effect slot
+      // from the legacy `recipe-target-effect` section.
+      expect(r["77-2"].startsWith("Accuracy nudge, d = .21.")).toBe(true);
+      expect(r["77-73"]).toContain("Ran online instead of lab.");
+
+      // The legacy section's text still appears further down, inside the
+      // auto-generated protocol dump — protocolText lists every overview section,
+      // and we deliberately don't delete a researcher's sections when they fill
+      // the typed field. Only the SLOT is taken, not the prose.
+      const legacyOnly = buildRecipeResponses({ snapshot });
+      expect(legacyOnly["77-2"].startsWith("The original effect d=.4.")).toBe(true);
+    });
+
+    it("per-block divergence notes are still merged into differences alongside the typed answer", () => {
+      const r = buildRecipeResponses({ snapshot: { ...recipeTyped, blocks: snapshot.blocks } });
+      expect(r["77-73"]).toContain("Ran online instead of lab.");
+      expect(r["77-73"]).toContain("Accuracy: Reworded for clarity."); // block divergenceNote
+    });
+  });
 });
 
 describe("buildOpenEndedBody — typed plan fields (ADR-0101)", () => {

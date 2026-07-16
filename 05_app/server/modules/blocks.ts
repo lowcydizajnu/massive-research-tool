@@ -159,6 +159,15 @@ export type StudyOverview = {
   analysisPlan: PlanField;
   variables: PlanVariable[];
   expectedOutcomes: ExpectedOutcome[];
+  /**
+   * Replication-recipe-only fields — the Recipe's own OSF questions (77-12
+   * original study, 77-2 target effect, 77-73 differences). Stored on the one
+   * overview object like everything else, so switching template hides them
+   * without destroying them. Empty for an Open-ended plan.
+   */
+  originalStudy: PlanField;
+  targetEffect: PlanField;
+  differences: PlanField;
 };
 
 const VARIABLE_ROLES: readonly VariableRole[] = ["iv", "dv", "covariate", "exclusion"];
@@ -256,6 +265,9 @@ export function readOverview(snapshot: unknown): StudyOverview {
         analysisPlan: readPlanField(ov.analysisPlan),
         variables: readVariables(ov.variables),
         expectedOutcomes: readExpectedOutcomes(ov.expectedOutcomes),
+        originalStudy: readPlanField(ov.originalStudy),
+        targetEffect: readPlanField(ov.targetEffect),
+        differences: readPlanField(ov.differences),
       };
     }
   }
@@ -268,6 +280,9 @@ export function readOverview(snapshot: unknown): StudyOverview {
     analysisPlan: emptyField(),
     variables: [],
     expectedOutcomes: [],
+    originalStudy: emptyField(),
+    targetEffect: emptyField(),
+    differences: emptyField(),
   };
 }
 

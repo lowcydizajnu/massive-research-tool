@@ -29,6 +29,9 @@ The cost we accept: plan fields are not independently SQL-queryable (you read th
 | **`analysisPlan`** | **`PlanField`** | **≤20000, markdown. Files to the Recipe's analysis answer.** |
 | **`variables`** | **`PlanVariable[]`** | **≤50. Structured, not prose — see below.** |
 | **`expectedOutcomes`** | **`ExpectedOutcome[]`** | **≤50. Per-hypothesis predictions.** |
+| **`originalStudy`** | **`PlanField`** | **Replication-recipe only. ≤2000 → OSF `77-12`; a fork falls back to its source study when blank.** |
+| **`targetEffect`** | **`PlanField`** | **Replication-recipe only. ≤2000 → leads OSF `77-2`.** |
+| **`differences`** | **`PlanField`** | **Replication-recipe only. ≤20000 → OSF `77-73`, merged with per-block divergence notes.** |
 
 ### Supporting types
 
@@ -65,10 +68,12 @@ It exists only to render the Overview stage's read-only chip and to drive the ha
 
 An **in-repo TS/Zod registry** (not a DB table — a seeded catalogue would be invisible in prod until `db:seed:prod` ran). Each entry declares its `templateKey`, the typed fields it exposes, and the OSF registration schema **name** it files under (resolved at push time by `resolveSchemaId(token, schemaName)`):
 
-| `templateKey` | User-facing label | OSF schema name | Notes |
+| `templateKey` | User-facing label | OSF schema name | Typed fields it asks for |
 | --- | --- | --- | --- |
-| `open-ended` | Open-ended | `Open-Ended Registration` (via `OSF_REGISTRATION_SCHEMA`) | Default. Everything composes into one summary body. |
-| `replication-recipe` | Replication recipe | `Replication Recipe (Brandt et al., 2014): Pre-Registration` | Typed field → response-key mapping below. |
+| `open-ended` | Open-ended | `Open-Ended Registration` (via `OSF_REGISTRATION_SCHEMA`) | `samplingPlan`, `variables`, `expectedOutcomes`, `analysisPlan` |
+| `replication-recipe` | Replication recipe | `Replication Recipe (Brandt et al., 2014): Pre-Registration` | the same four, **plus** `originalStudy`, `targetEffect`, `differences` |
+
+**The field set is the point of the picker.** Each entry declares `fields: PlanFieldKey[]`, and the Overview stage renders exactly those. Without it the picker changed nothing on screen and was indistinguishable from a broken control (owner, 2026-07-15); it also left the Recipe half-built, since its own three questions had no home on a non-fork. Fields are additive on one overview object, so switching template hides a field but never destroys its value — and `setOverview` sends all of them regardless of the current template.
 
 **v1 exposes exactly these two.** Both are all-optional on OSF, so a partial fill can never 400 at `POST /nodes/{node}/registrations`. Stricter templates (standard OSF Preregistration, AsPredicted, EEG/ERP, Eye-tracking) carry required questions and are out of scope until a required-field gate exists (ADR-0101 revisit trigger).
 
@@ -80,10 +85,10 @@ Response keys were **verified live against api.osf.io on 2026-06-12** (schema id
 
 | OSF key | Question | Typed source (item ⑤) | Legacy fallback (pre-item-⑤ studies) |
 | --- | --- | --- | --- |
-| `77-2` | Description | `abstract` + protocol + `variables` / `expectedOutcomes` summaries | section `recipe-target-effect` + `abstract` + protocol |
-| `77-12` | Original study | fork's source title/author | unchanged |
+| `77-2` | Description | **`targetEffect.text`** + `abstract` + `variables`/`expectedOutcomes` + protocol | section `recipe-target-effect` |
+| `77-12` | Original study | **`originalStudy.text`** | the fork's source title/author |
 | `77-33` | Sample size target | **`samplingPlan.text`** | section id `recipe-planned-sample` |
-| `77-73` | Differences | section `recipe-differences` + per-block `divergenceNote` | unchanged |
+| `77-73` | Differences | **`differences.text`** + per-block `divergenceNote` | section `recipe-differences` |
 | `77-80` | Analysis plan | **`analysisPlan.text`** | first section whose heading matches `/analysis/i` |
 
 `variables` and `expectedOutcomes` have **no verified Recipe response key**, so they are not invented into one — they compose into the description body (`77-2`) under labelled headers, and into the Open-Ended summary. They remain fully present in the frozen plan and on the Study Record regardless.

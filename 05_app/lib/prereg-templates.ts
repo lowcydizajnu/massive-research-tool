@@ -15,11 +15,32 @@
  */
 export type PreregTemplateKey = "open-ended" | "replication-recipe";
 
+/** A typed plan field a template can ask for. */
+export type PlanFieldKey =
+  | "originalStudy"
+  | "targetEffect"
+  | "samplingPlan"
+  | "variables"
+  | "expectedOutcomes"
+  | "analysisPlan"
+  | "differences";
+
 export type PreregTemplateInfo = {
   key: PreregTemplateKey;
   label: string;
   /** One-line researcher-facing description, shown under the label in the picker. */
   description: string;
+  /**
+   * The typed plan fields this template asks for, in display order. THIS is what
+   * makes the choice mean something: picking a template changes which questions
+   * the plan puts in front of you, mirroring how OSF's registration templates
+   * work. A picker that changed nothing on screen would be indistinguishable
+   * from a broken one (owner, 2026-07-15).
+   *
+   * Fields are additive on one overview object, so switching templates hides a
+   * field but never destroys its stored value.
+   */
+  fields: PlanFieldKey[];
 };
 
 /** Ordered for the picker — the default first. */
@@ -28,11 +49,25 @@ export const PREREG_TEMPLATES: PreregTemplateInfo[] = [
     key: "open-ended",
     label: "Open-ended",
     description: "A free-form plan. Everything you write is filed as one summary.",
+    fields: ["samplingPlan", "variables", "expectedOutcomes", "analysisPlan"],
   },
   {
     key: "replication-recipe",
     label: "Replication recipe",
     description: "Structured for replicating an existing finding (Brandt et al., 2014).",
+    // The three extra fields are the Recipe's own OSF questions (77-12 original
+    // study, 77-2 target effect, 77-73 differences). Before this they existed only
+    // as sections auto-seeded onto forks, so a non-fork picking Recipe had nowhere
+    // to state them — the template was half-built.
+    fields: [
+      "originalStudy",
+      "targetEffect",
+      "samplingPlan",
+      "variables",
+      "expectedOutcomes",
+      "analysisPlan",
+      "differences",
+    ],
   },
 ];
 
@@ -62,4 +97,9 @@ export function defaultTemplateKey(replicationIntent: string | null | undefined)
 /** Resolve to display info; unknown/legacy keys fall back to the default. */
 export function preregTemplate(key: string | null | undefined): PreregTemplateInfo {
   return (key && BY_KEY.get(key as PreregTemplateKey)) || BY_KEY.get("open-ended")!;
+}
+
+/** Does this template ask for the given typed field? */
+export function templateAsks(key: string | null | undefined, field: PlanFieldKey): boolean {
+  return preregTemplate(key).fields.includes(field);
 }

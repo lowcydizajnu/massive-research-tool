@@ -29,13 +29,16 @@ Field labels reuse the existing pattern: `text-[length:var(--text-label)] upperc
 ## Content inventory
 
 - **Title** — from `studies.get`.
-- **Preregistration template** — radiogroup, two options, stored as `definition_snapshot.overview.templateKey`:
+- **Preregistration template** — radiogroup, two options, stored as `definition_snapshot.overview.templateKey`. **Choosing a template changes which typed fields appear below it** — that is the whole point of the control, and it mirrors how OSF's registration templates work. A picker that changed nothing on screen would be indistinguishable from a broken one (owner, 2026-07-15). Each template's field set is declared in `lib/prereg-templates`:
   - **Open-ended** (default) — "A free-form plan. Everything you write is filed as one summary."
   - **Replication recipe** — "Structured for replicating an existing finding (Brandt et al., 2014)."
   Each option is a label + one-line description. Vocabulary: the surface says **Preregistration template** — never "schema", never "Framework" (a retired primitive), and never bare "Template" (that means a starter study, `workspace_template`).
 - **Abstract** — editable textarea, ≤5000 chars, `overview.abstract`.
 - **Notes on changes from the original** — replications only, ≤5000, `overview.replicationNotes`.
 - **Hypotheses** — ordered `string[]`, each ≤1000, labelled `H1…Hn`, `overview.hypotheses`.
+- **Original study** *(Replication recipe only)* — textarea, ≤2000, `overview.originalStudy`. Filed as the Recipe's original-study answer (`77-12`). On a fork, leaving it blank falls back to the study it was replicated from.
+- **Target effect** *(Replication recipe only)* — textarea, ≤2000, `overview.targetEffect`. The effect being replicated with the original's key statistics; leads the Recipe's description (`77-2`).
+- **Differences from the original** *(Replication recipe only)* — textarea, ≤20000, `overview.differences`. Filed as `77-73`, merged with the per-block rationales authored in Build.
 - **Sampling plan** — textarea, ≤2000, `overview.samplingPlan`. Label help: "Target N and the power analysis that produced it." Filed to OSF as the sample-size answer on the Replication recipe; part of the summary on Open-ended.
 - **Analysis plan** — textarea, ≤20000 markdown, `overview.analysisPlan`. Filed as the analysis answer on the Replication recipe.
 - **Variables** — ordered structured list, `overview.variables[]`; each row = **name** (≤200) + **role** select (`Independent` / `Dependent` / `Covariate` / `Exclusion`) + **measure** — an optional select bound to a block in this study (by `instanceId`; "— not linked —" allowed) + optional **notes** (≤1000). Add/remove/reorder. ≤50 rows.
@@ -52,8 +55,8 @@ Field labels reuse the existing pattern: `text-[length:var(--text-label)] upperc
 - **Default** — loaded plan; template = stored `templateKey`, or the derived default for a study saved before item ⑤ (see Edge cases).
 - **Loading** — server-rendered; resolves before paint.
 - **Empty** — new study: Open-ended selected, empty abstract, no hypotheses/variables/outcomes, no sections.
-- **Template = Open-ended** — Sampling plan, Analysis plan, Variables, Expected outcomes all shown.
-- **Template = Replication recipe** — the same typed fields, plus the seeded recipe sections in the section list and the replication-notes textarea.
+- **Template = Open-ended** — Sampling plan, Variables, Expected outcomes, Analysis plan.
+- **Template = Replication recipe** — the same four, **plus the Recipe's own three questions**: Original study, Target effect, Differences from the original. (These map to the verified OSF Recipe keys `77-12` / `77-2` / `77-73`. Before they were typed they existed only as sections auto-seeded onto forks, so a non-fork picking the Recipe had nowhere to state them.) Also shows the replication-notes textarea when the study is a fork.
 - **Data-collection: not started** — chip `success`; preregistration is available on the Preregister stage. Includes the recruitment-open-but-nobody-has-taken-it-yet case.
 - **Data-collection: collecting / finished** — chip `warning` + explainer; the plan is still editable here, but the Preregister stage blocks freezing a *new* preregistration (see [preregister-stage.md](preregister-stage.md)). Amendments remain available.
 - **Error** — `setOverview` failure surfaces via the mutation; study-not-found → `notFound()`.
