@@ -47,6 +47,7 @@ import { sanitizeLayout as sanitizeRecordLayout } from "@/lib/study-record/secti
 import { extractMaterials } from "@/lib/study-record/materials";
 import { LICENSE_IDS } from "@/lib/licenses";
 import { PREREG_TEMPLATE_KEYS } from "@/lib/prereg-templates";
+import { newestPrereg, preregChain, publicPreregs, type PublicPrereg } from "@/server/study/prereg-chain";
 import {
   type CustomModuleDefinition,
   definitionToBlocks,
@@ -989,11 +990,22 @@ export type PublicStudyDetail = {
   /**
    * OSF registration identifiers (LOS "connect the record" — insight
    * los-alignment-and-templates). Surfaced on the record so the plan↔record
-   * anchor resolves for readers. Null unless the latest frozen version is a
-   * preregistration with a minted DOI / public URL.
+   * anchor resolves for readers.
+   *
+   * Resolved from the NEWEST PREREGISTERED version (ADR-0102 D4) — not from the
+   * latest frozen row. Gating these on `latestKind === "preregistered"` meant a
+   * study preregistered at v3 and published at v8 returned null for all three
+   * and lost its Preregistration section entirely: i.e. exactly the finished,
+   * citable records that most need the link back.
    */
   registrationDoi: string | null;
   registrationUrl: string | null;
+  /**
+   * The full preregistration chain, oldest→newest (ADR-0102). Empty = never
+   * preregistered. Drives the public amendment history and resolves a claim's
+   * bound hypothesis. Both producers MUST build this via `server/study/prereg-chain`.
+   */
+  preregistrations: PublicPrereg[];
   replicationCount: number;
   /** Finished (ADR-0054) — Record reads as a finished artifact vs "preliminary". */
   finishedAt: string | null;
@@ -1539,6 +1551,12 @@ export const studiesRouter = router({
             }
           : null;
 
+      // ADR-0102: the preregistration chain — the amendment history AND the
+      // source of the registration identifiers (D4). Shared helper so this and
+      // getRecordPreview cannot silently diverge (ADR-0056 C).
+      const chain = await preregChain(input.studyId);
+      const prereg = newestPrereg(chain);
+
       return {
         studyId: exp.id,
         title: exp.title,
@@ -1549,9 +1567,14 @@ export const studiesRouter = router({
         tags: exp.tags ?? [],
         latestKind: ver.kind as "published" | "preregistered",
         latestVersionNumber: ver.versionNumber,
-        registrationWithdrawn: ver.kind === "preregistered" && !!ver.withdrawn,
-        registrationDoi: ver.kind === "preregistered" ? ver.doi ?? null : null,
-        registrationUrl: ver.kind === "preregistered" ? ver.regUrl ?? null : null,
+        // ADR-0102 D4: resolve from the newest PREREGISTERED version, not from
+        // `ver` (the latest frozen row, which is the *published* one for any
+        // finished study — that gate nulled all three and made the whole
+        // Preregistration section vanish from the records people actually cite).
+        registrationWithdrawn: !!prereg?.withdrawn,
+        registrationDoi: prereg?.doi ?? null,
+        registrationUrl: prereg?.registrationUrl ?? null,
+        preregistrations: publicPreregs(chain),
         replicationCount: reps?.c ?? 0,
         finishedAt: exp.finishedAt?.toISOString() ?? null,
         createdAt: exp.createdAt.toISOString(),
@@ -1662,6 +1685,13 @@ export const studiesRouter = router({
         .where(eq(studyRecord.experimentId, input.studyId))
         .limit(1);
 
+      // ADR-0102: same shared helper as getPublicStudy. These two are both typed
+      // PublicStudyDetail, so a MISSING field is a compile error but a divergent
+      // VALUE is not — and "preview === published" (ADR-0056 C) would break with
+      // a green build. Calling the same helper is what keeps them honest.
+      const chain = await preregChain(input.studyId);
+      const prereg = newestPrereg(chain);
+
       return {
         studyId: exp.id,
         title: exp.title,
@@ -1672,9 +1702,10 @@ export const studiesRouter = router({
         tags: exp.tags ?? [],
         latestKind: (ver?.kind as "published" | "preregistered") ?? "published",
         latestVersionNumber: ver?.versionNumber ?? 0,
-        registrationWithdrawn: ver?.kind === "preregistered" && !!ver?.withdrawn,
-        registrationDoi: ver?.kind === "preregistered" ? ver.doi ?? null : null,
-        registrationUrl: ver?.kind === "preregistered" ? ver.regUrl ?? null : null,
+        registrationWithdrawn: !!prereg?.withdrawn,
+        registrationDoi: prereg?.doi ?? null,
+        registrationUrl: prereg?.registrationUrl ?? null,
+        preregistrations: publicPreregs(chain),
         replicationCount: reps?.c ?? 0,
         finishedAt: exp.finishedAt?.toISOString() ?? null,
         createdAt: exp.createdAt.toISOString(),

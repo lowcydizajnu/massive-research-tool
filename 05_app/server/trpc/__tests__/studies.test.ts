@@ -3139,3 +3139,88 @@ describe("studies — typed plan fields + preregistration template (ADR-0101)", 
     await expect(caller.studies.preregister({ studyId: id })).resolves.toMatchObject({ versionNumber: 1 });
   });
 });
+
+/** Plan↔report link-back (ADR-0102, item ⑥). */
+describe("studies — preregistration chain + D4 registration fields (ADR-0102)", () => {
+  it("D4: a preregistered-THEN-published study still shows its preregistration + DOI", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    await caller.studies.preregister({ studyId: id });
+    await caller.studies.setForkable({ studyId: id, forkableBy: "public" });
+
+    // Stamp a DOI on the preregistered version, as the OSF backfill would.
+    const [pre] = await db
+      .select({ id: experimentVersion.id })
+      .from(experimentVersion)
+      .where(and(eq(experimentVersion.experimentId, id), eq(experimentVersion.kind, "preregistered")))
+      .limit(1);
+    await db
+      .update(experimentVersion)
+      .set({ externalRegistrationDoi: "10.17605/OSF.IO/ABCDE", externalRegistrationUrl: "https://osf.io/abcde/" })
+      .where(eq(experimentVersion.id, pre!.id));
+
+    // Before publishing, the old code worked — the latest frozen version IS the prereg.
+    const asPrereg = await caller.studies.getPublicStudy({ studyId: id });
+    expect(asPrereg.registrationDoi).toBe("10.17605/OSF.IO/ABCDE");
+
+    // Publish. The latest frozen version is now `published` — this is precisely
+    // where the DOI used to vanish from the record people actually cite.
+    await caller.studies.publish({ studyId: id });
+    const asPublished = await caller.studies.getPublicStudy({ studyId: id });
+    expect(asPublished.latestKind).toBe("published");
+    expect(asPublished.registrationDoi).toBe("10.17605/OSF.IO/ABCDE"); // regression: was null
+    expect(asPublished.registrationUrl).toBe("https://osf.io/abcde/");
+    expect(asPublished.preregistrations).toHaveLength(1);
+  });
+
+  it("never-preregistered studies expose an empty chain and null identifiers", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    await caller.studies.publish({ studyId: id });
+    await caller.studies.setForkable({ studyId: id, forkableBy: "public" });
+
+    const d = await caller.studies.getPublicStudy({ studyId: id });
+    expect(d.preregistrations).toEqual([]);
+    expect(d.registrationDoi).toBeNull();
+    expect(d.registrationWithdrawn).toBe(false);
+  });
+
+  it("the amendment chain resolves 'amends v{n}' in order, and only amendments carry a classification", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    await caller.studies.preregister({ studyId: id });
+    await caller.studies.setForkable({ studyId: id, forkableBy: "public" });
+    await caller.studies.amend({ studyId: id, changeSummary: "Tightened exclusions.", classification: "scope-change" });
+
+    const { preregistrations: chain } = await caller.studies.getPublicStudy({ studyId: id });
+    expect(chain).toHaveLength(2);
+    // Oldest first: the original filing amends nothing and is unclassified.
+    expect(chain[0].amendsVersionNumber).toBeNull();
+    expect(chain[0].classification).toBeNull();
+    // The amendment points back at it and carries the author's own label.
+    expect(chain[1].amendsVersionNumber).toBe(chain[0].versionNumber);
+    expect(chain[1].changeSummary).toBe("Tightened exclusions.");
+    expect(chain[1].classification).toBe("scope-change");
+  });
+
+  it("getRecordPreview and getPublicStudy agree on the chain (preview === published)", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    await caller.studies.preregister({ studyId: id });
+    await caller.studies.setForkable({ studyId: id, forkableBy: "public" });
+    await caller.studies.amend({ studyId: id, changeSummary: "x" });
+    await caller.studies.publish({ studyId: id });
+
+    const pub = await caller.studies.getPublicStudy({ studyId: id });
+    const prev = await caller.studies.getRecordPreview({ studyId: id });
+    // A divergent VALUE between the two producers is not a compile error — this
+    // is the only thing that catches it (ADR-0056 C / ADR-0102 Risk 2).
+    expect(prev.preregistrations).toEqual(pub.preregistrations);
+    expect(prev.registrationDoi).toBe(pub.registrationDoi);
+    expect(prev.registrationWithdrawn).toBe(pub.registrationWithdrawn);
+  });
+});
