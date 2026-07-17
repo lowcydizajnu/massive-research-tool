@@ -8,7 +8,6 @@ import { LinkedOutputsPanel } from "@/components/feature/study-record/linked-out
 import { OsfMaterialsPanel } from "@/components/feature/study-record/osf-materials-panel";
 import { PushToOsfButton } from "@/components/feature/study-record/push-to-osf-button";
 import { PreregisterButton } from "@/components/feature/preregister/preregister-button";
-import { UnansweredQuestionsNotice } from "@/components/feature/preregister/unanswered-questions-notice";
 import { RefreshOsfStatus } from "@/components/feature/preregister/refresh-osf-status";
 import { PushStatusPoller } from "@/components/feature/preregister/push-status-poller";
 import { RetryPushButton } from "@/components/feature/preregister/retry-push-button";
@@ -179,17 +178,19 @@ export default async function PreregisterStagePage({
                 Change in Overview →
               </Link>
             </p>
-            {/* The ONLY completeness check in the chain (ADR-0107 D4). OSF
-                enforces nothing: a registration answering none of its required
-                questions returns 201 and mints a DOI (observed 2026-07-17).
-                Warn, never block — the researcher owns their study (owner,
-                2026-07-17) — but name every blank question in OSF's own words. */}
-            <UnansweredQuestionsNotice
-              unanswered={unansweredOsfQuestions}
-              overviewHref={`/studies/${study.id}/overview`}
-            />
+            {/* OSF's own completeness (ADR-0107 D4) now rides INSIDE the readiness
+                check below rather than in its own box (owner 2026-07-17: one
+                readiness surface). OSF enforces nothing: a registration answering
+                none of its required questions returns 201 and mints a DOI
+                (observed 2026-07-17), so this warn-and-proceed row — naming every
+                blank question in OSF's words — is the only check that exists. */}
             {study.dataCollectionStatus === "not-started" ? (
-              <PreflightChecklist studyId={study.id} mode="preregister">
+              <PreflightChecklist
+                studyId={study.id}
+                mode="preregister"
+                osfUnanswered={unansweredOsfQuestions}
+                overviewHref={`/studies/${study.id}/overview`}
+              >
                 <PreregisterButton studyId={study.id} />
               </PreflightChecklist>
             ) : (
