@@ -21,6 +21,7 @@ const EMPTY = {
   differences: { text: "", source: "researcher" },
   discloseDerivation: true,
   templateAnswers: {},
+  osfSubjectIds: [],
 };
 
 describe("readOverview (V1.12 B1)", () => {
@@ -182,6 +183,22 @@ describe("readOverview — templateAnswers (ADR-0107)", () => {
   it("defaults to {} for every shape of absent", () => {
     for (const v of [undefined, null, "nonsense", [], 5]) {
       expect(readOverview({ overview: { templateAnswers: v } }).templateAnswers).toEqual({});
+    }
+  });
+});
+
+/** ADR-0107 D8 — the field of study OSF files the preregistration under. */
+describe("readOverview — osfSubjectIds (ADR-0107 D8)", () => {
+  it("reads stored ids and drops anything that is not a string", () => {
+    const ov = readOverview({ overview: { osfSubjectIds: ["5a57d32bd49661001d09caf4", 7, null, "x"] } });
+    expect(ov.osfSubjectIds).toEqual(["5a57d32bd49661001d09caf4", "x"]);
+  });
+
+  it("defaults to [] — which sends NO subject, exactly today's behaviour", () => {
+    // Our live registrations carry no subjects and push fine. An empty default
+    // therefore cannot regress an existing study, and we never invent one.
+    for (const v of [undefined, null, "nope", {}]) {
+      expect(readOverview({ overview: { osfSubjectIds: v } }).osfSubjectIds).toEqual([]);
     }
   });
 });

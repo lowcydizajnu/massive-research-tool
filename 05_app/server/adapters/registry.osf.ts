@@ -540,6 +540,38 @@ export const osfRegistry: RegistryAdapter = {
     });
     const draftId = draft.data.id!;
 
+    // 3b. Subjects on the DRAFT (ADR-0107 D8). OSF's sandbox REFUSES to register
+    //     without at least one — "Registration must have at least one subject to
+    //     be registered" (observed 2026-07-17) — while production does not
+    //     enforce it today and our live registrations carry none. test.osf.io
+    //     usually runs ahead of production, so this is very likely coming: on
+    //     the day it ships, every push here would start failing.
+    //
+    //     Best-effort and never fatal: sending it is harmless on production now
+    //     and defuses that. Subjects go on the DRAFT — `PATCH /nodes/{id}/subjects/`
+    //     403s and subjects-at-node-create 502s. OSF expands the taxonomy path
+    //     itself (Comparative Psychology -> Social and Behavioral Sciences ->
+    //     Psychology), so one id is enough.
+    //
+    //     We never invent one: no subject means the researcher did not choose,
+    //     which is exactly today's behaviour (D2 — we do not author content they
+    //     did not write).
+    if (payload.subjectIds?.length) {
+      try {
+        await osfApi(token, "PATCH", `/draft_registrations/${draftId}/`, {
+          data: {
+            id: draftId,
+            type: "draft_registrations",
+            relationships: {
+              subjects: { data: payload.subjectIds.map((id) => ({ type: "subjects", id })) },
+            },
+          },
+        });
+      } catch {
+        // A subject failure must never lose a registration OSF would accept.
+      }
+    }
+
     // 4. Fill the draft's registration_responses (Open-Ended: a single summary).
     await osfApi(token, "PATCH", `/draft_registrations/${draftId}/`, {
       data: {

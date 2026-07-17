@@ -30,6 +30,14 @@ export type RegistrationPayload = {
   /** Pre-built registration_responses for structured schemas. Absent → the
    *  adapter files its default single-summary response. */
   registrationResponses?: Record<string, unknown>;
+  /**
+   * OSF subject (taxonomy) ids — the field of study. Set on the DRAFT.
+   *
+   * OSF's sandbox refuses to register without at least one (ADR-0107 D8);
+   * production does not enforce it yet. Absent means the researcher chose none,
+   * which is today's behaviour — we never pick one for them.
+   */
+  subjectIds?: string[];
   /** Reuse an existing project node (amendments register on the same node). */
   existingNodeId?: string | null;
   /** Prepended to the default summary (amendment headers). */

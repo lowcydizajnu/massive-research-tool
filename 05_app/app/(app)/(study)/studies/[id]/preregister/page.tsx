@@ -8,6 +8,7 @@ import { LinkedOutputsPanel } from "@/components/feature/study-record/linked-out
 import { OsfMaterialsPanel } from "@/components/feature/study-record/osf-materials-panel";
 import { PushToOsfButton } from "@/components/feature/study-record/push-to-osf-button";
 import { PreregisterButton } from "@/components/feature/preregister/preregister-button";
+import { UnansweredQuestionsNotice } from "@/components/feature/preregister/unanswered-questions-notice";
 import { RefreshOsfStatus } from "@/components/feature/preregister/refresh-osf-status";
 import { PushStatusPoller } from "@/components/feature/preregister/push-status-poller";
 import { RetryPushButton } from "@/components/feature/preregister/retry-push-button";
@@ -16,6 +17,7 @@ import { ReadOnlyBanner } from "@/components/feature/workspace/role-gate";
 import { preregTemplate } from "@/lib/prereg-templates";
 import { canWriteRole } from "@/lib/workspace/roles";
 import { planTemplateKey } from "@/server/modules/blocks";
+import { unansweredRequired, type OsfQuestion } from "@/server/modules/osf-schema";
 import { registry } from "@/server/adapters/registry";
 import { getCurrentDbUser } from "@/server/auth/current-db-user";
 import { getServerApi } from "@/server/trpc/server";
@@ -87,6 +89,23 @@ export default async function PreregisterStagePage({
     planDiverged = (await api.studies.getRunInfo({ studyId: id })).divergedFromLive;
   } catch {
     study = null;
+  }
+
+  /**
+   * Which of OSF's own questions are still blank (ADR-0107 D4). Read live.
+   *
+   * On failure this stays EMPTY and the notice does not render — the same as
+   * "nothing to ask". That is the one wrong-but-safe direction available here:
+   * we cannot fabricate a list we could not fetch, and the alternative (claiming
+   * everything is answered) is a false all-clear before a permanent filing. The
+   * questions form on Overview shows its own retry.
+   */
+  let unansweredOsfQuestions: OsfQuestion[] = [];
+  try {
+    const q = await api.studies.getTemplateQuestions({ studyId: id });
+    if (q) unansweredOsfQuestions = unansweredRequired(q.questions, q.answers);
+  } catch {
+    unansweredOsfQuestions = [];
   }
   if (!study) notFound();
 
@@ -160,6 +179,15 @@ export default async function PreregisterStagePage({
                 Change in Overview →
               </Link>
             </p>
+            {/* The ONLY completeness check in the chain (ADR-0107 D4). OSF
+                enforces nothing: a registration answering none of its required
+                questions returns 201 and mints a DOI (observed 2026-07-17).
+                Warn, never block — the researcher owns their study (owner,
+                2026-07-17) — but name every blank question in OSF's own words. */}
+            <UnansweredQuestionsNotice
+              unanswered={unansweredOsfQuestions}
+              overviewHref={`/studies/${study.id}/overview`}
+            />
             {study.dataCollectionStatus === "not-started" ? (
               <PreflightChecklist studyId={study.id} mode="preregister">
                 <PreregisterButton studyId={study.id} />

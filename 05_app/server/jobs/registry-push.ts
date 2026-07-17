@@ -3,10 +3,12 @@ import { ulid } from "ulid";
 
 import type { JobCatalog } from "@/server/adapters/jobs";
 import { registry } from "@/server/adapters/registry";
-import { OsfNotConnectedError } from "@/server/adapters/registry.osf";
+import { OsfNotConnectedError, fetchSchemaBlocks } from "@/server/adapters/registry.osf";
 import type { RegistrationPayload } from "@/server/adapters/registry";
 import { db } from "@/server/db/client";
 import { changelogBetween } from "@/server/modules/changelog";
+import { readOsfQuestions, toRegistrationResponses } from "@/server/modules/osf-schema";
+import { preregTemplate } from "@/lib/prereg-templates";
 import { planTemplateKey, readOverview } from "@/server/modules/blocks";
 import { buildOpenEndedBody, buildRecipeResponses, RECIPE_SCHEMA_NAME } from "@/server/modules/osf-recipe";
 import { emit } from "@/server/events/emit";
@@ -74,7 +76,29 @@ export async function runRegistryPush(data: JobCatalog["registry.push"]): Promis
   // exposed schemas have every field optional, so partial filing stays safe.
   // Back-compat: a plan with no explicit templateKey resolves via planTemplateKey
   // to exactly the old rule, so nothing already out there re-files elsewhere.
-  const isRecipe = planTemplateKey(readOverview(version.definitionSnapshot)) === "replication-recipe";
+  // N-way, not a boolean (ADR-0107 D7). Five templates now, three of which ask
+  // OSF's own questions and carry the researcher's answers to them.
+  const overview = readOverview(version.definitionSnapshot);
+  const template = preregTemplate(planTemplateKey(overview));
+  const isRecipe = template.key === "replication-recipe";
+
+  /**
+   * The researcher's answers to OSF's own questions, filtered against a LIVE
+   * schema read (ADR-0107 D3).
+   *
+   * Live, not from the snapshot, because OSF revises schemas in place and an
+   * unknown key is a hard 400 that kills the whole filing — while a MISSING key
+   * is silence. So we would rather drop an answer whose question OSF has retired
+   * than lose the registration.
+   *
+   * Not gated on completeness: the owner chose warn-and-proceed (2026-07-17).
+   * The Preregister warning names what is blank; the researcher decides.
+   */
+  let templateResponses: Record<string, string | string[]> | null = null;
+  if (template.asksOsfQuestions) {
+    const blocks = await fetchSchemaBlocks(template.schemaId);
+    templateResponses = toRegistrationResponses(readOsfQuestions(blocks), overview.templateAnswers);
+  }
   let sourceTitle: string | null = null;
   if (exp?.forkOfExperimentId) {
     const [src] = await db
@@ -169,21 +193,27 @@ export async function runRegistryPush(data: JobCatalog["registry.push"]): Promis
       theme: version.themeSnapshot ?? null,
     },
     templateFields: {},
-    ...(isRecipe
-      ? {
-          schemaName: RECIPE_SCHEMA_NAME,
-          registrationResponses: buildRecipeResponses({
-            snapshot: version.definitionSnapshot,
-            sourceTitle,
-            amendmentHeader,
-          }),
-        }
-      : { humanReadableBody }),
+    // Always send the schema NAME — selection is by name (filter[name] 400s) and
+    // every template now declares its own, rather than the env default silently
+    // redirecting every non-Recipe push on the deployment.
+    schemaName: template.schemaName,
+    ...(templateResponses
+      ? { registrationResponses: templateResponses }
+      : isRecipe
+        ? {
+            registrationResponses: buildRecipeResponses({
+              snapshot: version.definitionSnapshot,
+              sourceTitle,
+              amendmentHeader,
+            }),
+          }
+        : { humanReadableBody }),
     ...(exp?.description?.trim() ? { description: exp.description.trim() } : {}),
     ...(exp?.tags && exp.tags.length ? { tags: exp.tags } : {}),
     ...(permalink ? { permalink } : {}),
     ...(contributors.length ? { contributors } : {}),
     ...(amendmentHeader ? { summaryPrefix: amendmentHeader } : {}),
+    ...(overview.osfSubjectIds.length ? { subjectIds: overview.osfSubjectIds } : {}),
     existingNodeId,
   };
 

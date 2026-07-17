@@ -199,6 +199,12 @@ export type StudyOverview = {
    * every entry is text the researcher typed or an option they picked (D2).
    */
   templateAnswers: Record<string, string | string[]>;
+  /**
+   * OSF subject (taxonomy) ids — "what field is this study in?" (ADR-0107 D8).
+   * Empty means unanswered, and we then send none: exactly today's behaviour,
+   * so this can never regress an existing study.
+   */
+  osfSubjectIds: string[];
 };
 
 const VARIABLE_ROLES: readonly VariableRole[] = ["iv", "dv", "covariate", "exclusion"];
@@ -318,6 +324,9 @@ export function readOverview(snapshot: unknown): StudyOverview {
         differences: readPlanField(ov.differences),
         discloseDerivation: ov.discloseDerivation !== false,
         templateAnswers: readTemplateAnswers(ov.templateAnswers),
+        osfSubjectIds: Array.isArray(ov.osfSubjectIds)
+          ? (ov.osfSubjectIds as unknown[]).filter((x): x is string => typeof x === "string")
+          : [],
       };
     }
   }
@@ -335,6 +344,7 @@ export function readOverview(snapshot: unknown): StudyOverview {
     differences: emptyField(),
     discloseDerivation: true,
     templateAnswers: {},
+    osfSubjectIds: [],
   };
 }
 
