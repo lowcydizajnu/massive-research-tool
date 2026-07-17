@@ -20,6 +20,8 @@ export type PreregTemplateKey =
   | "open-ended"
   | "osf-preregistration"
   | "as-predicted"
+  | "social-psychology"
+  | "secondary-data"
   | "replication-recipe"
   | "osf-standard-pre-data";
 
@@ -109,9 +111,31 @@ export const PREREG_TEMPLATES: PreregTemplateInfo[] = [
     asksOsfQuestions: true,
   },
   {
+    key: "social-psychology",
+    label: "Social psychology (van 't Veer & Giner-Sorolla)",
+    description: "Written for social-psychology experiments. The most thorough of the general templates.",
+    fields: ["samplingPlan", "variables", "expectedOutcomes", "analysisPlan"],
+    schemaName: "Pre-Registration in Social Psychology (van 't Veer & Giner-Sorolla, 2016): Pre-Registration",
+    schemaId: "67d063819403e9177dc48d5a",
+    schemaVersion: 4,
+    questionCount: 53, // 19 required — the largest general-purpose form we offer
+    asksOsfQuestions: true,
+  },
+  {
+    key: "secondary-data",
+    label: "Secondary data",
+    description: "For analysing a dataset you did not collect yourself.",
+    fields: ["samplingPlan", "variables", "expectedOutcomes", "analysisPlan"],
+    schemaName: "Secondary Data Preregistration",
+    schemaId: "64775783798e08000a70407e",
+    schemaVersion: 3,
+    questionCount: 27, // 9 required
+    asksOsfQuestions: true,
+  },
+  {
     key: "as-predicted",
     label: "AsPredicted",
-    description: "Eight short questions. Familiar to most reviewers.",
+    description: "AsPredicted's eight short questions — filed to OSF, not to aspredicted.org.",
     fields: ["samplingPlan", "variables", "expectedOutcomes", "analysisPlan"],
     schemaName: "Preregistration Template from AsPredicted.org",
     schemaId: "64bab305769023000d0acdc0",

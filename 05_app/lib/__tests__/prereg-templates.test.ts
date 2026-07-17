@@ -21,6 +21,8 @@ describe("preregistration templates (ADR-0101)", () => {
     expect(PREREG_TEMPLATE_KEYS).toEqual([
       "open-ended",
       "osf-preregistration",
+      "social-psychology",
+      "secondary-data",
       "as-predicted",
       "replication-recipe",
       "osf-standard-pre-data",
@@ -60,6 +62,8 @@ describe("preregistration templates (ADR-0101)", () => {
     // typed fields. The other three render live schema_blocks (ADR-0107 D1).
     expect(PREREG_TEMPLATES.filter((t) => t.asksOsfQuestions).map((t) => t.key)).toEqual([
       "osf-preregistration",
+      "social-psychology",
+      "secondary-data",
       "as-predicted",
       "osf-standard-pre-data",
     ]);
