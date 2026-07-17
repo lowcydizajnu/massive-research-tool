@@ -33,15 +33,18 @@ import {
   changeProposal,
   condition,
   customModule,
+  datasetDeposit,
   experiment,
   experimentVersion,
   member,
+  osfResourceLink,
   notification,
   recruitmentSession,
   registry,
   registryConnection,
   response,
   responseItem,
+  studyRecord,
   user,
   workspace,
 } from "@/server/db/schema";
@@ -2172,18 +2175,81 @@ describe("replication experience (ADR-0039)", () => {
     return { hanna, sofia, originId: id, likertId: likert.instanceId };
   }
 
-  it("fork with intent injects Recipe sections + stores the kind; status starts undiverged", async () => {
+  /**
+   * ADR-0101 am. 1 D8. This test used to assert the OPPOSITE — that the fork
+   * injects `recipe-target-effect` / `recipe-differences` — and in doing so it
+   * pinned the bug: those sections were seeded with GUIDANCE TEXT as content,
+   * and item ⑤'s dual read then filed our own prompts to OSF as the
+   * researcher's answer. The intent is what matters; it selects the template.
+   */
+  it("fork with intent stores the kind and selects the Recipe — no seeded sections", async () => {
     const { sofia, originId } = await replicationFixture();
     const { id: forkId } = await sofia.studies.fork({ studyId: originId, intent: "direct" });
     const overview = (await sofia.studies.get({ id: forkId })).overview;
     expect(overview.replicationIntent).toBe("direct");
-    expect(overview.sections.map((x) => x.id)).toEqual(
-      expect.arrayContaining(["recipe-target-effect", "recipe-differences"]),
+    expect(planTemplateKey(overview)).toBe("replication-recipe"); // the typed fields appear
+    expect(overview.sections.map((x) => x.id)).not.toEqual(
+      expect.arrayContaining(["recipe-target-effect", "recipe-differences", "recipe-planned-sample"]),
     );
     const status = await sofia.studies.replicationStatus({ studyId: forkId });
     expect(status?.sourceTitle).toBe("Source cues");
     expect(status?.intent).toBe("direct");
     expect(status?.divergedCount).toBe(0);
+  });
+
+  /**
+   * Owner 2026-07-16: Replication must stay "aligned and synced with what we
+   * have already added and plan to add." These pin the two properties the OSF
+   * work (items ⑦/⑧) and the deriver (item ⑨) depend on.
+   */
+  it("a replication carries derived provenance — fork preserves block links", async () => {
+    const { sofia, originId, likertId } = await replicationFixture();
+    const { id: forkId } = await sofia.studies.fork({ studyId: originId, intent: "direct" });
+
+    // The fork copies blocks verbatim, so a variable's instanceId still resolves
+    // against the fork's OWN snapshot — and it should: the fork has that block.
+    await sofia.studies.setOverview({
+      studyId: forkId,
+      overview: {
+        abstract: "",
+        hypotheses: [],
+        replicationNotes: "",
+        sections: [],
+        variables: [{ id: "v1", name: "Credibility", role: "dv", instanceId: likertId, notes: "" }],
+      },
+    });
+    const ov = (await sofia.studies.get({ id: forkId })).overview;
+    expect(ov.variables[0].source).toBe("derived");
+  });
+
+  it("a replication NEVER inherits the original's DOIs, deposits, or record", async () => {
+    const { sofia, originId } = await replicationFixture();
+    // The original has a linked output and a deposited dataset.
+    await db.insert(osfResourceLink).values({
+      id: ulid(),
+      experimentId: originId,
+      resourceType: "data",
+      pid: "10.17605/OSF.IO/ORIGIN",
+      source: "minted",
+      state: "linked",
+      finalized: true,
+    });
+    await db.insert(datasetDeposit).values({
+      id: ulid(),
+      experimentId: originId,
+      ordinal: 1,
+      componentGuid: "cmpO",
+      doi: "10.17605/OSF.IO/ORIGIN",
+      rowCount: 10,
+    });
+
+    const { id: forkId } = await sofia.studies.fork({ studyId: originId, intent: "direct" });
+
+    // A replication is a NEW study with NO findings yet. Inheriting the
+    // original's DOIs would attach its data to someone else's deposit.
+    expect(await db.select().from(osfResourceLink).where(eq(osfResourceLink.experimentId, forkId))).toHaveLength(0);
+    expect(await db.select().from(datasetDeposit).where(eq(datasetDeposit.experimentId, forkId))).toHaveLength(0);
+    expect(await db.select().from(studyRecord).where(eq(studyRecord.experimentId, forkId))).toHaveLength(0);
   });
 
   it("divergence badges + rationale + replication-aware preflight", async () => {

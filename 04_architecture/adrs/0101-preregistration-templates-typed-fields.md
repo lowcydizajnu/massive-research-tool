@@ -69,6 +69,31 @@ Take **Option A**. Typed preregistration fields live **inside `definition_snapsh
 - Researchers hit the plan-before-data gate in a case we'd call legitimate → reconsider the *threshold* (e.g. discount abandoned/screened-out responses, or responses on a version the researcher never intended to run), **not** a per-researcher override; the gate's value is that it has no exceptions. The threshold already moved once, from "recruitment ever opened" to "any participant response recorded" (owner, 2026-07-15), for exactly this reason.
 - Plan fields need cross-study querying (analytics/discovery facets) → consider projecting selected fields to a column or materialized view (without moving the source of truth off the snapshot).
 
+## Amendment 1 — 2026-07-16 — the dual read was filing our own prompts to OSF
+
+Found by the owner asking that Replication be *"aligned and synced with what we have already added and plan to add."* It was not. This ADR added typed plan fields and a dual read (**typed field wins, else the legacy seeded section**) — but nobody updated `studies.fork`, which still seeds the pre-⑤ Recipe sections. The two mechanisms then collided in the worst available way.
+
+**A fresh replication that the researcher never fills in files this to OSF today** (reproduced by running `injectReplicationRecipe` → `buildRecipeResponses` exactly as `fork` does):
+
+| Question | What we send |
+|---|---|
+| `77-33` Planned sample | *"Target N and the power analysis that produced it (aim for high power on the ORIGINAL effect size)."* |
+| `77-2` Description | *"Replicating **X** (direct replication). Define the effect being replicated, with the original's key statistics."* |
+
+That is **our guidance text, published as the researcher's scientific commitment**, in a field where a reader expects a power analysis. The dual read cannot tell a section the researcher wrote from a section we pre-filled with a prompt, because `injectReplicationRecipe` seeds the guidance as the section's `contentMd`.
+
+And on the way there, the researcher is asked each question **twice** — a typed "Target effect" field *and* a "Target effect" prose section, both on the Overview stage, for the same OSF answer.
+
+### D8 — `fork` no longer seeds the Recipe sections
+
+Owner decision 2026-07-16 (*"the fix, not the alternative"*): a new fork gets the **typed fields only**. `injectReplicationRecipe` keeps setting `replicationIntent` — which is what actually drives `planTemplateKey` → the Recipe schema — and stops appending `recipe-target-effect` / `recipe-original-result` / `recipe-planned-sample` / `recipe-differences`.
+
+**The dual read stays, narrowed to what it was written for**: studies **frozen before item ⑤**, whose sections are the only place their plan exists and which can never be rewritten. Those keep filing exactly as they do now. New studies have no seeded sections, so the fallback simply never fires — and an empty typed field files as empty, which is honest.
+
+**Rejected:** seeding the sections empty with the guidance as a placeholder. It fixes the prompt-as-answer but leaves two fields asking one question, and the duplication is what let the two drift apart in the first place.
+
+**The general rule this exposes:** a fallback must never be able to return *content the system authored*. Seeding a field with prompt text makes "empty" indistinguishable from "answered", and any downstream reader — a dual read, a deriver, an OSF filing — will treat the prompt as the answer. Guidance belongs in a placeholder, a label, or help text; never in a value.
+
 ## References
 
 - Insight: [los-alignment-and-templates](../../01_research/insights/los-alignment-and-templates.md) (Round 2 item ⑤; templates detail; open question on DOI ownership)

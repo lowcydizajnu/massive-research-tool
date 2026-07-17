@@ -60,35 +60,37 @@ export function divergenceAgainstPinned(
   return { badges, removedCount, diverged };
 }
 
-/** Replication Recipe sections (Brandt et al., 2014 — see the literature note)
- *  injected into a fresh fork's Overview. Researcher-editable like any section. */
+/**
+ * Declare a fresh fork's replication intent (ADR-0039; ADR-0101 am. 1 D8).
+ *
+ * `replicationIntent` is the whole job: `planTemplateKey` derives the Replication
+ * Recipe template from it, which is what puts the Recipe's typed fields
+ * (originalStudy / targetEffect / samplingPlan / differences) in front of the
+ * researcher and files them to the Recipe schema.
+ *
+ * **It no longer seeds the legacy Recipe SECTIONS**, and that is a bug fix, not a
+ * simplification. It used to append `recipe-target-effect` / `recipe-original-result`
+ * / `recipe-planned-sample` / `recipe-differences` with **guidance text as their
+ * content**. Item ⑤ then added typed fields for the same questions plus a dual
+ * read ("typed field wins, else the legacy section") — and the dual read cannot
+ * tell a section the researcher wrote from one we pre-filled with a prompt. So a
+ * replication nobody had filled in was filing our own instructions to OSF as the
+ * researcher's answer: 77-33 (Planned sample) came out as *"Target N and the
+ * power analysis that produced it…"*. It also asked every question twice, once
+ * as a typed field and once as a section.
+ *
+ * The dual read still serves what it was written for — studies FROZEN before
+ * item ⑤, whose sections are the only place their plan exists. New studies have
+ * no seeded sections, so the fallback never fires and an empty field files empty,
+ * which is honest.
+ *
+ * The rule: a fallback must never return content the SYSTEM authored. Guidance
+ * belongs in a placeholder or help text — never in a value.
+ */
 export function injectReplicationRecipe(
   overview: StudyOverview,
-  sourceTitle: string,
+  _sourceTitle: string,
   intent: "direct" | "conceptual" | "extension",
 ): StudyOverview {
-  const have = new Set(overview.sections.map((x) => x.id));
-  const recipe = [
-    {
-      id: "recipe-target-effect",
-      heading: "Target effect",
-      contentMd: `Replicating **${sourceTitle}** (${intent} replication). Define the effect being replicated, with the original's key statistics.`,
-    },
-    {
-      id: "recipe-original-result",
-      heading: "Original result",
-      contentMd: "Original effect size, sample, and analysis (cite the paper / OSF page).",
-    },
-    {
-      id: "recipe-planned-sample",
-      heading: "Planned sample",
-      contentMd: "Target N and the power analysis that produced it (aim for high power on the ORIGINAL effect size).",
-    },
-    {
-      id: "recipe-differences",
-      heading: "Differences from the original",
-      contentMd: "Documented per block as you edit (the rationale field on each diverged block) — summarize anything protocol-wide here.",
-    },
-  ].filter((x) => !have.has(x.id));
-  return { ...overview, replicationIntent: intent, sections: [...overview.sections, ...recipe] };
+  return { ...overview, replicationIntent: intent };
 }

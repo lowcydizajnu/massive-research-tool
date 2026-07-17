@@ -6,6 +6,8 @@ import {
   buildRecipeResponses,
   RECIPE_SCHEMA_NAME,
 } from "@/server/modules/osf-recipe";
+import { injectReplicationRecipe } from "@/server/modules/replication";
+import { planTemplateKey, readOverview } from "@/server/modules/blocks";
 
 const snapshot = {
   blocks: [
@@ -244,5 +246,73 @@ describe("aiNonDeterminismDisclosure (ADR-0061 amendment 1)", () => {
   it("auto-appends the disclosure to the Open-Ended registration body", () => {
     expect(buildOpenEndedBody(withAi)).toContain("NON-DETERMINISM DISCLOSURE");
     expect(buildOpenEndedBody(snapshot)).not.toContain("NON-DETERMINISM"); // no AI block → no note
+  });
+});
+
+/**
+ * ADR-0101 am. 1 D8. `fork` used to seed the Recipe sections with GUIDANCE TEXT
+ * as their content, and item ⑤'s dual read treats a section as the fallback
+ * answer — so a replication nobody had filled in published our own prompts to
+ * OSF as the researcher's scientific commitment.
+ */
+describe("a fresh replication never files our own prompt text (ADR-0101 am. 1)", () => {
+  const freshFork = (intent: "direct" | "conceptual" | "extension" = "direct") => {
+    const overview = injectReplicationRecipe(readOverview({}), "Original Study Title", intent);
+    return { blocks: [], groups: [], overview, theme: null, consent: null };
+  };
+
+  it("declares the intent — which is what selects the Recipe template", () => {
+    const ov = readOverview(freshFork().overview ? freshFork() : {});
+    expect(ov.replicationIntent).toBe("direct");
+    expect(planTemplateKey(ov)).toBe("replication-recipe");
+  });
+
+  it("seeds NO sections — the typed fields are the plan now", () => {
+    expect(freshFork().overview.sections).toEqual([]);
+  });
+
+  it("OMITS the planned sample rather than filing the instruction that used to sit there", () => {
+    const res = buildRecipeResponses({ snapshot: freshFork(), sourceTitle: "Original Study Title" });
+    // Was: "Target N and the power analysis that produced it (aim for high power…)"
+    // published to OSF as the researcher's answer. Now the key is absent —
+    // unanswered is honest; a prompt masquerading as an answer is not.
+    expect(res["77-33"]).toBeUndefined();
+    expect(JSON.stringify(res)).not.toMatch(/Target N and the power analysis/);
+    expect(JSON.stringify(res)).not.toMatch(/Define the effect being replicated/);
+    expect(JSON.stringify(res)).not.toMatch(/cite the paper \/ OSF page/);
+    expect(JSON.stringify(res)).not.toMatch(/summarize anything protocol-wide/);
+  });
+
+  it("still honours a section on a study FROZEN before item ⑤ — that is what the dual read is for", () => {
+    // A pre-⑤ snapshot: the section is the only place its plan exists, and it
+    // can never be rewritten. Its text must keep filing.
+    const legacy = {
+      blocks: [],
+      groups: [],
+      overview: {
+        ...readOverview({}),
+        replicationIntent: "direct",
+        sections: [{ id: "recipe-planned-sample", heading: "Planned sample", contentMd: "N=300, 90% power." }],
+      },
+      theme: null,
+      consent: null,
+    };
+    expect(buildRecipeResponses({ snapshot: legacy, sourceTitle: "X" })["77-33"]).toBe("N=300, 90% power.");
+  });
+
+  it("the typed field wins over a legacy section when both exist", () => {
+    const both = {
+      blocks: [],
+      groups: [],
+      overview: {
+        ...readOverview({}),
+        replicationIntent: "direct",
+        samplingPlan: { text: "N=500, preregistered.", source: "researcher" as const },
+        sections: [{ id: "recipe-planned-sample", heading: "Planned sample", contentMd: "stale prose" }],
+      },
+      theme: null,
+      consent: null,
+    };
+    expect(buildRecipeResponses({ snapshot: both, sourceTitle: "X" })["77-33"]).toBe("N=500, preregistered.");
   });
 });
