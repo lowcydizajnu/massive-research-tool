@@ -68,13 +68,19 @@ Derivable, because it is read directly off the frozen snapshot (never inferred):
 
 | Tempting | Why it's a lie |
 |---|---|
-| "presented in random order" | nothing shuffles blocks; `randomizeOrder` is option-order |
+| "presented in random order" | **today** nothing shuffles blocks; `randomizeOrder` is option-order. See the note below — this row is time-bound, not permanent |
 | an **analysis plan** | a response type is not a statistical test |
 | **hypotheses** / expected outcomes | pure intent |
 | a variable's **role** (iv/dv/covariate/exclusion) | intent — derive the *candidate*, never the role |
 | the **construct** measured | no citation/scale field exists on any module; guessing it from a prompt string is invention |
 | "treatment vs control" | arm semantics are undeclared; only "shown only to [slugs]" is true |
 | "participants failing the attention check were excluded" | no exclusion rule exists anywhere |
+
+**Randomization is a missing feature, not a fact of life.** Owner direction 2026-07-16, on being shown that nothing shuffles blocks: *"regarding randomizer — it is feature/functionality we need to add to our app."* Correct, and it is a real gap for an experiment platform: presentation-order randomization and counterbalancing are standard method, and their absence is arguably a larger hole than this ADR's own subject.
+
+That does **not** loosen D1. Until block-order randomization actually ships, "presented in random order" stays a lie and the deriver must not say it. What it changes is the shape of the fix: randomization must be **declared in the snapshot** (a design decision the researcher makes and the runtime obeys), not an emergent runtime behaviour — because a fact the deriver can read is a fact a reader can trust. Built that way, the row flips from "never" to "true by construction" the day the feature lands, with no change here beyond deleting a row. Built as runtime-only shuffling with nothing in the snapshot, it would be *permanently* underivable and the preregistration could never state it.
+
+**Its own ADR, its own unit** — it touches the runtime, the Builder, the export, and the participant assignment path, none of which item ⑨ goes near. Sequenced after Phase A per the owner's "Ok, go", but the dependency runs the other way round: the deriver gets more valuable once there is a randomization decision to report.
 
 ### D2 — Compute, never store
 
@@ -130,7 +136,7 @@ Verified live 2026-07-16 — this is the contract the picker needs, and none of 
 
 ## Revisit triggers
 
-- Block-order randomization or counterbalancing ships → the randomization row moves from "never" to derivable.
+- **Block-order randomization ships (owner-confirmed as planned scope, 2026-07-16)** → the randomization row moves from "never" to derivable, *provided it is declared in the snapshot* (D1's note). This is the one revisit trigger already known to be coming.
 - A module gains construct/instrument provenance (scale name, citation) → "we measured X using Y" becomes derivable.
 - A structured exclusion rule ships → the exclusion row moves.
 - OSF revises a curated schema under the same name → the recorded id+version detects it (D6).
