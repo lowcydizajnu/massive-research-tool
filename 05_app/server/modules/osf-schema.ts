@@ -152,7 +152,12 @@ export type OsfAnswers = Record<string, string | string[]>;
 
 function isBlank(v: string | string[] | undefined): boolean {
   if (v === undefined) return true;
-  return Array.isArray(v) ? v.length === 0 : v.trim() === "";
+  // An array is blank when it holds NO non-blank entry — `[]`, `[""]`, `["  "]`
+  // all mean "unanswered". A list question shows one empty row by default and
+  // "+ Add" yields another empty row, so `[""]`/`["",""]` are reached in normal
+  // use; counting them as answered would let a required question slip past the
+  // one completeness check (unansweredRequired) and file as bare "1. " under a DOI.
+  return Array.isArray(v) ? v.every((x) => typeof x !== "string" || !x.trim()) : v.trim() === "";
 }
 
 /**
@@ -176,6 +181,16 @@ export function unansweredRequired(questions: OsfQuestion[], answers: OsfAnswers
 }
 
 /**
+ * True when a stored answer holds real content — the exact inverse of the blank
+ * test `unansweredRequired` uses. Exported so the "N of M answered" counter and
+ * the completeness gate share ONE definition and can never disagree (e.g. a
+ * `[""]` list must not read as answered in one place and unanswered in the other).
+ */
+export function isAnswered(v: string | string[] | undefined): boolean {
+  return !isBlank(v);
+}
+
+/**
  * The payload for OSF, filtered to keys present in the LIVE block read.
  *
  * Two rules, both load-bearing:
@@ -191,13 +206,23 @@ export function toRegistrationResponses(questions: OsfQuestion[], answers: OsfAn
   for (const q of questions) {
     const v = answers[q.key];
     if (isBlank(v)) continue;
-    // A list-shaped text question (hypotheses) is EDITED as separate entries but
-    // FILED as OSF's one text field (owner 2026-07-17): combine at the push
-    // boundary. A select's array is the real submittable shape and passes through.
-    if (Array.isArray(v) && isListQuestion(q)) {
-      out[q.key] = v.map((line, i) => `${i + 1}. ${line.trim()}`).join("\n");
+    if (Array.isArray(v)) {
+      // The shape OSF wants is decided by the QUESTION KIND, not our list-question
+      // heuristic. A select's array IS the submittable shape (byte-exact option
+      // strings) and passes through. Any OTHER array is a list-edited text answer
+      // (hypotheses / variables — or a string[] stranded on a text question by an
+      // OSF label revision) and is combined into OSF's one numbered text field.
+      // Blank rows are dropped and the survivors renumbered, so a cleared entry
+      // never files as "2. " and "A", "", "C" never files as "1. A\n2. \n3. C".
+      const isSelect = q.kind === "single-select" || q.kind === "multi-select";
+      if (isSelect) {
+        out[q.key] = v;
+      } else {
+        const lines = v.map((l) => (typeof l === "string" ? l.trim() : "")).filter(Boolean);
+        if (lines.length) out[q.key] = lines.map((line, i) => `${i + 1}. ${line}`).join("\n");
+      }
     } else {
-      out[q.key] = v!;
+      out[q.key] = v;
     }
   }
   return out;
@@ -205,15 +230,36 @@ export function toRegistrationResponses(questions: OsfQuestion[], answers: OsfAn
 
 /**
  * A text question we let the researcher edit as a LIST of entries rather than one
- * blob (owner 2026-07-17), because their own plan already holds it that way — so
- * prefill and update-origin become clean list↔list copies with no text-to-
- * structure parsing to corrupt anything. Combined into OSF's single text field
- * only at push (see toRegistrationResponses).
+ * blob (owner 2026-07-17), because it maps to something list-shaped in their own
+ * plan. Rendered as a list editor; combined into OSF's single text field only at
+ * push (see toRegistrationResponses). Never a select (those are already lists on
+ * OSF's side).
  *
- * Hypotheses today; the same mechanism extends to manipulated/measured variables.
- * Never a select (those are already lists on OSF's side).
+ * Two families:
+ *  - hypotheses / research questions — reversible (see below);
+ *  - manipulated / measured variables (owner 2026-07-17: variables should "also
+ *    be taken from the plan"). Prefill-only: the plan's IVs seed the Manipulated
+ *    list, its DVs seed the Measured list.
  */
 export function isListQuestion(q: OsfQuestion): boolean {
+  if (q.kind !== "long-text") return false;
+  if (isReversibleListQuestion(q)) return true;
+  const l = q.label.toLowerCase();
+  return l.includes("manipulated variable") || l.includes("measured variable");
+}
+
+/**
+ * A list question whose plan-side home is ALSO a flat list of strings, so
+ * "update your plan to match" is a clean list→list copy in both directions —
+ * hypotheses (the plan holds `hypotheses: string[]`).
+ *
+ * Variables are deliberately EXCLUDED (ADR-0107 D11 addendum). Their plan home is
+ * structured — name + role + notes + the block a measure is read from — so
+ * pushing a flat string list back would flatten all of that. The very corruption
+ * D11 exists to prevent. Variable lists are therefore prefill-only, one-way; the
+ * plan's Variables section stays their single source of truth.
+ */
+export function isReversibleListQuestion(q: OsfQuestion): boolean {
   if (q.kind !== "long-text") return false;
   const l = q.label.toLowerCase();
   return l.includes("hypothes") || l.includes("research question");

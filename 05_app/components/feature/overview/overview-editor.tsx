@@ -246,19 +246,23 @@ export function OverviewEditor({
     if (label.includes("statistical model")) {
       return analysisPlan.trim() ? { from: "your analysis plan", text: analysisPlan.trim() } : null;
     }
-    // Variables are structured (name + role + notes); we generate TEXT from them
-    // for OSF's free-text questions. Manipulated = your IVs, measured = your DVs.
-    const varsAs = (role: VariableRole) => {
-      const rows = variables.filter((v) => v.role === role && v.name.trim());
-      return rows.map((v) => `- ${v.name.trim()}${v.notes.trim() ? ` (${v.notes.trim()})` : ""}`).join("\n");
-    };
+    // Variables are structured (name + role + notes). We seed OSF's Manipulated /
+    // Measured questions from them as a LIST (owner 2026-07-17: variables should
+    // "also be taken from the plan"), one entry per variable — "name — notes".
+    // Manipulated = your IVs, measured = your DVs. `items` drives the list editor;
+    // `text` is the fallback for a prose rendering. One-way only: the plan's
+    // Variables section stays the structured source of truth (no update-origin).
+    const varsAsList = (role: VariableRole) =>
+      variables
+        .filter((v) => v.role === role && v.name.trim())
+        .map((v) => `${v.name.trim()}${v.notes.trim() ? ` — ${v.notes.trim()}` : ""}`);
     if (label.includes("manipulated variable")) {
-      const text = varsAs("iv");
-      return text ? { from: "your independent variables", text } : null;
+      const items = varsAsList("iv");
+      return items.length ? { from: "your independent variables", text: items.join("\n"), items } : null;
     }
     if (label.includes("measured variable")) {
-      const text = varsAs("dv");
-      return text ? { from: "your dependent variables", text } : null;
+      const items = varsAsList("dv");
+      return items.length ? { from: "your dependent variables", text: items.join("\n"), items } : null;
     }
     return null;
   };
@@ -343,7 +347,28 @@ export function OverviewEditor({
           questions, then OSF's optional ones. Each a big collapsible header. */}
       <SectionShell
         heading="Your research plan"
-        info="The core of your preregistration, in My Research Lab's own fields. It travels with your study — your public record and anyone replicating it read from here — whichever OSF template you file under."
+        info={
+          <>
+            <p>
+              This is the heart of your preregistration, written in My Research Lab&rsquo;s own fields and in plain
+              language — the abstract, your hypotheses, sampling and analysis plans, and the variables you manipulate
+              and measure.
+            </p>
+            <p>
+              It <strong>travels with your study</strong>. Your public study record, anyone who replicates you, and
+              every OSF template you file under all read from here — so you fill it once, in one place.
+            </p>
+            <p>
+              Whichever OSF template you pick above, these fields feed its questions: your hypotheses become OSF&rsquo;s
+              &ldquo;Research questions or hypotheses&rdquo;, your variables become its &ldquo;Manipulated&rdquo; and
+              &ldquo;Measured variables&rdquo;, and so on. Each OSF answer is offered as a draft you review and edit —
+              nothing files itself.
+            </p>
+            <p className="text-[var(--color-text-muted)]">
+              Nothing here is filed until you preregister. You can keep editing your draft until then.
+            </p>
+          </>
+        }
       >
       <label className="flex flex-col gap-1">
         <span className={labelCls}>Abstract</span>

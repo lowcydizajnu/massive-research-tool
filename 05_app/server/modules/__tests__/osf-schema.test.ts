@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   byPage,
+  isAnswered,
   isListQuestion,
+  isReversibleListQuestion,
   readOsfQuestions,
   toRegistrationResponses,
   unansweredRequired,
@@ -211,5 +213,83 @@ describe("list-shaped questions (hypotheses)", () => {
   it("treats an empty hypothesis list as unanswered", () => {
     expect(unansweredRequired(qs, { "344-2": [] }).map((q) => q.key)).toContain("344-2");
     expect(toRegistrationResponses(qs, { "344-2": [] })).toEqual({});
+  });
+});
+
+/**
+ * Variables as list questions (owner 2026-07-17: "independent/dependent variables
+ * might also be taken from the plan"). Manipulated (344-58) and Measured (344-62)
+ * are list-shaped for prefill, but — unlike hypotheses — NOT reversible: the plan
+ * holds them as structured rows, so update-origin would flatten them (D11
+ * addendum). The list combines into OSF's one text field at push, same as hypotheses.
+ */
+describe("variables as list questions — prefill-only, not reversible", () => {
+  const qs = readOsfQuestions(PREREG);
+  const manipulated = qs.find((q) => q.key === "344-58")!; // "Manipulated variables"
+  const measured = qs.find((q) => q.key === "344-62")!; // "Measured variables"
+
+  it("recognises Manipulated and Measured variables as list-shaped", () => {
+    expect(manipulated.label).toBe("Manipulated variables");
+    expect(measured.label).toBe("Measured variables");
+    expect(isListQuestion(manipulated)).toBe(true);
+    expect(isListQuestion(measured)).toBe(true);
+  });
+
+  it("does NOT treat the file-upload variant (344-64) as a list question", () => {
+    const fileVariant = qs.find((q) => q.key === "344-64")!; // "Measured variables - File upload"
+    expect(fileVariant.kind).toBe("file");
+    expect(isListQuestion(fileVariant)).toBe(false);
+  });
+
+  it("marks hypotheses reversible but variables NOT — the plan is variables' structured home", () => {
+    expect(isReversibleListQuestion(qs.find((q) => q.key === "344-2")!)).toBe(true); // hypotheses
+    expect(isReversibleListQuestion(manipulated)).toBe(false);
+    expect(isReversibleListQuestion(measured)).toBe(false);
+    // Every reversible question is a list question, but not vice-versa.
+    expect(qs.filter(isReversibleListQuestion).every(isListQuestion)).toBe(true);
+  });
+
+  it("combines a variable list into OSF's single numbered text field at push", () => {
+    const out = toRegistrationResponses(qs, {
+      "344-58": ["Warning label presence — present / absent", "Message framing — gain / loss"],
+    });
+    expect(out["344-58"]).toBe("1. Warning label presence — present / absent\n2. Message framing — gain / loss");
+    expect(typeof out["344-58"]).toBe("string");
+  });
+});
+
+/**
+ * Blank-row handling in list questions (found by the sync audit 2026-07-17). A
+ * list editor shows an empty row by default and "+ Add" yields another, so `[""]`
+ * and mixed `["A",""]` are reached in ordinary use. They must never file bogus
+ * numbered empty lines under a permanent DOI, and must never read as "answered".
+ */
+describe("list questions — blank rows never leak to OSF or a false all-clear", () => {
+  const qs = readOsfQuestions(PREREG);
+
+  it("treats an all-blank list as blank (unanswered), for [] , [\"\"], and whitespace", () => {
+    // 344-2 (hypotheses) is required — the completeness gate must flag all three.
+    for (const v of [[], [""], ["   ", "\t"]] as string[][]) {
+      expect(unansweredRequired(qs, { "344-2": v }).map((q) => q.key)).toContain("344-2");
+      expect(isAnswered(v)).toBe(false);
+      expect(toRegistrationResponses(qs, { "344-2": v })).toEqual({});
+    }
+  });
+
+  it("a list with any real entry is answered; isAnswered matches the gate exactly", () => {
+    const v = ["", "Real hypothesis", "  "];
+    expect(isAnswered(v)).toBe(true);
+    expect(unansweredRequired(qs, { "344-2": v }).map((q) => q.key)).not.toContain("344-2");
+  });
+
+  it("drops blank rows and renumbers the survivors — no '2. ' empty line, no gaps", () => {
+    const out = toRegistrationResponses(qs, { "344-58": ["Warning label", "", "Message framing", "  "] });
+    expect(out["344-58"]).toBe("1. Warning label\n2. Message framing");
+  });
+
+  it("still passes a real multi-select array straight through (kind decides shape, not the list heuristic)", () => {
+    const out = toRegistrationResponses(qs, { "344-17": ["Randomized Experiment: …"] });
+    expect(Array.isArray(out["344-17"])).toBe(true);
+    expect(out["344-17"]).toEqual(["Randomized Experiment: …"]);
   });
 });

@@ -1,9 +1,10 @@
 "use client";
 
-import { ChevronDown, ChevronRight, HelpCircle, X } from "lucide-react";
+import { ChevronDown, ChevronRight, X } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
-import { byPage, isListQuestion, type OsfAnswers, type OsfQuestion } from "@/server/modules/osf-schema";
+import { byPage, isAnswered, isListQuestion, isReversibleListQuestion, type OsfAnswers, type OsfQuestion } from "@/server/modules/osf-schema";
+import { HelpModal } from "@/components/ui/help-modal";
 import { cn } from "@/lib/utils";
 
 /**
@@ -62,10 +63,9 @@ export function TemplateQuestions({
   );
   if (!shown.length) return null;
 
-  const answered = shown.filter((q) => {
-    const v = answers[q.key];
-    return Array.isArray(v) ? v.length > 0 : !!v?.trim();
-  }).length;
+  // Same definition of "has content" the completeness gate uses (isAnswered =
+  // !isBlank), so the counter and the readiness check never disagree on e.g. [""].
+  const answered = shown.filter((q) => isAnswered(answers[q.key])).length;
 
   return (
     <SectionShell heading={heading} intro={intro} counter={`${answered} of ${shown.length} answered`} defaultCollapsed={defaultCollapsed}>
@@ -110,8 +110,8 @@ export function SectionShell({
   heading: string;
   intro?: string;
   counter?: string;
-  /** Optional explainer, revealed by an info affordance in the header. */
-  info?: string;
+  /** Optional explainer, revealed as a modal by the "?" affordance in the header. */
+  info?: ReactNode;
   defaultCollapsed?: boolean;
   children: ReactNode;
 }) {
@@ -141,17 +141,9 @@ export function SectionShell({
               {heading}
             </span>
           </button>
-          {/* Help = the same HelpCircle affordance the Variants section uses. */}
-          {info ? (
-            <button
-              type="button"
-              aria-label={info}
-              title={info}
-              className="rounded-full p-0.5 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)] hover:text-[var(--color-text-secondary)]"
-            >
-              <HelpCircle className="size-4" aria-hidden />
-            </button>
-          ) : null}
+          {/* Help = the same modal the Variants section uses (owner 2026-07-17:
+              the "?" must open a modal, not a dead native tooltip). */}
+          {info ? <HelpModal title={heading} label={`About ${heading}`}>{info}</HelpModal> : null}
         </div>
         {counter ? (
           <span aria-live="polite" className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
@@ -217,6 +209,23 @@ function HelpText({ id, text }: { id?: string; text: string }) {
   );
 }
 
+/** A stored answer shown in a plain text box. Normally a string; a `string[]`
+ *  can reach a prose control only if the question stopped classifying as
+ *  list-shaped (an OSF label revision) — show its combined text, not a blank box
+ *  that hides a stored answer and reads as empty (sync audit 2026-07-17). Mirrors
+ *  the string→list coercion `listValue` does for the opposite direction. */
+function answerAsText(v: string | string[] | undefined): string {
+  if (typeof v === "string") return v;
+  if (Array.isArray(v)) {
+    return v
+      .map((l) => (typeof l === "string" ? l.trim() : ""))
+      .filter(Boolean)
+      .map((l, i) => `${i + 1}. ${l}`)
+      .join("\n");
+  }
+  return "";
+}
+
 function Question({
   q,
   value,
@@ -241,7 +250,10 @@ function Question({
   // OSF's one text field at push — so prefill and update-origin are clean
   // list↔list copies, never a text→structure parse (owner 2026-07-17).
   const asList = isListQuestion(q);
-  const listValue = Array.isArray(value) ? value : [];
+  // Normally the stored value IS an array for a list question. A plain string can
+  // only appear if this question was answered as free text before it became
+  // list-shaped — carry it in as a single entry rather than dropping it.
+  const listValue = Array.isArray(value) ? value : typeof value === "string" && value.trim() ? [value] : [];
   // Prefill is only meaningful for a text answer — you cannot draft a select.
   const isText = q.kind === "long-text" || q.kind === "short-text";
   const currentText = typeof value === "string" ? value : "";
@@ -299,7 +311,10 @@ function Question({
           items={listValue}
           onChange={(items) => onAnswer(q.key, items)}
           prefill={prefill?.items ? { from: prefill.from, items: prefill.items } : null}
-          onUpdateOrigin={onUpdateOrigin ? (items) => onUpdateOrigin(q, items) : undefined}
+          // Update-origin only where the plan home is itself a flat list
+          // (hypotheses). Variables' plan home is structured, so a flat push-back
+          // would flatten it — prefill-only there (osf-schema D11 addendum).
+          onUpdateOrigin={onUpdateOrigin && isReversibleListQuestion(q) ? (items) => onUpdateOrigin(q, items) : undefined}
           readOnly={readOnly}
         />
       ) : q.kind === "single-select" || q.kind === "multi-select" ? (
@@ -310,7 +325,7 @@ function Question({
           type="text"
           aria-describedby={helpId}
           disabled={readOnly}
-          value={typeof value === "string" ? value : ""}
+          value={answerAsText(value)}
           placeholder={q.example}
           onChange={(e) => onAnswer(q.key, e.target.value)}
           className="rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] px-3 py-2 text-[var(--color-text-primary)]"
@@ -321,7 +336,7 @@ function Question({
           rows={4}
           aria-describedby={helpId}
           disabled={readOnly}
-          value={typeof value === "string" ? value : ""}
+          value={answerAsText(value)}
           // The example is a PLACEHOLDER. It must never become the value.
           placeholder={q.example}
           onChange={(e) => onAnswer(q.key, e.target.value)}
@@ -432,6 +447,8 @@ function ListQuestion({
   const removeAt = (i: number) => onChange(rows.filter((_, j) => j !== i).length ? rows.filter((_, j) => j !== i) : []);
 
   const filled = items.filter((x) => x.trim());
+  // Hypotheses number as H1, H2…; other lists (variables) as a plain 1., 2.
+  const rowLabel = (i: number) => (isReversibleListQuestion(q) ? `H${i + 1}` : `${i + 1}.`);
   // Offer prefill only when it would actually change something.
   const showPrefill = !readOnly && prefill && JSON.stringify(prefill.items) !== JSON.stringify(filled);
   // Offer update-origin only once the answer diverges from — and isn't empty vs —
@@ -458,7 +475,7 @@ function ListQuestion({
         {rows.map((row, i) => (
           <li key={i} className="flex items-start gap-2">
             <span className="pt-2 font-mono text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)]">
-              H{i + 1}
+              {rowLabel(i)}
             </span>
             <textarea
               rows={2}
