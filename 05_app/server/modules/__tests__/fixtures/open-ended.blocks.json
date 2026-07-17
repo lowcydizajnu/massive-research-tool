@@ -1,0 +1,69 @@
+{
+ "data": [
+  {
+   "id": "61950fae0e2f500009c355e3",
+   "attributes": {
+    "index": 0,
+    "block_type": "page-heading",
+    "display_text": "Summary",
+    "help_text": "",
+    "example_text": "",
+    "required": false,
+    "registration_response_key": null,
+    "schema_block_group_key": ""
+   }
+  },
+  {
+   "id": "61950fae0e2f500009c355e5",
+   "attributes": {
+    "index": 1,
+    "block_type": "question-label",
+    "display_text": "Provide a narrative summary of what is contained in this registration or how it differs from prior registrations. If this project contains documents for a preregistration, please note that here.",
+    "help_text": "",
+    "example_text": "",
+    "required": false,
+    "registration_response_key": null,
+    "schema_block_group_key": "61950fae0e2f500009c355e4"
+   }
+  },
+  {
+   "id": "61950fae0e2f500009c355e6",
+   "attributes": {
+    "index": 2,
+    "block_type": "long-text-input",
+    "display_text": "",
+    "help_text": "",
+    "example_text": "",
+    "required": true,
+    "registration_response_key": "summary",
+    "schema_block_group_key": "61950fae0e2f500009c355e4"
+   }
+  },
+  {
+   "id": "61950fae0e2f500009c355e8",
+   "attributes": {
+    "index": 3,
+    "block_type": "question-label",
+    "display_text": "Add supplemental files or additional information",
+    "help_text": "",
+    "example_text": "",
+    "required": false,
+    "registration_response_key": null,
+    "schema_block_group_key": "61950fae0e2f500009c355e7"
+   }
+  },
+  {
+   "id": "61950fae0e2f500009c355e9",
+   "attributes": {
+    "index": 4,
+    "block_type": "file-input",
+    "display_text": "",
+    "help_text": "",
+    "example_text": "",
+    "required": false,
+    "registration_response_key": "uploader",
+    "schema_block_group_key": "61950fae0e2f500009c355e7"
+   }
+  }
+ ]
+}
