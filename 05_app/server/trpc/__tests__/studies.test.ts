@@ -2972,6 +2972,62 @@ describe("studies.setLicense (ADR-0100 — reusable metadata)", () => {
 describe("studies — typed plan fields + preregistration template (ADR-0101)", () => {
   const emptyPlan = { abstract: "", hypotheses: [], replicationNotes: "", sections: [] };
 
+  /**
+   * ADR-0106 D4. The editor used to hardcode `source: "researcher"` onto all five
+   * PlanFields on every save, so the provenance slot ADR-0101 built would be
+   * reverted the first time a researcher opened Overview and pressed Save. The
+   * fix removes `source` from the wire entirely: a claim about who authored a
+   * scientific commitment is not the browser's to make.
+   */
+  it("decides provenance server-side — a variable is derived iff its block link resolves", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    const { instanceId } = await caller.studies.addBlock({ studyId: id, source: "core", key: "likert-7", version: "1.0.0" });
+
+    await caller.studies.setOverview({
+      studyId: id,
+      overview: {
+        ...emptyPlan,
+        variables: [
+          // Linked to a real block in THIS study → derived.
+          { id: "v1", name: "Credibility", role: "dv", instanceId, notes: "" },
+          // No link → the researcher wrote it.
+          { id: "v2", name: "Something", role: "iv", instanceId: null, notes: "" },
+          // Points at a block that isn't here → NOT derived. A dangling link
+          // earns nothing; this is the shape of ADR-0102's ratchet.
+          { id: "v3", name: "Forged", role: "iv", instanceId: "does-not-exist", notes: "" },
+        ],
+      },
+    });
+
+    const ov = (await caller.studies.get({ id })).overview;
+    expect(ov.variables.map((v) => [v.name, v.source])).toEqual([
+      ["Credibility", "derived"],
+      ["Something", "researcher"],
+      ["Forged", "researcher"],
+    ]);
+  });
+
+  it("a plain Save does NOT revert derived provenance — the clobber is gone", async () => {
+    await seedUserWithWorkspace("ext_a", "Alpha");
+    const caller = createCaller({ authUser: authUser("ext_a") });
+    const { id } = await caller.studies.create({ kind: "blank", title: "S" });
+    const { instanceId } = await caller.studies.addBlock({ studyId: id, source: "core", key: "likert-7", version: "1.0.0" });
+
+    const vars = [{ id: "v1", name: "Credibility", role: "dv" as const, instanceId, notes: "" }];
+    await caller.studies.setOverview({ studyId: id, overview: { ...emptyPlan, variables: vars } });
+
+    // Exactly what the editor sends on a second Save: same rows, no `source`.
+    await caller.studies.setOverview({
+      studyId: id,
+      overview: { ...emptyPlan, abstract: "Edited something unrelated.", variables: vars },
+    });
+
+    const ov = (await caller.studies.get({ id })).overview;
+    expect(ov.variables[0].source).toBe("derived"); // was "researcher" before the fix
+  });
+
   it("setOverview persists the typed plan fields + templateKey", async () => {
     await seedUserWithWorkspace("ext_a", "Alpha");
     const caller = createCaller({ authUser: authUser("ext_a") });
@@ -2983,13 +3039,13 @@ describe("studies — typed plan fields + preregistration template (ADR-0101)", 
         ...emptyPlan,
         abstract: "A study.",
         templateKey: "replication-recipe",
-        samplingPlan: { text: "N=400, 95% power.", source: "researcher" },
-        analysisPlan: { text: "Two-sided t-test.", source: "researcher" },
+        samplingPlan: { text: "N=400, 95% power." },
+        analysisPlan: { text: "Two-sided t-test." },
         variables: [
-          { id: "v1", name: "Label", role: "iv", instanceId: null, notes: "on/off", source: "researcher" },
+          { id: "v1", name: "Label", role: "iv", instanceId: null, notes: "on/off" },
         ],
         expectedOutcomes: [
-          { id: "o1", hypothesisIndex: 1, prediction: "Lower credibility.", source: "researcher" },
+          { id: "o1", hypothesisIndex: 1, prediction: "Lower credibility." },
         ],
       },
     });
@@ -3010,7 +3066,7 @@ describe("studies — typed plan fields + preregistration template (ADR-0101)", 
 
     await caller.studies.setOverview({
       studyId: id,
-      overview: { ...emptyPlan, samplingPlan: { text: "N=400.", source: "researcher" }, templateKey: "replication-recipe" },
+      overview: { ...emptyPlan, samplingPlan: { text: "N=400." }, templateKey: "replication-recipe" },
     });
     // A save that doesn't mention the typed fields at all (e.g. an older client).
     await caller.studies.setOverview({ studyId: id, overview: { ...emptyPlan, abstract: "Edited." } });

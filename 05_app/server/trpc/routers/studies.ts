@@ -73,7 +73,10 @@ import {
   readVariantBindings,
   summarizeConfigDiff,
   validateConfig,
+  type PlanField,
+  type PlanVariable,
   type StudyOverview,
+  type VariableRole,
 } from "@/server/modules/blocks";
 import { cellLabel, pruneBindings, type VariantBinding, type VariantFactor } from "@/lib/variants/factorial";
 import { changelogBetween, initialVersionSummary, DEFAULT_NEW_STUDY_SNAPSHOT } from "@/server/modules/changelog";
@@ -115,10 +118,24 @@ function normalizeTags(raw: string[]): string[] {
   return [...new Set(slugs)].slice(0, 20);
 }
 
-/** A typed plan field + its provenance (ADR-0101). `source` is "researcher" for
- *  everything v1 writes; item ⑨ will write "derived". */
-const planFieldSchema = (max: number) =>
-  z.object({ text: z.string().max(max), source: z.enum(["researcher", "derived"]) });
+/**
+ * A typed plan field on the wire — **text only** (ADR-0101; ADR-0106 D4).
+ *
+ * `source` is deliberately NOT accepted from the client. It is a claim about who
+ * authored a scientific commitment, and the browser does not get to assert that.
+ * No PlanField is ever derived (ADR-0106 D1/D3 — prose is intent), so the server
+ * writes `"researcher"` for all five, full stop.
+ *
+ * This also kills a live defect: the editor used to send `source: "researcher"`
+ * hardcoded on every save, so anything that ever wrote `"derived"` would be
+ * silently reverted the next time the researcher opened Overview and pressed
+ * Save — the exact clobbering ADR-0101's provenance slot exists to prevent.
+ */
+const planFieldSchema = (max: number) => z.object({ text: z.string().max(max) });
+
+/** Provenance is decided here, never sent (ADR-0106 D4). */
+const researcherField = (f: { text: string } | undefined, current: PlanField): PlanField =>
+  f ? { text: f.text, source: "researcher" } : current;
 
 /** Whether a study has started collecting data (ADR-0101). Derived, never stored. */
 export type DataCollectionStatus = "not-started" | "collecting" | "finished";
@@ -3194,6 +3211,11 @@ export const studiesRouter = router({
           originalStudy: planFieldSchema(2000).optional(),
           targetEffect: planFieldSchema(2000).optional(),
           differences: planFieldSchema(20000).optional(),
+          // `source` is absent on both, like `dataCollectionStatus` — the server
+          // decides provenance (ADR-0106 D4). A variable is "derived" iff its
+          // `instanceId` resolves to a real block in THIS study's snapshot; that
+          // is a fact the server can check, which is the only kind of provenance
+          // claim worth storing.
           variables: z
             .array(
               z.object({
@@ -3202,7 +3224,6 @@ export const studiesRouter = router({
                 role: z.enum(["iv", "dv", "covariate", "exclusion"]),
                 instanceId: z.string().nullable(),
                 notes: z.string().max(1000),
-                source: z.enum(["researcher", "derived"]),
               }),
             )
             .max(50)
@@ -3213,7 +3234,6 @@ export const studiesRouter = router({
                 id: z.string(),
                 hypothesisIndex: z.number().int().positive().nullable(),
                 prediction: z.string().max(1000),
-                source: z.enum(["researcher", "derived"]),
               }),
             )
             .max(50)
@@ -3234,6 +3254,24 @@ export const studiesRouter = router({
       // and revert their OSF filing from the Recipe schema to Open-Ended.
       const current = readOverview(tip.version.definitionSnapshot);
       const o = input.overview;
+
+      // Provenance, decided here (ADR-0106 D4). A variable is "derived" iff its
+      // block link resolves against THIS study's own snapshot — the same shape
+      // as ADR-0102's ratchet, where a claim is "Preregistered" only if its
+      // binding resolves. Clear the link and it is honestly researcher-authored
+      // again; point it at a block that isn't there and no chip is earned.
+      const instanceIds = new Set(readBlocks(tip.version.definitionSnapshot).map((b) => b.instanceId));
+      const withProvenance = (v: {
+        id: string;
+        name: string;
+        role: VariableRole;
+        instanceId: string | null;
+        notes: string;
+      }): PlanVariable => ({
+        ...v,
+        source: v.instanceId && instanceIds.has(v.instanceId) ? "derived" : "researcher",
+      });
+
       const overview: StudyOverview = {
         ...current,
         abstract: o.abstract,
@@ -3242,13 +3280,16 @@ export const studiesRouter = router({
         replicationNotes: o.replicationNotes,
         ...(o.replicationIntent ? { replicationIntent: o.replicationIntent } : {}),
         ...(o.templateKey ? { templateKey: o.templateKey } : {}),
-        ...(o.samplingPlan ? { samplingPlan: o.samplingPlan } : {}),
-        ...(o.analysisPlan ? { analysisPlan: o.analysisPlan } : {}),
-        ...(o.variables ? { variables: o.variables } : {}),
-        ...(o.expectedOutcomes ? { expectedOutcomes: o.expectedOutcomes } : {}),
-        ...(o.originalStudy ? { originalStudy: o.originalStudy } : {}),
-        ...(o.targetEffect ? { targetEffect: o.targetEffect } : {}),
-        ...(o.differences ? { differences: o.differences } : {}),
+        samplingPlan: researcherField(o.samplingPlan, current.samplingPlan),
+        analysisPlan: researcherField(o.analysisPlan, current.analysisPlan),
+        ...(o.variables ? { variables: o.variables.map(withProvenance) } : {}),
+        // No expected outcome is derived — a prediction is intent (ADR-0106 D1).
+        ...(o.expectedOutcomes
+          ? { expectedOutcomes: o.expectedOutcomes.map((e) => ({ ...e, source: "researcher" as const })) }
+          : {}),
+        originalStudy: researcherField(o.originalStudy, current.originalStudy),
+        targetEffect: researcherField(o.targetEffect, current.targetEffect),
+        differences: researcherField(o.differences, current.differences),
       };
       await db
         .update(experimentVersion)

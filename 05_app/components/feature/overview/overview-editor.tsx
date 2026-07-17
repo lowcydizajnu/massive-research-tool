@@ -658,15 +658,24 @@ export function OverviewEditor({
                 // schema and setOverview's merge keeps whatever is stored, so an
                 // untouched picker never manufactures a decision.
                 templateKey: explicitTemplateKey,
-                samplingPlan: { text: samplingPlan, source: "researcher" },
-                analysisPlan: { text: analysisPlan, source: "researcher" },
-                variables: variables.filter((v) => v.name.trim() !== ""),
-                expectedOutcomes: expectedOutcomes.filter((o) => o.prediction.trim() !== ""),
+                // `source` is never sent — it is derived server-side, like
+                // `dataCollectionStatus`. This used to hardcode
+                // `source: "researcher"` on all five, which meant the provenance
+                // slot ADR-0101 built would be reverted the first time anyone
+                // opened Overview and pressed Save (ADR-0106 D4).
+                samplingPlan: { text: samplingPlan },
+                analysisPlan: { text: analysisPlan },
+                variables: variables
+                  .filter((v) => v.name.trim() !== "")
+                  .map(({ id, name, role, instanceId, notes }) => ({ id, name, role, instanceId, notes })),
+                expectedOutcomes: expectedOutcomes
+                  .filter((o) => o.prediction.trim() !== "")
+                  .map(({ id, hypothesisIndex, prediction }) => ({ id, hypothesisIndex, prediction })),
                 // Sent regardless of the current template: a field hidden by a
                 // template switch keeps its stored value rather than being wiped.
-                originalStudy: { text: originalStudy, source: "researcher" },
-                targetEffect: { text: targetEffect, source: "researcher" },
-                differences: { text: differences, source: "researcher" },
+                originalStudy: { text: originalStudy },
+                targetEffect: { text: targetEffect },
+                differences: { text: differences },
               },
             })
           }
