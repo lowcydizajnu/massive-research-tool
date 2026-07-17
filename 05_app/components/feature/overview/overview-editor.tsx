@@ -209,6 +209,20 @@ export function OverviewEditor({
   };
 
   /**
+   * Push a list-shaped OSF answer back to the plan field it mirrors (owner
+   * 2026-07-17 — "update origin"). Only ever list→list, so it is a plain copy
+   * with nothing to parse or corrupt. Today: OSF's hypothesis question → the
+   * plan's Hypotheses.
+   */
+  const updateOriginFromOsf = (q: { label: string }, itemList: string[]) => {
+    const label = q.label.toLowerCase();
+    if (label.includes("hypothes") || label.includes("research question")) {
+      setHypotheses(itemList.filter((x) => x.trim()));
+      dirty();
+    }
+  };
+
+  /**
    * Text from the researcher's OWN plan to offer as a starting draft for an OSF
    * question (ADR-0107 D10). Conservative and hand-picked: only the clearest,
    * same-scope overlaps, and NEVER the foreknowledge certification, whose scope
@@ -219,11 +233,12 @@ export function OverviewEditor({
     const label = q.label.toLowerCase();
     if (label.includes("foreknowledge")) return null;
     if (label.includes("hypothes") || label.includes("research question")) {
-      const text = hypotheses
-        .filter((h) => h.trim())
-        .map((h, i) => `H${i + 1}: ${h.trim()}`)
-        .join("\n");
-      return text ? { from: "your hypotheses", text } : null;
+      const items = hypotheses.filter((h) => h.trim()).map((h) => h.trim());
+      // `items` lets a list-shaped OSF question copy list→list (no text parse);
+      // `text` is the fallback for a prose rendering.
+      return items.length
+        ? { from: "your hypotheses", text: items.map((h, i) => `H${i + 1}: ${h}`).join("\n"), items }
+        : null;
     }
     if (label.includes("sample size")) {
       return samplingPlan.trim() ? { from: "your sampling plan", text: samplingPlan.trim() } : null;
@@ -677,6 +692,7 @@ export function OverviewEditor({
             answers={templateAnswers}
             onAnswer={onAnswerOsf}
             prefillFor={planPrefill}
+            onUpdateOrigin={updateOriginFromOsf}
           />
           <TemplateQuestions
             heading={`Optional for ${osfQuestions.data.templateLabel}`}
@@ -685,6 +701,7 @@ export function OverviewEditor({
             answers={templateAnswers}
             onAnswer={onAnswerOsf}
             prefillFor={planPrefill}
+            onUpdateOrigin={updateOriginFromOsf}
             defaultCollapsed
           />
         </>

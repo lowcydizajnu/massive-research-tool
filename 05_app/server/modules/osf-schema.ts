@@ -190,7 +190,31 @@ export function toRegistrationResponses(questions: OsfQuestion[], answers: OsfAn
   const out: OsfAnswers = {};
   for (const q of questions) {
     const v = answers[q.key];
-    if (!isBlank(v)) out[q.key] = v!;
+    if (isBlank(v)) continue;
+    // A list-shaped text question (hypotheses) is EDITED as separate entries but
+    // FILED as OSF's one text field (owner 2026-07-17): combine at the push
+    // boundary. A select's array is the real submittable shape and passes through.
+    if (Array.isArray(v) && isListQuestion(q)) {
+      out[q.key] = v.map((line, i) => `${i + 1}. ${line.trim()}`).join("\n");
+    } else {
+      out[q.key] = v!;
+    }
   }
   return out;
+}
+
+/**
+ * A text question we let the researcher edit as a LIST of entries rather than one
+ * blob (owner 2026-07-17), because their own plan already holds it that way — so
+ * prefill and update-origin become clean list↔list copies with no text-to-
+ * structure parsing to corrupt anything. Combined into OSF's single text field
+ * only at push (see toRegistrationResponses).
+ *
+ * Hypotheses today; the same mechanism extends to manipulated/measured variables.
+ * Never a select (those are already lists on OSF's side).
+ */
+export function isListQuestion(q: OsfQuestion): boolean {
+  if (q.kind !== "long-text") return false;
+  const l = q.label.toLowerCase();
+  return l.includes("hypothes") || l.includes("research question");
 }

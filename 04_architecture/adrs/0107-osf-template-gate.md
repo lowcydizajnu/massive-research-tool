@@ -273,3 +273,21 @@ D2 said "the form never pre-fills an OSF answer." The project owner asked for th
 - **The mapping is coarse and forgiving.** Because the result is editable, a slightly-off field↔question association yields a draft the researcher fixes, not a filed error. So we use a small conservative map (our field → topic), never a live per-label lookup that can silently drift (the D5/engineer objection).
 
 **Net:** the researcher gets the convenience they asked for; the artifact still contains only text they saw, invoked, and can edit; and the one question where our fact and OSF's question genuinely diverge stays hand-written.
+
+---
+
+## D11 (2026-07-17) — list-shaped questions dissolve the reverse-sync problem (owner idea)
+
+D10 gave the researcher a prefill button (plan → OSF, editable). The owner then asked for the reverse — "update origin", push an edited OSF answer back to the plan — for bidirectional consistency. That runs into a shape wall: our Hypotheses and Variables are **structured lists**, OSF's questions are **single free-text fields**. Copying a list into text is clean; parsing text back into a structured list is a guess, and a wrong guess silently corrupts the researcher's canonical plan (the exact thing this feature exists to prevent).
+
+The owner's resolution (verbatim): *"Can't we then use similar layout for template hypothesis we have for plan and while exporting combine them in one input to match osf/template criteria?"* — and it dissolves the problem entirely.
+
+**Decision:** an OSF question the researcher's own plan already holds as a list (hypotheses today) is **edited as a list**, using the same entry editor as the plan field, and **combined into OSF's single text field only at the push boundary** (`toRegistrationResponses` numbers and newline-joins the entries). Stored in `templateAnswers` as `string[]`.
+
+Because both sides are now lists:
+- **Prefill** copies list → list (`prefill.items`), no join-then-split.
+- **Update-origin** copies list → list back to the plan, no text→structure parse.
+
+Nothing is ever parsed from text into structure, so nothing can be silently mangled. `isListQuestion(q)` (osf-schema) is the single source of truth for which questions are list-shaped — the component renders them as lists and `toRegistrationResponses` combines them, in lockstep. Today: hypotheses / research questions. The same mechanism extends to manipulated/measured variables (next), where the entry carries name + notes.
+
+Verified live end to end (2026-07-17): OSF's hypothesis question renders as an H1/H2 list editor; the plan's hypotheses prefill into it list→list; editing it and clicking "Update your plan to match" flows back to the plan; the answer persists in the DB as an **array**; and `toRegistrationResponses` combines the array into `"1. …\n2. …"` for OSF (unit-tested). A real multi-select still passes through as an array — not every array is a list question.

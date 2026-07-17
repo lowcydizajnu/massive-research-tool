@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 
-import { byPage, type OsfAnswers, type OsfQuestion } from "@/server/modules/osf-schema";
+import { byPage, isListQuestion, type OsfAnswers, type OsfQuestion } from "@/server/modules/osf-schema";
 
 /**
  * "Questions this template asks" — item ⑨ Phase B (ADR-0107, wireframe
@@ -23,7 +23,7 @@ import { byPage, type OsfAnswers, type OsfQuestion } from "@/server/modules/osf-
  * as a starting draft (ADR-0107 D10). Returns null where nothing relates, or
  * where the scopes differ (the D9 forgery risk — never offered on foreknowledge).
  */
-export type PrefillFor = (q: OsfQuestion) => { from: string; text: string } | null;
+export type PrefillFor = (q: OsfQuestion) => { from: string; text: string; items?: string[] } | null;
 
 export function TemplateQuestions({
   heading,
@@ -33,6 +33,7 @@ export function TemplateQuestions({
   answers,
   onAnswer,
   prefillFor,
+  onUpdateOrigin,
   defaultCollapsed,
   readOnly = false,
 }: {
@@ -45,6 +46,7 @@ export function TemplateQuestions({
   answers: OsfAnswers;
   onAnswer: (key: string, value: string | string[]) => void;
   prefillFor?: PrefillFor;
+  onUpdateOrigin?: (q: OsfQuestion, items: string[]) => void;
   /** Collapsed by default — used for the Optional section, so the page opens
    *  scannable and the researcher expands what they need. */
   defaultCollapsed?: boolean;
@@ -79,6 +81,7 @@ export function TemplateQuestions({
               value={answers[q.key]}
               onAnswer={onAnswer}
               prefill={prefillFor?.(q) ?? null}
+              onUpdateOrigin={onUpdateOrigin}
               readOnly={readOnly}
             />
           ))}
@@ -164,21 +167,30 @@ function Question({
   value,
   onAnswer,
   prefill,
+  onUpdateOrigin,
   readOnly,
 }: {
   q: OsfQuestion;
   value: string | string[] | undefined;
   onAnswer: (key: string, value: string | string[]) => void;
   /** Text from the researcher's own plan that relates to this question, or null. */
-  prefill: { from: string; text: string } | null;
+  prefill: { from: string; text: string; items?: string[] } | null;
+  /** Push this list answer back to the plan field it mirrors (owner 2026-07-17).
+   *  Only wired for list questions, where the copy is list→list and safe. */
+  onUpdateOrigin?: (q: OsfQuestion, items: string[]) => void;
   readOnly: boolean;
 }) {
   const id = `osfq-${q.key}`;
   const helpId = q.help ? `${id}-help` : undefined;
+  // A list-shaped question (hypotheses) is edited as entries and combined into
+  // OSF's one text field at push — so prefill and update-origin are clean
+  // list↔list copies, never a text→structure parse (owner 2026-07-17).
+  const asList = isListQuestion(q);
+  const listValue = Array.isArray(value) ? value : [];
   // Prefill is only meaningful for a text answer — you cannot draft a select.
   const isText = q.kind === "long-text" || q.kind === "short-text";
   const currentText = typeof value === "string" ? value : "";
-  const showPrefill = !readOnly && isText && prefill && prefill.text !== currentText;
+  const showPrefill = !readOnly && isText && !asList && prefill && prefill.text !== currentText;
   // A select renders as a fieldset of radio/checkbox cards, so there is no ONE
   // element to point `htmlFor` at — its accessible name comes from the
   // fieldset's <legend>. Emitting a label here anyway produced a `for` pointing
@@ -230,7 +242,16 @@ function Question({
         </div>
       ) : null}
 
-      {q.kind === "single-select" || q.kind === "multi-select" ? (
+      {asList ? (
+        <ListQuestion
+          q={q}
+          items={listValue}
+          onChange={(items) => onAnswer(q.key, items)}
+          prefill={prefill?.items ? { from: prefill.from, items: prefill.items } : null}
+          onUpdateOrigin={onUpdateOrigin ? (items) => onUpdateOrigin(q, items) : undefined}
+          readOnly={readOnly}
+        />
+      ) : q.kind === "single-select" || q.kind === "multi-select" ? (
         <SelectQuestion q={q} id={id} value={value} onAnswer={onAnswer} readOnly={readOnly} helpId={helpId} />
       ) : q.kind === "short-text" ? (
         <input
@@ -327,5 +348,109 @@ function SelectQuestion({
         );
       })}
     </fieldset>
+  );
+}
+
+/**
+ * A list-of-entries editor for an OSF question the researcher's own plan already
+ * holds as a list — hypotheses (owner 2026-07-17). Same shape as the plan's
+ * Hypotheses editor, so the two read alike. Stored as string[]; combined into
+ * OSF's single text field only at push (osf-schema.toRegistrationResponses).
+ *
+ * Because both this and the plan field are lists, prefill and update-origin are
+ * clean copies — no text→structure parsing, so nothing can be silently mangled.
+ */
+function ListQuestion({
+  q,
+  items,
+  onChange,
+  prefill,
+  onUpdateOrigin,
+  readOnly,
+}: {
+  q: OsfQuestion;
+  items: string[];
+  onChange: (items: string[]) => void;
+  prefill: { from: string; items: string[] } | null;
+  onUpdateOrigin?: (items: string[]) => void;
+  readOnly: boolean;
+}) {
+  const rows = items.length ? items : [""];
+  const set = (i: number, v: string) => onChange(rows.map((x, j) => (j === i ? v : x)));
+  const add = () => onChange([...rows, ""]);
+  const removeAt = (i: number) => onChange(rows.filter((_, j) => j !== i).length ? rows.filter((_, j) => j !== i) : []);
+
+  const filled = items.filter((x) => x.trim());
+  // Offer prefill only when it would actually change something.
+  const showPrefill = !readOnly && prefill && JSON.stringify(prefill.items) !== JSON.stringify(filled);
+  // Offer update-origin only once the answer diverges from — and isn't empty vs —
+  // its origin; both are lists, so this is a plain copy back.
+  const showUpdateOrigin =
+    !readOnly && onUpdateOrigin && filled.length > 0 && (!prefill || JSON.stringify(prefill.items) !== JSON.stringify(filled));
+
+  return (
+    <div className="flex flex-col gap-2">
+      {showPrefill ? (
+        <div className="flex items-center justify-between gap-2 rounded-[var(--radius-sm)] border border-dashed border-[var(--color-border-subtle)] p-2 text-[length:var(--text-small)]">
+          <span className="text-[var(--color-text-muted)]">From {prefill!.from} ({prefill!.items.length})</span>
+          <button
+            type="button"
+            onClick={() => onChange(prefill!.items)}
+            className="whitespace-nowrap rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] px-2 py-0.5 font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
+          >
+            Use these &amp; edit
+          </button>
+        </div>
+      ) : null}
+
+      <ul className="flex flex-col gap-2">
+        {rows.map((row, i) => (
+          <li key={i} className="flex items-start gap-2">
+            <span className="pt-2 font-mono text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)]">
+              H{i + 1}
+            </span>
+            <textarea
+              rows={2}
+              disabled={readOnly}
+              value={row}
+              placeholder={i === 0 ? q.example : ""}
+              onChange={(e) => set(i, e.target.value)}
+              className="flex-1 rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] px-3 py-2 text-[var(--color-text-primary)]"
+            />
+            {!readOnly ? (
+              <button
+                type="button"
+                aria-label={`Remove entry ${i + 1}`}
+                onClick={() => removeAt(i)}
+                className="mt-1.5 shrink-0 rounded-[var(--radius-sm)] p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)]"
+              >
+                ✕
+              </button>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+
+      {!readOnly ? (
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={add}
+            className="self-start rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] px-3 py-1.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
+          >
+            + Add
+          </button>
+          {showUpdateOrigin ? (
+            <button
+              type="button"
+              onClick={() => onUpdateOrigin!(filled)}
+              className="self-start rounded-[var(--radius-md)] px-3 py-1.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] underline hover:bg-[var(--color-surface-subtle)]"
+            >
+              Update your plan to match
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
   );
 }

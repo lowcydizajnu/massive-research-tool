@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   byPage,
+  isListQuestion,
   readOsfQuestions,
   toRegistrationResponses,
   unansweredRequired,
@@ -174,5 +175,41 @@ describe("the OSF wire contract, as observed", () => {
     const out = toRegistrationResponses(qs, { "344-4": stray });
     expect(out["344-4"]).toBe(stray);
     expect(out["344-4"]).not.toBe(stray.trim());
+  });
+});
+
+/**
+ * List-shaped questions (owner 2026-07-17): hypotheses are EDITED as separate
+ * entries — matching how the researcher's own plan holds them — and COMBINED
+ * into OSF's one text field only at push. This dissolves the reverse-sync
+ * corruption problem: both sides are lists, so prefill and update-origin are
+ * clean copies, never a text→structure parse.
+ */
+describe("list-shaped questions (hypotheses)", () => {
+  const qs = readOsfQuestions(PREREG);
+  const hyp = qs.find((q) => q.key === "344-2")!; // "Research questions or hypotheses"
+
+  it("recognises the hypothesis question as list-shaped, and prose questions as not", () => {
+    expect(isListQuestion(hyp)).toBe(true);
+    expect(isListQuestion(qs.find((q) => q.key === "344-51")!)).toBe(false); // Sample size — prose
+    expect(isListQuestion(qs.find((q) => q.key === "344-4")!)).toBe(false); // Foreknowledge — a select
+  });
+
+  it("combines list entries into OSF's single numbered text field at push", () => {
+    const out = toRegistrationResponses(qs, {
+      "344-2": ["Labels reduce perceived accuracy.", "The effect is larger for older adults."],
+    });
+    expect(out["344-2"]).toBe("1. Labels reduce perceived accuracy.\n2. The effect is larger for older adults.");
+    expect(typeof out["344-2"]).toBe("string"); // OSF's field is text, never an array
+  });
+
+  it("still passes a real multi-select through as an array — not every array is a list question", () => {
+    const out = toRegistrationResponses(qs, { "344-17": ["Randomized Experiment: …"] });
+    expect(Array.isArray(out["344-17"])).toBe(true);
+  });
+
+  it("treats an empty hypothesis list as unanswered", () => {
+    expect(unansweredRequired(qs, { "344-2": [] }).map((q) => q.key)).toContain("344-2");
+    expect(toRegistrationResponses(qs, { "344-2": [] })).toEqual({});
   });
 });
