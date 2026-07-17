@@ -301,3 +301,21 @@ D4 said the completeness warning is surfaced "on the Preregister pre-flight." Th
 **Decision:** fold the OSF completeness into `PreflightChecklist` as its leading, emphasized row (warning tone, names every blank required question, carries the "Answer these" deep-link). One readiness surface, as D4's own wording always intended. The standalone component is removed; its content moved behind two optional props (`osfUnanswered`, `overviewHref`) so Publish & run and amendments — which pass neither — are unchanged.
 
 What stays load-bearing from D4: the OSF blanks **warn but never gate**. They feed the summary pill and the warning tone; they do **not** contribute to the "Proceed anyway" lock (only real methodological fails do), because the researcher owns their study. Incidental correctness gain: the OSF row no longer appears once data collection has started, where preregistration is already impossible.
+
+---
+
+## D11 addendum (2026-07-17) — variables are list-shaped but PREFILL-ONLY, not reversible (owner direction + sync audit)
+
+D11 promised the list-shaped mechanism would extend "to manipulated/measured variables next." The owner asked for it directly: *"independent/dependent variables might also be taken from the plan — fix what is missing."* Implemented, with one deliberate asymmetry vs hypotheses.
+
+**Decision:** OSF's **Manipulated variables** (344-58) and **Measured variables** (344-62) are list-shaped (`isListQuestion` true) and **prefill list→list** from the plan's IV / DV variables (entry = `name — notes`), combined into OSF's one numbered text field at push. They are **prefill-only**: `isReversibleListQuestion` returns false for them, so there is **no "update your plan to match"** push-back.
+
+**Why the asymmetry is correct, not an oversight.** A hypothesis has no richer home than its string, so OSF↔plan is a symmetric list↔list copy. A *variable's* plan home is **structured** — name + role + notes + the block a measure is read from — so pushing a flat OSF string list back would flatten all of that. That is the exact corruption D11 exists to prevent; the honest shape is one-way, with the plan's Variables section remaining the single source of truth. New `isReversibleListQuestion(q)` (osf-schema) draws the line: hypotheses reversible, variables not; `isListQuestion` = reversible ∪ variables.
+
+**Integrity fixes the sync audit surfaced (2026-07-17)** — a 6-lens adversarial workflow proving these changes found real defects in the list path, now fixed and tested (see `06_qa/audit-logs/2026-07-17-overview-help-variables-sync-audit.md`):
+
+- `toRegistrationResponses` now **drops blank list rows and renumbers** the survivors — a cleared entry `["A",""]` no longer files to OSF as a permanent `"1. A\n2. "` under a DOI (this bit hypotheses too).
+- `isBlank` treats an **all-blank array** (`[""]`, `["  "]`) as blank, and a new `isAnswered` shares that definition with the "N of M answered" counter — a required list with only an empty row no longer reads as answered and slips past `unansweredRequired` (the only completeness check).
+- the array→text flatten now keys on **`q.kind`** (select vs not), not the list heuristic, so a `string[]` stranded on a text question by an OSF label revision can never reach OSF as a raw array (which would 400).
+
+**Known limitation, not fixed (accepted).** Concurrent Overview saves are **last-write-wins** — `setOverview` replaces the whole snapshot and `templateAnswers` wholesale, so two workspace members editing the same draft can clobber each other. This is a **pre-existing, systemic** property of the entire snapshot-mutation model (blocks, reorder, …), not a regression from these changes, and preregistration drafts are effectively single-author. Optimistic-concurrency control is a possible future item; it does not block this work.
