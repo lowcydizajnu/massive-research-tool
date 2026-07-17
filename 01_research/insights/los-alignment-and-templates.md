@@ -43,6 +43,13 @@ We are **strongly aligned on the *spine*** of LOS and **thin on the *connective 
 
 **Later:** ⑨ domain/method-derived templates; ⑩ remaining PIDs (ROR, funder, Subjects, DataCite type, language).
 
+> **Corrected 2026-07-16 by a live read** (`GET /v2/schemas/registrations/`), see [ADR-0106](../../04_architecture/adrs/0106-derived-design-facts-and-osf-templates.md). Three claims above are wrong:
+> 1. **Not 14 templates — 44 active.** The count came from a newsletter, never verified. Many are provider-specific and irrelevant to us (Character Lab, YOUth, EGAP, ASIST, Global Flourishing, Services, Platform); one is literally `"Outdated EGAP Registration (DO NOT USE)"`.
+> 2. **The names here are prose labels, not `attributes.name`** — and `resolveSchemaId` matches the name verbatim, so none of them would resolve. Real: `"Eye-Tracking Research Methods"`, `"Preregistration Template from AsPredicted.org"`, `"OSF Preregistration"`. The "Replication Recipe pre/post" named here is the **2013** pair; the one we file is **2014**.
+> 3. **The eye-tracking/EEG opening is not ours to take.** The strategic argument is sound but capability-bound: we have zero gaze and zero EEG blocks, so filing those method sections would preregister a method the platform cannot run. Where the argument *does* hold is Social Psychology and the generic templates — our 54 blocks are social-psych instruments.
+>
+> The core insight survives intact, and narrows usefully: the plan does not write itself, but **the study can describe itself** — block order, arms and weights, exposure durations, and a variable's data type are true by construction. What OSF can't do is read your design; what we can't do is read your intent.
+
 ## What this insight does NOT tell us
 
 - **Sequencing vs. the current roadmap** — the Large items (template picker, funder/ROR) may or may not precede other V-line work; that's the owner's call.
