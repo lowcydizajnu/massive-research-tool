@@ -92,8 +92,33 @@ Field labels reuse the existing pattern: `text-[length:var(--text-label)] upperc
 - Save status is `role="status"` (polite).
 - Selects (role, measure, hypothesis reference) have visible labels, not placeholder-only labelling.
 
+## Design facts (item ⑨ Phase A) — [ADR-0106](../../04_architecture/adrs/0106-derived-design-facts-and-osf-templates.md)
+
+A read-only panel above the typed plan fields, headed **"From your design"**, with the sub-line *"Read from the study you built. We don't guess what it means — that part's yours."*
+
+**It states facts, never intent.** Every line is read off the frozen snapshot; nothing here is inferred (ADR-0106 D1). What renders:
+
+- **Order** — "N screens, in the order you built them." When block-order randomization ships this line states the declared randomization instead; until then it must **not** say "random" (nothing shuffles blocks — `randomizeOrder` is option-order inside one question).
+- **Arms** — each condition's name and allocation weight, or "One group (no conditions)" when none exist. Blocks gated to an arm read "shown only to: <names>" — never "the treatment condition", which is undeclared.
+- **Timing** — configured values verbatim: "Timed exposure: 3000 ms", "Forced wait: 5 s".
+- **Measures** — one row per response-collecting block: its prompt, its type in researcher language ("7-point scale, 1–7"), and its block link.
+
+Nothing here is editable and nothing is stored. It is recomputed on every render, so it cannot go stale — and after preregistration it recomputes from the *frozen* snapshot, so it always describes the filed plan (ADR-0106 D2).
+
+**Candidate variables.** Below Measures, each response-collecting block not already in `variables[]` renders as a candidate: its name, its data type (read from the block's `responseSchema`), and a **"Use this"** button. "Use this" adds it to the Variables list with the block link set and provenance `derived`; the researcher then picks the role themselves — **role is intent and is never derived** (a dropdown left at its empty default, not a guess).
+
+**Provenance treatment.** A variable added this way carries an **"From your design"** chip. Editing its name or notes leaves the chip (the *link* is still machine-true); the chip is dropped only when the researcher clears the block link. The chip is a statement about where the link came from, not a lock — nothing is read-only because of it.
+
+**Empty state.** A study with no blocks yet renders the panel with "Build your study and its design appears here." — not a hidden panel, because the absence is the point at the Overview stage.
+
+### OSF disclosure toggle
+
+At the foot of the panel: **"Note auto-derived sections when filing to OSF"**, a checkbox **checked by default** (ADR-0106 D5, owner direction 2026-07-16 — *"the researcher should be able to manage it… their study"*). Explainer: *"Your OSF filing will say which parts were read from your design rather than written by you. You can turn this off."*
+
+Unchecking is a real choice with no nag and no warning tone. It is opt-out, not a confirmation gate — the researcher owns their filing.
+
 ## Open questions
 
 - Live markdown preview in the editor (split view) — still deferred; the editor is author-only for v1.
-- **Auto-derivation (item ⑨)** — variables and the design/procedure narrative are largely derivable from the built study (blocks already declare whether they collect a response, and conditions/factors already describe the design). The data shape reserves a per-field `source: derived | researcher` slot for this, but v1 renders **no** provenance UI because nothing is auto-filled yet. When ⑨ lands, derived fields need an "Auto-filled from your design" affordance + a refresh/override treatment — spec that then.
-- Stricter OSF templates (standard OSF Preregistration, AsPredicted, EEG/ERP, Eye-tracking) are deliberately **not** offered in v1: they carry required questions, which needs a required-field gate before filing. Revisit per ADR-0101's triggers.
+- **Refresh/override for derived PlanFields** — moot for Phase A: no PlanField prose is ever auto-filled (ADR-0106 D3 rejects it), so there is nothing to refresh. Revisit only if D1's "never derive" list is ever loosened.
+- Stricter OSF templates — **Phase B**, now scoped and unblocked. The live read (2026-07-16) confirms `schema_blocks` exposes `required` + the exact select-option strings, so the required-field gate is buildable. Note for that spec: the roadmap's template names are wrong (it's `"OSF Preregistration"`, `"Eye-Tracking Research Methods"`, `"Preregistration Template from AsPredicted.org"`), there are 44 schemas not 14, and Eye-tracking/EEG are out on capability grounds — see ADR-0106.
