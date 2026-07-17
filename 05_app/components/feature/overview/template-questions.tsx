@@ -1,5 +1,7 @@
 "use client";
 
+import { useState, type ReactNode } from "react";
+
 import { byPage, type OsfAnswers, type OsfQuestion } from "@/server/modules/osf-schema";
 
 /**
@@ -31,6 +33,7 @@ export function TemplateQuestions({
   answers,
   onAnswer,
   prefillFor,
+  defaultCollapsed,
   readOnly = false,
 }: {
   heading: string;
@@ -42,6 +45,9 @@ export function TemplateQuestions({
   answers: OsfAnswers;
   onAnswer: (key: string, value: string | string[]) => void;
   prefillFor?: PrefillFor;
+  /** Collapsed by default — used for the Optional section, so the page opens
+   *  scannable and the researcher expands what they need. */
+  defaultCollapsed?: boolean;
   readOnly?: boolean;
 }) {
   // File questions are out of v1 scope — and they are the only questions whose
@@ -52,29 +58,13 @@ export function TemplateQuestions({
   );
   if (!shown.length) return null;
 
-  const titleId = `tq-${heading.replace(/\W+/g, "-").toLowerCase()}`;
   const answered = shown.filter((q) => {
     const v = answers[q.key];
     return Array.isArray(v) ? v.length > 0 : !!v?.trim();
   }).length;
 
   return (
-    <section aria-labelledby={titleId} className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3
-          id={titleId}
-          className="font-[family-name:var(--font-plex-serif)] text-[length:var(--text-h4)] text-[var(--color-text-primary)]"
-        >
-          {heading}
-        </h3>
-        <p aria-live="polite" className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
-          {answered} of {shown.length} answered
-        </p>
-      </div>
-      {intro ? (
-        <p className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">{intro}</p>
-      ) : null}
-
+    <SectionShell heading={heading} intro={intro} counter={`${answered} of ${shown.length} answered`} defaultCollapsed={defaultCollapsed}>
       {byPage(shown).map(({ page, questions: qs }) => (
         <div key={page} className="flex flex-col gap-3">
           {page ? (
@@ -94,7 +84,78 @@ export function TemplateQuestions({
           ))}
         </div>
       ))}
-    </section>
+    </SectionShell>
+  );
+}
+
+/**
+ * A big, scannable, collapsible section header (owner 2026-07-17: "use bigger
+ * headers… they might be also expandable/collapsable"). Native <details> so it
+ * works without JS and stays accessible. Exported so the editor wraps its own
+ * plan sections in the same shell — one section chrome across the page.
+ */
+export function SectionShell({
+  heading,
+  intro,
+  counter,
+  info,
+  defaultCollapsed = false,
+  children,
+}: {
+  heading: string;
+  intro?: string;
+  counter?: string;
+  /** Optional explainer, revealed by an info affordance in the header. */
+  info?: string;
+  defaultCollapsed?: boolean;
+  children: ReactNode;
+}) {
+  // Open state lives in React, not as a bare `open` prop. Passing `open={bool}`
+  // to <details> makes it CONTROLLED: any re-render (a template switch, a
+  // keystroke elsewhere) slams the section back to its default, collapsing one
+  // the researcher just opened. `onToggle` keeps our state in sync with the
+  // user's click, so re-renders preserve their choice.
+  const [open, setOpen] = useState(!defaultCollapsed);
+  return (
+    <details
+      open={open}
+      onToggle={(e) => setOpen((e.currentTarget as HTMLDetailsElement).open)}
+      className="group flex flex-col gap-4 border-t border-[var(--color-border-subtle)] pt-4"
+    >
+      <summary className="flex cursor-pointer list-none flex-wrap items-baseline justify-between gap-2">
+        <span className="flex items-baseline gap-2">
+          <span
+            aria-hidden
+            className="text-[var(--color-text-muted)] transition-transform group-open:rotate-90"
+          >
+            ▸
+          </span>
+          <span className="font-[family-name:var(--font-plex-serif)] text-[length:var(--text-h3)] text-[var(--color-text-primary)]">
+            {heading}
+          </span>
+          {info ? (
+            <span
+              tabIndex={0}
+              role="note"
+              title={info}
+              aria-label={info}
+              className="cursor-help rounded-full border border-[var(--color-border-subtle)] px-1.5 text-[length:var(--text-small)] text-[var(--color-text-muted)]"
+            >
+              i
+            </span>
+          ) : null}
+        </span>
+        {counter ? (
+          <span aria-live="polite" className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
+            {counter}
+          </span>
+        ) : null}
+      </summary>
+      {intro ? (
+        <p className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">{intro}</p>
+      ) : null}
+      {children}
+    </details>
   );
 }
 

@@ -13,7 +13,7 @@ import {
 } from "@/lib/prereg-templates";
 import { DesignFactsPanel } from "@/components/feature/overview/design-facts-panel";
 import { SubjectPicker } from "@/components/feature/overview/subject-picker";
-import { TemplateQuestions, type PrefillFor } from "@/components/feature/overview/template-questions";
+import { SectionShell, TemplateQuestions, type PrefillFor } from "@/components/feature/overview/template-questions";
 import { api } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
 import type {
@@ -231,6 +231,20 @@ export function OverviewEditor({
     if (label.includes("statistical model")) {
       return analysisPlan.trim() ? { from: "your analysis plan", text: analysisPlan.trim() } : null;
     }
+    // Variables are structured (name + role + notes); we generate TEXT from them
+    // for OSF's free-text questions. Manipulated = your IVs, measured = your DVs.
+    const varsAs = (role: VariableRole) => {
+      const rows = variables.filter((v) => v.role === role && v.name.trim());
+      return rows.map((v) => `- ${v.name.trim()}${v.notes.trim() ? ` (${v.notes.trim()})` : ""}`).join("\n");
+    };
+    if (label.includes("manipulated variable")) {
+      const text = varsAs("iv");
+      return text ? { from: "your independent variables", text } : null;
+    }
+    if (label.includes("measured variable")) {
+      const text = varsAs("dv");
+      return text ? { from: "your dependent variables", text } : null;
+    }
     return null;
   };
 
@@ -311,11 +325,11 @@ export function OverviewEditor({
 
       {/* Three sections by whose question it is and whether it's required
           (owner 2026-07-17): the study's own plan, then OSF's mandatory
-          questions, then OSF's optional ones. */}
-      <h3 className="font-[family-name:var(--font-plex-serif)] text-[length:var(--text-h4)] text-[var(--color-text-primary)]">
-        Your study plan
-      </h3>
-
+          questions, then OSF's optional ones. Each a big collapsible header. */}
+      <SectionShell
+        heading="Your research plan"
+        info="The core of your preregistration, in My Research Lab's own fields. It travels with your study — your public record and anyone replicating it read from here — whichever OSF template you file under."
+      >
       <label className="flex flex-col gap-1">
         <span className={labelCls}>Abstract</span>
         <textarea
@@ -647,6 +661,8 @@ export function OverviewEditor({
       </div>
       ) : null}
 
+      </SectionShell>
+
       {/* OSF's own questions, split into required and optional (owner
           2026-07-17). Placed after the researcher's own plan, not opening the
           page. `onAnswerOsf` and `planPrefill` are defined near the top of the
@@ -654,7 +670,7 @@ export function OverviewEditor({
       {osfQuestions.data ? (
         <>
           <TemplateQuestions
-            heading={`Required for ${osfQuestions.data.templateLabel}`}
+            heading={`Mandatory for ${osfQuestions.data.templateLabel}`}
             intro="OSF asks these and marks them needed. You answer them in your own words; they file with your preregistration."
             questions={osfQuestions.data.questions}
             filter="required"
@@ -669,6 +685,7 @@ export function OverviewEditor({
             answers={templateAnswers}
             onAnswer={onAnswerOsf}
             prefillFor={planPrefill}
+            defaultCollapsed
           />
         </>
       ) : null}
