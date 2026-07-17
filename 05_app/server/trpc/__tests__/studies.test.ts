@@ -3094,6 +3094,58 @@ describe("studies — typed plan fields + preregistration template (ADR-0101)", 
     expect(ov.variables[0].source).toBe("derived"); // was "researcher" before the fix
   });
 
+  /**
+   * Owner 2026-07-16: "maybe we should add numbers to the end of default when
+   * user adds them." Without it every instance of a module falls back to the
+   * same module name, so three Likerts are three identical rows in the Builder,
+   * the "Measured by" picker, and the design facts.
+   */
+  describe("a new block gets a numbered default title", () => {
+    const add = (c: ReturnType<typeof createCaller>, id: string, key: string) =>
+      c.studies.addBlock({ studyId: id, source: "core", key, version: "1.0.0" });
+    const titles = async (c: ReturnType<typeof createCaller>, id: string) =>
+      (await c.studies.get({ id })).blocks.map((b) => b.title);
+
+    it("numbers from 1, per module", async () => {
+      await seedUserWithWorkspace("ext_a", "Alpha");
+      const c = createCaller({ authUser: authUser("ext_a") });
+      const { id } = await c.studies.create({ kind: "blank", title: "S" });
+      await add(c, id, "likert-7");
+      await add(c, id, "likert-7");
+      await add(c, id, "free-text");
+      // Counting is per module — a free-text does not become "3".
+      expect(await titles(c, id)).toEqual(["Likert (7-point) 1", "Likert (7-point) 2", "Free text 1"]);
+    });
+
+    it("takes MAX+1, so deleting one never hands out a number twice", async () => {
+      await seedUserWithWorkspace("ext_a", "Alpha");
+      const c = createCaller({ authUser: authUser("ext_a") });
+      const { id } = await c.studies.create({ kind: "blank", title: "S" });
+      await add(c, id, "likert-7");
+      const second = await add(c, id, "likert-7");
+      await add(c, id, "likert-7"); // "3"
+      await c.studies.removeBlock({ studyId: id, instanceId: second.instanceId });
+
+      await add(c, id, "likert-7");
+      const t = await titles(c, id);
+      // count+1 would have produced a SECOND "3".
+      expect(t).toEqual(["Likert (7-point) 1", "Likert (7-point) 3", "Likert (7-point) 4"]);
+      expect(new Set(t).size).toBe(t.length);
+    });
+
+    it("never fights a researcher's own name — numbering happens only at birth", async () => {
+      await seedUserWithWorkspace("ext_a", "Alpha");
+      const c = createCaller({ authUser: authUser("ext_a") });
+      const { id } = await c.studies.create({ kind: "blank", title: "S" });
+      const first = await add(c, id, "likert-7");
+      await c.studies.setBlockTitle({ studyId: id, instanceId: first.instanceId, title: "Perceived accuracy" });
+      await add(c, id, "likert-7");
+      // The renamed block is untouched, and the newcomer doesn't reuse "1" — the
+      // rename removed it from the numbered set, and that is the researcher's call.
+      expect(await titles(c, id)).toEqual(["Perceived accuracy", "Likert (7-point) 1"]);
+    });
+  });
+
   it("setOverview persists the typed plan fields + templateKey", async () => {
     await seedUserWithWorkspace("ext_a", "Alpha");
     const caller = createCaller({ authUser: authUser("ext_a") });

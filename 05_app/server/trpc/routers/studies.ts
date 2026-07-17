@@ -297,6 +297,16 @@ async function nextVersionNumber(experimentId: string): Promise<number> {
   return (c?.c ?? 0) + 1;
 }
 
+/** "<Module name> <n>" — see `addBlock`. MAX+1 over the same module's existing
+ *  numbered defaults, so a delete can never make two blocks share a number. */
+function numberedTitle(blocks: BlockInstance[], def: { source: string; key: string; name: string }): string {
+  const re = new RegExp(`^${def.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} (\\d+)$`);
+  const highest = blocks
+    .filter((b) => b.source === def.source && b.key === def.key)
+    .reduce((max, b) => Math.max(max, Number(b.title?.match(re)?.[1] ?? 0)), 0);
+  return `${def.name} ${highest + 1}`;
+}
+
 async function conditionsForVersion(versionId: string): Promise<ConditionRow[]> {
   const rows = await db
     .select()
@@ -2644,6 +2654,21 @@ export const studiesRouter = router({
     }),
 
   /** Append a block (from the module catalogue) to the study's working tip. */
+  /**
+   * A numbered default title for a new block: "Likert (7-point) 1", "… 2".
+   *
+   * Without it every instance of a module falls back to the SAME module name,
+   * so a study with three Likerts shows three identical rows in the Builder, in
+   * the "Measured by" picker, and in the design facts — and choosing between
+   * them is guesswork (owner, 2026-07-16). Numbering from 1 is the familiar
+   * convention and, unlike renaming on collision, never touches a block the
+   * researcher already has.
+   *
+   * The number is MAX+1 over existing defaults, not count+1: add three, delete
+   * the second, and count+1 would hand out "3" twice. It is a plain editable
+   * title — rename it and nothing here ever fights you, because we only ever
+   * number at birth.
+   */
   addBlock: writeProcedure
     .input(
       z.object({
@@ -2668,6 +2693,7 @@ export const studiesRouter = router({
         key: def.key,
         version: def.version,
         config: def.defaultConfig,
+        title: numberedTitle(blocks, def),
       });
       await writeBlocks(tip.version.id, input.studyId, blocks, {
         actorUserId: ctx.dbUser.id,
