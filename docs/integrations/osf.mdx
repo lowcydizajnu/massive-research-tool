@@ -41,10 +41,10 @@ When you [preregister](/methodology/preregistration) a study, a background job s
     Other **active members of the workspace** (everyone except you, the pusher) are added to the OSF project as **unregistered contributors** — by display name, with email if available, marked bibliographic, with write permission. We pass `send_email=false`, so OSF doesn't send them surprise claim emails. A contributor that fails to add never aborts the registration. Contributors are added **only when the project is first created**.
   </Step>
   <Step title="File a draft registration">
-    A draft registration is created under the project, bound to the **"Open-Ended Registration"** schema (a single free-text summary field). Declared replications instead file under the **"Replication Recipe (Brandt et al., 2014): Pre-Registration"** schema, mapping the fields we hold (target effect, original study, planned sample, differences, analysis plan).
+    A draft registration is created under the project, bound to the **OSF template you chose** on the [Overview stage](/methodology/research-plan) — Open-ended, OSF Preregistration, Social psychology, Secondary data, AsPredicted, or the Replication Recipe. The default is **Open-Ended Registration** (a single free-text summary field); a declared replication defaults to the **Replication Recipe (Brandt et al., 2014)** schema.
   </Step>
   <Step title="Fill the registration body">
-    The summary contains, in human-readable form: your **abstract**, **numbered hypotheses**, and the **auto-generated protocol** (the ordered list of blocks/screens participants see). Below the prose we append a **machine-readable JSON design snapshot** — the full version definition, the frozen module-version locks, and the theme — so the registration is a lossless record of the design. If the study uses an AI conversation block, a standard **non-determinism disclosure** is appended automatically.
+    For a template with structured questions, we send **your answers to that template's questions**, exactly as you wrote them on Overview — nothing is auto-filled or invented on your behalf. Hypotheses and variables you edited as lists are combined into the single text fields OSF expects. For the **Open-Ended** template, the summary instead carries, in human-readable form, your **abstract**, **numbered hypotheses**, and the **auto-generated protocol** (the ordered list of blocks/screens), followed by a **machine-readable JSON design snapshot** (the full version definition, module-version locks, and theme) so it's a lossless record. Either way, if the study uses an AI conversation block a standard **non-determinism disclosure** is appended automatically.
   </Step>
   <Step title="Register immediately">
     The draft is registered with OSF's `registration_choice: "immediate"`, which puts it into **pending approval** on OSF. You get the registration URL right away.
@@ -57,9 +57,14 @@ When you [preregister](/methodology/preregistration) a study, a background job s
 |---|---|
 | Study title, description, tags | OSF project node attributes |
 | Co-authors (workspace members) | OSF contributors (unregistered) |
-| Abstract, hypotheses, protocol narrative | Registration summary (prose) |
-| Full design snapshot (definition + module locks + theme) | Registration summary (JSON, appended below the prose) |
+| Your answers to the chosen template's questions | The template's registration fields |
+| Abstract, hypotheses, protocol narrative *(Open-Ended)* | Registration summary (prose) |
+| Full design snapshot — definition + module locks + theme *(Open-Ended)* | Registration summary (JSON, appended below the prose) |
 | AI non-determinism disclosure (if an AI block is present) | Registration summary |
+
+<Note>
+OSF **does not enforce required fields** — a registration answering none of them still succeeds and mints a permanent DOI, with the blanks filed as empty. So the only check is the **Readiness check** on the Preregister stage, which names every unanswered mandatory question but lets you file anyway (see [Your research plan](/methodology/research-plan#the-readiness-check)). Fill it in before you register.
+</Note>
 
 ## What we don't push
 

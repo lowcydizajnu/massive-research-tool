@@ -1,0 +1,99 @@
+---
+title: Your research plan
+description: Write your plan once on the Overview stage — it feeds your public record and every OSF template.
+---
+
+The **Overview** stage is where you write your research plan in plain language: the abstract, your hypotheses, sampling and analysis plans, and the variables you manipulate and measure. You fill it **once**, in My Research Lab's own fields — and it travels with the study. Your public study record, anyone who [replicates](/methodology/replication) you, and whichever [OSF](/integrations/osf) template you file under all read from here.
+
+<Note>
+Nothing on Overview is filed anywhere until you [preregister](/methodology/preregistration). Until then it's a draft you can keep editing.
+</Note>
+
+## Your plan fields
+
+| Field | What it holds |
+|---|---|
+| **Abstract** | A short summary of the study — what, why, who. |
+| **Hypotheses** | Your numbered hypotheses (H1, H2, …), edited as a list. |
+| **Sampling plan** | Target N and the power analysis that produced it. |
+| **Analysis plan** | The analysis you commit to running. |
+| **Variables** | What you manipulate and what you measure — each with a role (independent / dependent / covariate / exclusion) and optional notes. |
+| **Expected outcomes** | Predictions, optionally tied to a hypothesis. |
+
+Which fields appear depends on the template you choose below — a replication, for example, adds fields for the original study and the target effect.
+
+## Choose an OSF preregistration template
+
+OSF preregistrations follow a **schema** — a fixed set of questions. My Research Lab offers OSF's own templates so your registration lands in the format reviewers expect. Pick one from the **Preregistration template** dropdown at the top of Overview:
+
+<CardGroup cols={2}>
+  <Card title="Open-ended" icon="pen">
+    One free-text summary. The simplest option and the default.
+  </Card>
+  <Card title="OSF Preregistration" icon="clipboard-list">
+    OSF's standard template — the most widely recognised, and the most detailed (29 questions across Overview, Design, Sampling, Variables, and Analysis).
+  </Card>
+  <Card title="Social psychology" icon="users">
+    The van 't Veer &amp; Giner-Sorolla template.
+  </Card>
+  <Card title="Secondary data" icon="database">
+    For studies analysing data that already exists.
+  </Card>
+  <Card title="AsPredicted" icon="circle-check">
+    AsPredicted's eight short questions — filed to OSF, not to aspredicted.org.
+  </Card>
+  <Card title="Replication recipe" icon="rotate">
+    The Brandt et al. (2014) pre-registration recipe for direct replications.
+  </Card>
+</CardGroup>
+
+<Note>
+Switching templates never destroys your answers. Each answer is stored against the OSF question it belongs to, so you can change your mind, and anything you already typed for a shared question is still there when you switch back.
+</Note>
+
+## Answer the template's questions
+
+Templates with structured questions (OSF Preregistration, Social psychology, Secondary data, AsPredicted) show those questions **live from OSF** — in OSF's own wording, order, and page grouping. The form is split into three sections so you always know whose question you're answering:
+
+<Steps>
+  <Step title="Your research plan">
+    My Research Lab's own fields (above) — the plan that travels with the study.
+  </Step>
+  <Step title="Mandatory for the template">
+    The questions OSF marks as required, each labelled **Needed**.
+  </Step>
+  <Step title="Optional for the template">
+    Everything else the template asks, collapsed by default.
+  </Step>
+</Steps>
+
+Select questions render their exact options as cards — you're signing these, so nothing is truncated. You answer each in your own words; My Research Lab never fills an answer in for you.
+
+## Pull answers from your plan
+
+Where an OSF question asks the same thing as one of your plan fields, a **"Use these & edit"** action offers to copy your plan text in as an editable starting draft — you review and adjust it before it means anything.
+
+- **Research questions or hypotheses** ← your **Hypotheses**
+- **Manipulated variables** ← your **independent** variables
+- **Measured variables** ← your **dependent** variables
+- Sample size and statistical-model questions ← your **sampling** and **analysis** plans
+
+Hypotheses flow **both ways**: edit the OSF list and you can push it back to your plan with **"Update your plan to match."** Variables flow **one way only** — from the plan into OSF. Your Variables section holds each variable's role, notes, and the block it's measured by; the OSF question is plain text, so pushing an edited OSF list back would lose that structure. Edit variables in your plan and re-pull, and the plan stays their source of truth.
+
+<Note>
+One question is never pre-filled: OSF's **"Foreknowledge of data"** certification. It asks whether *any* data exists anywhere — a claim only you can make — so it's always answered by hand.
+</Note>
+
+## The readiness check
+
+When you open the [Preregister](/methodology/preregistration) stage, a single **Readiness check** summarises everything standing between you and filing — methodological lint on your design, and any **mandatory OSF questions still unanswered**, named individually with a link straight to them.
+
+<Frame caption="One Readiness check on Preregister — methodological lint plus any unanswered mandatory OSF questions, named.">
+  <img src="/images/integrations/preregister.png" alt="The Preregister page with the Readiness check" />
+</Frame>
+
+<Warning>
+The unanswered-question warning **warns; it does not block.** OSF does not enforce required fields — a registration answering none of them still succeeds and mints a permanent, public DOI, with the blanks filed as empty. That makes this warning the only check there is, which is why it names every blank question in OSF's own words. It's your study and your call, but file it knowing what's empty.
+</Warning>
+
+Once you're satisfied, continue to [preregister](/methodology/preregistration) — the plan and every answer freeze into the timestamped registration.

@@ -57,6 +57,7 @@
       {
         "group": "Research practices",
         "pages": [
+          "methodology/research-plan",
           "methodology/preregistration",
           "methodology/replication",
           "methodology/ab-testing",
