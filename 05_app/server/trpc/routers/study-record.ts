@@ -201,7 +201,7 @@ export type LinkedOutputSlot = {
    * external-DOI only — and the panel must SAY so rather than render a control
    * that cannot act (the item-5 picker / item-6 chip lesson).
    */
-  auto: "article_doi" | "mint_project" | null;
+  auto: "article_doi" | "mint_project" | "deposit_dataset" | null;
   /** If there is an automatic path in principle but not yet, why not. */
   autoBlocked: string | null;
 };
@@ -980,7 +980,11 @@ export const studyRecordRouter = router({
         osfRegistrationTarget(input.studyId),
         db.select().from(osfResourceLink).where(eq(osfResourceLink.experimentId, input.studyId)),
         db
-          .select({ articleDoi: studyRecord.articleDoi })
+          .select({
+            articleDoi: studyRecord.articleDoi,
+            dataPublished: studyRecord.dataPublished,
+            dataTable: studyRecord.dataTable,
+          })
           .from(studyRecord)
           .where(eq(studyRecord.experimentId, input.studyId))
           .limit(1),
@@ -998,14 +1002,20 @@ export const studyRecordRouter = router({
             ? doilessGate(target.pushStatus)
             : null;
 
-      const byType = new Map(rows.map((r) => [r.resourceType, r]));
+      // Newest last, so a slot that holds several rows (`data` — one per
+      // deposit, ADR-0105 am. 1 D7) reports its LATEST DOI rather than whichever
+      // row the query happened to return last.
+      const byType = new Map(
+        [...rows].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()).map((r) => [r.resourceType, r]),
+      );
       const articleDoi = rec[0]?.articleDoi?.trim() || null;
+      const table = rec[0]?.dataPublished ? rec[0].dataTable : null;
 
       const slots: LinkedOutputSlot[] = LINKED_OUTPUT_TYPES.map((t) => {
         const r = byType.get(t);
-        // What could fill this slot WITHOUT the researcher finding a DOI. Only
-        // two of the five have one, and the other three must say so plainly
-        // rather than offer a button that cannot act.
+        // What could fill this slot WITHOUT the researcher finding a DOI. Three
+        // of the five have a path; the other two must say so plainly rather than
+        // offer a button that cannot act.
         let auto: LinkedOutputSlot["auto"] = null;
         let autoBlocked: string | null = null;
         if (t === "papers") {
@@ -1014,6 +1024,18 @@ export const studyRecordRouter = router({
         } else if (t === "materials") {
           if (nodeId) auto = "mint_project";
           else autoBlocked = "Upload your materials to OSF first — there's no OSF project to make citable yet.";
+        } else if (t === "data") {
+          // The ladder mirrors `depositDataset`'s refusals, in the same order,
+          // so the panel never offers a button the mutation would reject.
+          if (!table || table.rows.length === 0) {
+            autoBlocked = "Publish your dataset on this record first — the deposit sends exactly that table.";
+          } else if (table.headers.includes(PID_HEADER)) {
+            autoBlocked = `Your published dataset includes the "${PID_HEADER}" column, which can identify participants. A DOI can't be withdrawn, so this can't be deposited until you remove it.`;
+          } else if (!nodeId) {
+            autoBlocked = "Push this study's preregistration to OSF first — there's no OSF project to deposit into.";
+          } else {
+            auto = "deposit_dataset";
+          }
         }
         return {
           resourceType: t,
@@ -1268,14 +1290,30 @@ export const studyRecordRouter = router({
    * must not imply otherwise.
    */
   unlinkOutput: writeProcedure
-    .input(z.object({ studyId: z.string().uuid(), resourceType: z.enum(LINKED_OUTPUT_TYPES) }))
+    .input(
+      z.object({
+        studyId: z.string().uuid(),
+        resourceType: z.enum(LINKED_OUTPUT_TYPES),
+        /** Which one — required for `data`, which holds a row per deposit
+         *  (ADR-0105 am. 1 D7). Without it the mutation would delete an
+         *  arbitrary deposit's link, since "the data row" no longer names one. */
+        pid: z.string().max(200).optional(),
+      }),
+    )
     .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
       await requireOwnStudy(input.studyId, ctx.workspace.id);
-      const [row] = await db
+      const rows = await db
         .select()
         .from(osfResourceLink)
-        .where(and(eq(osfResourceLink.experimentId, input.studyId), eq(osfResourceLink.resourceType, input.resourceType)))
-        .limit(1);
+        .where(and(eq(osfResourceLink.experimentId, input.studyId), eq(osfResourceLink.resourceType, input.resourceType)));
+      const row = input.pid ? rows.find((r) => r.pid === input.pid) : rows.length === 1 ? rows[0] : undefined;
+      if (!row && rows.length > 1) {
+        // Refuse rather than guess which deposit to unlink.
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "This study has more than one deposit — say which DOI to remove.",
+        });
+      }
       if (!row) return { ok: true }; // already gone; removing nothing is not an error
       if (row.osfResourceId) {
         await registry.unlinkResource(ctx.dbUser.id, row.osfResourceId);

@@ -90,10 +90,27 @@ The value is not the link. It is that we already hold the artifact, so the resea
 - Researchers tell us the OSF-branded citation is a problem in practice. (Evidence, not speculation.)
 - Revenue makes ~€3,000/yr trivial **and** the trigger above has fired. Cost alone is never sufficient — the promise is the gate.
 
+## Amendment 1 — 2026-07-16 — the mint path, executed for real
+
+The References below flagged the mint path as *"not independently re-verified — the checking pass was cut short."* It has now been run end to end against `api.osf.io`, through the adapter itself rather than a hand-rolled fetch, with the project owner's explicit consent to create one permanent DOI.
+
+**Result:** component `7rj2c` under parent `m4hpw`, `category: "data"`, `public: true`, DOI **`10.17605/OSF.IO/7RJ2C`**. `https://doi.org/10.17605/OSF.IO/7RJ2C` → `302` → `https://osf.io/7rj2c/`. The component is left in place deliberately: deleting it would leave the DOI resolving to nothing, which is worse than a stray component.
+
+Confirmed:
+
+- **A child component is minted independently of its parent** — the claim D3 and ADR-0105 rest on. The parent `m4hpw` remains private and un-minted.
+- **`POST /v2/nodes/{id}/children/`** → `201`, `category: "data"` accepted, parent relationship set. `DELETE /v2/nodes/{child}/` → `204` (used on the throwaways).
+- **The mint is idempotent.** A second `mintNodeDoi` returned the same DOI and did not re-POST — "it already exists" is the state we wanted, not an error.
+- **`osf.full_write` carries `IDENTIFIERS_WRITE`** (FULL_WRITE → NODE_ALL_WRITE → NODE_METADATA_WRITE). The token was never the obstacle.
+
+**Corrected — the mint requires the node to be PUBLIC, and nothing in our code made it so.** `IdentifierList` carries `EditIfPublic`, whose `has_object_permission` returns `obj.is_public` outright for any non-safe method. We create every project private, so `makeOutputCitable` was refused `403 "You do not have permission to perform this action."` — an error naming neither public-ness nor the fix, and one that no test could see because `mintNodeDoi` is mocked. **Make citable could never have succeeded for anyone**, while its consent dialog promised *"This makes your OSF project public"* — a promise with no code behind it. `mintNodeDoi` now publishes first, which is what D3's consent always said it would do.
+
+**Still unverified:** whether a public node can be made private again. The one attempt returned `400 "This project's node storage usage could not be calculated"` on a brand-new empty component — a transient quirk, not a refusal, so nothing is claimed either way. It does not matter for D3: the DOI's permanence is the load-bearing promise, and that is verified (no DELETE route).
+
 ## References
 
 - Verified 2026-07-16 by independent re-fetch: [DataCite fees](https://datacite.org/fees/) — Direct Member €2,000/yr; for-profit open-infrastructure fee scaled by revenue (€0–500k → €1,000); no per-DOI fee below 100,000/yr. [DataCite membership](https://datacite.org/become-a-member/) and [Statutes §4(1) (26 April 2022)](https://datacite.org/wp-content/uploads/2023/06/Statutes_26April2022.pdf) — *"Membership is open to all legal entities that support the mission and objectives of the Association"*; a commercial entity is eligible.
-- OSF mint path (fetched 2026-07-16, **not** independently re-verified — the checking pass was cut short): `POST /v2/nodes/{node_id}/identifiers/` with `category: "doi"`; `IdentifierList` is a `ListCreateAPIView` with `IsPublic` / `AdminOrPublic` permissions and `CoreScopes.IDENTIFIERS_WRITE`; no DELETE route; a private-again node downgrades findable→registered at DataCite and still resolves; a child component can be minted independently; OSF's registrant is COS, prefix `10.17605`.
+- OSF mint path — **executed live 2026-07-16, see Amendment 1**: `POST /v2/nodes/{node_id}/identifiers/` with `category: "doi"`; `IdentifierList` is a `ListCreateAPIView` with `IsPublic` / `EditIfPublic` / `AdminOrPublic` permissions and `CoreScopes.IDENTIFIERS_WRITE`; no DELETE route; a child component is minted independently of its parent (confirmed: `7rj2c` under a still-private `m4hpw`); OSF's registrant is COS, prefix `10.17605`. The earlier note that a private-again node "downgrades findable→registered and still resolves" remains **unverified** — see Amendment 1.
 - [ADR-0103 — typed OSF resources](0103-typed-osf-resources.md) — forced this decision; **amended by this ADR** (its D1 rejection of a minted `materials` DOI no longer holds).
 - [ADR-0094 — OSF materials upload](0094-osf-materials-upload.md) — the pipe this builds on.
 - [ADR-0007 — Path A vs B (the vendor adapter seam)](0007-path-a-vs-b.md); [ADR-0102](0102-plan-report-link-back.md) — the "claim only what you can evidence" precedent.
