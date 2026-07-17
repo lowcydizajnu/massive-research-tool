@@ -1,5 +1,6 @@
 "use client";
 
+import { ChevronDown, ChevronRight, HelpCircle, X } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
 import { byPage, isListQuestion, type OsfAnswers, type OsfQuestion } from "@/server/modules/osf-schema";
@@ -113,52 +114,59 @@ export function SectionShell({
   defaultCollapsed?: boolean;
   children: ReactNode;
 }) {
-  // Open state lives in React, not as a bare `open` prop. Passing `open={bool}`
-  // to <details> makes it CONTROLLED: any re-render (a template switch, a
-  // keystroke elsewhere) slams the section back to its default, collapsing one
-  // the researcher just opened. `onToggle` keeps our state in sync with the
-  // user's click, so re-renders preserve their choice.
+  // React state, not a bare `<details open>` prop: passing `open={bool}` makes it
+  // CONTROLLED, so any re-render (a keystroke, a template switch) slams the section
+  // back to its default and collapses one the researcher just opened. State +
+  // conditional children — the same pattern the Builder groups use — preserves it.
   const [open, setOpen] = useState(!defaultCollapsed);
   return (
-    <details
-      open={open}
-      onToggle={(e) => setOpen((e.currentTarget as HTMLDetailsElement).open)}
-      className="group flex flex-col gap-4 border-t border-[var(--color-border-subtle)] pt-4"
-    >
-      <summary className="flex cursor-pointer list-none flex-wrap items-baseline justify-between gap-2">
-        <span className="flex items-baseline gap-2">
-          <span
-            aria-hidden
-            className="text-[var(--color-text-muted)] transition-transform group-open:rotate-90"
+    <section className="flex flex-col gap-5 border-t border-[var(--color-border-subtle)] pt-5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5">
+          {/* Chevron + title = one toggle, matching Builder groups
+              (builder-workspace / variants-section). */}
+          <button
+            type="button"
+            aria-expanded={open}
+            onClick={() => setOpen((v) => !v)}
+            className="flex items-center gap-1.5 text-left"
           >
-            ▸
-          </span>
-          <span className="font-[family-name:var(--font-plex-serif)] text-[length:var(--text-h3)] text-[var(--color-text-primary)]">
-            {heading}
-          </span>
-          {info ? (
-            <span
-              tabIndex={0}
-              role="note"
-              title={info}
-              aria-label={info}
-              className="cursor-help rounded-full border border-[var(--color-border-subtle)] px-1.5 text-[length:var(--text-small)] text-[var(--color-text-muted)]"
-            >
-              i
+            {open ? (
+              <ChevronDown className="size-4 text-[var(--color-text-muted)]" aria-hidden />
+            ) : (
+              <ChevronRight className="size-4 text-[var(--color-text-muted)]" aria-hidden />
+            )}
+            <span className="font-[family-name:var(--font-plex-serif)] text-[length:var(--text-h3)] text-[var(--color-text-primary)]">
+              {heading}
             </span>
+          </button>
+          {/* Help = the same HelpCircle affordance the Variants section uses. */}
+          {info ? (
+            <button
+              type="button"
+              aria-label={info}
+              title={info}
+              className="rounded-full p-0.5 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)] hover:text-[var(--color-text-secondary)]"
+            >
+              <HelpCircle className="size-4" aria-hidden />
+            </button>
           ) : null}
-        </span>
+        </div>
         {counter ? (
           <span aria-live="polite" className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
             {counter}
           </span>
         ) : null}
-      </summary>
-      {intro ? (
-        <p className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">{intro}</p>
+      </div>
+      {open ? (
+        <>
+          {intro ? (
+            <p className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">{intro}</p>
+          ) : null}
+          {children}
+        </>
       ) : null}
-      {children}
-    </details>
+    </section>
   );
 }
 
@@ -424,7 +432,7 @@ function ListQuestion({
                 onClick={() => removeAt(i)}
                 className="mt-1.5 shrink-0 rounded-[var(--radius-sm)] p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)]"
               >
-                ✕
+                <X className="size-4" aria-hidden />
               </button>
             ) : null}
           </li>

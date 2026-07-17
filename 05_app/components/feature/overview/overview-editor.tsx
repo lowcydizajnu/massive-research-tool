@@ -1,6 +1,6 @@
 "use client";
 
-import { GripVertical, Plus, X } from "lucide-react";
+import { ChevronDown, ChevronUp, GripVertical, Plus, X } from "lucide-react";
 import { useState } from "react";
 
 import { PendingButton } from "@/components/ui/pending-button";
@@ -390,8 +390,8 @@ export function OverviewEditor({
             {hypotheses.map((h, i) => (
               <li key={i} className="flex items-start gap-2">
                 <span className="flex flex-col pt-2 text-[var(--color-text-muted)]">
-                  <button type="button" aria-label="Move up" disabled={i === 0} onClick={() => moveHyp(i, -1)} className="leading-none disabled:opacity-30">▴</button>
-                  <button type="button" aria-label="Move down" disabled={i === hypotheses.length - 1} onClick={() => moveHyp(i, 1)} className="leading-none disabled:opacity-30">▾</button>
+                  <button type="button" aria-label="Move up" disabled={i === 0} onClick={() => moveHyp(i, -1)} className="leading-none text-[var(--color-text-muted)] disabled:opacity-30"><ChevronUp className="size-3.5" aria-hidden /></button>
+                  <button type="button" aria-label="Move down" disabled={i === hypotheses.length - 1} onClick={() => moveHyp(i, 1)} className="leading-none text-[var(--color-text-muted)] disabled:opacity-30"><ChevronDown className="size-3.5" aria-hidden /></button>
                 </span>
                 <span className="pt-2 font-mono text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)]">
                   H{i + 1}
@@ -541,8 +541,8 @@ export function OverviewEditor({
               <li key={v.id} className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-3">
                 <div className="flex items-start gap-2">
                   <span className="flex flex-col pt-2 text-[var(--color-text-muted)]">
-                    <button type="button" aria-label="Move up" disabled={i === 0} onClick={() => moveVariable(v.id, -1)} className="leading-none disabled:opacity-30">▴</button>
-                    <button type="button" aria-label="Move down" disabled={i === variables.length - 1} onClick={() => moveVariable(v.id, 1)} className="leading-none disabled:opacity-30">▾</button>
+                    <button type="button" aria-label="Move up" disabled={i === 0} onClick={() => moveVariable(v.id, -1)} className="leading-none text-[var(--color-text-muted)] disabled:opacity-30"><ChevronUp className="size-3.5" aria-hidden /></button>
+                    <button type="button" aria-label="Move down" disabled={i === variables.length - 1} onClick={() => moveVariable(v.id, 1)} className="leading-none text-[var(--color-text-muted)] disabled:opacity-30"><ChevronDown className="size-3.5" aria-hidden /></button>
                   </span>
                   <input
                     className={cn(fieldCls, "flex-1")}
@@ -715,36 +715,31 @@ export function OverviewEditor({
         </p>
       ) : null}
 
-      {/* Filing details — the OSF mechanics, collapsed. None of these are the
-          plan the researcher writes; the Field of study governs nothing on
-          screen, so it no longer opens the page (owner 2026-07-17). */}
-      <details className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-3">
-        <summary className="cursor-pointer text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-secondary)]">
-          Filing details
-        </summary>
-        <div className="flex flex-col gap-4 pt-3">
-          <SubjectPicker
-            subjects={osfSubjects}
-            selected={osfSubjectIds}
-            onChange={(ids) => {
-              setOsfSubjectIds(ids);
-              dirty();
-            }}
-          />
-          {/* Derived, read-only (ADR-0101). Reports on DATA, not recruitment. */}
-          <div className="flex flex-col gap-1">
-            <span className={labelCls}>Data collection</span>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className={cn("rounded-[var(--radius-sm)] px-2 py-0.5 text-[length:var(--text-small)] font-medium", chip.cls)}>
-                {chip.label}
-              </span>
-              <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-                You can only preregister before your first participant response.
-              </span>
-            </div>
+      {/* Filing details — the OSF mechanics, collapsed. Same SectionShell chrome
+          as every other section (owner 2026-07-17: be consistent). The Field of
+          study governs nothing on screen, so it no longer opens the page. */}
+      <SectionShell heading="Filing details" defaultCollapsed>
+        <SubjectPicker
+          subjects={osfSubjects}
+          selected={osfSubjectIds}
+          onChange={(ids) => {
+            setOsfSubjectIds(ids);
+            dirty();
+          }}
+        />
+        {/* Derived, read-only (ADR-0101). Reports on DATA, not recruitment. */}
+        <div className="flex flex-col gap-1">
+          <span className={labelCls}>Data collection</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={cn("rounded-[var(--radius-sm)] px-2 py-0.5 text-[length:var(--text-small)] font-medium", chip.cls)}>
+              {chip.label}
+            </span>
+            <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+              You can only preregister before your first participant response.
+            </span>
           </div>
         </div>
-      </details>
+      </SectionShell>
 
       <div className="flex flex-col gap-3">
         {sections.map((sec, i) => (
@@ -754,8 +749,8 @@ export function OverviewEditor({
           >
             <div className="flex items-center gap-2">
               <span className="flex flex-col text-[var(--color-text-muted)]">
-                <button type="button" aria-label="Move up" disabled={i === 0} onClick={() => move(sec.id, -1)} className="leading-none disabled:opacity-30">▴</button>
-                <button type="button" aria-label="Move down" disabled={i === sections.length - 1} onClick={() => move(sec.id, 1)} className="leading-none disabled:opacity-30">▾</button>
+                <button type="button" aria-label="Move up" disabled={i === 0} onClick={() => move(sec.id, -1)} className="leading-none text-[var(--color-text-muted)] disabled:opacity-30"><ChevronUp className="size-3.5" aria-hidden /></button>
+                <button type="button" aria-label="Move down" disabled={i === sections.length - 1} onClick={() => move(sec.id, 1)} className="leading-none text-[var(--color-text-muted)] disabled:opacity-30"><ChevronDown className="size-3.5" aria-hidden /></button>
               </span>
               <GripVertical className="size-4 shrink-0 text-[var(--color-text-muted)]" aria-hidden />
               <input
