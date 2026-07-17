@@ -291,3 +291,13 @@ Because both sides are now lists:
 Nothing is ever parsed from text into structure, so nothing can be silently mangled. `isListQuestion(q)` (osf-schema) is the single source of truth for which questions are list-shaped — the component renders them as lists and `toRegistrationResponses` combines them, in lockstep. Today: hypotheses / research questions. The same mechanism extends to manipulated/measured variables (next), where the entry carries name + notes.
 
 Verified live end to end (2026-07-17): OSF's hypothesis question renders as an H1/H2 list editor; the plan's hypotheses prefill into it list→list; editing it and clicking "Update your plan to match" flows back to the plan; the answer persists in the DB as an **array**; and `toRegistrationResponses` combines the array into `"1. …\n2. …"` for OSF (unit-tested). A real multi-select still passes through as an array — not every array is a list question.
+
+---
+
+## D4 addendum (2026-07-17) — the completeness warning lives *inside* the Readiness check (owner direction)
+
+D4 said the completeness warning is surfaced "on the Preregister pre-flight." The first implementation drifted from that wording: it rendered a **separate** `UnansweredQuestionsNotice` box stacked *above* the pre-flight's Readiness check, so the stage showed two adjacent "not ready" panels. The owner flagged it (2026-07-17): *"Readiness check should be unified, keeping emphasis on the mandatory question."*
+
+**Decision:** fold the OSF completeness into `PreflightChecklist` as its leading, emphasized row (warning tone, names every blank required question, carries the "Answer these" deep-link). One readiness surface, as D4's own wording always intended. The standalone component is removed; its content moved behind two optional props (`osfUnanswered`, `overviewHref`) so Publish & run and amendments — which pass neither — are unchanged.
+
+What stays load-bearing from D4: the OSF blanks **warn but never gate**. They feed the summary pill and the warning tone; they do **not** contribute to the "Proceed anyway" lock (only real methodological fails do), because the researcher owns their study. Incidental correctness gain: the OSF row no longer appears once data collection has started, where preregistration is already impossible.
