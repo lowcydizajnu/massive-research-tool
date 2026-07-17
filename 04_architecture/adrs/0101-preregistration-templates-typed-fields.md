@@ -102,3 +102,28 @@ Owner decision 2026-07-16 (*"the fix, not the alternative"*): a new fork gets th
 - Wireframes: [overview-stage](../../03_design/wireframes/overview-stage.md) (the template picker + typed plan-field editors + the derived data-collection chip), [preregister-stage](../../03_design/wireframes/preregister-stage.md) (the template line + the plan-before-data blocking state)
 - Prior art for the hard-gate pattern: `05_app/server/modules/preflight.ts` (advisory-with-friction by default) + `assertBrandingGate` in `05_app/server/trpc/routers/studies.ts` (ADR-0084 — advisory row, enforced in the freeze mutations)
 - Gate artifacts still to follow this ADR: feature spec (`04_architecture/data-model/`), then code + tests + `06_qa/audit-logs/` pass
+
+---
+
+## Amendment 2 (2026-07-17) — the "all-optional" premise was false
+
+This ADR's stated reason for exposing exactly two templates (§46) is **factually wrong**, and it is corrected here rather than left for the next reader to reason from.
+
+The claim: Open-Ended and the Replication Recipe are *"the two OSF registration schemas we already map and that are **all-optional** (a partial fill never 400s)"*.
+
+**Open-Ended is not all-optional.** Its `summary` block is `required: true` — read live from `GET /v2/schemas/registrations/5df83f7dd28338001ac0ab0d/schema_blocks/` on 2026-07-17: 5 blocks, 2 answerable, 1 required. Our **default template has always had a required field**. (The Recipe genuinely has 0 of 83.)
+
+We never hit a 400 for two independent reasons, neither of which is the one this ADR gives:
+
+1. `registry.osf.ts:523` **unconditionally supplies** `summary` via `buildSummary(payload)`. The required key is filler-guaranteed, so it is never absent.
+2. **OSF does not enforce required fields at all** — `required_fields=True` is passed by zero production call sites; the registration-create serializer validates no responses. See [ADR-0107](0107-osf-template-gate.md) Context for the source trace. A partial fill would not have 400'd even without the filler.
+
+**The invariant that actually held** is not "only adopt all-optional schemas" — it is:
+
+> **Every required key must have a guaranteed non-empty filler, or a researcher-facing home.**
+
+This matters beyond pedantry. The all-optional rule, taken literally, permits exactly one general-purpose addition to the catalogue (AsPredicted) and permanently excludes *OSF Preregistration* — the template the project owner actually asked for. A rule derived from a false premise was about to veto the feature. [ADR-0107](0107-osf-template-gate.md) supersedes §46's scope decision and adopts the filler-or-home rule.
+
+Also corrected: §46 says stricter templates *"need a client-side required-field gate + late-400 handling"*. **There is no late 400 to handle.** The real failure mode is silent: the registration succeeds and mints a permanent public DOI with blank required answers. §54's "safe while only the two all-optional schemas are exposed" rests on the same false premise.
+
+Unchanged and still correct: the in-repo registry (dodging the `db:seed:prod` trap), never inventing a response key, and every typed field staying optional on our side.
