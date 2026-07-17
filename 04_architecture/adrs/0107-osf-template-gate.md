@@ -144,4 +144,45 @@ Selection stays **by name** at push time (`filter[name]` 400s; `resolveSchemaId`
 - Live reads, 2026-07-16/17: `GET /v2/schemas/registrations/` (44, 42 active) and `/schema_blocks/` per schema.
 - OSF source (`develop`), verified 2026-07-17: `osf/models/metaschema.py:182-187`; `api/nodes/serializers.py:1630-1647`; `osf/models/validators.py:304-311,361-367,390-396`.
 - [`06_qa/audit-logs/2026-07-17-auto-derived-design-facts-phase-a.md`](../../06_qa/audit-logs/2026-07-17-auto-derived-design-facts-phase-a.md) — the draft-stage seam this design relies on, proven live.
-- **Owed:** empirical confirmation on test.osf.io that a blank required registration succeeds. Owner agreed 2026-07-17; awaiting a sandbox token in `.env.local`.
+- **OBSERVED on test.osf.io, 2026-07-17** — the source trace is now confirmed by experiment. See the Postscript below.
+
+
+---
+
+## Postscript (2026-07-17) — the claim is now observed, and the probe found a second thing
+
+The Context above traced "OSF does not enforce required fields" from source. It has now been **run** on `test.osf.io`, against the sandbox's own OSF Preregistration (`69d3d9a47249f92f8ed34d74`, 87 blocks, **16 required**).
+
+Method: create project → create draft bound to that schema → PATCH `registration_responses: {}` (answering *nothing*) → `POST /nodes/{id}/registrations/`.
+
+**Result: `201`. Accepted.** The claim holds.
+
+And the artifact is worse than "blank". OSF did not merely tolerate the omission — it **materialised every required key with an empty value** and filed them:
+
+```json
+{"220-2":"","220-4":"","220-14":"","220-17":[],"220-27":[],"220-32":[], … ,"220-86":""}
+```
+
+Twenty-nine keys, every one of them empty, registered as the researcher's scientific commitments. There is no 400 to catch, no warning, and nothing in the artifact that marks it as unanswered rather than deliberately-left-empty. **D4's premise is confirmed: our check is the only one that exists.** (The owner's warn-and-proceed call stands; this is exactly why the warning has to be specific.)
+
+### The second finding — a ticking problem for production
+
+The first attempt failed at the registration POST with:
+
+> `Registration must have at least one subject to be registered`
+
+Not a required-field error — OSF's **subject taxonomy** requirement, which we had never observed. It is satisfied by PATCHing `relationships.subjects` onto the **draft** (`200`; OSF then auto-expands the taxonomy path — *Comparative Psychology* became *Comparative Psychology / Social and Behavioral Sciences / Psychology*). Not on the node: `PATCH /nodes/{id}/subjects/` → `403`, and subjects-at-node-create → `502`.
+
+**Our production registrations have no subjects at all.** `GET /v2/registrations/5zmfa/subjects/` → `200 []`, on a registration that pushed successfully. So production does **not** currently enforce this, and the sandbox does.
+
+test.osf.io generally runs ahead of production. The most likely reading is that **the subject requirement is coming to production**, and on the day it ships **every `pushRegistration` breaks** — `registry.osf.ts` sets no subjects anywhere. That is a silent, dated bomb under the shipped OSF integration, unrelated to Phase B but discovered by it.
+
+Stated honestly: I have **not** established *why* the two differ. Alternatives I cannot exclude — a provider-level config difference, or a sandbox-only setting. The conclusion "prod will break when this ships" is **inference, not observation**.
+
+**Consequent decision — D8:** Phase B sets subjects on the draft as part of the push, for every template. It is one PATCH, it is required by the sandbox today, it is harmless on production now, and it removes the bomb. The researcher-facing question ("what field is this study in?") needs a home in the picker — spec'd in the wireframe. Absent a researcher answer we do **not** invent a subject: no subject is the status quo, and inventing one would be authoring content the researcher didn't write (D2).
+
+### Residue
+
+Four sandbox project nodes deleted (`204` each). One sandbox registration (`zc97j`) remains — pending approval, not public, no DOI minted at observation time. Sandbox artifacts are disposable and it is not on the production registry.
+
+*Also worth recording as method:* the first probe printed `=> ADR-0107 is WRONG: OSF does enforce` — because the script treated **any** 400 as enforcement. The 400 was about subjects. Had that verdict been believed, this ADR would have been reversed on a false reading of its own test. **A probe's own conclusion is an assertion to be checked, not a result.**
