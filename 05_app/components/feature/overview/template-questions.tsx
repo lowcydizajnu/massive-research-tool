@@ -1,9 +1,10 @@
 "use client";
 
 import { ChevronDown, ChevronRight, HelpCircle, X } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { byPage, isListQuestion, type OsfAnswers, type OsfQuestion } from "@/server/modules/osf-schema";
+import { cn } from "@/lib/utils";
 
 /**
  * "Questions this template asks" — item ⑨ Phase B (ADR-0107, wireframe
@@ -170,6 +171,52 @@ export function SectionShell({
   );
 }
 
+/**
+ * OSF's per-question help is often a full paragraph (owner 2026-07-17: "display
+ * less text by default and expand with 'show more'"). Clamp it to two lines and
+ * offer the toggle ONLY when the text actually overflows — measured, not guessed
+ * from a character count, so a two-line help never grows a dead "Show more".
+ */
+function HelpText({ id, text }: { id?: string; text: string }) {
+  const ref = useRef<HTMLParagraphElement>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [clampable, setClampable] = useState(false);
+
+  // Measure once, in the collapsed state, before the browser paints — so the
+  // toggle is present on first paint if needed and never flickers in. The
+  // clamped <p> reports clientHeight = 2 lines while scrollHeight is the full
+  // content; a real overflow is the only thing that earns a "Show more".
+  useEffect(() => {
+    const el = ref.current;
+    if (el) setClampable(el.scrollHeight - el.clientHeight > 4);
+  }, [text]);
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      <p
+        id={id}
+        ref={ref}
+        className={cn(
+          "text-[length:var(--text-small)] text-[var(--color-text-muted)]",
+          !expanded && "line-clamp-2",
+        )}
+      >
+        {text}
+      </p>
+      {clampable ? (
+        <button
+          type="button"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((v) => !v)}
+          className="self-start text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+        >
+          {expanded ? "Show less" : "Show more"}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 function Question({
   q,
   value,
@@ -223,11 +270,7 @@ function Question({
           <span className="whitespace-nowrap text-[length:var(--text-small)] text-[var(--color-text-muted)]">Needed</span>
         ) : null}
       </div>
-      {q.help ? (
-        <p id={helpId} className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-          {q.help}
-        </p>
-      ) : null}
+      {q.help ? <HelpText id={helpId} text={q.help} /> : null}
 
       {/* Researcher-invoked prefill (ADR-0107 D10). Shows the related text from
           THEIR OWN plan and offers to drop it into the editable answer as a
