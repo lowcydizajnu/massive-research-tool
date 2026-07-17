@@ -170,7 +170,7 @@ function Question({
       ) : null}
 
       {q.kind === "single-select" || q.kind === "multi-select" ? (
-        <SelectQuestion q={q} value={value} onAnswer={onAnswer} readOnly={readOnly} helpId={helpId} />
+        <SelectQuestion q={q} id={id} value={value} onAnswer={onAnswer} readOnly={readOnly} helpId={helpId} />
       ) : q.kind === "short-text" ? (
         <input
           id={id}
@@ -210,12 +210,18 @@ function Question({
  */
 function SelectQuestion({
   q,
+  id,
   value,
   onAnswer,
   readOnly,
   helpId,
 }: {
   q: OsfQuestion;
+  /** Matches the text inputs' id so the Preregister "Answer these" deep-link
+   *  (#osfq-<key>) resolves for selects too. Without it the jump silently
+   *  no-ops on exactly the question most likely to be blank — the foreknowledge
+   *  certification, which is a select and cannot be prefilled. */
+  id: string;
   value: string | string[] | undefined;
   onAnswer: (key: string, value: string | string[]) => void;
   readOnly: boolean;
@@ -231,7 +237,9 @@ function SelectQuestion({
       : [];
 
   return (
-    <fieldset aria-describedby={helpId} className="flex flex-col gap-1.5">
+    // tabIndex -1 so the anchor jump can FOCUS it, not just scroll (the notice's
+    // stated intent). scroll-mt keeps it clear of the sticky top bar.
+    <fieldset id={id} tabIndex={-1} aria-describedby={helpId} className="flex scroll-mt-4 flex-col gap-1.5 outline-none">
       <legend className="sr-only">{q.label}</legend>
       {q.options.map((opt) => {
         const on = selected.includes(opt);
