@@ -16,46 +16,64 @@ import { byPage, type OsfAnswers, type OsfQuestion } from "@/server/modules/osf-
  * the researcher owns their study. `Needed` is information, not a lock — no
  * disabled input, no red, no asterisk.
  */
+/**
+ * Text the researcher's OWN plan holds that relates to an OSF question, offered
+ * as a starting draft (ADR-0107 D10). Returns null where nothing relates, or
+ * where the scopes differ (the D9 forgery risk — never offered on foreknowledge).
+ */
+export type PrefillFor = (q: OsfQuestion) => { from: string; text: string } | null;
+
 export function TemplateQuestions({
-  templateLabel,
+  heading,
+  intro,
   questions,
+  filter,
   answers,
   onAnswer,
+  prefillFor,
   readOnly = false,
 }: {
-  templateLabel: string;
+  heading: string;
+  intro?: string;
   questions: OsfQuestion[];
+  /** Which subset of the template's questions to show — required vs optional
+   *  are separate sections per owner direction (2026-07-17). */
+  filter?: "required" | "optional";
   answers: OsfAnswers;
   onAnswer: (key: string, value: string | string[]) => void;
+  prefillFor?: PrefillFor;
   readOnly?: boolean;
 }) {
   // File questions are out of v1 scope — and they are the only questions whose
   // label ships empty, so rendering them would produce exactly the blank row
   // this component exists to avoid.
-  const shown = questions.filter((q) => q.kind !== "file");
+  const shown = questions.filter(
+    (q) => q.kind !== "file" && (filter === undefined || (filter === "required") === q.required),
+  );
   if (!shown.length) return null;
 
+  const titleId = `tq-${heading.replace(/\W+/g, "-").toLowerCase()}`;
   const answered = shown.filter((q) => {
     const v = answers[q.key];
     return Array.isArray(v) ? v.length > 0 : !!v?.trim();
   }).length;
 
   return (
-    <section aria-labelledby="template-questions-title" className="flex flex-col gap-4">
+    <section aria-labelledby={titleId} className="flex flex-col gap-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h3
-          id="template-questions-title"
+          id={titleId}
           className="font-[family-name:var(--font-plex-serif)] text-[length:var(--text-h4)] text-[var(--color-text-primary)]"
         >
-          Questions this template asks
+          {heading}
         </h3>
         <p aria-live="polite" className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
           {answered} of {shown.length} answered
         </p>
       </div>
-      <p className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
-        {templateLabel} asks these. Your answers are filed with your preregistration, in your words.
-      </p>
+      {intro ? (
+        <p className="text-[length:var(--text-small)] text-[var(--color-text-secondary)]">{intro}</p>
+      ) : null}
 
       {byPage(shown).map(({ page, questions: qs }) => (
         <div key={page} className="flex flex-col gap-3">
@@ -65,7 +83,14 @@ export function TemplateQuestions({
             </h4>
           ) : null}
           {qs.map((q) => (
-            <Question key={q.key} q={q} value={answers[q.key]} onAnswer={onAnswer} readOnly={readOnly} />
+            <Question
+              key={q.key}
+              q={q}
+              value={answers[q.key]}
+              onAnswer={onAnswer}
+              prefill={prefillFor?.(q) ?? null}
+              readOnly={readOnly}
+            />
           ))}
         </div>
       ))}
@@ -77,15 +102,22 @@ function Question({
   q,
   value,
   onAnswer,
+  prefill,
   readOnly,
 }: {
   q: OsfQuestion;
   value: string | string[] | undefined;
   onAnswer: (key: string, value: string | string[]) => void;
+  /** Text from the researcher's own plan that relates to this question, or null. */
+  prefill: { from: string; text: string } | null;
   readOnly: boolean;
 }) {
   const id = `osfq-${q.key}`;
   const helpId = q.help ? `${id}-help` : undefined;
+  // Prefill is only meaningful for a text answer — you cannot draft a select.
+  const isText = q.kind === "long-text" || q.kind === "short-text";
+  const currentText = typeof value === "string" ? value : "";
+  const showPrefill = !readOnly && isText && prefill && prefill.text !== currentText;
   // A select renders as a fieldset of radio/checkbox cards, so there is no ONE
   // element to point `htmlFor` at — its accessible name comes from the
   // fieldset's <legend>. Emitting a label here anyway produced a `for` pointing
@@ -114,6 +146,27 @@ function Question({
         <p id={helpId} className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
           {q.help}
         </p>
+      ) : null}
+
+      {/* Researcher-invoked prefill (ADR-0107 D10). Shows the related text from
+          THEIR OWN plan and offers to drop it into the editable answer as a
+          starting draft — never automatically, never a value they didn't invoke,
+          and never on a scope-mismatch question (prefillFor returns null there).
+          They review and edit before it means anything. */}
+      {showPrefill ? (
+        <div className="flex flex-col gap-1 rounded-[var(--radius-sm)] border border-dashed border-[var(--color-border-subtle)] p-2 text-[length:var(--text-small)]">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[var(--color-text-muted)]">From {prefill!.from}:</span>
+            <button
+              type="button"
+              onClick={() => onAnswer(q.key, prefill!.text)}
+              className="whitespace-nowrap rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] px-2 py-0.5 font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
+            >
+              Use this &amp; edit
+            </button>
+          </div>
+          <p className="line-clamp-3 whitespace-pre-line text-[var(--color-text-secondary)]">{prefill!.text}</p>
+        </div>
       ) : null}
 
       {q.kind === "single-select" || q.kind === "multi-select" ? (

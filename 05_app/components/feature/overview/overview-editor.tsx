@@ -7,12 +7,13 @@ import { PendingButton } from "@/components/ui/pending-button";
 import {
   PREREG_TEMPLATES,
   defaultTemplateKey,
+  preregTemplate,
   templateAsks,
   type PreregTemplateKey,
 } from "@/lib/prereg-templates";
 import { DesignFactsPanel } from "@/components/feature/overview/design-facts-panel";
 import { SubjectPicker } from "@/components/feature/overview/subject-picker";
-import { TemplateQuestions } from "@/components/feature/overview/template-questions";
+import { TemplateQuestions, type PrefillFor } from "@/components/feature/overview/template-questions";
 import { api } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
 import type {
@@ -202,6 +203,37 @@ export function OverviewEditor({
     dirty();
   };
 
+  const onAnswerOsf = (key: string, value: string | string[]) => {
+    setTemplateAnswers((a) => ({ ...a, [key]: value }));
+    dirty();
+  };
+
+  /**
+   * Text from the researcher's OWN plan to offer as a starting draft for an OSF
+   * question (ADR-0107 D10). Conservative and hand-picked: only the clearest,
+   * same-scope overlaps, and NEVER the foreknowledge certification, whose scope
+   * ("no data anywhere") differs from anything we can prove (D9). Matches on the
+   * question's human label, not its response key, because keys differ per schema.
+   */
+  const planPrefill: PrefillFor = (q) => {
+    const label = q.label.toLowerCase();
+    if (label.includes("foreknowledge")) return null;
+    if (label.includes("hypothes") || label.includes("research question")) {
+      const text = hypotheses
+        .filter((h) => h.trim())
+        .map((h, i) => `H${i + 1}: ${h.trim()}`)
+        .join("\n");
+      return text ? { from: "your hypotheses", text } : null;
+    }
+    if (label.includes("sample size")) {
+      return samplingPlan.trim() ? { from: "your sampling plan", text: samplingPlan.trim() } : null;
+    }
+    if (label.includes("statistical model")) {
+      return analysisPlan.trim() ? { from: "your analysis plan", text: analysisPlan.trim() } : null;
+    }
+    return null;
+  };
+
   /** instanceId → role label, so a declared measure states what it is instead of
    *  re-offering the button. Reads the editor's CURRENT variables, not the last
    *  save, or a just-declared row would keep offering to declare itself. */
@@ -252,46 +284,37 @@ export function OverviewEditor({
   return (
     <div className="flex max-w-[760px] flex-col gap-5">
       {/* Preregistration template (ADR-0101). Governs which typed fields show and
-          which OSF registration form the plan is filed under. NOT a starter study
-          (`workspace_template`) and not the retired Framework — see the Vocabulary
-          table in design-rules. */}
-      <fieldset className="flex flex-col gap-2">
-        <legend className={cn(labelCls, "mb-2")}>Preregistration template</legend>
-        <div role="radiogroup" aria-label="Preregistration template" className="flex flex-col gap-2">
+          which OSF registration form the plan is filed under. A dropdown, not a
+          radio wall: with 7 templates the list ate the whole page and pushed the
+          plan below the fold (owner 2026-07-17). NOT a starter study
+          (`workspace_template`) and not the retired Framework. */}
+      <label className="flex flex-col gap-1">
+        <span className={labelCls}>Preregistration template</span>
+        <select
+          className={cn(fieldCls, "cursor-pointer")}
+          value={templateKey}
+          onChange={(e) => {
+            setExplicitTemplateKey(e.target.value as PreregTemplateKey);
+            dirty();
+          }}
+        >
           {PREREG_TEMPLATES.map((t) => (
-            <label
-              key={t.key}
-              className={cn(
-                "flex cursor-pointer items-start gap-3 rounded-[var(--radius-md)] border p-3",
-                templateKey === t.key
-                  ? "border-[var(--color-primary)] bg-[var(--color-primary-subtle)]"
-                  : "border-[var(--color-border-subtle)] hover:bg-[var(--color-surface-subtle)]",
-              )}
-            >
-              <input
-                type="radio"
-                name="prereg-template"
-                value={t.key}
-                checked={templateKey === t.key}
-                aria-describedby={`tpl-${t.key}-desc`}
-                onChange={() => {
-                  setExplicitTemplateKey(t.key);
-                  dirty();
-                }}
-                className="mt-1"
-              />
-              <span className="flex flex-col gap-0.5">
-                <span className="text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-primary)]">
-                  {t.label}
-                </span>
-                <span id={`tpl-${t.key}-desc`} className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-                  {t.description}
-                </span>
-              </span>
-            </label>
+            <option key={t.key} value={t.key}>
+              {t.label}
+            </option>
           ))}
-        </div>
-      </fieldset>
+        </select>
+        <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+          {preregTemplate(templateKey).description}
+        </span>
+      </label>
+
+      {/* Three sections by whose question it is and whether it's required
+          (owner 2026-07-17): the study's own plan, then OSF's mandatory
+          questions, then OSF's optional ones. */}
+      <h3 className="font-[family-name:var(--font-plex-serif)] text-[length:var(--text-h4)] text-[var(--color-text-primary)]">
+        Your study plan
+      </h3>
 
       <label className="flex flex-col gap-1">
         <span className={labelCls}>Abstract</span>
@@ -624,19 +647,30 @@ export function OverviewEditor({
       </div>
       ) : null}
 
-      {/* OSF's own questions for the chosen template (ADR-0107). Placed here,
-          after the researcher's plan, not opening the page: they answer OSF's
-          form, and sit beside the plan fields that ask the same things. */}
+      {/* OSF's own questions, split into required and optional (owner
+          2026-07-17). Placed after the researcher's own plan, not opening the
+          page. `onAnswerOsf` and `planPrefill` are defined near the top of the
+          component. */}
       {osfQuestions.data ? (
-        <TemplateQuestions
-          templateLabel={osfQuestions.data.templateLabel}
-          questions={osfQuestions.data.questions}
-          answers={templateAnswers}
-          onAnswer={(key, value) => {
-            setTemplateAnswers((a) => ({ ...a, [key]: value }));
-            dirty();
-          }}
-        />
+        <>
+          <TemplateQuestions
+            heading={`Required for ${osfQuestions.data.templateLabel}`}
+            intro="OSF asks these and marks them needed. You answer them in your own words; they file with your preregistration."
+            questions={osfQuestions.data.questions}
+            filter="required"
+            answers={templateAnswers}
+            onAnswer={onAnswerOsf}
+            prefillFor={planPrefill}
+          />
+          <TemplateQuestions
+            heading={`Optional for ${osfQuestions.data.templateLabel}`}
+            questions={osfQuestions.data.questions}
+            filter="optional"
+            answers={templateAnswers}
+            onAnswer={onAnswerOsf}
+            prefillFor={planPrefill}
+          />
+        </>
       ) : null}
       {osfQuestions.isError ? (
         <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
