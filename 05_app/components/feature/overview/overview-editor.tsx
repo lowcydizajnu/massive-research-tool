@@ -251,51 +251,6 @@ export function OverviewEditor({
 
   return (
     <div className="flex max-w-[760px] flex-col gap-5">
-      {/* What the built study says about itself (item ⑨ Phase A, ADR-0106).
-          Above the plan fields on purpose: the facts are the thing you write
-          the plan AGAINST. */}
-      <SubjectPicker
-        subjects={osfSubjects}
-        selected={osfSubjectIds}
-        onChange={(ids) => {
-          setOsfSubjectIds(ids);
-          dirty();
-        }}
-      />
-
-      {osfQuestions.data ? (
-        <TemplateQuestions
-          templateLabel={osfQuestions.data.templateLabel}
-          questions={osfQuestions.data.questions}
-          answers={templateAnswers}
-          onAnswer={(key, value) => {
-            setTemplateAnswers((a) => ({ ...a, [key]: value }));
-            dirty();
-          }}
-        />
-      ) : null}
-      {osfQuestions.isError ? (
-        // Never render "nothing to answer" on a fetch failure — that reads as an
-        // all-clear before a permanent filing (wireframe: Edge cases).
-        <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-          Couldn&rsquo;t load this template&rsquo;s questions from OSF.{" "}
-          <button type="button" onClick={() => void osfQuestions.refetch()} className="underline">
-            Try again
-          </button>
-        </p>
-      ) : null}
-
-      <DesignFactsPanel
-        facts={facts}
-        declaredRoles={declaredRoles}
-        onDeclare={declareMeasure}
-        discloseDerivation={discloseDerivation}
-        onDiscloseChange={(v) => {
-          setDiscloseDerivation(v);
-          dirty();
-        }}
-      />
-
       {/* Preregistration template (ADR-0101). Governs which typed fields show and
           which OSF registration form the plan is filed under. NOT a starter study
           (`workspace_template`) and not the retired Framework — see the Vocabulary
@@ -510,6 +465,17 @@ export function OverviewEditor({
         </label>
       ) : null}
 
+      <DesignFactsPanel
+        facts={facts}
+        declaredRoles={declaredRoles}
+        onDeclare={declareMeasure}
+        discloseDerivation={discloseDerivation}
+        onDiscloseChange={(v) => {
+          setDiscloseDerivation(v);
+          dirty();
+        }}
+      />
+
       {templateAsks(templateKey, "variables") ? (
       <div className="flex flex-col gap-2">
         <span className={labelCls}>Variables</span>
@@ -658,19 +624,59 @@ export function OverviewEditor({
       </div>
       ) : null}
 
-      {/* Derived, read-only (ADR-0101). Reports on DATA, not recruitment: "Not
-          started" while recruitment is open and nobody has taken it is correct. */}
-      <div className="flex flex-col gap-1">
-        <span className={labelCls}>Data collection</span>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className={cn("rounded-[var(--radius-sm)] px-2 py-0.5 text-[length:var(--text-small)] font-medium", chip.cls)}>
-            {chip.label}
-          </span>
-          <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-            You can only preregister before your first participant response.
-          </span>
+      {/* OSF's own questions for the chosen template (ADR-0107). Placed here,
+          after the researcher's plan, not opening the page: they answer OSF's
+          form, and sit beside the plan fields that ask the same things. */}
+      {osfQuestions.data ? (
+        <TemplateQuestions
+          templateLabel={osfQuestions.data.templateLabel}
+          questions={osfQuestions.data.questions}
+          answers={templateAnswers}
+          onAnswer={(key, value) => {
+            setTemplateAnswers((a) => ({ ...a, [key]: value }));
+            dirty();
+          }}
+        />
+      ) : null}
+      {osfQuestions.isError ? (
+        <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+          Couldn&rsquo;t load this template&rsquo;s questions from OSF.{" "}
+          <button type="button" onClick={() => void osfQuestions.refetch()} className="underline">
+            Try again
+          </button>
+        </p>
+      ) : null}
+
+      {/* Filing details — the OSF mechanics, collapsed. None of these are the
+          plan the researcher writes; the Field of study governs nothing on
+          screen, so it no longer opens the page (owner 2026-07-17). */}
+      <details className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] p-3">
+        <summary className="cursor-pointer text-[length:var(--text-body-emphasis)] font-medium text-[var(--color-text-secondary)]">
+          Filing details
+        </summary>
+        <div className="flex flex-col gap-4 pt-3">
+          <SubjectPicker
+            subjects={osfSubjects}
+            selected={osfSubjectIds}
+            onChange={(ids) => {
+              setOsfSubjectIds(ids);
+              dirty();
+            }}
+          />
+          {/* Derived, read-only (ADR-0101). Reports on DATA, not recruitment. */}
+          <div className="flex flex-col gap-1">
+            <span className={labelCls}>Data collection</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={cn("rounded-[var(--radius-sm)] px-2 py-0.5 text-[length:var(--text-small)] font-medium", chip.cls)}>
+                {chip.label}
+              </span>
+              <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+                You can only preregister before your first participant response.
+              </span>
+            </div>
+          </div>
         </div>
-      </div>
+      </details>
 
       <div className="flex flex-col gap-3">
         {sections.map((sec, i) => (

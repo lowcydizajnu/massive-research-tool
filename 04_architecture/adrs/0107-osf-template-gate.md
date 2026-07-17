@@ -258,3 +258,18 @@ The risks section warned that a rejection would carry a raw, unhelpful message b
 It names the field in **human language**, unprompted. So when a filing does fail on a bad option, the honest move is to **surface OSF's own message** rather than write our own — theirs is already better than the generic one we would have invented.
 
 The dead-branch claim may still hold for the *required-field* message specifically (that branch cannot fire while `required_fields` is never `True`), but it does not generalise, and this ADR should not have implied it did.
+
+---
+
+## D10 (2026-07-17) — researcher-invoked prefill, which relaxes D2 (owner direction)
+
+D2 said "the form never pre-fills an OSF answer." The project owner asked for the opposite as a *researcher-controlled option* (2026-07-17): *"if we can somehow prepopulate some content, give this option to the researcher."* This is the same value call as the ADR-0106 D5 disclosure toggle — *it's their study* — so D2 is relaxed, with guardrails, rather than kept.
+
+**What changes:** beside an OSF question, where our own plan holds relevant text, we may offer a **"Use my plan text"** action that copies that text **into the editable OSF answer field**. What stays:
+
+- **The researcher invokes it.** Nothing is ever filled automatically, on load, or on save. The system never authors an answer on its own — that ban (D2's real purpose, and ADR-0101 Am. 1) holds.
+- **It lands editable and visible.** The copied text appears in the field the researcher then reviews and adjusts. They see exactly what will file, and it is their text because they invoked it and can change it before saving. This is the whole difference from the auto-fill D2 banned and from the one-click paste the integrity reviewer rejected in the IA panel: those put words in front of no one; this puts a draft in front of the person who has to stand behind it.
+- **Never on a scope-mismatch question.** Prefill is offered ONLY where our field asks substantially the same thing OSF does (sampling → sample size, analysis → statistical models, hypotheses → research questions). It is **not** offered on `344-4` ("Foreknowledge of data") or any certification whose scope differs from what we can prove (D9) — there our text would be a false starting point, not a helpful one, and even an editable false start is a nudge toward a forgery.
+- **The mapping is coarse and forgiving.** Because the result is editable, a slightly-off field↔question association yields a draft the researcher fixes, not a filed error. So we use a small conservative map (our field → topic), never a live per-label lookup that can silently drift (the D5/engineer objection).
+
+**Net:** the researcher gets the convenience they asked for; the artifact still contains only text they saw, invoked, and can edit; and the one question where our fact and OSF's question genuinely diverge stays hand-written.
