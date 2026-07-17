@@ -72,7 +72,7 @@ The three parts each solve a different third. The picker decides what we are wil
 | Replication Recipe (Brandt et al., 2014) | `64b14a08d639e5000d2013a5` | 0 | Ships today. Owns the 5 verified keys. |
 | Preregistration Template from AsPredicted.org | `64bab305769023000d0acdc0` | 0 | The highest value per unit of work in the catalogue: domain-neutral, widely recognised, **zero** required. |
 | OSF-Standard Pre-Data Collection | `564d31db8c5e4a7c9694b2c0` | 0 | Trivial, domain-neutral. |
-| **OSF Preregistration** | `697b72f611a8e98484c6139b` | **16** | **The reason Phase B exists** (owner, 2026-07-17). 13 of 16 are long-text the form handles; `344-4` (data-collection status) is already answered by the existing `assertPlanBeforeData` gate — the gate's *fact* fills OSF's required field without us authoring an answer. |
+| **OSF Preregistration** | `697b72f611a8e98484c6139b` | **16** | **The reason Phase B exists** (owner, 2026-07-17). 13 of 16 are long-text the form handles. ~~`344-4` is already answered by the `assertPlanBeforeData` gate~~ — **struck; see D9.** |
 
 *Why not* van 't Veer Social Psych (19 required) or Secondary Data (9): deferred, not excluded — see Revisit triggers. *Why not* Eye-Tracking/EEG/Qualitative: capability, permanently (ADR-0106). *Why not* Registered Report Protocol (only 4 required): a required **file-input** (`Attach manuscript`), unsatisfiable by a text-only `registration_responses` PATCH. Four other schemas share that blocker.
 
@@ -186,3 +186,24 @@ Stated honestly: I have **not** established *why* the two differ. Alternatives I
 Four sandbox project nodes deleted (`204` each). One sandbox registration (`zc97j`) remains — pending approval, not public, no DOI minted at observation time. Sandbox artifacts are disposable and it is not on the production registry.
 
 *Also worth recording as method:* the first probe printed `=> ADR-0107 is WRONG: OSF does enforce` — because the script treated **any** 400 as enforcement. The 400 was about subjects. Had that verdict been believed, this ADR would have been reversed on a false reading of its own test. **A probe's own conclusion is an assertion to be checked, not a result.**
+
+
+---
+
+## D9 (2026-07-17) — `344-4` must NOT be auto-answered. D1 was wrong.
+
+Found while writing the wireframe, by reading the option text OSF actually ships.
+
+D1 claimed `344-4` ("Foreknowledge of data or evidence") was free — that our `assertPlanBeforeData` gate already knows the answer, so the gate's fact could fill OSF's required field without authoring anything. **That is wrong, and shipping it would have forged a certification.**
+
+The option is not a status. It is a signed claim:
+
+> *"Data does not yet exist. No part of the data that will be used for this analysis plan exists, and no part will be generated until after this plan is registered."*
+
+That asserts something about **all data for the analysis plan, anywhere**, plus a promise about the future. Our gate establishes exactly one fact: **no participant responses exist in this study, in this app.** It cannot see pilot data on the researcher's laptop, archival data, or a collaborator's dataset. The two are not the same claim, and the gap between them is the whole point of the question — OSF asks it precisely to catch data the reader cannot otherwise know about.
+
+Auto-selecting option 1 would publish, permanently and under a DOI, a certification the researcher never made and that we have no standing to make. It is the same error as D2's prefilled answer, wearing the costume of a machine-true fact. And per the Postscript, OSF would accept it without a murmur.
+
+**Decision:** `344-4` renders unanswered like every other question. We display the fact we *can* stand behind — "no responses collected yet in My Research Lab" — next to it, and state plainly that the question covers data collected elsewhere too. The researcher certifies.
+
+**The general rule this yields**, and the one to apply to the next "obvious" mapping: *a fact we can prove about our own system is not the same claim as the question OSF is asking. Check the scope of the claim before treating a derived fact as an answer.* D1's other mappings (`344-40` study design, `344-58` manipulated variables, `344-62` measured variables) fail the same test for the same reason and are handled as reference-not-answer in the wireframe.
