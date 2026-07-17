@@ -96,32 +96,38 @@ Field labels reuse the existing pattern: `text-[length:var(--text-label)] upperc
 
 A read-only panel above the typed plan fields, headed **"From your design"**, with the sub-line *"Read from the study you built. We don't guess what it means — that part's yours."*
 
-**It states facts, never intent.** Every line is read off the frozen snapshot; nothing here is inferred (ADR-0106 D1). What renders — **the procedure only**:
+**It states facts, never intent.** Every line is read off the frozen snapshot; nothing here is inferred (ADR-0106 D1). What renders:
 
 - **Order** — "N screens, in the order you built them." When block-order randomization ships this line states the declared randomization instead; until then it must **not** say "random" (nothing shuffles blocks — `randomizeOrder` is option-order inside one question).
 - **Arms** — each condition's name and allocation weight, or "One group (no conditions)" when none exist.
 - **Timing** — configured values verbatim: "Timed exposure: 3000 ms", "Forced wait: 5 s".
+- **Measures** — one row per response-collecting block: the question, the response type in researcher language, and its arm gating. Blocks gated to an arm read "shown only to: <names>" — never "the treatment condition", which is undeclared.
 
 Nothing here is editable and nothing is stored. It is recomputed on every render, so it cannot go stale — and after preregistration it recomputes from the *frozen* snapshot, so it always describes the filed plan (ADR-0106 D2).
 
 **Empty state.** A study with no blocks yet renders the panel with "Build your study and its design appears here." — not a hidden panel, because the absence is the point at the Overview stage.
 
-### Variables is PRE-FILLED from the study — one list, not three
+### Each measure appears ONCE, and carries its own action
 
-Owner, 2026-07-16, on seeing Measures / "Measures not yet listed as variables" / Variables side by side: *"why use so many names… I think we need to simplify, it is confusing, especially I see in Measures listed the same items which right below are described as a not yet listed."* Correct — that was a seam between item ⑤ (Variables, hand-added) and item ⑨ (Measures, read from blocks), not a design.
+Owner, 2026-07-16, on a first cut that listed Measures and then "Measures not yet listed as variables" right below: *"why use so many names… I see in Measures listed the same items which right below are described as a not yet listed"* — then, on the fix: *"revert measures to top summary and we can add button 'declare variable'… but don't duplicate it."*
 
-There are only ever **two** concepts, and only one list:
+That was a seam between item ⑤ (Variables, hand-added) and item ⑨ (Measures, read from blocks), not a design. There are only ever **two** concepts:
 
-- **what the study collects** — a fact, read from the blocks;
-- **what the researcher claims it means** — intent, the role.
+- **what the study collects** — a fact, read from the blocks → the **Measures** summary above;
+- **what the researcher claims it means** — intent → the **Variables** section below.
 
-So **Variables renders one row per response-collecting block**, pre-filled with the question, the response type, and the block link already set. The role starts at **"— not declared —"**. Choosing a role *is* declaring the variable — there is no separate "Use this" step, no candidate list, and nothing is ever re-typed that the study already contains.
+So each measure row carries its own affordance and appears exactly once:
 
-- **Not declaring is normal, not a gap.** An attention check or a demographics item needn't be in anyone's hypothesis. Rows left undeclared are simply not variables, are not filed, and get no nag. What the researcher must never do is re-enter something they already built.
-- **Role is never derived.** Only the researcher assigns iv/dv/covariate/exclusion (ADR-0106 D1).
-- **"Add a variable"** stays, for variables that are **not** a block — the manipulation is usually the *arm*, not a question. Those have no block link and are plainly researcher-authored.
-- **A row whose block is deleted** keeps its stored variable and shows "(removed block)", so the plan never silently loses a declaration.
-- **The word is "variable."** A preregistration calls them variables and that is what OSF files; "measure" is not a second concept and must not appear as a second heading.
+- **Undeclared** → a **"Declare variable"** button. It adds the row to Variables with the question as the name and the block link already set — nothing is re-typed — and the researcher picks the role there.
+- **Declared** → no button; the row states **"Declared: Dependent"** (the role, in researcher words). It is already in Variables, so offering the button again would be the duplication this fixes.
+
+There is **no candidate list** and no second heading. A measure is in the summary; a declaration is in Variables.
+
+- **Not declaring is normal, not a gap.** An attention check or a demographics item needn't be in anyone's hypothesis. Undeclared measures are simply facts about the study, get no nag, and are not filed as variables. What the researcher must never do is re-enter something they already built.
+- **Role is never derived.** Only the researcher assigns iv/dv/covariate/exclusion (ADR-0106 D1). "Declare variable" sets the name and the link; the role starts at the neutral default for them to choose.
+- **"Add a variable"** stays in Variables, for variables that are **not** a block — the manipulation is usually the *arm*, not a question. Those have no block link and are plainly researcher-authored.
+- **A variable whose block is deleted** keeps its row and shows "(removed block)", so the plan never silently loses a declaration.
+- **The word is "variable."** A preregistration calls them variables and that is what OSF files. "Measure" names the *block's fact*, not a second kind of variable, and must never appear as a second heading over the same rows.
 
 **Provenance treatment.** A variable whose block link resolves carries a **"From your design"** chip. Editing its name or notes leaves the chip (the *link* is still machine-true); the chip drops only when the block link is cleared. It is a statement about where the link came from, not a lock — nothing is read-only because of it.
 

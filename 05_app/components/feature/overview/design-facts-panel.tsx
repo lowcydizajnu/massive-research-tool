@@ -1,6 +1,6 @@
 "use client";
 
-import { api } from "@/lib/trpc/react";
+import type { DesignFacts } from "@/server/modules/design-facts";
 
 /**
  * "From your design" — item ⑨ Phase A (ADR-0106, wireframe overview-stage).
@@ -9,29 +9,29 @@ import { api } from "@/lib/trpc/react";
  * study IS; the researcher says what it MEANS. That split is the whole feature:
  * OSF cannot read your design, and we cannot read your intent.
  *
- * Every line here is a fact off the snapshot. Nothing claims randomization (we
- * don't do it), a construct (no module declares one), or a variable's role
- * (intent). See `server/modules/design-facts.ts` for the full never-list.
+ * **Each measure appears ONCE and carries its own action.** A first cut listed
+ * Measures and then "Measures not yet listed as variables" right below — the
+ * same rows, twice, under two names (owner, 2026-07-16). A measure is a fact
+ * and lives here; a declaration is intent and lives in Variables. So the row
+ * offers "Declare variable" when undeclared, and states its role when declared
+ * — never both, never a second list.
+ *
+ * Nothing claims randomization (we don't do it), a construct (no module declares
+ * one), or a role (intent) — see `design-facts.ts` for the full never-list.
  */
 export function DesignFactsPanel({
-  studyId,
-  declaredInstanceIds,
-  onUseVariable,
+  facts,
+  declaredRoles,
+  onDeclare,
 }: {
-  studyId: string;
-  /** Blocks already claimed by a variable **in the editor right now** — not just
-   *  in the last save. The server computes candidates from the saved overview,
-   *  so without this a just-added variable keeps offering "Use this" and the
-   *  second click is a silent no-op that reads as a broken button. */
-  declaredInstanceIds: string[];
-  onUseVariable: (v: { instanceId: string; name: string }) => void;
+  facts: DesignFacts | undefined;
+  /** instanceId → the role it is declared as, for measures already in Variables. */
+  declaredRoles: Record<string, string>;
+  onDeclare: (m: { instanceId: string; name: string }) => void;
 }) {
-  const q = api.studies.getDesignFacts.useQuery({ studyId });
-
   // Hidden for viewers (the writeProcedure errors for them), same as Materials.
-  if (q.error || q.isLoading || !q.data) return null;
-  const claimed = new Set(declaredInstanceIds);
-  const d = { ...q.data, candidateVariables: q.data.candidateVariables.filter((c) => !claimed.has(c.instanceId)) };
+  if (!facts) return null;
+  const d = facts;
 
   return (
     <section
@@ -86,70 +86,48 @@ export function DesignFactsPanel({
             </Fact>
           ) : null}
 
-          <Fact label="Measures">
-            {d.measures.length === 0 ? (
-              "No blocks collect a response yet."
-            ) : (
-              <ul className="flex flex-col gap-1">
-                {d.measures.map((m) => (
-                  <li key={m.instanceId} className="flex flex-col">
-                    <span>
-                      {m.prompt ?? m.name}
-                      {/* A block with no prompt of its own falls back to the
-                          module name, and its response type IS that name — so
-                          don't render "Social post · Social post". */}
-                      {m.responseType === (m.prompt ?? m.name) ? null : (
-                        <span className="text-[var(--color-text-muted)]"> · {m.responseType}</span>
-                      )}
-                    </span>
-                    {/* The arm's own name — never "the treatment condition",
-                        which nothing in the design declares. */}
-                    {m.shownOnlyTo.length > 0 ? (
-                      <span className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-                        shown only to: {m.shownOnlyTo.join(", ")}
+          {d.measures.length > 0 ? (
+            <Fact label="Measures">
+              <ul className="flex flex-col gap-1.5">
+                {d.measures.map((m) => {
+                  const role = declaredRoles[m.instanceId];
+                  return (
+                    <li key={m.instanceId} className="flex flex-wrap items-baseline gap-x-2">
+                      <span className="flex-1">
+                        {m.prompt ?? m.name}
+                        {/* A block with no prompt falls back to its module name,
+                            and its response type IS that name — say it once. */}
+                        {m.responseType === (m.prompt ?? m.name) ? null : (
+                          <span className="text-[var(--color-text-muted)]"> · {m.responseType}</span>
+                        )}
+                        {m.shownOnlyTo.length > 0 ? (
+                          <span className="block text-[var(--color-text-muted)]">
+                            shown only to: {m.shownOnlyTo.join(", ")}
+                          </span>
+                        ) : null}
                       </span>
-                    ) : null}
-                  </li>
-                ))}
+                      {/* One row, one action. Declared → say what it is; the
+                          button would be the duplication we just removed. */}
+                      {role ? (
+                        <span className="whitespace-nowrap text-[var(--color-text-muted)]">Declared: {role}</span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => onDeclare({ instanceId: m.instanceId, name: m.prompt ?? m.name })}
+                          className="whitespace-nowrap rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] px-2 py-0.5 font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
+                        >
+                          Declare variable
+                        </button>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
-            )}
-          </Fact>
+            </Fact>
+          ) : null}
         </dl>
       )}
 
-      {/* Candidates, not decisions. "Use this" sets the block link and the data
-          type; the ROLE stays empty because a role is intent (ADR-0106 D1). */}
-      {d.candidateVariables.length > 0 ? (
-        <div className="flex flex-col gap-1.5 border-t border-[var(--color-border-subtle)] pt-3">
-          <span className="text-[length:var(--text-small)] font-medium text-[var(--color-text-primary)]">
-            Measures not yet listed as variables
-          </span>
-          <ul className="flex flex-col gap-1">
-            {d.candidateVariables.map((c) => (
-              <li key={c.instanceId} className="flex flex-wrap items-center gap-2">
-                {/* The QUESTION, not the module name — three Likerts all read
-                    "Likert (7-point)" and picking blind is not a choice. */}
-                <span className="flex-1 text-[length:var(--text-small)] text-[var(--color-text-secondary)]">
-                  {c.prompt ?? c.name}
-                  {c.dataType === (c.prompt ?? c.name) ? null : (
-                    <span className="text-[var(--color-text-muted)]"> · {c.dataType}</span>
-                  )}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => onUseVariable({ instanceId: c.instanceId, name: c.name })}
-                  className="rounded-[var(--radius-sm)] border border-[var(--color-border-subtle)] px-2 py-0.5 text-[length:var(--text-small)] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-subtle)]"
-                >
-                  Use this
-                </button>
-              </li>
-            ))}
-          </ul>
-          <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-            Adds it to Variables with the block linked. You choose what it is.
-          </p>
-        </div>
-      ) : null}
     </section>
   );
 }

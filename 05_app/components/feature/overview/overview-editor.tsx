@@ -100,6 +100,10 @@ export function OverviewEditor({
   const [differences, setDifferences] = useState(initial.differences.text);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
 
+  // The design facts feed BOTH the panel and the Variables pre-fill — one query,
+  // one source (ADR-0106; wireframe: one list, not three).
+  const facts = api.studies.getDesignFacts.useQuery({ studyId }).data;
+
   const save = api.studies.setOverview.useMutation({
     onSuccess: () => {
       setSavedMsg("Overview saved.");
@@ -163,20 +167,33 @@ export function OverviewEditor({
     dirty();
   };
   /**
-   * "Use this" on a derived candidate (ADR-0106 D3). Sets the name and the block
-   * link — the two things the design actually knows. The ROLE is deliberately
-   * left at its default for the researcher to choose: iv/dv/covariate/exclusion
-   * is intent, and guessing it is the invention this whole item refuses.
-   * `source` isn't sent; the server derives it from the link (D4).
+   * "Declare variable" on a measure (ADR-0106 D3; wireframe: each measure
+   * appears once and carries its own action).
+   *
+   * Sets the name and the block link — the two things the design actually knows
+   * — and stops. The ROLE is the researcher's: iv/dv/covariate/exclusion is
+   * intent, and guessing it is the invention this item exists to refuse. Not
+   * declaring a measure at all is normal too; an attention check needn't be in
+   * anyone's hypothesis. `source` is never sent — the server derives it from
+   * whether the link resolves (D4).
    */
-  const useDerivedVariable = ({ instanceId, name }: { instanceId: string; name: string }) => {
+  const declareMeasure = (m: { instanceId: string; name: string }) => {
     setVariables((v) =>
-      v.some((x) => x.instanceId === instanceId)
-        ? v // already listed — "Use this" is idempotent, not a duplicate button
-        : [...v, { id: crypto.randomUUID(), name, role: "dv", instanceId, notes: "", source: "derived" }],
+      v.some((x) => x.instanceId === m.instanceId)
+        ? v // already declared — the row shows its role, not the button
+        : [...v, { id: crypto.randomUUID(), name: m.name, role: "dv", instanceId: m.instanceId, notes: "", source: "derived" }],
     );
     dirty();
   };
+
+  /** instanceId → role label, so a declared measure states what it is instead of
+   *  re-offering the button. Reads the editor's CURRENT variables, not the last
+   *  save, or a just-declared row would keep offering to declare itself. */
+  const declaredRoles: Record<string, string> = Object.fromEntries(
+    variables
+      .filter((v) => v.instanceId)
+      .map((v) => [v.instanceId as string, ROLES.find((r) => r.value === v.role)?.label ?? v.role]),
+  );
   const updateVariable = (id: string, patch: Partial<PlanVariable>) => {
     setVariables((v) => v.map((x) => (x.id === id ? { ...x, ...patch } : x)));
     dirty();
@@ -221,11 +238,7 @@ export function OverviewEditor({
       {/* What the built study says about itself (item ⑨ Phase A, ADR-0106).
           Above the plan fields on purpose: the facts are the thing you write
           the plan AGAINST. */}
-      <DesignFactsPanel
-        studyId={studyId}
-        declaredInstanceIds={variables.map((v) => v.instanceId).filter((i): i is string => !!i)}
-        onUseVariable={useDerivedVariable}
-      />
+      <DesignFactsPanel facts={facts} declaredRoles={declaredRoles} onDeclare={declareMeasure} />
 
       {/* Preregistration template (ADR-0101). Governs which typed fields show and
           which OSF registration form the plan is filed under. NOT a starter study
