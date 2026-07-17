@@ -79,7 +79,7 @@ import {
   type StudyOverview,
   type VariableRole,
 } from "@/server/modules/blocks";
-import { fetchSchemaBlocks } from "@/server/adapters/registry.osf";
+import { fetchOsfSubjects, fetchSchemaBlocks } from "@/server/adapters/registry.osf";
 import { readOsfQuestions } from "@/server/modules/osf-schema";
 import { deriveDesignFacts, type DesignFacts } from "@/server/modules/design-facts";
 import { cellLabel, pruneBindings, type VariantBinding, type VariantFactor } from "@/lib/variants/factorial";
@@ -3248,6 +3248,14 @@ export const studiesRouter = router({
    * (open-ended, replication-recipe) so the caller renders nothing rather than
    * an empty section.
    */
+  /**
+   * OSF's subject taxonomy for the "field of study" picker (ADR-0107 D8).
+   * Public on OSF's side, so no connection is needed to choose one.
+   */
+  listOsfSubjects: writeProcedure.query(async () => {
+    return fetchOsfSubjects();
+  }),
+
   getTemplateQuestions: writeProcedure
     .input(
       z.object({
@@ -3314,6 +3322,7 @@ export const studiesRouter = router({
            * that is frozen forever: a runaway client must not be able to make a
            * preregistration unreadable.
            */
+          osfSubjectIds: z.array(z.string().max(64)).max(10).optional(),
           templateAnswers: z
             .record(z.string().max(64), z.union([z.string().max(20_000), z.array(z.string().max(2_000)).max(50)]))
             .refine((r) => Object.keys(r).length <= 200, "too many answers")
@@ -3396,6 +3405,7 @@ export const studiesRouter = router({
         // Replaces wholesale, not merged: the client holds the full answer map
         // and clearing an answer must actually clear it.
         ...(o.templateAnswers === undefined ? {} : { templateAnswers: o.templateAnswers }),
+        ...(o.osfSubjectIds === undefined ? {} : { osfSubjectIds: o.osfSubjectIds }),
         samplingPlan: researcherField(o.samplingPlan, current.samplingPlan),
         analysisPlan: researcherField(o.analysisPlan, current.analysisPlan),
         ...(o.variables ? { variables: o.variables.map(withProvenance) } : {}),

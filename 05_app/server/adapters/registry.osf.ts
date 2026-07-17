@@ -167,6 +167,38 @@ async function fetchRegistrationDoi(token: string, registrationId: string): Prom
 /** Resolve the registration-schema id by name (e.g. "Open-Ended Registration").
  *  OSF does NOT support filter[name] on this collection (returns 400), so we
  *  page through the list and match on attributes.name client-side. */
+/** An OSF subject (taxonomy term) — the "field of study" a registration files under. */
+export type OsfSubject = { id: string; text: string; parent: string | null };
+
+/**
+ * OSF's registration subject taxonomy (ADR-0107 D8). Public, like schema_blocks —
+ * no token, so the picker works before OSF is connected.
+ *
+ * 1,239 terms, so this is search-not-browse: callers filter client-side. Cached
+ * per process because the taxonomy is effectively static and 13 pages is a lot
+ * to re-fetch per keystroke.
+ */
+let subjectCache: OsfSubject[] | null = null;
+export async function fetchOsfSubjects(): Promise<OsfSubject[]> {
+  if (subjectCache) return subjectCache;
+  const out: OsfSubject[] = [];
+  let url: string | null = `${osfConfig().apiBase}/providers/registrations/osf/subjects/?page[size]=100`;
+  while (url) {
+    const res: Response = await fetch(url, { headers: { Accept: JSON_API } });
+    if (!res.ok) throw new Error(`OSF subjects -> ${res.status}`);
+    const body = (await res.json()) as {
+      data: Array<{ id: string; attributes?: { text?: string }; relationships?: { parent?: { data?: { id?: string } | null } } }>;
+      links?: { next?: string | null };
+    };
+    for (const s of body.data) {
+      out.push({ id: s.id, text: s.attributes?.text ?? "", parent: s.relationships?.parent?.data?.id ?? null });
+    }
+    url = body.links?.next ?? null;
+  }
+  subjectCache = out;
+  return out;
+}
+
 /**
  * Reads a registration schema's blocks — the questions a template asks (ADR-0107).
  *

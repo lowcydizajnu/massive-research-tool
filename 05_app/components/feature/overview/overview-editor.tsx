@@ -11,6 +11,7 @@ import {
   type PreregTemplateKey,
 } from "@/lib/prereg-templates";
 import { DesignFactsPanel } from "@/components/feature/overview/design-facts-panel";
+import { SubjectPicker } from "@/components/feature/overview/subject-picker";
 import { TemplateQuestions } from "@/components/feature/overview/template-questions";
 import { api } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
@@ -106,6 +107,7 @@ export function OverviewEditor({
   // ADR-0107. Keyed by OSF response key, so switching templates hides questions
   // but never destroys answers.
   const [templateAnswers, setTemplateAnswers] = useState(initial.templateAnswers);
+  const [osfSubjectIds, setOsfSubjectIds] = useState(initial.osfSubjectIds);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
 
   // The design facts feed BOTH the panel and the Variables pre-fill — one query,
@@ -116,6 +118,7 @@ export function OverviewEditor({
   // Keyed on the SELECTED template so the questions appear the moment it is
   // picked, not after a save.
   const osfQuestions = api.studies.getTemplateQuestions.useQuery({ studyId, templateKey });
+  const osfSubjects = api.studies.listOsfSubjects.useQuery().data;
 
   const save = api.studies.setOverview.useMutation({
     onSuccess: () => {
@@ -251,6 +254,15 @@ export function OverviewEditor({
       {/* What the built study says about itself (item ⑨ Phase A, ADR-0106).
           Above the plan fields on purpose: the facts are the thing you write
           the plan AGAINST. */}
+      <SubjectPicker
+        subjects={osfSubjects}
+        selected={osfSubjectIds}
+        onChange={(ids) => {
+          setOsfSubjectIds(ids);
+          dirty();
+        }}
+      />
+
       {osfQuestions.data ? (
         <TemplateQuestions
           templateLabel={osfQuestions.data.templateLabel}
@@ -742,6 +754,7 @@ export function OverviewEditor({
                 templateKey: explicitTemplateKey,
                 discloseDerivation,
                 templateAnswers,
+                osfSubjectIds,
                 // `source` is never sent — it is derived server-side, like
                 // `dataCollectionStatus`. This used to hardcode
                 // `source: "researcher"` on all five, which meant the provenance
