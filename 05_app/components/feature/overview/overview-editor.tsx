@@ -10,6 +10,7 @@ import {
   templateAsks,
   type PreregTemplateKey,
 } from "@/lib/prereg-templates";
+import { DesignFactsPanel } from "@/components/feature/overview/design-facts-panel";
 import { api } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
 import type {
@@ -161,6 +162,21 @@ export function OverviewEditor({
     ]);
     dirty();
   };
+  /**
+   * "Use this" on a derived candidate (ADR-0106 D3). Sets the name and the block
+   * link — the two things the design actually knows. The ROLE is deliberately
+   * left at its default for the researcher to choose: iv/dv/covariate/exclusion
+   * is intent, and guessing it is the invention this whole item refuses.
+   * `source` isn't sent; the server derives it from the link (D4).
+   */
+  const useDerivedVariable = ({ instanceId, name }: { instanceId: string; name: string }) => {
+    setVariables((v) =>
+      v.some((x) => x.instanceId === instanceId)
+        ? v // already listed — "Use this" is idempotent, not a duplicate button
+        : [...v, { id: crypto.randomUUID(), name, role: "dv", instanceId, notes: "", source: "derived" }],
+    );
+    dirty();
+  };
   const updateVariable = (id: string, patch: Partial<PlanVariable>) => {
     setVariables((v) => v.map((x) => (x.id === id ? { ...x, ...patch } : x)));
     dirty();
@@ -202,6 +218,15 @@ export function OverviewEditor({
 
   return (
     <div className="flex max-w-[760px] flex-col gap-5">
+      {/* What the built study says about itself (item ⑨ Phase A, ADR-0106).
+          Above the plan fields on purpose: the facts are the thing you write
+          the plan AGAINST. */}
+      <DesignFactsPanel
+        studyId={studyId}
+        declaredInstanceIds={variables.map((v) => v.instanceId).filter((i): i is string => !!i)}
+        onUseVariable={useDerivedVariable}
+      />
+
       {/* Preregistration template (ADR-0101). Governs which typed fields show and
           which OSF registration form the plan is filed under. NOT a starter study
           (`workspace_template`) and not the retired Framework — see the Vocabulary

@@ -78,6 +78,7 @@ import {
   type StudyOverview,
   type VariableRole,
 } from "@/server/modules/blocks";
+import { deriveDesignFacts, type DesignFacts } from "@/server/modules/design-facts";
 import { cellLabel, pruneBindings, type VariantBinding, type VariantFactor } from "@/lib/variants/factorial";
 import { changelogBetween, initialVersionSummary, DEFAULT_NEW_STUDY_SNAPSHOT } from "@/server/modules/changelog";
 import { blockEditDetail, recordStudyEdit } from "@/server/modules/study-edits";
@@ -3183,6 +3184,26 @@ export const studiesRouter = router({
    * sections. Rides in `definition_snapshot.overview` (preserving blocks), so a
    * preregistered version freezes the narrative alongside the blocks (ADR-0012).
    */
+  /**
+   * What the built study says about its own method (item ⑨ Phase A, ADR-0106).
+   *
+   * Computed on every call, never stored — stored derived prose is a second
+   * source of truth that goes stale on the next block edit (D2). Reads the RAW
+   * snapshot via `deriveDesignFacts`/`readBlocks`, deliberately NOT this router's
+   * own Builder read, which merges the module's CURRENT defaults under the saved
+   * config and would present a default the researcher never chose as a decision.
+   */
+  getDesignFacts: writeProcedure
+    .input(z.object({ studyId: z.string().uuid() }))
+    .query(async ({ ctx, input }): Promise<DesignFacts> => {
+      const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+      const conditions = await conditionsForVersion(tip.version.id);
+      const overview = readOverview(tip.version.definitionSnapshot);
+      // A block already spoken for by a declared variable is not a candidate.
+      const declared = overview.variables.map((v) => v.instanceId).filter((i): i is string => !!i);
+      return deriveDesignFacts(tip.version.definitionSnapshot, conditions, declared);
+    }),
+
   setOverview: writeProcedure
     .input(
       z.object({
