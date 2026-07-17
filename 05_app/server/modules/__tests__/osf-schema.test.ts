@@ -145,3 +145,34 @@ describe("toRegistrationResponses — what actually reaches OSF", () => {
     expect(toRegistrationResponses(qs, {})).toEqual({});
   });
 });
+
+/**
+ * Shapes OBSERVED live on test.osf.io 2026-07-17 (draft-only probe, nothing
+ * registered). These pin facts about a vendor we do not control — if OSF ever
+ * changes them, these fail loudly rather than the filing failing quietly.
+ */
+describe("the OSF wire contract, as observed", () => {
+  const qs = readOsfQuestions(PREREG);
+
+  it("passes a multi-select through as an ARRAY — a bare string is a 400", () => {
+    // ["<opt>"] -> 200 · "<opt>" -> 400 · "<a>, <b>" -> 400 · [] -> 200
+    const out = toRegistrationResponses(qs, { "344-17": ["Other"] });
+    expect(Array.isArray(out["344-17"])).toBe(true);
+    expect(out["344-17"]).toEqual(["Other"]);
+  });
+
+  it("treats an empty multi-select as unanswered, and never emits it", () => {
+    // OSF accepts [] with a 200, so it is not an error — it is simply no answer.
+    expect(unansweredRequired(qs, { "344-17": [] }).map((q) => q.key)).toContain("344-17");
+    expect(toRegistrationResponses(qs, { "344-17": [] })).toEqual({});
+  });
+
+  it("hands a select option to OSF byte-for-byte — trimming it would 400", () => {
+    // Observed: the stray-whitespace option verbatim -> 200; trimmed -> 400.
+    const q = qs.find((x) => x.key === "344-4")!;
+    const stray = q.options.find((o) => o !== o.trim())!;
+    const out = toRegistrationResponses(qs, { "344-4": stray });
+    expect(out["344-4"]).toBe(stray);
+    expect(out["344-4"]).not.toBe(stray.trim());
+  });
+});

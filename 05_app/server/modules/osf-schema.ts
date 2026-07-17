@@ -113,9 +113,12 @@ export function readOsfQuestions(blocks: OsfSchemaBlock[]): OsfQuestion[] {
       example: (labelBlock?.attributes.example_text ?? a.example_text ?? "").trim(),
       required: a.required === true,
       kind: INPUT_KIND[a.block_type!] ?? "unknown",
-      // Byte-exact (ADR-0107 D6): several options in the live catalogue carry
-      // stray whitespace, and enum membership IS checked at draft-PATCH, so a
-      // trimmed option is a REJECTED option. Trim for display, never here.
+      // Byte-exact (ADR-0107 D6) — OBSERVED, not inferred. Several live options
+      // carry stray whitespace; on the sandbox 2026-07-17 the option sent
+      // verbatim returned 200 and the SAME option trimmed returned 400 ("your
+      // response must be one of the provided options"). Tidying whitespace here
+      // breaks the filing, and the tidier it looks the more surely it fails.
+      // Trim for display. Never here.
       options: group
         .filter((x) => x.attributes.block_type === "select-input-option")
         .map((x) => x.attributes.display_text ?? ""),
@@ -137,7 +140,14 @@ export function byPage(questions: OsfQuestion[]): { page: string; questions: Osf
   return pages;
 }
 
-/** An answer map keyed by OSF response key. Multi-selects hold arrays. */
+/**
+ * An answer map keyed by OSF response key.
+ *
+ * Multi-selects MUST hold an array of byte-exact option strings — observed on
+ * the sandbox 2026-07-17: `["<opt>"]` -> 200, but the same option as a bare
+ * string -> 400, and comma-delimited -> 400. An empty array is accepted and
+ * means "unanswered".
+ */
 export type OsfAnswers = Record<string, string | string[]>;
 
 function isBlank(v: string | string[] | undefined): boolean {

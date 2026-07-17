@@ -207,3 +207,54 @@ Auto-selecting option 1 would publish, permanently and under a DOI, a certificat
 **Decision:** `344-4` renders unanswered like every other question. We display the fact we *can* stand behind — "no responses collected yet in My Research Lab" — next to it, and state plainly that the question covers data collected elsewhere too. The researcher certifies.
 
 **The general rule this yields**, and the one to apply to the next "obvious" mapping: *a fact we can prove about our own system is not the same claim as the question OSF is asking. Check the scope of the claim before treating a derived fact as an answer.* D1's other mappings (`344-40` study design, `344-58` manipulated variables, `344-62` measured variables) fail the same test for the same reason and are handled as reference-not-answer in the wireframe.
+
+
+---
+
+## Postscript 2 (2026-07-17) — the three open shapes, settled on the sandbox
+
+Draft-only probe, nothing registered, all artifacts deleted (`204`). Three claims this ADR carried as **NOT VERIFIED** are now observed. All three hold, and one of them turns out to be load-bearing rather than pedantic.
+
+### 1. Multi-select takes an ARRAY of exact option strings
+
+| Sent for `220-17` (Study type, required multi-select) | Result |
+| --- | --- |
+| `["<exact option>"]` | **200** |
+| `["<opt A>", "<opt B>"]` | **200** |
+| `"<exact option>"` (bare string) | **400** |
+| `"<opt A>, <opt B>"` (comma-delimited) | **400** |
+| `[]` | **200** |
+
+Settles the blocker on OSF Preregistration, whose required `344-17` and `344-32` are both multi-selects. `OsfAnswers` already models `string | string[]`; the form must send arrays, and an empty array is accepted (i.e. "unanswered", which is why `unansweredRequired` treats `[]` as blank).
+
+### 2. D6 is not pedantry — a trimmed option is genuinely REJECTED
+
+This was the one worth doing. Using the live option that ships with a trailing space:
+
+| Sent for `220-4` | Result |
+| --- | --- |
+| the option **byte-exact** (trailing space intact) | **200** |
+| the **same option, trimmed** | **400** — *"your response must be one of the provided options"* |
+| an option that does not exist | **400** |
+
+So a UI that tidies whitespace on the way in **breaks the filing**, and the tidier the code looks the more certainly it fails. D6's "trim for display, never for submission" is now observed fact, and `osf-schema.ts` has a test pinning it.
+
+### 3. D3 confirmed — an unknown key is a hard 400, naming the key
+
+| Sent | Result |
+| --- | --- |
+| `77-2` (a real key, from a **different** schema) | **400** — *"Additional properties are not allowed ('77-2' was unexpected)"* |
+| an invented key | **400** — same shape |
+
+The asymmetry this ADR is built on is real and total: **a missing required key is silence; an unknown key kills the filing.** `toRegistrationResponses` filtering to live-read keys is the thing standing between us and that.
+
+### Correction to this ADR's own risk list — OSF's invalid-value errors are GOOD
+
+The risks section warned that a rejection would carry a raw, unhelpful message because the friendly-error branch is unreachable dead code. **For invalid values that is wrong**, and observing it is how we found out. OSF says:
+
+> *"For your registration, your response to the 'Study type' field is invalid. …"*
+> *"For your registration, your response to the 'Foreknowledge of data or evidence' field is invalid, your response must be one of the provided options."*
+
+It names the field in **human language**, unprompted. So when a filing does fail on a bad option, the honest move is to **surface OSF's own message** rather than write our own — theirs is already better than the generic one we would have invented.
+
+The dead-branch claim may still hold for the *required-field* message specifically (that branch cannot fire while `required_fields` is never `True`), but it does not generalise, and this ADR should not have implied it did.
