@@ -96,20 +96,34 @@ Field labels reuse the existing pattern: `text-[length:var(--text-label)] upperc
 
 A read-only panel above the typed plan fields, headed **"From your design"**, with the sub-line *"Read from the study you built. We don't guess what it means — that part's yours."*
 
-**It states facts, never intent.** Every line is read off the frozen snapshot; nothing here is inferred (ADR-0106 D1). What renders:
+**It states facts, never intent.** Every line is read off the frozen snapshot; nothing here is inferred (ADR-0106 D1). What renders — **the procedure only**:
 
 - **Order** — "N screens, in the order you built them." When block-order randomization ships this line states the declared randomization instead; until then it must **not** say "random" (nothing shuffles blocks — `randomizeOrder` is option-order inside one question).
-- **Arms** — each condition's name and allocation weight, or "One group (no conditions)" when none exist. Blocks gated to an arm read "shown only to: <names>" — never "the treatment condition", which is undeclared.
+- **Arms** — each condition's name and allocation weight, or "One group (no conditions)" when none exist.
 - **Timing** — configured values verbatim: "Timed exposure: 3000 ms", "Forced wait: 5 s".
-- **Measures** — one row per response-collecting block: its prompt, its type in researcher language ("7-point scale, 1–7"), and its block link.
 
 Nothing here is editable and nothing is stored. It is recomputed on every render, so it cannot go stale — and after preregistration it recomputes from the *frozen* snapshot, so it always describes the filed plan (ADR-0106 D2).
 
-**Candidate variables.** Below Measures, each response-collecting block not already in `variables[]` renders as a candidate: its name, its data type (read from the block's `responseSchema`), and a **"Use this"** button. "Use this" adds it to the Variables list with the block link set and provenance `derived`; the researcher then picks the role themselves — **role is intent and is never derived** (a dropdown left at its empty default, not a guess).
-
-**Provenance treatment.** A variable added this way carries an **"From your design"** chip. Editing its name or notes leaves the chip (the *link* is still machine-true); the chip is dropped only when the researcher clears the block link. The chip is a statement about where the link came from, not a lock — nothing is read-only because of it.
-
 **Empty state.** A study with no blocks yet renders the panel with "Build your study and its design appears here." — not a hidden panel, because the absence is the point at the Overview stage.
+
+### Variables is PRE-FILLED from the study — one list, not three
+
+Owner, 2026-07-16, on seeing Measures / "Measures not yet listed as variables" / Variables side by side: *"why use so many names… I think we need to simplify, it is confusing, especially I see in Measures listed the same items which right below are described as a not yet listed."* Correct — that was a seam between item ⑤ (Variables, hand-added) and item ⑨ (Measures, read from blocks), not a design.
+
+There are only ever **two** concepts, and only one list:
+
+- **what the study collects** — a fact, read from the blocks;
+- **what the researcher claims it means** — intent, the role.
+
+So **Variables renders one row per response-collecting block**, pre-filled with the question, the response type, and the block link already set. The role starts at **"— not declared —"**. Choosing a role *is* declaring the variable — there is no separate "Use this" step, no candidate list, and nothing is ever re-typed that the study already contains.
+
+- **Not declaring is normal, not a gap.** An attention check or a demographics item needn't be in anyone's hypothesis. Rows left undeclared are simply not variables, are not filed, and get no nag. What the researcher must never do is re-enter something they already built.
+- **Role is never derived.** Only the researcher assigns iv/dv/covariate/exclusion (ADR-0106 D1).
+- **"Add a variable"** stays, for variables that are **not** a block — the manipulation is usually the *arm*, not a question. Those have no block link and are plainly researcher-authored.
+- **A row whose block is deleted** keeps its stored variable and shows "(removed block)", so the plan never silently loses a declaration.
+- **The word is "variable."** A preregistration calls them variables and that is what OSF files; "measure" is not a second concept and must not appear as a second heading.
+
+**Provenance treatment.** A variable whose block link resolves carries a **"From your design"** chip. Editing its name or notes leaves the chip (the *link* is still machine-true); the chip drops only when the block link is cleared. It is a statement about where the link came from, not a lock — nothing is read-only because of it.
 
 ### OSF disclosure toggle
 
