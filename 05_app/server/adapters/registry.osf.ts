@@ -4,6 +4,7 @@ import { ulid } from "ulid";
 import { db } from "@/server/db/client";
 import { registry as registryTable, registryConnection } from "@/server/db/schema";
 import { decryptSecret, encryptSecret } from "@/server/crypto/tokens";
+import type { OsfSchemaBlock } from "@/server/modules/osf-schema";
 
 import type {
   LinkedResource,
@@ -166,6 +167,32 @@ async function fetchRegistrationDoi(token: string, registrationId: string): Prom
 /** Resolve the registration-schema id by name (e.g. "Open-Ended Registration").
  *  OSF does NOT support filter[name] on this collection (returns 400), so we
  *  page through the list and match on attributes.name client-side. */
+/**
+ * Reads a registration schema's blocks — the questions a template asks (ADR-0107).
+ *
+ * **Deliberately unauthenticated.** `/v2/schemas/registrations/{id}/schema_blocks/`
+ * is public (verified live: anonymous GET -> 200), so the Overview stage can
+ * render OSF's questions for a researcher who has not connected OSF at all.
+ * Only the PUSH needs a token. Passing one here would invent a dependency OSF
+ * does not have and would gate authoring on an integration.
+ *
+ * Returns raw blocks; `server/modules/osf-schema.ts` turns them into questions.
+ * Never truncated: per_page maxes at 1000 and the largest schema in the
+ * catalogue is 198 blocks, but we page anyway rather than assume.
+ */
+export async function fetchSchemaBlocks(schemaId: string): Promise<OsfSchemaBlock[]> {
+  const out: OsfSchemaBlock[] = [];
+  let url: string | null = `${osfConfig().apiBase}/schemas/registrations/${schemaId}/schema_blocks/?page[size]=100`;
+  while (url) {
+    const res: Response = await fetch(url, { headers: { Accept: JSON_API } });
+    if (!res.ok) throw new Error(`OSF schema_blocks ${schemaId} -> ${res.status}`);
+    const body = (await res.json()) as { data: OsfSchemaBlock[]; links?: { next?: string | null } };
+    out.push(...body.data);
+    url = body.links?.next ?? null;
+  }
+  return out;
+}
+
 async function resolveSchemaId(token: string, schemaName?: string): Promise<string> {
   const name = schemaName ?? osfConfig().registrationSchemaName;
   let url: string | null = `${osfConfig().apiBase}/schemas/registrations/?page[size]=100`;

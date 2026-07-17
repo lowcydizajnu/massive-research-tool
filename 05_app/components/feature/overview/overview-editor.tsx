@@ -11,6 +11,7 @@ import {
   type PreregTemplateKey,
 } from "@/lib/prereg-templates";
 import { DesignFactsPanel } from "@/components/feature/overview/design-facts-panel";
+import { TemplateQuestions } from "@/components/feature/overview/template-questions";
 import { api } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
 import type {
@@ -102,11 +103,19 @@ export function OverviewEditor({
   // stored value IS the answer, and `readOverview` already resolves absent → true.
   // So a plain boolean round-trips honestly.
   const [discloseDerivation, setDiscloseDerivation] = useState(initial.discloseDerivation);
+  // ADR-0107. Keyed by OSF response key, so switching templates hides questions
+  // but never destroys answers.
+  const [templateAnswers, setTemplateAnswers] = useState(initial.templateAnswers);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
 
   // The design facts feed BOTH the panel and the Variables pre-fill — one query,
   // one source (ADR-0106; wireframe: one list, not three).
   const facts = api.studies.getDesignFacts.useQuery({ studyId }).data;
+  // Read live from OSF (public endpoint — no connection needed). `null` for
+  // templates whose plan we compose or map ourselves.
+  // Keyed on the SELECTED template so the questions appear the moment it is
+  // picked, not after a save.
+  const osfQuestions = api.studies.getTemplateQuestions.useQuery({ studyId, templateKey });
 
   const save = api.studies.setOverview.useMutation({
     onSuccess: () => {
@@ -242,6 +251,28 @@ export function OverviewEditor({
       {/* What the built study says about itself (item ⑨ Phase A, ADR-0106).
           Above the plan fields on purpose: the facts are the thing you write
           the plan AGAINST. */}
+      {osfQuestions.data ? (
+        <TemplateQuestions
+          templateLabel={osfQuestions.data.templateLabel}
+          questions={osfQuestions.data.questions}
+          answers={templateAnswers}
+          onAnswer={(key, value) => {
+            setTemplateAnswers((a) => ({ ...a, [key]: value }));
+            dirty();
+          }}
+        />
+      ) : null}
+      {osfQuestions.isError ? (
+        // Never render "nothing to answer" on a fetch failure — that reads as an
+        // all-clear before a permanent filing (wireframe: Edge cases).
+        <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+          Couldn&rsquo;t load this template&rsquo;s questions from OSF.{" "}
+          <button type="button" onClick={() => void osfQuestions.refetch()} className="underline">
+            Try again
+          </button>
+        </p>
+      ) : null}
+
       <DesignFactsPanel
         facts={facts}
         declaredRoles={declaredRoles}
@@ -710,6 +741,7 @@ export function OverviewEditor({
                 // untouched picker never manufactures a decision.
                 templateKey: explicitTemplateKey,
                 discloseDerivation,
+                templateAnswers,
                 // `source` is never sent — it is derived server-side, like
                 // `dataCollectionStatus`. This used to hardcode
                 // `source: "researcher"` on all five, which meant the provenance

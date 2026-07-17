@@ -46,7 +46,7 @@ import {
 import { type RecordSection, sanitizeLayout as sanitizeRecordLayout } from "@/lib/study-record/sections";
 import { extractMaterials } from "@/lib/study-record/materials";
 import { LICENSE_IDS } from "@/lib/licenses";
-import { PREREG_TEMPLATE_KEYS } from "@/lib/prereg-templates";
+import { PREREG_TEMPLATE_KEYS, preregTemplate } from "@/lib/prereg-templates";
 import { newestPrereg, preregChain, publicPreregs, type PublicPrereg } from "@/server/study/prereg-chain";
 import {
   type CustomModuleDefinition,
@@ -67,6 +67,7 @@ import {
   groupChangeLine,
   locksFromBlocks,
   readBlocks,
+  planTemplateKey,
   readOverview,
   readGroups,
   readFactors,
@@ -78,6 +79,8 @@ import {
   type StudyOverview,
   type VariableRole,
 } from "@/server/modules/blocks";
+import { fetchSchemaBlocks } from "@/server/adapters/registry.osf";
+import { readOsfQuestions } from "@/server/modules/osf-schema";
 import { deriveDesignFacts, type DesignFacts } from "@/server/modules/design-facts";
 import { cellLabel, pruneBindings, type VariantBinding, type VariantFactor } from "@/lib/variants/factorial";
 import { changelogBetween, initialVersionSummary, DEFAULT_NEW_STUDY_SNAPSHOT } from "@/server/modules/changelog";
@@ -3230,6 +3233,54 @@ export const studiesRouter = router({
       return deriveDesignFacts(tip.version.definitionSnapshot, conditions, declared);
     }),
 
+  /**
+   * OSF's own questions for the study's chosen template (ADR-0107).
+   *
+   * Read LIVE from OSF at render, never from the snapshot: OSF revises schemas
+   * in place, and a stale select option is not a cosmetic problem — the exact
+   * option string IS the submittable value, so a stale one 400s the filing
+   * (observed 2026-07-17: the same option trimmed is rejected).
+   *
+   * Needs no OSF connection — schema_blocks is public. A researcher can answer
+   * OSF's questions before ever connecting; only the push needs a token.
+   *
+   * Returns `null` for templates whose plan we compose or map ourselves
+   * (open-ended, replication-recipe) so the caller renders nothing rather than
+   * an empty section.
+   */
+  getTemplateQuestions: writeProcedure
+    .input(
+      z.object({
+        studyId: z.string().uuid(),
+        /**
+         * The template the researcher has SELECTED, which is not yet the one
+         * saved. Without this the questions would only appear after a save, so
+         * picking a template would do nothing on screen — the exact "picker is a
+         * visual no-op" defect the owner caught on 2026-07-15, and the reason
+         * the registry docstring says a picker that changes nothing is
+         * indistinguishable from a broken one. Falls back to the saved plan.
+         */
+        templateKey: z.enum(PREREG_TEMPLATE_KEYS).optional(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+      const overview = readOverview(tip.version.definitionSnapshot);
+      const template = preregTemplate(input.templateKey ?? planTemplateKey(overview));
+      if (!template.asksOsfQuestions) return null;
+      // A fetch failure must surface, not resolve to "no questions" — that
+      // would read as "nothing to answer" and the Preregister warning would
+      // give a false all-clear before a permanent filing (wireframe: Edge cases).
+      const blocks = await fetchSchemaBlocks(template.schemaId);
+      return {
+        templateKey: template.key,
+        templateLabel: template.label,
+        schemaName: template.schemaName,
+        questions: readOsfQuestions(blocks),
+        answers: overview.templateAnswers,
+      };
+    }),
+
   setOverview: writeProcedure
     .input(
       z.object({
@@ -3257,6 +3308,16 @@ export const studiesRouter = router({
            *  which parts were read from their design. Optional on the wire so an
            *  older client keeps its stored value via the merge. */
           discloseDerivation: z.boolean().optional(),
+          /**
+           * Answers to the template's own OSF questions (ADR-0107), keyed by
+           * OSF's response key. Bounded because this rides in a jsonb snapshot
+           * that is frozen forever: a runaway client must not be able to make a
+           * preregistration unreadable.
+           */
+          templateAnswers: z
+            .record(z.string().max(64), z.union([z.string().max(20_000), z.array(z.string().max(2_000)).max(50)]))
+            .refine((r) => Object.keys(r).length <= 200, "too many answers")
+            .optional(),
           samplingPlan: planFieldSchema(2000).optional(),
           analysisPlan: planFieldSchema(20000).optional(),
           originalStudy: planFieldSchema(2000).optional(),
@@ -3332,6 +3393,9 @@ export const studiesRouter = router({
         ...(o.replicationIntent ? { replicationIntent: o.replicationIntent } : {}),
         ...(o.templateKey ? { templateKey: o.templateKey } : {}),
         ...(o.discloseDerivation === undefined ? {} : { discloseDerivation: o.discloseDerivation }),
+        // Replaces wholesale, not merged: the client holds the full answer map
+        // and clearing an answer must actually clear it.
+        ...(o.templateAnswers === undefined ? {} : { templateAnswers: o.templateAnswers }),
         samplingPlan: researcherField(o.samplingPlan, current.samplingPlan),
         analysisPlan: researcherField(o.analysisPlan, current.analysisPlan),
         ...(o.variables ? { variables: o.variables.map(withProvenance) } : {}),
