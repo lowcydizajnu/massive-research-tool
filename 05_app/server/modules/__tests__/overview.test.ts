@@ -20,6 +20,7 @@ const EMPTY = {
   targetEffect: { text: "", source: "researcher" },
   differences: { text: "", source: "researcher" },
   discloseDerivation: true,
+  templateAnswers: {},
 };
 
 describe("readOverview (V1.12 B1)", () => {
@@ -148,5 +149,39 @@ describe("readOverview — typed plan fields (ADR-0101)", () => {
     const second = readOverview(snap).variables.map((v) => v.id);
     expect(first).toEqual(["v0", "v1"]);
     expect(first).toEqual(second); // stable across reads — React keys/diffs depend on it
+  });
+});
+
+/**
+ * ADR-0107 — answers to the chosen template's own OSF questions, keyed by OSF's
+ * response key. The snapshot is jsonb we do not control across time, so the read
+ * must survive anything a past or hand-edited build left behind.
+ */
+describe("readOverview — templateAnswers (ADR-0107)", () => {
+  it("reads strings and string arrays through unchanged", () => {
+    const ov = readOverview({
+      overview: { templateAnswers: { "344-2": "H1: labels reduce accuracy.", "344-17": ["Other"] } },
+    });
+    expect(ov.templateAnswers).toEqual({ "344-2": "H1: labels reduce accuracy.", "344-17": ["Other"] });
+  });
+
+  it("preserves an option's stray whitespace — a trimmed option is a REJECTED option", () => {
+    const exact = "Authors have observed the data. The authors cannot certify… ";
+    expect(readOverview({ overview: { templateAnswers: { "344-4": exact } } }).templateAnswers["344-4"]).toBe(exact);
+  });
+
+  it("drops values it cannot read rather than guessing at them", () => {
+    // An unreadable answer is not an answer. Coercing 42 to "42" would publish a
+    // value the researcher never wrote — permanently, under a DOI (ADR-0107 D2).
+    const ov = readOverview({
+      overview: { templateAnswers: { good: "keep", n: 42, obj: { a: 1 }, mixed: ["ok", 7], nul: null } },
+    });
+    expect(ov.templateAnswers).toEqual({ good: "keep" });
+  });
+
+  it("defaults to {} for every shape of absent", () => {
+    for (const v of [undefined, null, "nonsense", [], 5]) {
+      expect(readOverview({ overview: { templateAnswers: v } }).templateAnswers).toEqual({});
+    }
   });
 });

@@ -183,6 +183,22 @@ export type StudyOverview = {
    * content to disclose.
    */
   discloseDerivation: boolean;
+  /**
+   * The researcher's answers to the chosen template's OWN OSF questions
+   * (ADR-0107), keyed by OSF's `registration_response_key` — "344-2", "78-7".
+   * Multi-selects hold arrays; everything else holds a string.
+   *
+   * Keyed by response key, NOT by template, on purpose: switching templates
+   * hides questions but never destroys answers, and switching back brings them
+   * home (wireframe: osf-template-questions). Keys collide across schemas only
+   * if OSF reuses one, which it does not — "77-2" exists in exactly one schema
+   * catalogue-wide.
+   *
+   * Only keys read live from `schema_blocks` are ever EMITTED (ADR-0107 D3); a
+   * stale key sitting here is inert, not a hazard. We never author a value —
+   * every entry is text the researcher typed or an option they picked (D2).
+   */
+  templateAnswers: Record<string, string | string[]>;
 };
 
 const VARIABLE_ROLES: readonly VariableRole[] = ["iv", "dv", "covariate", "exclusion"];
@@ -256,6 +272,23 @@ function readExpectedOutcomes(v: unknown): ExpectedOutcome[] {
  * preregistrations we can never rewrite. Adding a field to StudyOverview without
  * defaulting it here breaks every historical version.
  */
+/**
+ * Coerces stored template answers. `definition_snapshot` is jsonb we do not
+ * control across time — a value written by an older build, or by hand, must not
+ * crash the Overview stage. Anything that is not a string or an array of strings
+ * is dropped rather than guessed at: an unreadable answer is not an answer, and
+ * inventing one would publish content the researcher never wrote (ADR-0107 D2).
+ */
+function readTemplateAnswers(v: unknown): Record<string, string | string[]> {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return {};
+  const out: Record<string, string | string[]> = {};
+  for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+    if (typeof val === "string") out[k] = val;
+    else if (Array.isArray(val) && val.every((x) => typeof x === "string")) out[k] = val as string[];
+  }
+  return out;
+}
+
 export function readOverview(snapshot: unknown): StudyOverview {
   if (snapshot && typeof snapshot === "object" && "overview" in snapshot) {
     const o = (snapshot as { overview?: unknown }).overview;
@@ -284,6 +317,7 @@ export function readOverview(snapshot: unknown): StudyOverview {
         targetEffect: readPlanField(ov.targetEffect),
         differences: readPlanField(ov.differences),
         discloseDerivation: ov.discloseDerivation !== false,
+        templateAnswers: readTemplateAnswers(ov.templateAnswers),
       };
     }
   }
@@ -300,6 +334,7 @@ export function readOverview(snapshot: unknown): StudyOverview {
     targetEffect: emptyField(),
     differences: emptyField(),
     discloseDerivation: true,
+    templateAnswers: {},
   };
 }
 
