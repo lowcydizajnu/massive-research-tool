@@ -3,7 +3,10 @@ import { describe, expect, it } from "vitest";
 import { planTemplateKey, readOverview } from "@/server/modules/blocks";
 
 /** The v1 plan shape + the typed plan fields added by ADR-0101 (all defaulted).
- *  `templateKey` is deliberately absent — it is only present when explicitly chosen. */
+ *  `templateKey` is deliberately absent — it is only present when explicitly chosen.
+ *  `discloseDerivation` IS present and true: unlike `templateKey` it has no derived
+ *  default to protect, and absent must mean "on" (ADR-0106 D5) so a study saved
+ *  before the toggle existed doesn't silently opt out of a choice nobody made. */
 const EMPTY = {
   abstract: "",
   hypotheses: [],
@@ -16,6 +19,7 @@ const EMPTY = {
   originalStudy: { text: "", source: "researcher" },
   targetEffect: { text: "", source: "researcher" },
   differences: { text: "", source: "researcher" },
+  discloseDerivation: true,
 };
 
 describe("readOverview (V1.12 B1)", () => {

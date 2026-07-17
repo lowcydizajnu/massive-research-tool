@@ -137,6 +137,8 @@ At the foot of the panel: **"Note auto-derived sections when filing to OSF"**, a
 
 Unchecking is a real choice with no nag and no warning tone. It is opt-out, not a confirmation gate — the researcher owns their filing.
 
+**Shown only once at least one variable is declared from the design.** With nothing derived the filing says nothing about derivation either (`derivationDisclosure` returns undefined), so the control would govern an empty set and read as a claim that something was auto-written when nothing was. The stored value is unaffected by the row being hidden — it defaults true and stays whatever it was, so a researcher who opts out, deletes their last derived variable, then declares a new one still gets their opt-out honoured.
+
 ## Open questions
 
 - Live markdown preview in the editor (split view) — still deferred; the editor is author-only for v1.

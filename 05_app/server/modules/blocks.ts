@@ -168,6 +168,21 @@ export type StudyOverview = {
   originalStudy: PlanField;
   targetEffect: PlanField;
   differences: PlanField;
+  /**
+   * Whether the OSF filing says which parts were read from the built study
+   * rather than written by the researcher (ADR-0106 D5).
+   *
+   * **Default true**, and opt-OUT: the honest default, and a genuine selling
+   * point — machine-true design facts beat recalled ones. But it is the
+   * researcher's filing: owner direction 2026-07-16, *"at the end of the day it
+   * is his study, so we should solve it with some toggle/checkbox selected by
+   * default."* Unchecking is a real choice with no nag.
+   *
+   * Tolerant read: absent (every study frozen before item ⑨) means true, which
+   * is the same answer disclosure would have given — those plans have no derived
+   * content to disclose.
+   */
+  discloseDerivation: boolean;
 };
 
 const VARIABLE_ROLES: readonly VariableRole[] = ["iv", "dv", "covariate", "exclusion"];
@@ -268,6 +283,7 @@ export function readOverview(snapshot: unknown): StudyOverview {
         originalStudy: readPlanField(ov.originalStudy),
         targetEffect: readPlanField(ov.targetEffect),
         differences: readPlanField(ov.differences),
+        discloseDerivation: ov.discloseDerivation !== false,
       };
     }
   }
@@ -283,6 +299,7 @@ export function readOverview(snapshot: unknown): StudyOverview {
     originalStudy: emptyField(),
     targetEffect: emptyField(),
     differences: emptyField(),
+    discloseDerivation: true,
   };
 }
 

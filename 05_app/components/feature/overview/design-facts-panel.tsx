@@ -23,11 +23,15 @@ export function DesignFactsPanel({
   facts,
   declaredRoles,
   onDeclare,
+  discloseDerivation,
+  onDiscloseChange,
 }: {
   facts: DesignFacts | undefined;
   /** instanceId → the role it is declared as, for measures already in Variables. */
   declaredRoles: Record<string, string>;
   onDeclare: (m: { instanceId: string; name: string }) => void;
+  discloseDerivation: boolean;
+  onDiscloseChange: (v: boolean) => void;
 }) {
   // Hidden for viewers (the writeProcedure errors for them), same as Materials.
   if (!facts) return null;
@@ -128,6 +132,28 @@ export function DesignFactsPanel({
         </dl>
       )}
 
+      {/* ADR-0106 D5. Only shown once something is actually declared from the
+          design — with nothing derived the filing says nothing either, so the
+          control would govern an empty set. Unchecking is a real choice: no
+          nag, no warning tone, no confirmation. It is the researcher's filing
+          (owner direction 2026-07-16). */}
+      {Object.keys(declaredRoles).length > 0 ? (
+        <div className="flex flex-col gap-1 border-t border-[var(--color-border-subtle)] pt-3">
+          <label className="flex items-start gap-2 text-[length:var(--text-small)] text-[var(--color-text-primary)]">
+            <input
+              type="checkbox"
+              checked={discloseDerivation}
+              onChange={(e) => onDiscloseChange(e.target.checked)}
+              className="mt-0.5 accent-[var(--color-accent)]"
+            />
+            <span>Note auto-derived sections when filing to OSF</span>
+          </label>
+          <p className="pl-6 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+            Your OSF filing will say which parts were read from your design rather than written by you. You
+            can turn this off.
+          </p>
+        </div>
+      ) : null}
     </section>
   );
 }

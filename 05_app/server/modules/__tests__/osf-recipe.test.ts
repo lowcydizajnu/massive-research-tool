@@ -4,6 +4,7 @@ import {
   aiNonDeterminismDisclosure,
   buildOpenEndedBody,
   buildRecipeResponses,
+  derivationDisclosure,
   RECIPE_SCHEMA_NAME,
 } from "@/server/modules/osf-recipe";
 import { injectReplicationRecipe } from "@/server/modules/replication";
@@ -314,5 +315,63 @@ describe("a fresh replication never files our own prompt text (ADR-0101 am. 1)",
       consent: null,
     };
     expect(buildRecipeResponses({ snapshot: both, sourceTitle: "X" })["77-33"]).toBe("N=500, preregistered.");
+  });
+});
+
+describe("derivationDisclosure (ADR-0106 D5 — provenance in the filing)", () => {
+  /** A snapshot whose ONLY variable was read from the design, linked to b1. */
+  const derivedSnap = (over: Record<string, unknown> = {}) => ({
+    ...snapshot,
+    overview: {
+      ...snapshot.overview,
+      variables: [{ id: "v1", name: "Accuracy rating", role: "dv", instanceId: "b1", notes: "", source: "derived" }],
+      ...over,
+    },
+  });
+
+  it("names the derived variable and the step it was read from", () => {
+    const snap = derivedSnap();
+    const text = derivationDisclosure(readOverview(snap), snap)!;
+    expect(text).toContain("HOW THIS PLAN WAS PREPARED");
+    // The block's researcher-given title, not the module key.
+    expect(text).toContain('Accuracy rating (from "Accuracy")');
+    // The role is intent and stays the researcher's — we must not claim we derived it.
+    expect(text).not.toMatch(/role .*(was|were) read/i);
+    expect(text).toContain("decided by the researcher");
+  });
+
+  it("is silent when the researcher opts out", () => {
+    const snap = derivedSnap({ discloseDerivation: false });
+    expect(derivationDisclosure(readOverview(snap), snap)).toBeUndefined();
+  });
+
+  it("defaults ON for a study saved before the toggle existed", () => {
+    // No `discloseDerivation` key at all — the tolerant read must resolve true,
+    // or every pre-⑨ study would silently opt out of a choice nobody made.
+    const snap = derivedSnap();
+    expect(readOverview(snap).discloseDerivation).toBe(true);
+    expect(derivationDisclosure(readOverview(snap), snap)).toBeDefined();
+  });
+
+  it("claims nothing when the researcher wrote every variable by hand", () => {
+    const snap = derivedSnap({
+      variables: [{ id: "v1", name: "Trust", role: "dv", instanceId: null, notes: "", source: "researcher" }],
+    });
+    expect(derivationDisclosure(readOverview(snap), snap)).toBeUndefined();
+  });
+
+  it("rides in BOTH filings — Open-Ended summary and Recipe description", () => {
+    const snap = derivedSnap();
+    expect(buildOpenEndedBody(snap)).toContain("HOW THIS PLAN WAS PREPARED");
+    expect(buildRecipeResponses({ snapshot: snap })["77-2"]).toContain("HOW THIS PLAN WAS PREPARED");
+  });
+
+  it("drops out of both filings on opt-out", () => {
+    const snap = derivedSnap({ discloseDerivation: false });
+    expect(buildOpenEndedBody(snap)).not.toContain("HOW THIS PLAN WAS PREPARED");
+    expect(buildRecipeResponses({ snapshot: snap })["77-2"]).not.toContain("HOW THIS PLAN WAS PREPARED");
+    // ...but the variable itself still files. Opting out of the provenance note
+    // must not quietly drop the variable from the plan.
+    expect(buildRecipeResponses({ snapshot: snap })["77-2"]).toContain("Accuracy rating");
   });
 });

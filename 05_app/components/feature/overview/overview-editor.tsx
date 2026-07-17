@@ -98,6 +98,10 @@ export function OverviewEditor({
   const [originalStudy, setOriginalStudy] = useState(initial.originalStudy.text);
   const [targetEffect, setTargetEffect] = useState(initial.targetEffect.text);
   const [differences, setDifferences] = useState(initial.differences.text);
+  // ADR-0106 D5. Unlike `templateKey` there is no derived default to protect: the
+  // stored value IS the answer, and `readOverview` already resolves absent → true.
+  // So a plain boolean round-trips honestly.
+  const [discloseDerivation, setDiscloseDerivation] = useState(initial.discloseDerivation);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
 
   // The design facts feed BOTH the panel and the Variables pre-fill — one query,
@@ -238,7 +242,16 @@ export function OverviewEditor({
       {/* What the built study says about itself (item ⑨ Phase A, ADR-0106).
           Above the plan fields on purpose: the facts are the thing you write
           the plan AGAINST. */}
-      <DesignFactsPanel facts={facts} declaredRoles={declaredRoles} onDeclare={declareMeasure} />
+      <DesignFactsPanel
+        facts={facts}
+        declaredRoles={declaredRoles}
+        onDeclare={declareMeasure}
+        discloseDerivation={discloseDerivation}
+        onDiscloseChange={(v) => {
+          setDiscloseDerivation(v);
+          dirty();
+        }}
+      />
 
       {/* Preregistration template (ADR-0101). Governs which typed fields show and
           which OSF registration form the plan is filed under. NOT a starter study
@@ -696,6 +709,7 @@ export function OverviewEditor({
                 // schema and setOverview's merge keeps whatever is stored, so an
                 // untouched picker never manufactures a decision.
                 templateKey: explicitTemplateKey,
+                discloseDerivation,
                 // `source` is never sent — it is derived server-side, like
                 // `dataCollectionStatus`. This used to hardcode
                 // `source: "researcher"` on all five, which meant the provenance

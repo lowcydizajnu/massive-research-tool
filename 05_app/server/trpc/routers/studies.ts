@@ -3253,6 +3253,10 @@ export const studiesRouter = router({
           // stored value via the merge below. `dataCollectionStatus` is
           // deliberately absent — it is derived server-side, never client-supplied.
           templateKey: z.enum(PREREG_TEMPLATE_KEYS).optional(),
+          /** ADR-0106 D5 — the researcher's call on whether the OSF filing says
+           *  which parts were read from their design. Optional on the wire so an
+           *  older client keeps its stored value via the merge. */
+          discloseDerivation: z.boolean().optional(),
           samplingPlan: planFieldSchema(2000).optional(),
           analysisPlan: planFieldSchema(20000).optional(),
           originalStudy: planFieldSchema(2000).optional(),
@@ -3327,6 +3331,7 @@ export const studiesRouter = router({
         replicationNotes: o.replicationNotes,
         ...(o.replicationIntent ? { replicationIntent: o.replicationIntent } : {}),
         ...(o.templateKey ? { templateKey: o.templateKey } : {}),
+        ...(o.discloseDerivation === undefined ? {} : { discloseDerivation: o.discloseDerivation }),
         samplingPlan: researcherField(o.samplingPlan, current.samplingPlan),
         analysisPlan: researcherField(o.analysisPlan, current.analysisPlan),
         ...(o.variables ? { variables: o.variables.map(withProvenance) } : {}),
