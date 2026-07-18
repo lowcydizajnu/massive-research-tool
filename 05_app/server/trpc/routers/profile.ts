@@ -12,6 +12,9 @@ export type Profile = {
   email: string;
   fullName: string | null;
   affiliation: string | null;
+  /** ROR id for the affiliation (LOS item ⑩, ADR-0108) — the ROR URL, e.g.
+   *  https://ror.org/00f54p054. Null when unset; captured via type-ahead. */
+  ror: string | null;
   orcid: string | null;
   researchAreas: string[];
   bio: string | null;
@@ -21,6 +24,11 @@ export type Profile = {
 
 /** ORCID iD: 16 digits in groups of 4, last char may be X (checksum). */
 const ORCID_RE = /^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/;
+
+/** ROR id URL: https://ror.org/ + a 9-char id that starts with 0 (Crockford
+ *  base32 + 2-digit checksum). Shape-only — the value is picked from our own ROR
+ *  type-ahead, so we validate the host + id shape, not the exact alphabet. */
+const ROR_RE = /^https:\/\/ror\.org\/0[a-z0-9]{8}$/;
 
 /** Trim a string; empty → null (so optional fields clear cleanly). */
 const optText = (max: number) =>
@@ -55,6 +63,7 @@ export const profileRouter = router({
       email: u.email,
       fullName: u.fullName ?? null,
       affiliation: u.affiliation ?? null,
+      ror: u.ror ?? null,
       orcid: u.orcid ?? null,
       researchAreas: u.researchAreas ?? [],
       bio: u.bio ?? null,
@@ -69,6 +78,13 @@ export const profileRouter = router({
         displayName: z.string().trim().min(1).max(120).optional(),
         fullName: optText(200),
         affiliation: optText(300),
+        ror: z
+          .string()
+          .trim()
+          .transform((s) => (s === "" ? null : s))
+          .refine((s) => s === null || s === undefined || ROR_RE.test(s), "Pick your institution from the list")
+          .nullable()
+          .optional(),
         orcid: z
           .string()
           .trim()
@@ -89,6 +105,7 @@ export const profileRouter = router({
         "displayName",
         "fullName",
         "affiliation",
+        "ror",
         "orcid",
         "researchAreas",
         "bio",
@@ -204,6 +221,7 @@ export const profileRouter = router({
           displayName: user.displayName,
           fullName: user.fullName,
           affiliation: user.affiliation,
+          ror: user.ror,
           orcid: user.orcid,
           researchAreas: user.researchAreas,
           bio: user.bio,

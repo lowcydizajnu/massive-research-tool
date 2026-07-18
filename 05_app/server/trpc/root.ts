@@ -25,6 +25,7 @@ import { studyRecordRouter } from "@/server/trpc/routers/study-record";
 import { teamRouter } from "@/server/trpc/routers/team";
 import { templatesRouter } from "@/server/trpc/routers/templates";
 import { uploadsRouter } from "@/server/trpc/routers/uploads";
+import { pidsRouter } from "@/server/trpc/routers/pids";
 import { workspaceRouter } from "@/server/trpc/routers/workspace";
 import { router } from "@/server/trpc/trpc";
 
@@ -57,6 +58,7 @@ export const appRouter = router({
   profile: profileRouter,
   previewTokens: previewTokensRouter,
   uploads: uploadsRouter,
+  pids: pidsRouter,
 });
 
 export type AppRouter = typeof appRouter;

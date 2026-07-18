@@ -19,6 +19,21 @@ function clean<T extends Record<string, unknown>>(o: T): T {
   return o;
 }
 
+/**
+ * DataCite 4.4 `resourceTypeGeneral`, derived from the record's state (ADR-0108,
+ * LOS item ⑩). We don't mint a DataCite DOI (ADR-0104 — the OSF DOI is canonical),
+ * so this is the correctly-typed metadata surfaced on the record + JSON-LD. The
+ * vocabulary is DataCite's published controlled list, not invented — a published
+ * dataset ranks first (Google Dataset Search), then a linked article, then the
+ * preregistration itself.
+ */
+export function dataCiteResourceType(d: PublicStudyDetail): string {
+  if (d.record?.dataTable) return "Dataset";
+  if (d.record?.articleDoi) return "Text";
+  if (d.registrationDoi || d.preregistrations.length) return "StudyRegistration";
+  return "Text";
+}
+
 export function studyRecordJsonLd(d: PublicStudyDetail): Record<string, unknown> {
   const abstract = d.record?.abstract || d.overview.abstract || undefined;
   const articleDoi = d.record?.articleDoi ?? null;
@@ -31,6 +46,16 @@ export function studyRecordJsonLd(d: PublicStudyDetail): Record<string, unknown>
     : articleDoi
       ? `https://doi.org/${articleDoi}`
       : undefined;
+  // Funders → schema.org Organization, carrying the Crossref Funder Registry DOI
+  // as @id when known (LOS item ⑩). Free-text funders keep just a name.
+  const funder = d.funders.map((f) =>
+    clean({ "@type": "Organization", name: f.name, "@id": f.uri || undefined }),
+  );
+  // Author affiliation with its ROR id as @id (LOS item ⑩ — the machine anchor
+  // for the byline institution).
+  const affiliation = d.authorAffiliation
+    ? clean({ "@type": "Organization", name: d.authorAffiliation, "@id": d.authorRor || undefined })
+    : undefined;
   return clean({
     "@context": "https://schema.org",
     "@type": type,
@@ -39,13 +64,17 @@ export function studyRecordJsonLd(d: PublicStudyDetail): Record<string, unknown>
     url: recordUrl(d.studyId),
     datePublished: d.record?.publishedAt ?? d.createdAt,
     keywords: d.tags.length ? d.tags.join(", ") : undefined,
+    inLanguage: d.language ?? undefined,
     license: licenseInfo(d.license).url ?? undefined,
     identifier,
+    additionalType: dataCiteResourceType(d),
     creativeWorkStatus: d.finishedAt ? "Published" : "Draft",
     isAccessibleForFree: true,
+    funder: funder.length ? funder : undefined,
     author: clean({
       "@type": "Person",
       name: d.authorName || "Unknown",
+      affiliation,
       ...(d.authorOrcid
         ? {
             sameAs: `https://orcid.org/${d.authorOrcid}`,

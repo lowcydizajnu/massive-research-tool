@@ -115,6 +115,21 @@ export default async function StudyRecordPage({
             <h1 className="font-serif text-[length:var(--text-display)] font-medium text-[var(--color-ink-deep)]">{detail.title}</h1>
             <div className="flex flex-wrap items-center gap-2 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
               <span>by {detail.authorName || "Unknown"}</span>
+              {detail.authorAffiliation ? (
+                detail.authorRor ? (
+                  <a
+                    href={detail.authorRor}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[var(--color-primary)] hover:opacity-90"
+                    aria-label={`${detail.authorAffiliation} — ROR`}
+                  >
+                    {detail.authorAffiliation}
+                  </a>
+                ) : (
+                  <span>{detail.authorAffiliation}</span>
+                )
+              ) : null}
               {detail.authorOrcid ? (
                 <a
                   href={`https://orcid.org/${detail.authorOrcid}`}

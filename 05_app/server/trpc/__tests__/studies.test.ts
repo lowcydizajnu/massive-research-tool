@@ -1873,6 +1873,54 @@ describe("studies.getPublicStudy (V1.8 Stream B)", () => {
     await a.studies.publish({ studyId: id });
     await expect(a.studies.getPublicStudy({ studyId: id })).rejects.toThrow();
   });
+
+  // ── Findability PIDs (LOS item ⑩, ADR-0108) ────────────────────────────────
+  it("round-trips language + funders through setFindability onto the public record", async () => {
+    await seedUserWithWorkspace("hanna", "Hanna Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const { id } = await a.studies.create({ kind: "blank", title: "Findable" });
+    await a.studies.addBlock({ studyId: id, source: "core", key: "likert-7", version: "1.0.0" });
+    await a.studies.publish({ studyId: id });
+    await a.studies.setForkable({ studyId: id, forkableBy: "public" });
+
+    // Defaults: no language, no funders.
+    const before = await a.studies.getPublicStudy({ studyId: id });
+    expect(before.language).toBeNull();
+    expect(before.funders).toEqual([]);
+
+    await a.studies.setFindability({
+      studyId: id,
+      language: "nl",
+      funders: [
+        { name: "NWO", id: "501100003246", uri: "https://doi.org/10.13039/501100003246" },
+        { name: "A local charity", id: "", uri: "" },
+      ],
+    });
+
+    const after = await a.studies.getPublicStudy({ studyId: id });
+    expect(after.language).toBe("nl");
+    expect(after.funders).toEqual([
+      { name: "NWO", id: "501100003246", uri: "https://doi.org/10.13039/501100003246" },
+      { name: "A local charity", id: "", uri: "" },
+    ]);
+
+    // Clearing language passes null through (empty string → null).
+    await a.studies.setFindability({ studyId: id, language: "", funders: [] });
+    const cleared = await a.studies.getPublicStudy({ studyId: id });
+    expect(cleared.language).toBeNull();
+    expect(cleared.funders).toEqual([]);
+  });
+
+  it("setFindability is tenant-scoped (another workspace cannot write it)", async () => {
+    await seedUserWithWorkspace("hanna", "Hanna Lab");
+    await seedUserWithWorkspace("mallory", "Mallory Lab");
+    const a = createCaller({ authUser: authUser("hanna") });
+    const b = createCaller({ authUser: authUser("mallory") });
+    const { id } = await a.studies.create({ kind: "blank", title: "Hers" });
+    await expect(
+      b.studies.setFindability({ studyId: id, language: "en", funders: [] }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
 });
 
 describe("studies.compareVersions (V1.8 Stream A, ADR-0020 §A6)", () => {

@@ -59,6 +59,7 @@
         "pages": [
           "methodology/research-plan",
           "methodology/preregistration",
+          "methodology/findability",
           "methodology/replication",
           "methodology/ab-testing",
           "methodology/piloting",

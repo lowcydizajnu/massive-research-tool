@@ -42,6 +42,7 @@ import {
   studyRecord,
   user,
   workspaceTemplate,
+  type StudyFunder,
 } from "@/server/db/schema";
 import { type RecordSection, sanitizeLayout as sanitizeRecordLayout } from "@/lib/study-record/sections";
 import { extractMaterials } from "@/lib/study-record/materials";
@@ -1010,6 +1011,14 @@ export type PublicStudyDetail = {
   /** Author ORCID iD (LOS contributor PID) — rendered as a verifiable link on the
    *  record byline + citation. Null when the author hasn't set one. */
   authorOrcid: string | null;
+  /** Author affiliation display text + its ROR id (LOS item ⑩, ADR-0108) — the
+   *  affiliation @id on the record byline + JSON-LD. Null when unset. */
+  authorAffiliation: string | null;
+  authorRor: string | null;
+  /** Findability PIDs (LOS item ⑩, ADR-0108): BCP-47 language of the materials
+   *  (schema.org inLanguage) + funders (Crossref ids → funder@id). */
+  language: string | null;
+  funders: StudyFunder[];
   /** Reuse terms (ADR-0100 — LOS "reusable") — SPDX-style license id; render
    *  label + URL via lib/licenses. Defaults to CC-BY-4.0. */
   license: string;
@@ -1510,8 +1519,12 @@ export const studiesRouter = router({
           authorId: experiment.ownerId,
           authorName: user.displayName,
           authorOrcid: user.orcid,
+          authorAffiliation: user.affiliation,
+          authorRor: user.ror,
           tags: experiment.tags,
           license: experiment.license,
+          language: experiment.language,
+          funders: experiment.funders,
           finishedAt: experiment.finishedAt,
           createdAt: experiment.createdAt,
         })
@@ -1596,7 +1609,11 @@ export const studiesRouter = router({
         authorId: exp.authorId,
         authorName: exp.authorName ?? "",
         authorOrcid: exp.authorOrcid ?? null,
+        authorAffiliation: exp.authorAffiliation ?? null,
+        authorRor: exp.authorRor ?? null,
         license: exp.license ?? "CC-BY-4.0",
+        language: exp.language ?? null,
+        funders: exp.funders ?? [],
         tags: exp.tags ?? [],
         latestKind: ver.kind as "published" | "preregistered",
         latestVersionNumber: ver.versionNumber,
@@ -1677,8 +1694,12 @@ export const studiesRouter = router({
           authorId: experiment.ownerId,
           authorName: user.displayName,
           authorOrcid: user.orcid,
+          authorAffiliation: user.affiliation,
+          authorRor: user.ror,
           tags: experiment.tags,
           license: experiment.license,
+          language: experiment.language,
+          funders: experiment.funders,
           finishedAt: experiment.finishedAt,
           createdAt: experiment.createdAt,
         })
@@ -1731,7 +1752,11 @@ export const studiesRouter = router({
         authorId: exp.authorId,
         authorName: exp.authorName ?? "",
         authorOrcid: exp.authorOrcid ?? null,
+        authorAffiliation: exp.authorAffiliation ?? null,
+        authorRor: exp.authorRor ?? null,
         license: exp.license ?? "CC-BY-4.0",
+        language: exp.language ?? null,
+        funders: exp.funders ?? [],
         tags: exp.tags ?? [],
         latestKind: (ver?.kind as "published" | "preregistered") ?? "published",
         latestVersionNumber: ver?.versionNumber ?? 0,
@@ -6576,6 +6601,40 @@ export const studiesRouter = router({
         .returning({ license: experiment.license });
       if (!row) throw new TRPCError({ code: "NOT_FOUND" });
       return { license: row.license };
+    }),
+
+  /** Findability metadata (ADR-0108, LOS item ⑩): study language + funders.
+   *  Study-level, mutable, like the license above. PIDs are resolved at pick time
+   *  (studies.pids.*) and stored verbatim; we don't re-validate them here. */
+  setFindability: writeProcedure
+    .input(
+      z.object({
+        studyId: z.string().uuid(),
+        // BCP-47 / ISO 639-1; null clears it. Loose — the picker offers a curated list.
+        language: z.string().max(20).nullable(),
+        funders: z
+          .array(
+            z.object({
+              name: z.string().min(1).max(300),
+              id: z.string().max(64),
+              uri: z.string().max(300),
+            }),
+          )
+          .max(20),
+      }),
+    )
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      const [row] = await db
+        .update(experiment)
+        .set({
+          language: input.language?.trim() || null,
+          funders: input.funders,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(experiment.id, input.studyId), eq(experiment.tenantId, ctx.workspace.id)))
+        .returning({ id: experiment.id });
+      if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+      return { ok: true };
     }),
 
   setForkable: writeProcedure

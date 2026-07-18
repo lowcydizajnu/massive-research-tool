@@ -421,6 +421,13 @@
       "when": 1784237300229,
       "tag": "0059_odd_texas_twister",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1784356578924,
+      "tag": "0060_tricky_mercury",
+      "breakpoints": true
     }
   ]
 }

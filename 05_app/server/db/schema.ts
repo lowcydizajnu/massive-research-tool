@@ -110,6 +110,10 @@ export const user = pgTable("user", {
   affiliation: text("affiliation"),
   /** ORCID iD, format XXXX-XXXX-XXXX-XXXX. */
   orcid: text("orcid"),
+  /** ROR id URL for the affiliation above (ADR-0108, LOS item ⑩), resolved from
+   *  the ROR registry — e.g. "https://ror.org/00f54p054". Surfaced as the
+   *  schema.org author `affiliation.@id` on public records. */
+  ror: text("ror"),
   /** Research-area tags (reuses the V1.7 tag-primitive shape). */
   researchAreas: jsonb("research_areas").$type<string[]>().notNull().default([]),
   /** Short markdown bio for the public author page. */
@@ -321,6 +325,10 @@ export const moduleVersion = pgTable(
 
 /* ---------- core entities (data-model 00) ---------- */
 
+/** A funder resolved from the Crossref Funder Registry (ADR-0108). `id` is the
+ *  registry id (e.g. "501100001711"); `uri` is its DOI. Stored on experiment.funders. */
+export type StudyFunder = { name: string; id: string; uri: string };
+
 export const experiment = pgTable(
   "experiment",
   {
@@ -340,6 +348,14 @@ export const experiment = pgTable(
      *  Study-level (travels with the study, not the frozen version). Defaults to
      *  CC-BY-4.0; rendered on the record + emitted as schema.org license. */
     license: text("license").notNull().default("CC-BY-4.0"),
+    /** Findability PIDs (ADR-0108, LOS item ⑩ FINDABILITY). Study-level metadata,
+     *  like license — mutable, not versioned into the frozen snapshot. */
+    /** Primary language of the study, BCP-47 / ISO 639-1 (e.g. "en", "pl"). Null = unset. */
+    language: text("language"),
+    /** Funders, resolved from the Crossref Funder Registry: `{name, id, uri}` where
+     *  `uri` is the funder's DOI (https://doi.org/10.13039/…). Surfaced as schema.org
+     *  `funder` on the public record. Empty = self-funded / not stated. */
+    funders: jsonb("funders").$type<StudyFunder[]>().notNull().default([]),
     /** The working tip. Nullable until the first version is written (resolves the experiment<->version circular FK). */
     currentVersionId: uuid("current_version_id").references(
       (): AnyPgColumn => experimentVersion.id,

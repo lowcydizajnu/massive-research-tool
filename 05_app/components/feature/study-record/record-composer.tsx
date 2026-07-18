@@ -22,6 +22,7 @@ import { ulid } from "ulid";
 
 import { DataPublishControl } from "@/components/feature/study-record/data-publish-control";
 import { MarkdownField } from "@/components/feature/study-record/markdown-field";
+import { FindabilityPanel } from "@/components/feature/study-record/findability-panel";
 import { LinkedOutputsPanel } from "@/components/feature/study-record/linked-outputs-panel";
 import { OsfMaterialsPanel } from "@/components/feature/study-record/osf-materials-panel";
 import { PushToOsfButton } from "@/components/feature/study-record/push-to-osf-button";
@@ -351,6 +352,7 @@ function Editor({ studyId, data, onSaved }: { studyId: string; data: StudyRecord
         <>
           <OsfMaterialsPanel studyId={studyId} />
           <LinkedOutputsPanel studyId={studyId} />
+          <FindabilityPanel studyId={studyId} language={data.language} funders={data.funders} onSaved={onSaved} />
         </>
       )}
 

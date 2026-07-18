@@ -3,6 +3,7 @@ import { ClaimChip } from "@/components/feature/study-record/claim-chip";
 import { HypothesisChips } from "@/components/feature/study-record/hypothesis-chips";
 import { PublicDataTable } from "@/components/feature/study-record/public-data-table";
 import { RecordMarkdown } from "@/components/feature/study-record/record-markdown";
+import { languageLabel } from "@/lib/languages";
 import { licenseInfo } from "@/lib/licenses";
 import { sectionType } from "@/lib/study-record/sections";
 import type { PublicStudyDetail } from "@/server/trpc/routers/studies";
@@ -18,25 +19,56 @@ export function RecordSections({ detail }: { detail: PublicStudyDetail }) {
   return (
     <>
       {detail.record ? <ComposedRecord detail={detail} /> : <DefaultRecord detail={detail} />}
-      <LicenseFooter license={detail.license} />
+      <MetadataFooter detail={detail} />
     </>
   );
 }
 
-/** Reuse-terms footer (ADR-0100 — LOS "reusable"). Renders the study license as a
- *  labelled link (or plain label for all-rights-reserved). */
-function LicenseFooter({ license }: { license: string }) {
-  const info = licenseInfo(license);
+/**
+ * Reuse-terms + findability footer (ADR-0100 "reusable" + ADR-0108 item ⑩
+ * "findable"). Renders the license as a labelled link plus the study's language
+ * and funders (with Crossref Funder Registry links) — the human-readable twin of
+ * the JSON-LD, so a reader sees the same PIDs a crawler does.
+ */
+function MetadataFooter({ detail }: { detail: PublicStudyDetail }) {
+  const info = licenseInfo(detail.license);
+  const language = languageLabel(detail.language);
   return (
-    <section className="flex flex-wrap items-center gap-2 border-t border-[var(--color-border-subtle)] pt-4 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-      <span>License:</span>
-      {info.url ? (
-        <a href={info.url} target="_blank" rel="noreferrer" className="font-medium text-[var(--color-primary)] hover:opacity-90">
-          {info.label}
-        </a>
-      ) : (
-        <span className="text-[var(--color-text-secondary)]">{info.label}</span>
-      )}
+    <section className="flex flex-col gap-2 border-t border-[var(--color-border-subtle)] pt-4 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
+      <div className="flex flex-wrap items-center gap-2">
+        <span>License:</span>
+        {info.url ? (
+          <a href={info.url} target="_blank" rel="noreferrer" className="font-medium text-[var(--color-primary)] hover:opacity-90">
+            {info.label}
+          </a>
+        ) : (
+          <span className="text-[var(--color-text-secondary)]">{info.label}</span>
+        )}
+      </div>
+      {language ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <span>Language:</span>
+          <span className="text-[var(--color-text-secondary)]">{language}</span>
+        </div>
+      ) : null}
+      {detail.funders.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <span>{detail.funders.length === 1 ? "Funder:" : "Funders:"}</span>
+          <ul className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            {detail.funders.map((f, i) => (
+              <li key={`${f.uri || f.name}-${i}`}>
+                {f.uri ? (
+                  <a href={f.uri} target="_blank" rel="noreferrer" className="font-medium text-[var(--color-primary)] hover:opacity-90">
+                    {f.name}
+                  </a>
+                ) : (
+                  <span className="text-[var(--color-text-secondary)]">{f.name}</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </section>
   );
 }

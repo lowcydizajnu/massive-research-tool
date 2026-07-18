@@ -1,9 +1,10 @@
 "use client";
 
 import { X } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 
 import { PendingButton } from "@/components/ui/pending-button";
+import { PidAutocomplete, type PidOption } from "@/components/ui/pid-autocomplete";
 import { api } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +20,16 @@ const labelCls = "text-[length:var(--text-small)] font-medium text-[var(--color-
 export function ProfileForm() {
   const utils = api.useUtils();
   const query = api.profile.get.useQuery();
+
+  // ROR institution type-ahead (LOS item ⑩, ADR-0108). Stable identity so the
+  // autocomplete's debounce effect doesn't re-fire on every keystroke.
+  const searchRor = useCallback(
+    async (q: string): Promise<PidOption[]> => {
+      const hits = await utils.pids.searchRor.fetch({ query: q });
+      return hits.map((h) => ({ id: h.id, label: h.name, sublabel: h.country }));
+    },
+    [utils],
+  );
   const update = api.profile.update.useMutation({
     onSuccess: async () => {
       setSavedMsg("Profile saved.");
@@ -37,6 +48,7 @@ export function ProfileForm() {
     displayName: string;
     fullName: string;
     affiliation: string;
+    ror: string;
     orcid: string;
     researchAreas: string[];
     websiteUrl: string;
@@ -53,6 +65,7 @@ export function ProfileForm() {
           displayName: p.displayName,
           fullName: p.fullName ?? "",
           affiliation: p.affiliation ?? "",
+          ror: p.ror ?? "",
           orcid: p.orcid ?? "",
           researchAreas: p.researchAreas,
           websiteUrl: p.websiteUrl ?? "",
@@ -84,6 +97,7 @@ export function ProfileForm() {
       displayName: d.displayName.trim() || undefined,
       fullName: d.fullName,
       affiliation: d.affiliation,
+      ror: d.ror,
       orcid: d.orcid,
       researchAreas: d.researchAreas,
       websiteUrl: d.websiteUrl,
@@ -112,8 +126,25 @@ export function ProfileForm() {
         </Field>
       </div>
 
-      <Field label="Affiliation" hint="Institution + department">
-        <input className={fieldCls} value={d.affiliation} onChange={(e) => set("affiliation", e.target.value)} />
+      <Field
+        label="Affiliation"
+        hint="Search your institution to attach its ROR id (used on OSF + your record). No match? Just keep typing."
+      >
+        <PidAutocomplete
+          ariaLabel="Affiliation institution"
+          placeholder="e.g. University of Amsterdam"
+          allowFreeText
+          value={d.affiliation ? { id: d.ror, label: d.affiliation } : null}
+          onSelect={(opt) => {
+            if (!opt) {
+              setDraft({ ...d, affiliation: "", ror: "" });
+            } else {
+              setDraft({ ...d, affiliation: opt.label, ror: opt.id });
+            }
+            setSavedMsg(null);
+          }}
+          fetcher={searchRor}
+        />
       </Field>
 
       <Field label="Research areas">

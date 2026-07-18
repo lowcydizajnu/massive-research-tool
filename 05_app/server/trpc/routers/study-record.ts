@@ -18,6 +18,7 @@ import {
   registryPush,
   response,
   studyRecord,
+  type StudyFunder,
 } from "@/server/db/schema";
 import {
   OSF_MATERIALS_FOLDER,
@@ -96,6 +97,10 @@ export type StudyRecordForEdit = {
   visibility: "workspace" | "public";
   /** Reuse license (ADR-0100) — SPDX-style id; the composer's license selector. */
   license: string;
+  /** Findability PIDs (ADR-0108, LOS item ⑩): BCP-47 language of the study
+   *  materials + the funders (Crossref Funder Registry ids). Both optional. */
+  language: string | null;
+  funders: StudyFunder[];
   abstract: string | null;
   articleUrl: string | null;
   articleDoi: string | null;
@@ -219,6 +224,8 @@ async function requireOwnStudy(studyId: string, workspaceId: string) {
       forkableBy: experiment.forkableBy,
       finishedAt: experiment.finishedAt,
       license: experiment.license,
+      language: experiment.language,
+      funders: experiment.funders,
     })
     .from(experiment)
     .where(and(eq(experiment.id, studyId), eq(experiment.tenantId, workspaceId)))
@@ -563,6 +570,8 @@ export const studyRecordRouter = router({
         finishedAt: exp.finishedAt?.toISOString() ?? null,
         visibility: recordPublic ? "public" : "workspace",
         license: exp.license,
+        language: exp.language ?? null,
+        funders: exp.funders ?? [],
         abstract: rec.abstract,
         articleUrl: rec.articleUrl,
         articleDoi: rec.articleDoi,

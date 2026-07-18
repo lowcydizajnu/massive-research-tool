@@ -1,0 +1,50 @@
+---
+title: Findability
+description: Attach persistent identifiers — language, funders, and your affiliation's ROR — so your study record is discoverable and its support is attributable.
+---
+
+The **F** in [FAIR](https://www.go-fair.org/fair-principles/) is *Findable*. Beyond the [preregistration DOI](/methodology/preregistration) and [reuse licence](/methodology/replication), My Research Lab lets you attach a few standard **persistent identifiers (PIDs)** to a study so search engines, indexers, and other researchers can find it and credit the people and bodies behind it.
+
+Everything here is **optional**. A study record is complete without it — these fields just make the record richer and more machine-readable.
+
+## Where you set it
+
+Open your study's **Record** stage. In the **Findability** panel you'll find two fields:
+
+| Field | What it is | Where it comes from |
+|---|---|---|
+| **Language of materials** | The [BCP-47](https://www.rfc-editor.org/info/bcp47) language your study is written in (e.g. English, Dutch). | A curated dropdown. |
+| **Funders** | The bodies that funded the work. | Type-ahead against the [Crossref Funder Registry](https://www.crossref.org/services/funder-registry/). |
+
+Your **affiliation's** identifier — its [ROR](https://ror.org) id — is set once on your profile, not per study. See [Researcher profiles](/workspace/researcher-profiles); it then rides along on every record you author.
+
+Both Findability fields save the moment you change them — there's no separate save step.
+
+## Funders
+
+Start typing a funder's name and pick it from the list. Each match comes straight from the Crossref Funder Registry and carries the funder's **DOI** — the canonical identifier for that body. Your record then links to it, and the metadata we emit tags the funder with its `@id` so a machine reads the same identifier a person does.
+
+<Note>
+No match in the registry? Keep typing and choose **Use "…"** to add the funder as plain text. It appears on your record by name; it simply won't carry a registry id.
+</Note>
+
+## Where these identifiers show up
+
+Once set, your PIDs appear in two places, kept in step by construction:
+
+<CardGroup cols={2}>
+  <Card title="On the record, for people" icon="eye">
+    The public study record shows the language and links each funder to its Funder Registry page. Your affiliation on the byline links to its ROR page.
+  </Card>
+  <Card title="In the metadata, for machines" icon="robot">
+    The record embeds <a href="https://schema.org">schema.org</a> JSON-LD carrying `inLanguage`, each `funder` with its `@id`, and the author's `affiliation` with its ROR `@id` — what Google Dataset Search and other indexers read.
+  </Card>
+</CardGroup>
+
+### Resource type
+
+The record also derives a **[DataCite](https://datacite.org) resource type** from its state — `Dataset` when you've published a data table, `StudyRegistration` for a preregistered study, otherwise `Text`. It's emitted in the metadata so indexers classify the record correctly. My Research Lab does **not** mint a separate DataCite DOI — your [OSF registration DOI](/integrations/osf) stays the one canonical identifier for the study.
+
+<Tip>
+Filling these in takes under a minute and pays off at discovery time: a funder can find every study it supported, a reader in another language knows before clicking, and your institution gets credit that resolves to a single, unambiguous ROR page.
+</Tip>
