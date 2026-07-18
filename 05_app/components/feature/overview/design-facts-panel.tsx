@@ -69,14 +69,28 @@ export function DesignFactsPanel({
               "One group (no conditions)."
             ) : (
               <ul className="flex flex-col">
-                {d.arms.map((a) => (
-                  <li key={a.name}>
-                    {a.name} <span className="text-[var(--color-text-muted)]">· weight {a.weight}</span>
-                  </li>
-                ))}
+                {(() => {
+                  const total = d.arms.reduce((a, x) => a + x.weight, 0);
+                  return d.arms.map((a) => (
+                    <li key={a.name}>
+                      {a.name}{" "}
+                      <span className="text-[var(--color-text-muted)]">
+                        · {total > 0 ? `${Math.round((a.weight / total) * 100)}%` : "0%"}
+                      </span>
+                    </li>
+                  ));
+                })()}
               </ul>
             )}
           </Fact>
+
+          {d.arms.length > 1 ? (
+            <Fact label="Assignment">
+              {d.assignment === "balanced"
+                ? "Balanced — groups kept even as participants arrive (permuted-block)."
+                : "Simple random — each participant assigned independently."}
+            </Fact>
+          ) : null}
 
           {d.timings.length > 0 ? (
             <Fact label="Timing">

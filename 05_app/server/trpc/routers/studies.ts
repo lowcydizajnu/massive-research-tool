@@ -678,6 +678,9 @@ export type StudyDetail = {
   blocks: StudyBlock[];
   /** Whiteboard pan/zoom (ADR-0020); {} = fit-to-screen on first render. */
   whiteboardViewport: WhiteboardViewport;
+  /** How participants are assigned to conditions (ADR-0109) — the working tip's
+   *  method; drives the Conditions section's Method control. */
+  conditionAssignment: "simple" | "balanced";
   /** Researcher-authored study documentation (V1.12 B1). */
   overview: import("@/server/modules/blocks").StudyOverview;
   /** Derived, never stored (ADR-0101) — drives the Overview chip + the
@@ -1975,6 +1978,7 @@ export const studiesRouter = router({
         isReplication: row.experiment.forkOfExperimentId !== null,
         blocks,
         whiteboardViewport: (row.version?.whiteboardViewport as WhiteboardViewport | null) ?? {},
+        conditionAssignment: row.version?.conditionAssignment ?? "simple",
         overview: readOverview(row.version?.definitionSnapshot),
         dataCollectionStatus: await deriveDataCollectionStatus(
           row.experiment.id,
@@ -3255,7 +3259,7 @@ export const studiesRouter = router({
       const overview = readOverview(tip.version.definitionSnapshot);
       // A block already spoken for by a declared variable is not a candidate.
       const declared = overview.variables.map((v) => v.instanceId).filter((i): i is string => !!i);
-      return deriveDesignFacts(tip.version.definitionSnapshot, conditions, declared);
+      return deriveDesignFacts(tip.version.definitionSnapshot, conditions, declared, tip.version.conditionAssignment);
     }),
 
   /**
@@ -3837,6 +3841,29 @@ export const studiesRouter = router({
       return conditionsForVersion(tip.version.id);
     }),
 
+  /**
+   * Set the condition-assignment method on the working tip (ADR-0109). Edits the
+   * DRAFT only — it takes effect when the study is next frozen; a running frozen
+   * version keeps the method it was preregistered/published with (that's why
+   * this can't touch a live run: it never writes a frozen version).
+   */
+  setConditionAssignment: writeProcedure
+    .input(z.object({ studyId: z.string().uuid(), method: z.enum(["simple", "balanced"]) }))
+    .mutation(async ({ ctx, input }): Promise<{ ok: true }> => {
+      const tip = await loadWorkingTip(input.studyId, ctx.workspace.id);
+      await db
+        .update(experimentVersion)
+        .set({ conditionAssignment: input.method })
+        .where(eq(experimentVersion.id, tip.version.id));
+      await recordStudyEdit(
+        input.studyId,
+        ctx.dbUser.id,
+        "conditions",
+        `Set condition assignment to ${input.method === "balanced" ? "Balanced" : "Simple random"}`,
+      );
+      return { ok: true };
+    }),
+
   /** Add a condition to the working-tip version (slug auto-derived, unique). */
   addCondition: writeProcedure
     .input(z.object({ studyId: z.string().uuid(), name: z.string().trim().min(1).max(80) }))
@@ -3989,6 +4016,8 @@ export const studiesRouter = router({
           name: input.name,
           definitionSnapshot: tip.version.definitionSnapshot,
           whiteboardViewport: tip.version.whiteboardViewport,
+          // Condition-assignment method freezes with the version (ADR-0109).
+          conditionAssignment: tip.version.conditionAssignment,
           moduleVersionLocks: tip.version.moduleVersionLocks,
           createdBy: ctx.dbUser.id,
         })
@@ -4079,6 +4108,8 @@ export const studiesRouter = router({
           name: input.name,
           definitionSnapshot: tip.version.definitionSnapshot,
           whiteboardViewport: tip.version.whiteboardViewport,
+          // Condition-assignment method freezes with the version (ADR-0109).
+          conditionAssignment: tip.version.conditionAssignment,
           moduleVersionLocks: tip.version.moduleVersionLocks,
           createdBy: ctx.dbUser.id,
         })
@@ -4154,6 +4185,8 @@ export const studiesRouter = router({
             name: `Preregistration v${nextNumber}`,
             definitionSnapshot: tip.version.definitionSnapshot,
             whiteboardViewport: tip.version.whiteboardViewport,
+            // Condition-assignment method freezes with the version (ADR-0109).
+            conditionAssignment: tip.version.conditionAssignment,
             moduleVersionLocks: tip.version.moduleVersionLocks,
             createdBy: ctx.dbUser.id,
             registryPushStatus: pushStatus,
@@ -4272,6 +4305,8 @@ export const studiesRouter = router({
           name: `Amendment v${nextNumber}`,
           definitionSnapshot: tip.version.definitionSnapshot,
           whiteboardViewport: tip.version.whiteboardViewport,
+          // Condition-assignment method freezes with the version (ADR-0109).
+          conditionAssignment: tip.version.conditionAssignment,
           moduleVersionLocks: tip.version.moduleVersionLocks,
           createdBy: ctx.dbUser.id,
           registryPushStatus: pushStatus,
@@ -4349,6 +4384,8 @@ export const studiesRouter = router({
           name: `Published v${nextNumber}`,
           definitionSnapshot: tip.version.definitionSnapshot,
           whiteboardViewport: tip.version.whiteboardViewport,
+          // Condition-assignment method freezes with the version (ADR-0109).
+          conditionAssignment: tip.version.conditionAssignment,
           moduleVersionLocks: tip.version.moduleVersionLocks,
           createdBy: ctx.dbUser.id,
         })
@@ -5117,6 +5154,8 @@ export const studiesRouter = router({
               name: versionName,
               definitionSnapshot: tip.version.definitionSnapshot,
               whiteboardViewport: tip.version.whiteboardViewport,
+              // Condition-assignment method freezes with the version (ADR-0109).
+              conditionAssignment: tip.version.conditionAssignment,
               moduleVersionLocks: tip.version.moduleVersionLocks,
               createdBy: ctx.dbUser.id,
               ...(versionKind === "preregistered"
@@ -6097,6 +6136,8 @@ export const studiesRouter = router({
             kind: "autosave",
             definitionSnapshot: { blocks, groups, overview, theme, consent },
             moduleVersionLocks: locksFromBlocks(blocks),
+            // Carry the assignment method so a replica reproduces the design (ADR-0109).
+            conditionAssignment: source.version.conditionAssignment,
             createdBy: ctx.dbUser.id,
           })
           .returning();
@@ -6474,6 +6515,8 @@ export const studiesRouter = router({
             kind: "autosave",
             definitionSnapshot: { blocks: freshBlocks, groups: freshGroups, overview, theme, consent },
             moduleVersionLocks: locksFromBlocks(freshBlocks),
+            // Carry the assignment method so a replica reproduces the design (ADR-0109).
+            conditionAssignment: source.version.conditionAssignment,
             createdBy: ctx.dbUser.id,
           })
           .returning();
@@ -6553,6 +6596,8 @@ export const studiesRouter = router({
             kind: "autosave",
             definitionSnapshot: { blocks: freshBlocks, groups: freshGroups, overview, theme, consent },
             moduleVersionLocks: locksFromBlocks(freshBlocks),
+            // Carry the assignment method so a replica reproduces the design (ADR-0109).
+            conditionAssignment: source.version.conditionAssignment,
             createdBy: ctx.dbUser.id,
           })
           .returning();

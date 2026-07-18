@@ -1,0 +1,2 @@
+CREATE TYPE "public"."condition_assignment" AS ENUM('simple', 'balanced');--> statement-breakpoint
+ALTER TABLE "experiment_version" ADD COLUMN "condition_assignment" "condition_assignment" DEFAULT 'simple' NOT NULL;

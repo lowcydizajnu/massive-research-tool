@@ -1,7 +1,8 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { ulid } from "ulid";
 
 import { db } from "@/server/db/client";
+import { permutedBlockIndex } from "@/lib/conditions/assignment";
 import { readConsent, type StudyConsent } from "@/server/modules/consent";
 import {
   condition as conditionTable,
@@ -360,27 +361,28 @@ export async function startResponse(input: {
   }
 
   const conditions = await ensureConditions(rs.experimentVersionId);
-  const chosen = pickCondition(conditions);
   // Factorial variants (ADR-0058): assign a cell once, immutably (uniform random
   // across cells, between-subjects). Null when the study declares no factors.
   const [verRow] = await db
-    .select({ snapshot: experimentVersion.definitionSnapshot })
+    .select({
+      snapshot: experimentVersion.definitionSnapshot,
+      conditionAssignment: experimentVersion.conditionAssignment,
+    })
     .from(experimentVersion)
     .where(eq(experimentVersion.id, rs.experimentVersionId))
     .limit(1);
   const factors = readFactors(verRow?.snapshot);
   // Preview can force a cell (the live-preview selector); real runs always randomize.
   const variantCell = input.variantCell !== undefined ? input.variantCell : factors.length ? pickCell(factors) : null;
-  const id = ulid();
-  await db.insert(response).values({
-    id,
+
+  // Fields shared by both assignment paths. `conditionId` is filled per-path.
+  const base = {
     recruitmentSessionId: rs.id,
     experimentVersionId: rs.experimentVersionId,
-    conditionId: chosen.id,
     variantCell,
     externalPid: pid,
     mode: input.mode,
-    status: "started",
+    status: "started" as const,
     currentQuestionIndex: 0,
     // Declared URL params (ADR-0042) live under clientMetadata.embedded — the
     // `response` table has no `metadata` column (that's recruitment_session), so
@@ -389,7 +391,34 @@ export async function startResponse(input: {
     ...(input.embedded && Object.keys(input.embedded).length > 0
       ? { clientMetadata: { embedded: input.embedded } }
       : {}),
-  });
+  };
+
+  // Balanced assignment (ADR-0109 D3): permuted-block keyed on the participant's
+  // ordinal (count of prior REAL responses in this session). It reads that count,
+  // so the count+insert must be serialized — otherwise two simultaneous starts
+  // read the same ordinal and collide on the same block slot. We lock the session
+  // row FOR UPDATE inside a transaction. Only real runs of a balanced study take
+  // this path: preview responses must never perturb real balance, and independent
+  // simple draws cannot collide, so both keep the lock-free path below.
+  if (verRow?.conditionAssignment === "balanced" && input.mode === "run") {
+    const weights = conditions.map((c) => Number(c.allocationWeight) || 0);
+    const responseId = await db.transaction(async (tx) => {
+      await tx.execute(sql`select 1 from ${recruitmentSession} where id = ${rs.id} for update`);
+      const [{ n }] = await tx
+        .select({ n: count() })
+        .from(response)
+        .where(and(eq(response.recruitmentSessionId, rs.id), eq(response.mode, "run")));
+      const chosen = conditions[permutedBlockIndex(weights, rs.id, n)];
+      const rid = ulid();
+      await tx.insert(response).values({ id: rid, conditionId: chosen.id, ...base });
+      return rid;
+    });
+    return { responseId };
+  }
+
+  // Simple (ADR-0014) + all preview runs: independent weighted draw, lock-free.
+  const id = ulid();
+  await db.insert(response).values({ id, conditionId: pickCondition(conditions).id, ...base });
   return { responseId: id };
 }
 

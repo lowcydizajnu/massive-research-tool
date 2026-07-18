@@ -69,6 +69,15 @@ export const recruitmentStatus = pgEnum("recruitment_status", [
 
 export const responseMode = pgEnum("response_mode", ["run", "preview"]);
 
+/**
+ * How participants are assigned to conditions (ADR-0109). `simple` = an
+ * independent weighted draw per participant (the ADR-0014 default; cell sizes can
+ * drift at small N). `balanced` = permuted-block randomization (even groups as
+ * participants arrive). Lives on the frozen version so it is part of what a
+ * preregistration promises. Absent/default = simple ⇒ existing studies unchanged.
+ */
+export const conditionAssignment = pgEnum("condition_assignment", ["simple", "balanced"]);
+
 export const responseStatus = pgEnum("response_status", [
   "started",
   "completed",
@@ -414,6 +423,9 @@ export const experimentVersion = pgTable(
      * frozen versions capture the viewport at snapshot time and never change.
      */
     whiteboardViewport: jsonb("whiteboard_viewport").notNull().default({}),
+    /** Condition-assignment method (ADR-0109). Freezes with the version; default
+     *  `simple` keeps every existing study on the original weighted draw. */
+    conditionAssignment: conditionAssignment("condition_assignment").notNull().default("simple"),
     themeId: uuid("theme_id"),
     themeSnapshot: jsonb("theme_snapshot"),
     createdBy: uuid("created_by")

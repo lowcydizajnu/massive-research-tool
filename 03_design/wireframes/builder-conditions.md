@@ -13,14 +13,17 @@ Let a researcher define the experimental **conditions** of a study (e.g. Control
 
 Two attachment points in the existing Build-stage right context panel:
 
-1. **Conditions section** — shown in the **Details** tab (study in focus, no block selected). A labelled section under the study metadata: a list of condition rows + an "Add condition" affordance. Each row: name (editable), slug (auto-derived, editable), allocation weight (number), remove (✕). A short helper line states participants are randomly assigned by weight, and that a study with no conditions runs as a single "Control" group.
+1. **Conditions section** — shown in the **Details** tab (study in focus, no block selected). A labelled section under the study metadata: **two Assignment controls** at the top, then a list of condition rows + an "Add condition" affordance. Each row: name (editable), slug (auto-derived, editable), remove (✕), and — only in Custom split — a percentage input. A study with no conditions runs as a single "Control" group. The two Assignment controls (ADR-0109):
+   - **Split** dropdown — *Equal split* (default; the per-row numbers disappear, each row shows its even share e.g. "≈50%") or *Custom split* (each row gets a **percentage** input; a live total with a gentle "should total 100%" nudge — not a hard block). Stored as `allocationWeight` either way.
+   - **Method** dropdown — *Simple random* (default; each participant an independent weighted draw — groups can drift uneven, especially at small N) or *Balanced* (permuted-block — keeps group sizes even as participants arrive). Helper copy states the trade-off in one line each.
 2. **Per-block "Show only if" control** — shown in the **Configure** tab (a block selected), below the block's config form: a multi-select of the study's conditions. Empty selection = "shown to everyone" (the default).
 
 ## Content inventory
 
 - **Conditions list** — from `studies.listConditions(studyId)`. Each: `name` (text), `slug` (text, lowercased/kebab, unique per study), `allocationWeight` (number ≥ 0, default 1), `position` (drag/implicit). Server is the working-tip (autosave) version (ADR-0002).
 - **Add condition** — button → appends a row (name → slug auto-derived); persists via `studies.addCondition`.
-- **Allocation weight** — relative weight; the helper shows the resulting split (e.g. "≈50% / 50%") computed client-side from the weights.
+- **Split** — `Equal` or `Custom`, derived from the weights (all equal ⇒ Equal). `studies.updateCondition` persists per-row `allocationWeight`; Equal writes `1` to each, Custom writes the entered percentage. The `≈%` is computed client-side from the weights.
+- **Assignment method** — `simple` | `balanced`, on the version (`studies.setConditionAssignment`); default `simple`. Freezes with the version and is disclosed in the preregistration (ADR-0109 D4).
 - **Remove condition** — ✕ per row; on confirm, deletes the condition AND strips its slug from any block's `visibility.showIfCondition` (server-side).
 - **Show-only-if multi-select** (Configure tab) — checkbox list of the study's condition slugs; persists via `studies.setBlockVisibility(instanceId, slugs[])`. A "Shown to everyone" hint when none selected.
 - **Empty state (no conditions)** — copy: "No conditions yet — this study runs as a single Control group. Add a condition to compare groups." (A short-lived conditions-based "Set up an A/B test" shortcut was added 2026-06-15 and **reverted** the same day — it merely created two conditions and duplicated/obscured the existing concept; the genuine ask is *version-level* A/B comparison, which is the deferred concurrent-versions feature, not a conditions shortcut.)

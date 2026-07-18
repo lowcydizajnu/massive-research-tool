@@ -68,6 +68,15 @@ describe("deriveDesignFacts — facts, never intent (ADR-0106 D1)", () => {
     ]);
   });
 
+  it("defaults the assignment method to simple and surfaces it when given (ADR-0109 D4)", () => {
+    const arms = [
+      { slug: "treat", name: "Corrected headline", allocationWeight: 1 },
+      { slug: "ctrl", name: "Original headline", allocationWeight: 1 },
+    ];
+    expect(deriveDesignFacts(snapshot([likert("b1", "?")]), arms).assignment).toBe("simple");
+    expect(deriveDesignFacts(snapshot([likert("b1", "?")]), arms, [], "balanced").assignment).toBe("balanced");
+  });
+
   it("drops a gate whose condition no longer exists rather than showing a raw slug", () => {
     const f = deriveDesignFacts(
       snapshot([{ ...likert("b1", "?"), visibility: { showIfCondition: ["deleted-arm"] } }]),

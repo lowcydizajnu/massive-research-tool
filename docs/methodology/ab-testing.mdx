@@ -41,10 +41,24 @@ This is **condition-based** (random-assignment arms with per-screen gating), whi
 
 ## Random assignment
 
-When a participant starts, the app picks their condition by **weighted random assignment** over the conditions' allocation weights. With the default equal weights, that's a coin flip between the two arms — so the split is even **in expectation**, not a hard 50/50 quota. Natural sampling variance means the arms won't always end up exactly equal.
+Two plain-language controls sit above your conditions in the Builder's **Conditions** panel, and together they decide how arriving participants are split across the arms.
+
+**Group sizes** — how big each arm should be relative to the others:
+
+- **Equal** — every arm the same size. The panel shows each arm's expected share (e.g. `≈50%` for two arms).
+- **Custom** — set each arm's share as a percentage. Use this to skew the split deliberately (e.g. send 20% to a pilot arm), or for any non-even design. A running total nudges you when the shares don't add up to 100%.
+
+**Randomization** — how each participant is placed into an arm:
+
+- **Simple random** *(default)* — each participant is drawn independently by weighted random assignment over the group sizes. With equal sizes that's a coin flip per person, so the split is even **in expectation**, not a hard quota. Natural sampling variance means the arms won't always end up exactly equal — the smaller your sample, the larger the wobble.
+- **Balanced** — the app keeps the arms even *as participants arrive*, using **permuted-block** assignment: it fills randomly-ordered blocks sized to your ratio (equal two-arm → blocks of 2; a 1:2 split → blocks of 3), so every time a block completes the arms are back in exact proportion. The order within each block is still random, so assignment stays unpredictable for any individual participant. The panel tells you the block size ("evens out every N participants").
+
+<Frame caption="The Conditions panel: Group sizes and Randomization sit above the arms, and each arm shows its share as a percentage.">
+  <img src="/images/builder/conditions-assignment.png" alt="The Builder Conditions panel with Group sizes set to Equal and Randomization set to Balanced" />
+</Frame>
 
 <Tip>
-You can skew the split deliberately by changing a condition's allocation weight in the Builder (e.g. weight a pilot arm lower).
+Reach for **Balanced** when an uneven split would confound your comparison — small samples, or costly per-participant stimuli where you can't afford to over-recruit one arm. Keep **Simple random** (the default, and what every existing study already uses) when independence per participant matters more than an exact split.
 </Tip>
 
 ## Beyond two arms — conditional visibility
@@ -80,13 +94,13 @@ Factorial designs grow quickly: 3 factors with 3 levels each = 27 combinations. 
 
 ## Recruiting a balanced sample on Prolific
 
-From the **Run** stage, connect [Prolific](/integrations/prolific) and create a study with a single **target N**. Prolific recruits that many participants to your one recruitment link; the app then assigns each arriving participant to a condition by the weighted-random rule above. With equal weights, that yields roughly even arms.
+From the **Run** stage, connect [Prolific](/integrations/prolific) and create a study with a single **target N**. Prolific recruits that many participants to your one recruitment link; the app then assigns each arriving participant to a condition using the **Randomization** method you chose above.
 
 <Warning>
-The target N is a **single, study-wide** number — the Prolific form doesn't set per-condition quotas. Even allocation comes from random assignment, not an enforced split. Recruit enough that both arms reach the per-arm sample you need.
+The target N is a **single, study-wide** number — the Prolific form doesn't set per-condition quotas. Under **Simple random**, even allocation is a tendency, not a guarantee, so recruit enough that every arm reaches the per-arm sample you need. **Balanced** assignment keeps the arms in proportion as they fill, so you reach an even split without over-recruiting — the arms can only differ by less than one block at any moment.
 </Warning>
 
-The **Running** view flags a study as **imbalanced** when the gap between the smallest and largest arm exceeds 20% of the largest — a prompt to keep recruiting (or check your gating) rather than an automatic correction.
+The **Running** view flags a study as **imbalanced** when the gap between the smallest and largest arm exceeds 20% of the largest — most useful under Simple random, where drift is expected; a Balanced study should rarely trip it.
 
 ## Reading results by condition
 

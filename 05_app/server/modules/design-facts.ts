@@ -61,6 +61,9 @@ export type DesignFacts = {
    *  today — the copy must not claim randomization we do not perform. */
   randomized: false;
   arms: ArmFact[];
+  /** How participants are assigned to the arms (ADR-0109) — surfaced so the
+   *  design self-describes its randomization method, not just the split. */
+  assignment: "simple" | "balanced";
   timings: TimingFact[];
   measures: MeasureFact[];
   /** Response-collecting blocks not yet linked to a declared variable. */
@@ -134,6 +137,7 @@ export function deriveDesignFacts(
   snapshot: unknown,
   conditions: { slug: string; name: string; allocationWeight: number }[],
   declaredInstanceIds: string[] = [],
+  assignment: "simple" | "balanced" = "simple",
 ): DesignFacts {
   const blocks = readBlocks(snapshot);
   const bySlug = new Map(conditions.map((c) => [c.slug, c.name]));
@@ -172,6 +176,7 @@ export function deriveDesignFacts(
     // No declared conditions = one implicit group, which is what the runtime
     // actually does (a single `control` arm). Say that, rather than "0 arms".
     arms: conditions.map((c) => ({ name: c.name, weight: c.allocationWeight })),
+    assignment,
     timings,
     measures,
     candidateVariables: candidates,

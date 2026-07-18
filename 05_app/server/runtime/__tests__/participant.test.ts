@@ -1,4 +1,5 @@
 import { and, eq } from "drizzle-orm";
+import { ulid } from "ulid";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/server/db/client", async () => {
@@ -195,6 +196,71 @@ describe("startResponse + getRuntimeQuestion", () => {
     const responseId = (started as { responseId: string }).responseId;
     const q = await getRuntimeQuestion({ studyId: "11111111-1111-1111-1111-111111111111", responseId, questionIndex: 0 });
     expect(q).toEqual({ error: "not_found" });
+  });
+});
+
+describe("balanced assignment via runtime (ADR-0109 D3)", () => {
+  /** Seed a preregistered version marked balanced, with `weights.length` arms. */
+  async function seedBalanced(weights: number[]): Promise<string> {
+    const { versionId } = await seedPreregistered();
+    await db
+      .update(experimentVersion)
+      .set({ conditionAssignment: "balanced" })
+      .where(eq(experimentVersion.id, versionId));
+    await db.insert(conditionTable).values(
+      weights.map((w, i) => ({
+        id: ulid(),
+        experimentVersionId: versionId,
+        slug: `arm${i}`,
+        name: `Arm ${i}`,
+        allocationWeight: String(w),
+        position: i,
+      })),
+    );
+    return versionId;
+  }
+
+  /** Count run-mode responses per condition. */
+  async function runCounts(): Promise<number[]> {
+    const rows = await db
+      .select({ conditionId: response.conditionId, mode: response.mode })
+      .from(response);
+    const counts = new Map<string, number>();
+    for (const r of rows) {
+      if (r.mode !== "run" || !r.conditionId) continue;
+      counts.set(r.conditionId, (counts.get(r.conditionId) ?? 0) + 1);
+    }
+    return [...counts.values()].sort((a, b) => a - b);
+  }
+
+  it("is exactly balanced after a full block (equal 2-arm)", async () => {
+    const versionId = await seedBalanced([1, 1]);
+    const { id: rsId } = await openRecruitment(versionId);
+    for (let k = 0; k < 4; k++) {
+      await startResponse({ recruitmentSessionId: rsId, mode: "run", externalPid: `P${k}` });
+    }
+    expect(await runCounts()).toEqual([2, 2]); // block size 2 → 4 participants split evenly
+  });
+
+  it("honours a 2:1 ratio at the block boundary", async () => {
+    const versionId = await seedBalanced([1, 2]);
+    const { id: rsId } = await openRecruitment(versionId);
+    for (let k = 0; k < 3; k++) {
+      await startResponse({ recruitmentSessionId: rsId, mode: "run", externalPid: `P${k}` });
+    }
+    expect(await runCounts()).toEqual([1, 2]); // block [0,1,1] → one arm once, the other twice
+  });
+
+  it("preview runs do not perturb the real balance", async () => {
+    const versionId = await seedBalanced([1, 1]);
+    const { id: rsId } = await openRecruitment(versionId);
+    await startResponse({ recruitmentSessionId: rsId, mode: "run", externalPid: "P0" });
+    // A preview slipped in mid-recruitment must not consume an ordinal.
+    await startResponse({ recruitmentSessionId: rsId, mode: "preview", externalPid: null });
+    for (let k = 1; k < 4; k++) {
+      await startResponse({ recruitmentSessionId: rsId, mode: "run", externalPid: `P${k}` });
+    }
+    expect(await runCounts()).toEqual([2, 2]); // 4 real runs still perfectly balanced
   });
 });
 
