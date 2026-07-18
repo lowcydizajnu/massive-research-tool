@@ -7,7 +7,12 @@ import { OsfNotConnectedError, fetchSchemaBlocks } from "@/server/adapters/regis
 import type { RegistrationPayload } from "@/server/adapters/registry";
 import { db } from "@/server/db/client";
 import { changelogBetween } from "@/server/modules/changelog";
-import { readOsfQuestions, toRegistrationResponses } from "@/server/modules/osf-schema";
+import {
+  prependAmendmentHeader,
+  readOsfQuestions,
+  toRegistrationResponses,
+  type OsfQuestion,
+} from "@/server/modules/osf-schema";
 import { preregTemplate } from "@/lib/prereg-templates";
 import { planTemplateKey, readOverview } from "@/server/modules/blocks";
 import { buildOpenEndedBody, buildRecipeResponses, RECIPE_SCHEMA_NAME } from "@/server/modules/osf-recipe";
@@ -95,9 +100,11 @@ export async function runRegistryPush(data: JobCatalog["registry.push"]): Promis
    * The Preregister warning names what is blank; the researcher decides.
    */
   let templateResponses: Record<string, string | string[]> | null = null;
+  let templateQuestions: OsfQuestion[] = [];
   if (template.asksOsfQuestions) {
     const blocks = await fetchSchemaBlocks(template.schemaId);
-    templateResponses = toRegistrationResponses(readOsfQuestions(blocks), overview.templateAnswers);
+    templateQuestions = readOsfQuestions(blocks);
+    templateResponses = toRegistrationResponses(templateQuestions, overview.templateAnswers);
   }
   let sourceTitle: string | null = null;
   if (exp?.forkOfExperimentId) {
@@ -153,6 +160,15 @@ export async function runRegistryPush(data: JobCatalog["registry.push"]): Promis
       .limit(1);
     existingNodeId =
       ((priorPush?.responsePayload as { nodeId?: string } | null)?.nodeId as string | undefined) ?? null;
+  }
+
+  // A structured template's answers map to OSF's fixed response keys, so the
+  // amendment header (below) wouldn't otherwise reach OSF for those templates —
+  // `summaryPrefix` only feeds the Open-Ended `summary`, and the Recipe threads
+  // its own. Land it in the first long-text (description/narrative) response so an
+  // amended structured registration still carries its supersedes provenance.
+  if (templateResponses && amendmentHeader) {
+    templateResponses = prependAmendmentHeader(templateResponses, templateQuestions, amendmentHeader);
   }
 
   // Human-readable design for the Open-Ended summary + node enrichment (audit

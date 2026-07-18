@@ -5,6 +5,7 @@ import {
   isAnswered,
   isListQuestion,
   isReversibleListQuestion,
+  prependAmendmentHeader,
   readOsfQuestions,
   toRegistrationResponses,
   unansweredRequired,
@@ -146,6 +147,35 @@ describe("toRegistrationResponses — what actually reaches OSF", () => {
 
   it("sends nothing when nothing is answered — never a payload of empties", () => {
     expect(toRegistrationResponses(qs, {})).toEqual({});
+  });
+});
+
+describe("prependAmendmentHeader — the supersedes header reaches structured templates", () => {
+  const qs = readOsfQuestions(PREREG);
+  const firstLongText = qs.find((q) => q.kind === "long-text")!;
+  const HEADER = "AMENDMENT - supersedes the registration at https://osf.io/abcde.\n\nReason: bigger N.";
+
+  it("the fixture actually has a long-text question to land in", () => {
+    expect(firstLongText).toBeTruthy();
+  });
+
+  it("prepends to the first long-text answer, preserving what the researcher wrote", () => {
+    const responses = toRegistrationResponses(qs, { [firstLongText.key]: "My hypotheses." });
+    const out = prependAmendmentHeader(responses, qs, HEADER);
+    expect(out[firstLongText.key]).toBe(`${HEADER}\n\nMy hypotheses.`);
+    // Original object is not mutated.
+    expect(responses[firstLongText.key]).toBe("My hypotheses.");
+  });
+
+  it("fills the first long-text question with the header when it was unanswered", () => {
+    const out = prependAmendmentHeader({}, qs, HEADER);
+    expect(out[firstLongText.key]).toBe(HEADER);
+  });
+
+  it("returns the responses unchanged when the schema has no long-text question", () => {
+    const noLongText = qs.filter((q) => q.kind !== "long-text");
+    const responses = { "x": "y" } as Record<string, string | string[]>;
+    expect(prependAmendmentHeader(responses, noLongText, HEADER)).toEqual(responses);
   });
 });
 

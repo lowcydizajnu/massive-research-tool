@@ -229,6 +229,36 @@ export function toRegistrationResponses(questions: OsfQuestion[], answers: OsfAn
 }
 
 /**
+ * Make a structured template's amendment carry its supersedes header to OSF.
+ *
+ * Open-Ended and the Replication Recipe compose a `summary` / `description` field
+ * themselves, so the header rides inside it. The five structured templates
+ * instead map the researcher's answers onto OSF's fixed response keys, and the
+ * header (passed to the adapter as `summaryPrefix`) is used ONLY when no
+ * `registration_responses` are present — so for those templates it was silently
+ * dropped, and an amended structured registration carried no visible "supersedes
+ * / reason / changes" provenance.
+ *
+ * We land it in the **first long-text question** — the schema's description /
+ * narrative field — prepended so any researcher answer is preserved (the same
+ * "prepend to a text field" approach the other two paths already use). If the
+ * schema has no long-text question, the header stays app-side only (the
+ * amendment lineage is still recorded on the study). Pure. The key comes from
+ * the read schema, so ADR-0107 D3 ("never emit a key we did not just read") holds.
+ */
+export function prependAmendmentHeader(
+  responses: OsfAnswers,
+  questions: OsfQuestion[],
+  header: string,
+): OsfAnswers {
+  const target = questions.find((q) => q.kind === "long-text");
+  if (!target) return responses;
+  const existing = responses[target.key];
+  const existingText = typeof existing === "string" ? existing : "";
+  return { ...responses, [target.key]: existingText ? `${header}\n\n${existingText}` : header };
+}
+
+/**
  * A text question we let the researcher edit as a LIST of entries rather than one
  * blob (owner 2026-07-17), because it maps to something list-shaped in their own
  * plan. Rendered as a list editor; combined into OSF's single text field only at

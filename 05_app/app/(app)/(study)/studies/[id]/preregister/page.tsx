@@ -264,7 +264,7 @@ export default async function PreregisterStagePage({
             ) : null}
             {pre.pushStatus === "pushed" ? (
               <p className="text-[length:var(--text-small)] text-[var(--color-text-muted)]">
-                {pre.doi ? `DOI: ${pre.doi}` : "DOI: minted by OSF once you approve the registration there."}
+                {pre.doi ? `DOI: ${pre.doi}` : "DOI: minting on OSF — it appears here once it resolves."}
               </p>
             ) : null}
             {pre.pushStatus === "failed" && pre.lastError ? (
