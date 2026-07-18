@@ -12,21 +12,21 @@ Write the plan itself first, on the **Overview** stage — the abstract, hypothe
 ## What happens when you preregister
 
 1. Your working **Draft** is frozen into an immutable **preregistered version** (numbered, citable).
-2. That version is pushed to the OSF with your hypotheses, design, and materials, producing a timestamped registration + link.
+2. That version is pushed to the OSF under the **preregistration template you chose**, with your hypotheses and design — producing a timestamped registration, its DOI, and a link. (Stimulus materials are pushed separately — see [OSF](/integrations/osf).)
 3. The study becomes **runnable** — you can open recruitment.
 
 
-<Frame caption="Preregistering freezes an immutable, timestamped snapshot and (optionally) pushes it to the OSF.">
-  <img src="/images/integrations/preregister.png" alt="The Preregister page" />
+<Frame caption="The Preregister stage: which OSF template you're filing under, and a readiness check that names every unanswered mandatory OSF question — then freeze and push.">
+  <img src="/images/integrations/preregister.png" alt="The Preregister stage: OSF connected, filing as OSF preregistration, and a Readiness check listing the unanswered mandatory OSF questions above the Preregister button" />
 </Frame>
 
 ## Before you preregister
 
-Run through the **preflight checklist** on the study:
+The **Readiness check** on the Preregister stage runs through:
 
-- All required blocks configured and validated.
-- Conditions/variants behave as intended (check in **Preview**).
-- If the study uses AI, note the [non-determinism disclosure](/integrations/anthropic) that's added automatically.
+- All required blocks configured and validated, and every condition/variant behaving as intended (check in **Preview**).
+- Any **mandatory OSF questions** still unanswered — named individually, with a link straight to them on Overview. This warns; it never blocks (OSF enforces nothing, so filing with blanks is possible — see [Your research plan](/methodology/research-plan#the-readiness-check)).
+- If the study uses AI, the [non-determinism disclosure](/integrations/anthropic) that's added automatically.
 
 
 <Frame caption="Preview the study as a participant first — the preflight validates blocks and branching.">

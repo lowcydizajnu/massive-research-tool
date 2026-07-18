@@ -25,8 +25,8 @@ The connection is **per researcher**, not per workspace — it's tied to your OS
 </Note>
 
 
-<Frame caption="The Preregister stage shows your OSF connection status and a readiness check before you push.">
-  <img src="/images/integrations/preregister.png" alt="The Preregister page showing OSF not connected and a readiness checklist" />
+<Frame caption="The Preregister stage — your OSF connection, the template you're filing under, and a readiness check that names every unanswered mandatory OSF question before you push.">
+  <img src="/images/integrations/preregister.png" alt="The Preregister stage: OSF connected, filing as OSF preregistration, and a Readiness check listing the unanswered mandatory OSF questions with an Answer these link, above the Preregister button" />
 </Frame>
 
 ## What we push when you preregister
@@ -41,13 +41,13 @@ When you [preregister](/methodology/preregistration) a study, a background job s
     Other **active members of the workspace** (everyone except you, the pusher) are added to the OSF project as **unregistered contributors** — by display name, with email if available, marked bibliographic, with write permission. We pass `send_email=false`, so OSF doesn't send them surprise claim emails. A contributor that fails to add never aborts the registration. Contributors are added **only when the project is first created**.
   </Step>
   <Step title="File a draft registration">
-    A draft registration is created under the project, bound to the **OSF template you chose** on the [Overview stage](/methodology/research-plan) — Open-ended, OSF Preregistration, Social psychology, Secondary data, AsPredicted, or the Replication Recipe. The default is **Open-Ended Registration** (a single free-text summary field); a declared replication defaults to the **Replication Recipe (Brandt et al., 2014)** schema.
+    A draft registration is created under the project, bound to the **OSF template you chose** on the [Overview stage](/methodology/research-plan) — Open-ended, OSF Preregistration, Pre-data-collection (OSF standard), Social psychology, Secondary data, AsPredicted, or the Replication Recipe. The default is **Open-Ended Registration** (a single free-text summary field); a declared replication defaults to the **Replication Recipe (Brandt et al., 2014)** schema.
   </Step>
   <Step title="Fill the registration body">
-    For a template with structured questions, we send **your answers to that template's questions**, exactly as you wrote them on Overview — nothing is auto-filled or invented on your behalf. Hypotheses and variables you edited as lists are combined into the single text fields OSF expects. For the **Open-Ended** template, the summary instead carries, in human-readable form, your **abstract**, **numbered hypotheses**, and the **auto-generated protocol** (the ordered list of blocks/screens), followed by a **machine-readable JSON design snapshot** (the full version definition, module-version locks, and theme) so it's a lossless record. Either way, if the study uses an AI conversation block a standard **non-determinism disclosure** is appended automatically.
+    For a template with structured questions, we send **your answers to that template's questions**, exactly as you wrote them on Overview — nothing is auto-filled or invented on your behalf. Hypotheses and variables you edited as lists are combined into the single text fields OSF expects. For the **Open-Ended** template, the summary instead carries, in human-readable form, your **abstract**, **numbered hypotheses**, your typed **sampling plan, variables, expected outcomes, and analysis plan**, and the **auto-generated protocol** (the ordered list of blocks/screens), followed by a **machine-readable JSON design snapshot** (the full version definition, module-version locks, and theme) so it's a lossless record. Either way, two notes are appended automatically when they apply: a **non-determinism disclosure** if the study uses an AI conversation block, and a **derivation disclosure** ("how this plan was prepared") naming any variables that were read from your built design — on by default, and you can turn it off on Overview.
   </Step>
   <Step title="Register immediately">
-    The draft is registered with OSF's `registration_choice: "immediate"`, which puts it into **pending approval** on OSF. You get the registration URL right away.
+    The draft is registered with OSF's `registration_choice: "immediate"`, which puts it into **pending approval** on OSF. You get the registration URL right away, and OSF normally mints the registration's **DOI within seconds** — we store it immediately. Approval on OSF gates the registration becoming **public**, not the DOI.
   </Step>
 </Steps>
 
@@ -57,10 +57,12 @@ When you [preregister](/methodology/preregistration) a study, a background job s
 |---|---|
 | Study title, description, tags | OSF project node attributes |
 | Co-authors (workspace members) | OSF contributors (unregistered) |
+| Field of study (if chosen) | Draft registration `subjects` (OSF taxonomy) |
 | Your answers to the chosen template's questions | The template's registration fields |
-| Abstract, hypotheses, protocol narrative *(Open-Ended)* | Registration summary (prose) |
+| Abstract, hypotheses, typed plan fields, protocol narrative *(Open-Ended)* | Registration summary (prose) |
 | Full design snapshot — definition + module locks + theme *(Open-Ended)* | Registration summary (JSON, appended below the prose) |
 | AI non-determinism disclosure (if an AI block is present) | Registration summary |
+| Derivation disclosure (if variables were read from your design) | Registration summary |
 
 <Note>
 OSF **does not enforce required fields** — a registration answering none of them still succeeds and mints a permanent DOI, with the blanks filed as empty. So the only check is the **Readiness check** on the Preregister stage, which names every unanswered mandatory question but lets you file anyway (see [Your research plan](/methodology/research-plan#the-readiness-check)). Fill it in before you register.
@@ -72,8 +74,12 @@ Be clear-eyed about the boundaries — a naive reading might assume more than th
 
 <Warning>
 - **No participant data.** Raw responses, completion records, recruitment data, and participant-uploaded media (signatures, recordings, file answers) never leave My Research Lab in any OSF push — including the materials upload below.
-- **No automatic DOI at push time.** OSF mints the DOI only after the registration is **approved**, so the DOI is empty immediately after pushing and is backfilled later (see the watch below).
+- **Approval gates publication, not the DOI.** OSF mints the registration's DOI within seconds of the push and we store it immediately; what OSF's approval step gates is the registration becoming **public**. (If the DOI isn't available at push time, the watch backfills it — see below.)
 </Warning>
+
+<Note>
+Some persistent identifiers live on your **public record**, not in the OSF push — your study's **language**, its **funders**, and your affiliation's **ROR** id. See [Findability](/methodology/findability) for how those are captured and surfaced.
+</Note>
 
 ## Uploading materials to OSF
 
@@ -93,7 +99,7 @@ You'll find **Materials on OSF** in two places — a study's **Record**, and the
 
 After your first successful push, the app treats two kinds of change very differently:
 
-- **Plan amendment** — you changed the *registered plan* and re-preregister. We detect that an earlier version of the same study was already pushed, and file a **new registration on the same OSF project**. The amendment body is prefixed with an `AMENDMENT — supersedes …` header that includes your stated reason (from the amendment dialog) and an auto-generated list of changes since the prior registration. The original registration is never altered — both stay on the record. Contributors are not re-added (they already exist on the reused project).
+- **Plan amendment** — you changed the *registered plan* and re-preregister. We detect that an earlier version of the same study was already pushed, and file a **new registration on the same OSF project**. My Research Lab records the amendment lineage against the study — your stated reason (from the amendment dialog) and an auto-generated list of changes since the prior registration — and for **Open-Ended and Replication Recipe** filings that lineage is also written into the OSF registration text as an `AMENDMENT — supersedes …` header. The original registration is never altered — both stay on the record. Contributors are not re-added (they already exist on the reused project).
 
 - **Record update (non-plan)** — you edited the *public study record* (abstract, article link) after preregistering. That does **not** create a new registration. It PATCHes the **OSF project's description** only, leaving the frozen registration untouched.
 
@@ -105,7 +111,7 @@ This distinction is the whole point: the timestamped plan is immutable, amendmen
 
 My Research Lab periodically polls your pushed registrations and reflects two things back into the study:
 
-- **DOI backfill** — once OSF approves the registration and mints a DOI, the watch reads it and stores it against the version, so your citation resolves.
+- **DOI backfill** — the DOI is normally captured at push time; if it wasn't, the watch reads it from the registration and stores it against the version, so your citation resolves.
 - **Withdrawal** — if a registration is withdrawn/retracted on OSF, the watch marks the version as **withdrawn** and notifies you. (OSF keeps a public tombstone — title, contributors, justification — after withdrawal.)
 
 <Warning>
