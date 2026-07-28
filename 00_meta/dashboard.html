@@ -1217,6 +1217,10 @@
   ],
   "recentActivity": [
     {
+      "date": "2026-07-21",
+      "text": "Cut the database's background workload to stop burning through the Neon free tier. The cause wasn't storage (tiny) — it was compute: a recruitment safety-net job was waking the database every 10 minutes around the clock, so it never got to sleep. It now runs every 30 minutes instead, timed to coincide with jobs that already run then, so it adds no extra wake-ups; live recruitment is unaffected because that runs off instant provider webhooks, not this backstop. Also stopped the (currently disabled) engagement-email jobs from pinging the database every hour just to do nothing. Recommended next: delete two dead database projects, and consider a paid Neon plan if the app recruits participants around the clock."
+    },
+    {
       "date": "2026-07-18",
       "text": "Redesigned how you split participants across study conditions, so it reads in plain language instead of bare numbers. Above your groups there are now two dropdowns: Group sizes (Equal, or Custom where you set each group's share as a percentage) and Randomization (Simple random, the default that leaves every existing study unchanged — or Balanced, a new option that keeps the groups even as participants arrive so a small sample can't end up lopsided). The old raw 'allocation weight' number is gone from view; each group just shows its percentage, and the study's design summary now states which randomization method it uses. Backed by unit + live-database tests; ships with a database migration, so it deploys once approved."
     },

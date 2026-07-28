@@ -58,6 +58,10 @@ Because background jobs and the webhook have no "current user", the reconcile he
 - We add a provider whose token model is org-wide (not per-researcher) → simplify token selection.
 - Job volume crosses the Inngest cost ceiling (lock-in-inventory.md) → migrate jobs to BullMQ; this design is vendor-agnostic behind `BackgroundJobAdapter`.
 
+## Amendment 1 (2026-07-21) — poll cadence 10 min → 30 min (Neon compute)
+
+The safety-net poll (`recruitment-poll-provider-status`) moved from `*/10` to `*/30`. The webhook stays the real-time path; the poll is only a backstop for missed/unsigned webhooks, so a ~30-min worst-case fallback is acceptable (a dropped webhook's reconciliation — approval/completion sync, target-reached auto-close — lags by up to the interval; the normal webhook path is unchanged). The driver was cost, not correctness: on a scale-to-zero Neon compute (free tier, auto-suspend after 5 min idle) the `*/10` cron fired 4×/hour on minutes no other job used (:10/:20/:40/:50), holding the compute awake and draining the monthly compute-hour allowance. `*/30` lands on :00/:30, which already carry wakes (detect-quality at :00, auto-approve at :30), so the poll now adds **zero** extra wakes. Escalation if it still costs too much: widen further, or gate the sweep on "changed since last poll".
+
 ## References
 
 - ADR-0047 (RecruitmentAdapter), ADR-0014 (participant PII boundary), ADR-0007 (vendor adapters; Inngest serve exception).

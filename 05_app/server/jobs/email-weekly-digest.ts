@@ -60,6 +60,10 @@ export async function runWeeklyDigest(opts: { force?: boolean } = {}): Promise<{
  * day/hour gate lives here). Sends only on the configured UTC day + hour.
  */
 export async function runScheduledDigest(): Promise<{ sent: number; skipped?: string }> {
+  // Env-only gate first (ADR-0081 am.1): if email can't send, skip before touching
+  // the DB — otherwise this hourly cron reads settings just to no-op, keeping a
+  // scale-to-zero Neon compute awake for nothing.
+  if (!email.isConfigured()) return { sent: 0, skipped: "email-not-configured" };
   const settings = await getEmailSettings();
   if (!settings.digestEnabled) return { sent: 0, skipped: "disabled" };
   const now = new Date();

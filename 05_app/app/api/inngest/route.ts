@@ -54,8 +54,8 @@ const emailDigest = inngest.createFunction(
 );
 
 // V1.15 (ADR-0050): recruitment reconciliation. The reconcile-study fn fires on
-// a verified webhook ping; the poll fn is a 10-minute safety-net that sweeps
-// every still-recruiting provider study (catches missed/unsigned webhooks). Both
+// a verified webhook ping; the poll fn is a safety-net that sweeps every
+// still-recruiting provider study (catches missed/unsigned webhooks). Both
 // delegate to the idempotent shared reconcile, so retries + overlaps are safe.
 const recruitmentReconcileStudy = inngest.createFunction(
   { id: "recruitment-reconcile-study", retries: 3 },
@@ -65,9 +65,15 @@ const recruitmentReconcileStudy = inngest.createFunction(
   },
 );
 
+// ADR-0050 am.1 (2026-07-21): poll every 30 min, not 10. The webhook path handles
+// real-time reconciliation; the poll is only a backstop for missed webhooks, so a
+// 30-min worst-case fallback is fine. Critically, :00/:30 already carry wakes
+// (detect-quality at :00, auto-approve at :30), so on a scale-to-zero Neon compute
+// this poll now adds ZERO extra wakes — the old */10 fired 4×/hour alone (:10/:20/
+// :40/:50), keeping the free-tier compute awake and burning its monthly hours.
 const recruitmentPollProviderStatus = inngest.createFunction(
   { id: "recruitment-poll-provider-status", retries: 1 },
-  { cron: "*/10 * * * *" },
+  { cron: "*/30 * * * *" },
   async () => {
     return runPollProviderStatus();
   },
@@ -120,10 +126,13 @@ const humeAnalyze = inngest.createFunction(
   },
 );
 
-// EE3 (ADR-0081): engagement email. Both default OFF — the workers no-op until an
-// operator enables them in /admin/email, so these crons are safely idle until then.
-// The digest cron runs hourly; the DB-configured day/hour gate lives in
-// runScheduledDigest (Inngest crons are static). The nudge sweep runs once daily.
+// EE3 (ADR-0081, am.1 2026-07-21): engagement email. Both default OFF and no-op
+// until an operator enables them in /admin/email. The runners now short-circuit on
+// `email.isConfigured()` (env-only: RESEND_API_KEY + EMAIL_FROM) BEFORE any DB read,
+// so while email is unconfigured these hourly/daily crons touch the DB zero times —
+// they used to read email settings every hour just to skip. The digest cron stays
+// hourly (its DB-configured day/hour gate lives in runScheduledDigest); the nudge
+// runs once daily.
 const emailWeeklyDigest = inngest.createFunction(
   { id: "email-weekly-digest", retries: 1 },
   { cron: "0 * * * *" },

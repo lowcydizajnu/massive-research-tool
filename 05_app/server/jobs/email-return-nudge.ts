@@ -16,9 +16,11 @@ const NUDGE_BATCH = 500;
  * system/opted-out. `lastActiveAt` is the throttled activity stamp.
  */
 export async function runReturnNudge(opts: { force?: boolean } = {}): Promise<{ sent: number; skipped?: string }> {
+  // Env-only gate first (ADR-0081 am.1): skip before the settings DB read when email
+  // can't send, so the daily cron doesn't wake a scale-to-zero Neon compute to no-op.
+  if (!email.isConfigured()) return { sent: 0, skipped: "email-not-configured" };
   const settings = await getEmailSettings();
   if (!settings.nudgeEnabled && !opts.force) return { sent: 0, skipped: "disabled" };
-  if (!email.isConfigured()) return { sent: 0, skipped: "email-not-configured" };
 
   const now = Date.now();
   const dormantBefore = new Date(now - settings.nudgeDormantDays * 86_400_000);

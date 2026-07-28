@@ -95,6 +95,10 @@ skipped. The crons are registered immediately but, with the flags off by default
 - Resend deliverability/cost issues → swap the adapter impl (Sendgrid/SES/SMTP).
 - A one-click unsubscribe becomes a compliance requirement → add the tokenized route.
 
+## Amendment 1 (2026-07-21) — env-gate the crons before the settings read
+
+`runScheduledDigest` and `runReturnNudge` now short-circuit on `email.isConfigured()` (env-only: `RESEND_API_KEY` + `EMAIL_FROM`) BEFORE reading email settings from the DB. Previously the hourly digest cron read settings every hour just to skip when email was unconfigured — a wasted query that woke a scale-to-zero Neon compute. While email is unconfigured (the default), these crons now touch the DB zero times. No behavior change once email is configured: the check passes and the existing per-workspace enable/schedule gates apply. (The nudge already had the `isConfigured()` check — this only moved it ahead of the settings read.)
+
 ## References
 
 - EE3 of `04_architecture/handoffs/code-tab-explore-engagement-docs.md`.
