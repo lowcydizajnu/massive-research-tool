@@ -46,6 +46,10 @@ So a brand-new user can create an account and then sign in — **with no Clerk c
 | full `vitest` suite | 1202 passing (131 files) |
 | `validate.py` | clean — 24 types, 302 instances |
 
+## Follow-up (same day) — production required a username too
+
+First deploy (`87ebe9b`) fixed dev (which only required a password), but on **production** signup still dead-ended at the profile step: after the email code, prod Clerk reported a missing **username** as well (dev did not). Generalized the fix — `satisfyAutoFields` now fills **password and/or username** (whichever Clerk reports missing) in both the code-verify and profile-Continue steps, and when Clerk still blocks on a field we can't auto-fill the UI **names it** (`missingFieldsMessage`) instead of looping. The username is unique + email-derived, internal-only (sign-in stays an email code). Dev regression re-confirmed (signup → `/studies`). Could not drive the username path on dev (dev doesn't require it) — the diagnostic message is the guard if prod needs anything further.
+
 ## Notes / limits
 
 - The CAPTCHA element fix was exercised with the testing-token bypass, so the live widget itself wasn't challenge-tested; the element is the Clerk-documented requirement and resolves the "element not found" 400.

@@ -1,6 +1,7 @@
 "use client";
 
 import { useClerk, useSignIn, useSignUp, useUser } from "@clerk/nextjs";
+import type { SignUpResource } from "@clerk/types";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Suspense, useEffect, useRef, useState } from "react";
@@ -143,6 +144,27 @@ function SignupFlow() {
     }
   }
 
+  // Satisfy auth-provider sign-up requirements this passwordless UX never collects
+  // (password, username) with internal values, so sign-up completes regardless of
+  // how the Clerk instance is configured (ADR-0110 D6) — dev needed a password,
+  // prod also a username. Fills ONLY a field Clerk reports missing; the user never
+  // sees or uses these (they always sign in with an email code).
+  async function satisfyAutoFields(res: SignUpResource): Promise<SignUpResource> {
+    if (!signUp) return res;
+    let cur = res;
+    if (cur.status !== "complete" && (cur.missingFields ?? []).includes("password")) {
+      cur = await signUp.update({ password: generatePassword() });
+    }
+    if (cur.status !== "complete" && (cur.missingFields ?? []).includes("username")) {
+      try {
+        cur = await signUp.update({ username: generateUsername(email) });
+      } catch {
+        cur = await signUp.update({ username: generateUsername(email) }); // retry once on the rare collision
+      }
+    }
+    return cur;
+  }
+
   // Step 2 — verify the code; the session effect then advances to the profile step.
   async function verifyCode(e: React.FormEvent) {
     e.preventDefault();
@@ -151,20 +173,15 @@ function SignupFlow() {
     setIdentifyState("verifying");
     try {
       let res = await signUp.attemptEmailAddressVerification({ code: code.trim() });
-      // Some Clerk instances require a password even for a passwordless app
-      // (ADR-0110 D5). Satisfy it transparently with a strong random secret the
-      // user never needs — they always sign in with an email code — so sign-up
-      // completes without a Clerk dashboard change and is robust to that setting
-      // drifting. Only set it when Clerk actually asks (never when disabled).
-      if (res.status !== "complete" && (res.missingFields ?? []).includes("password")) {
-        res = await signUp.update({ password: generatePassword() });
-      }
+      res = await satisfyAutoFields(res);
       if (res.status === "complete" && res.createdSessionId) {
         await setActive({ session: res.createdSessionId });
         // the isSignedIn effect advances to the profile step
       } else {
-        // Email is verified but the sign-up needs the profile fields — collect them.
-        setStep("profile");
+        // Email verified but Clerk still wants a field we can't auto-fill — say
+        // which, instead of dead-ending, so it's diagnosable (ADR-0110 D6).
+        setIdentifyState("code-sent");
+        setError(missingFieldsMessage(res));
       }
     } catch (err) {
       setIdentifyState("code-sent");
@@ -194,16 +211,20 @@ function SignupFlow() {
     setError(null);
     if (isLoaded && signUp && !isSignedIn && signUp.status !== "complete") {
       try {
-        const res = await signUp.update({ firstName: displayName || undefined });
+        let res = await signUp.update({ firstName: displayName || undefined });
+        res = await satisfyAutoFields(res); // fill password/username if Clerk still wants them
         if (res.status === "complete" && res.createdSessionId) {
           await setActive({ session: res.createdSessionId });
         } else if (await transferOAuthToSignIn()) {
-          return; // signed into the existing account (Google linked)
+          return; // existing account via Google — signed in + linked
         } else {
-          router.replace("/signin?from=oauth-exists");
+          // Not an OAuth conflict and still incomplete — say why rather than loop.
+          setError(missingFieldsMessage(res));
           return;
         }
       } catch {
+        // A thrown update is the OAuth "email already exists" case — transfer, or
+        // fall back to the sign-in hint.
         if (await transferOAuthToSignIn()) return;
         router.replace("/signin?from=oauth-exists");
         return;
@@ -539,6 +560,27 @@ function generatePassword(): string {
   crypto.getRandomValues(buf);
   const body = btoa(String.fromCharCode(...buf)).replace(/[+/=]/g, "");
   return `Zx9#${body.slice(0, 32)}`;
+}
+
+/**
+ * A unique username for an instance that requires one, derived from the email so
+ * it's recognizable, with a random suffix for uniqueness. Alphanumeric + one
+ * underscore (Clerk-safe). Like the auto-password, it's an internal requirement
+ * filler — the user signs in with an email code, not a username.
+ */
+function generateUsername(email: string): string {
+  const base = (email.split("@")[0] || "user").replace(/[^a-zA-Z0-9]/g, "").slice(0, 18) || "user";
+  const rand = Math.random().toString(36).slice(2, 8);
+  return `${base}_${rand}`;
+}
+
+/** A diagnosable message when Clerk still blocks completion on a field we can't
+ *  auto-fill — names it instead of dead-ending, so the cause is visible. */
+function missingFieldsMessage(res: { missingFields?: readonly string[] }): string {
+  const rest = (res.missingFields ?? []).filter((f) => f !== "password" && f !== "username");
+  return rest.length
+    ? `Your email is verified, but your account needs: ${rest.join(", ")}. Let us know and we'll adjust the sign-up.`
+    : "We couldn't finish creating your account. Please try again, or continue with Google.";
 }
 
 /** True when a Clerk error carries the given error code. */
