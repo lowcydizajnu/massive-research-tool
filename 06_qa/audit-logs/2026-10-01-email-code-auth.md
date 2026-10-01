@@ -50,6 +50,12 @@ So a brand-new user can create an account and then sign in — **with no Clerk c
 
 First deploy (`87ebe9b`) fixed dev (which only required a password), but on **production** signup still dead-ended at the profile step: after the email code, prod Clerk reported a missing **username** as well (dev did not). Generalized the fix — `satisfyAutoFields` now fills **password and/or username** (whichever Clerk reports missing) in both the code-verify and profile-Continue steps, and when Clerk still blocks on a field we can't auto-fill the UI **names it** (`missingFieldsMessage`) instead of looping. The username is unique + email-derived, internal-only (sign-in stays an email code). Dev regression re-confirmed (signup → `/studies`). Could not drive the username path on dev (dev doesn't require it) — the diagnostic message is the guard if prod needs anything further.
 
+## Follow-up 2 (same day) — stale sign-up hijacked a fresh "Create an account"
+
+After signup worked, a second signup (log out → "Create an account") jumped **straight to the profile step, skipping email+code**, pre-filled from an old attempt. Cause: the OAuth-resume effect resumed *any* `missing_requirements` sign-up, including a **stale email sign-up lingering in the Clerk client** from an earlier/abandoned attempt (it persists across logout). Fix: gate the resume to a genuine Google sign-up — one with a **verified/transferable external account**; a leftover email sign-up (no external account) is ignored, so a fresh visit always starts at the email step. The email path never used this effect, so it's unaffected.
+
+**Verified on dev** (reproducible without Google): forced a stale `missing_requirements` email sign-up via the Clerk client (status `missing_requirements`, external account `null`), then a fresh `/signup` correctly showed the **email step, not profile** (FIXED), and a normal new signup still completed to `/studies` (regression).
+
 ## Notes / limits
 
 - The CAPTCHA element fix was exercised with the testing-token bypass, so the live widget itself wasn't challenge-tested; the element is the Clerk-documented requirement and resolves the "element not found" 400.

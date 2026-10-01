@@ -80,13 +80,18 @@ function SignupFlow() {
   const oauthPickedUp = useRef(false);
   useEffect(() => {
     if (!isLoaded || !signUp || isSignedIn || oauthPickedUp.current) return;
-    // Only OAuth (Google) sign-ups get picked up here — their email arrives
-    // already verified, so they only miss profile fields. An EMAIL-CODE sign-up
-    // is ALSO `missing_requirements` right after create (email not yet verified);
-    // it must stay on the identify step to collect the code, so we exclude it
-    // by checking the email is not still pending verification (ADR-0110).
+    // Resume ONLY a genuine Google sign-up here — it carries a verified (or
+    // transferable) external account. Two other things also look like
+    // `missing_requirements` and must NOT skip the email+code step:
+    //  - a brand-new email sign-up right after create (email not yet verified), and
+    //  - a STALE email sign-up left in the Clerk client from an earlier/abandoned
+    //    attempt (persists across logout) — the bug that made a fresh "Create an
+    //    account" jump straight to the profile step. Gating on the external account
+    //    excludes both (ADR-0110).
+    const ext = signUp.verifications?.externalAccount?.status;
+    const isOAuthSignUp = ext === "verified" || ext === "transferable";
     const emailPending = signUp.unverifiedFields?.includes("email_address") ?? false;
-    if (signUp.status === "missing_requirements" && step === "identify" && !emailPending) {
+    if (isOAuthSignUp && signUp.status === "missing_requirements" && step === "identify" && !emailPending) {
       oauthPickedUp.current = true;
       const name = [signUp.firstName, signUp.lastName].filter(Boolean).join(" ").trim();
       setDisplayName((prev) => prev || name);
