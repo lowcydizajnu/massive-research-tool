@@ -7,12 +7,13 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 /**
- * Sign in — custom UI mirror of signup's identify step (email magic-link or
- * Google). No Clerk prebuilt components (ADR-0007); built on useSignIn.
- * On success, lands on "/" (the existing user already onboarded).
+ * Sign in — custom UI mirror of signup's identify step (email verification code
+ * or Google). No Clerk prebuilt components (ADR-0007); built on useSignIn.
+ * Email uses a 6-digit code (ADR-0110) — robust across devices, unlike the old
+ * magic link. On success, lands on the redirect target (default /studies).
  */
 
-type State = "idle" | "sending" | "magic-sent" | "error";
+type State = "idle" | "sending" | "code-sent" | "verifying" | "error";
 
 export default function SigninPage() {
   const router = useRouter();
@@ -20,8 +21,11 @@ export default function SigninPage() {
   const { isLoaded: userLoaded, isSignedIn } = useUser();
 
   const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
   const [state, setState] = useState<State>("idle");
   const [error, setError] = useState<string | null>(null);
+  // When the address has no account, steer the user to sign up instead.
+  const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
     if (userLoaded && isSignedIn) router.replace(safeRedirect() as Route);
@@ -41,41 +45,56 @@ export default function SigninPage() {
   // existing account (window.location avoids a useSearchParams Suspense wrap).
   useEffect(() => {
     if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("from") === "oauth-exists") {
-      setError(
-        "That email already has an account — sign in with the email magic-link below (the method you first used).",
-      );
+      setError("That email already has an account — sign in with the code below (or Google, if that's how you first joined).");
     }
   }, []);
 
-  async function handleEmail(e: React.FormEvent) {
+  // Step 1 — send the code to the email address.
+  async function sendCode(e: React.FormEvent) {
     e.preventDefault();
     if (!isLoaded || !signIn) return;
     setError(null);
+    setNotFound(false);
     setState("sending");
     try {
       const attempt = await signIn.create({ identifier: email });
-      const factor = attempt.supportedFirstFactors?.find(
-        (f) => f.strategy === "email_link",
-      );
+      const factor = attempt.supportedFirstFactors?.find((f) => f.strategy === "email_code");
       if (!factor || !("emailAddressId" in factor)) {
-        throw new Error("Email link sign-in isn't available for this account.");
+        throw new Error("Email-code sign-in isn't available for this account. Try Google.");
       }
-      const { startEmailLinkFlow } = signIn.createEmailLinkFlow();
-      setState("magic-sent");
-      const res = await startEmailLinkFlow({
-        emailAddressId: factor.emailAddressId,
-        redirectUrl: `${window.location.origin}/signup/verify`,
-      });
+      await signIn.prepareFirstFactor({ strategy: "email_code", emailAddressId: factor.emailAddressId });
+      setCode("");
+      setState("code-sent");
+    } catch (err) {
+      setState("error");
+      // Clerk returns form_identifier_not_found when the email has no account.
+      if (hasClerkCode(err, "form_identifier_not_found")) {
+        setNotFound(true);
+        setError("No account found for that email. Create one to get started.");
+      } else {
+        setError(messageFrom(err, "Couldn't send the code. Check the address and try again."));
+      }
+    }
+  }
+
+  // Step 2 — verify the code and open the session.
+  async function verifyCode(e: React.FormEvent) {
+    e.preventDefault();
+    if (!isLoaded || !signIn) return;
+    setError(null);
+    setState("verifying");
+    try {
+      const res = await signIn.attemptFirstFactor({ strategy: "email_code", code: code.trim() });
       if (res.status === "complete" && res.createdSessionId) {
         await setActive({ session: res.createdSessionId });
         router.replace(safeRedirect() as Route);
       } else {
-        setState("error");
-        setError("That link expired before it was used. Send a new one.");
+        setState("code-sent");
+        setError("That didn't complete sign-in. Request a new code.");
       }
     } catch (err) {
-      setState("error");
-      setError(messageFrom(err, "Couldn't send the link. Check the address and try again."));
+      setState("code-sent");
+      setError(messageFrom(err, "That code didn't match. Check it and try again."));
     }
   }
 
@@ -111,31 +130,74 @@ export default function SigninPage() {
           className="rounded-[var(--radius-md)] bg-[var(--color-danger-subtle)] px-3 py-2 text-[length:var(--text-small)] text-[var(--color-danger-text-on-subtle)]"
         >
           {error}
+          {notFound ? (
+            <>
+              {" "}
+              <Link href="/signup" className="font-medium underline hover:opacity-90">
+                Create an account
+              </Link>
+              .
+            </>
+          ) : null}
         </p>
       ) : null}
 
-      {state === "magic-sent" ? (
-        <div role="status" aria-live="polite" className="flex flex-col gap-2">
-          <p className="text-[length:var(--text-heading-2)] font-medium text-[var(--color-text-primary)]">
-            Check your email
-          </p>
-          <p className="text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
-            We sent a sign-in link to <strong>{email}</strong>. Open it in this
-            browser — this page continues automatically.
-          </p>
+      {state === "code-sent" || state === "verifying" ? (
+        <form onSubmit={verifyCode} className="flex flex-col gap-4">
+          <div role="status" aria-live="polite" className="flex flex-col gap-1">
+            <p className="text-[length:var(--text-heading-2)] font-medium text-[var(--color-text-primary)]">
+              Enter your code
+            </p>
+            <p className="text-[length:var(--text-body)] text-[var(--color-text-secondary)]">
+              We sent a 6-digit code to <strong>{email}</strong>.
+            </p>
+          </div>
+          <label className="flex flex-col gap-1">
+            <span className="text-[length:var(--text-label)] uppercase tracking-wide text-[var(--color-text-muted)]">
+              Verification code
+            </span>
+            <input
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              required
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              placeholder="123456"
+              autoFocus
+              className="rounded-[var(--radius-md)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-canvas)] px-3 py-2 text-[length:var(--text-heading-2)] tracking-[0.3em] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]"
+            />
+          </label>
           <button
-            type="button"
-            onClick={() => {
-              setState("idle");
-              setError(null);
-            }}
-            className="self-start text-[length:var(--text-small)] font-medium text-[var(--color-primary)] hover:opacity-90"
+            type="submit"
+            disabled={state === "verifying" || code.length < 6}
+            className="rounded-[var(--radius-md)] bg-[var(--color-primary)] px-4 py-2 text-[length:var(--text-body)] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80 disabled:opacity-60"
           >
-            Use a different email
+            {state === "verifying" ? "Verifying…" : "Verify and sign in"}
           </button>
-        </div>
+          <div className="flex items-center gap-4 text-[length:var(--text-small)]">
+            <button
+              type="button"
+              onClick={(e) => sendCode(e as unknown as React.FormEvent)}
+              className="font-medium text-[var(--color-primary)] hover:opacity-90"
+            >
+              Resend code
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setState("idle");
+                setError(null);
+                setCode("");
+              }}
+              className="font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+            >
+              Use a different email
+            </button>
+          </div>
+        </form>
       ) : (
-        <form onSubmit={handleEmail} className="flex flex-col gap-4">
+        <form onSubmit={sendCode} className="flex flex-col gap-4">
           <label className="flex flex-col gap-1">
             <span className="text-[length:var(--text-label)] uppercase tracking-wide text-[var(--color-text-muted)]">
               Email
@@ -154,7 +216,7 @@ export default function SigninPage() {
             disabled={!isLoaded || state === "sending"}
             className="rounded-[var(--radius-md)] bg-[var(--color-primary)] px-4 py-2 text-[length:var(--text-body)] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80 disabled:opacity-60"
           >
-            {state === "sending" ? "Sending…" : "Email me a sign-in link"}
+            {state === "sending" ? "Sending…" : "Email me a code"}
           </button>
 
           <div className="flex items-center gap-3 text-[length:var(--text-small)] text-[var(--color-text-muted)]">
@@ -207,6 +269,17 @@ function safeRedirect(): string {
   }
   if (!path || path.startsWith("/signin") || path.startsWith("/signup")) return "/studies";
   return path;
+}
+
+/** True when a Clerk error carries the given error code (e.g. account not found). */
+function hasClerkCode(err: unknown, code: string): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "errors" in err &&
+    Array.isArray((err as { errors?: unknown }).errors) &&
+    (err as { errors: Array<{ code?: string }> }).errors.some((e) => e.code === code)
+  );
 }
 
 function messageFrom(err: unknown, fallback: string): string {
